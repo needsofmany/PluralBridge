@@ -16,3 +16,6 @@ secrets/
 # Python
 __pycache__/
 *.py[cod]
+
+# Local SQL Server test scripts
+scripts/sqlserver/*.local.sql
