@@ -21,10 +21,35 @@ DECLARE @me_json              nvarchar(max);
 DECLARE @members_json         nvarchar(max);
 DECLARE @front_history_json   nvarchar(max);
 DECLARE @customfields_json    nvarchar(max);
-DECLARE @privacybuckets_json  nvarchar(max);
-DECLARE @friends_json         nvarchar(max);
-DECLARE @categories_json      nvarchar(max);
-DECLARE @channels_json        nvarchar(max);
+DECLARE @privacybuckets_json  nvarchar(max) = N'[]';
+DECLARE @friends_json         nvarchar(max) = N'[]';
+DECLARE @categories_json      nvarchar(max) = N'[]';
+DECLARE @channels_json        nvarchar(max) = N'[]';
+
+DECLARE @sql nvarchar(max);
+
+DECLARE @path_me             nvarchar(4000) = @ExportFolder + N'\me.json';
+DECLARE @path_members        nvarchar(4000) = @ExportFolder + N'\members.json';
+DECLARE @path_front_history  nvarchar(4000) = @ExportFolder + N'\frontHistory.json';
+DECLARE @path_customfields   nvarchar(4000) = @ExportFolder + N'\customFields.json';
+DECLARE @path_privacybuckets nvarchar(4000) = @ExportFolder + N'\privacyBuckets.json';
+DECLARE @path_friends        nvarchar(4000) = @ExportFolder + N'\friends.json';
+DECLARE @path_categories     nvarchar(4000) = @ExportFolder + N'\categories.json';
+DECLARE @path_channels       nvarchar(4000) = @ExportFolder + N'\channels.json';
+
+PRINT 'Loading required JSON files';
+GO
+
+DECLARE @ExportFolder nvarchar(4000) = N'<local-export-folder>';
+
+DECLARE @me_json              nvarchar(max);
+DECLARE @members_json         nvarchar(max);
+DECLARE @front_history_json   nvarchar(max);
+DECLARE @customfields_json    nvarchar(max);
+DECLARE @privacybuckets_json  nvarchar(max) = N'[]';
+DECLARE @friends_json         nvarchar(max) = N'[]';
+DECLARE @categories_json      nvarchar(max) = N'[]';
+DECLARE @channels_json        nvarchar(max) = N'[]';
 
 DECLARE @sql nvarchar(max);
 
@@ -49,17 +74,43 @@ EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @fro
 SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_customfields, '''', '''''') + N''', SINGLE_CLOB) AS j;';
 EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @customfields_json OUTPUT;
 
-SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_privacybuckets, '''', '''''') + N''', SINGLE_CLOB) AS j;';
-EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @privacybuckets_json OUTPUT;
+PRINT 'Loading optional JSON files when present';
 
-SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_friends, '''', '''''') + N''', SINGLE_CLOB) AS j;';
-EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @friends_json OUTPUT;
+BEGIN TRY
+    SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_privacybuckets, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+    EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @privacybuckets_json OUTPUT;
+END TRY
+BEGIN CATCH
+    PRINT 'Optional file not loaded: privacyBuckets.json';
+    SET @privacybuckets_json = N'[]';
+END CATCH;
 
-SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_categories, '''', '''''') + N''', SINGLE_CLOB) AS j;';
-EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @categories_json OUTPUT;
+BEGIN TRY
+    SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_friends, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+    EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @friends_json OUTPUT;
+END TRY
+BEGIN CATCH
+    PRINT 'Optional file not loaded: friends.json';
+    SET @friends_json = N'[]';
+END CATCH;
 
-SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_channels, '''', '''''') + N''', SINGLE_CLOB) AS j;';
-EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @channels_json OUTPUT;
+BEGIN TRY
+    SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_categories, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+    EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @categories_json OUTPUT;
+END TRY
+BEGIN CATCH
+    PRINT 'Optional file not loaded: categories.json';
+    SET @categories_json = N'[]';
+END CATCH;
+
+BEGIN TRY
+    SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_channels, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+    EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @channels_json OUTPUT;
+END TRY
+BEGIN CATCH
+    PRINT 'Optional file not loaded: channels.json';
+    SET @channels_json = N'[]';
+END CATCH;
 
 DECLARE @system_uid nvarchar(64);
 

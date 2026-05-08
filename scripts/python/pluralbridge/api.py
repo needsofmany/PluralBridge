@@ -16,6 +16,7 @@ def get_json(api_base: str, path: str, token: str) -> Any:
         headers={
             "Authorization": token,
             "Accept": "application/json",
+            "User-Agent": "PluralBridge/0.1",
         },
         method="GET",
     )
