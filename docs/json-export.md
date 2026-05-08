@@ -264,3 +264,55 @@ After JSON export, users may choose to:
 - load JSON into SQL Server
 - create local reports
 - build viewers or converters
+
+## Current Tested Export Coverage
+
+The current Python exporter has been tested against a live Simply Plural account and writes the main export files under:
+
+    exports/json
+
+The tested JSON export set includes:
+
+    categories.json
+    channels.json
+    customFields.json
+    customFronts.json
+    filters.json
+    friends.json
+    frontHistory.json
+    fronthistory_starttime_and_endtime.json
+    groups.json
+    manifest.json
+    me.json
+    members.json
+    polls.json
+    privacyBuckets.json
+    timers__automated.json
+    timers__repeated.json
+    user.json
+
+The exporter also writes per-member notes under:
+
+    exports/notes
+
+Notes use neutral numeric filenames such as:
+
+    1.json
+    2.json
+    3.json
+
+The mapping from each neutral note filename back to its member API endpoint is recorded in:
+
+    exports/json/manifest.json
+
+This allows SQL Server import scripts and future tools to join note files back to member IDs without exposing member names in filenames.
+
+## Empty JSON Files
+
+Some exported files may contain an empty JSON array.
+
+For example:
+
+    []
+
+This is still useful preservation information. An empty file means the endpoint was queried successfully and returned no rows for that data type at the time of export.
