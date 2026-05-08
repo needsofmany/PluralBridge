@@ -53,3 +53,22 @@ Check that something was captured without printing the token:
 If you accidentally publish or share a token, revoke or invalidate it in Simply Plural and create a new token.
 
 After creating the new token, update your local `SP_TOKEN` value before running the export scripts again.
+
+## Screenshot Walkthrough
+
+A standalone Word document with screenshots is also available for users who prefer a visual walkthrough.
+
+The screenshot guide covers:
+
+- opening the Simply Plural menu
+- opening Settings
+- opening Account settings
+- opening Tokens
+- deleting/revoking an existing token
+- creating a new token
+- selecting token permissions
+- copying the generated token
+
+The Word document is intended for non-technical users and should be kept separate from private exported data.
+
+If screenshots show token values, those values must be blurred or replaced before the document is published.
