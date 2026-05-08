@@ -136,7 +136,7 @@ If your notes folder is somewhere else, pass that folder path:
 ./scripts/bash/rename_notes.sh "exports/notes"
 ```
 
-The script uses `set +H` because Bash treats `!` as history expansion unless that behavior is disabled.
+The script uses `set +H` defensively so paths containing exclamation points do not trigger Bash history expansion.
 
 ## Validate JSON Files
 
