@@ -6,7 +6,7 @@ Validation queries for row counts, missing relationships, duplicate keys, and da
 This script contains queries only and no exported user data.
 */
 
-USE SimplyPlural;
+USE PluralBridge;
 GO
 
 -- Validation queries will be added here.

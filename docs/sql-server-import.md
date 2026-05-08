@@ -30,7 +30,7 @@ Do not commit real exported JSON files.
 Default database name used by PluralBridge examples:
 
 ```text
-SimplyPlural
+PluralBridge
 ```
 
 ## Suggested Script Order
@@ -62,7 +62,7 @@ Creates the database if it does not already exist.
 Expected database:
 
 ```text
-SimplyPlural
+PluralBridge
 ```
 
 ### 010_create_tables.sql

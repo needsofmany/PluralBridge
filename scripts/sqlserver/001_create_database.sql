@@ -6,8 +6,8 @@ Creates the optional local SQL Server database used for imported Simply Plural e
 This script contains no exported user data.
 */
 
-IF DB_ID(N'SimplyPlural') IS NULL
+IF DB_ID(N'PluralBridge') IS NULL
 BEGIN
-    CREATE DATABASE SimplyPlural;
+    CREATE DATABASE PluralBridge;
 END;
 GO

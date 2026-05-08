@@ -6,7 +6,7 @@ Loads exported JSON files into the local SQL Server database.
 This script should use configurable/local paths and must not contain private exported data.
 */
 
-USE SimplyPlural;
+USE PluralBridge;
 GO
 
 -- JSON load statements will be added here.

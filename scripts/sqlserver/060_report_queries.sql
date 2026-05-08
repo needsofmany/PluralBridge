@@ -6,7 +6,7 @@ Example report queries for locally imported Simply Plural data.
 This script contains queries only and no exported user data.
 */
 
-USE SimplyPlural;
+USE PluralBridge;
 GO
 
 -- Report queries will be added here.

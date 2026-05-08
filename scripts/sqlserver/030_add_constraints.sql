@@ -6,7 +6,7 @@ Adds primary keys, foreign keys, and useful integrity constraints.
 This script contains schema only and no exported user data.
 */
 
-USE SimplyPlural;
+USE PluralBridge;
 GO
 
 -- Constraints will be added here.

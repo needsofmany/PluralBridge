@@ -6,7 +6,7 @@ Creates core tables for locally imported Simply Plural export data.
 This script contains schema only and no exported user data.
 */
 
-USE SimplyPlural;
+USE PluralBridge;
 GO
 
 -- Table definitions will be added here.
