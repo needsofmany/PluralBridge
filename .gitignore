@@ -12,3 +12,7 @@ Notes/
 # Tokens / secrets
 *.token
 secrets/
+
+# Python
+__pycache__/
+*.py[cod]
