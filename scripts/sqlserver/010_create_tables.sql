@@ -11,6 +11,7 @@ It contains no exported user data.
 USE PluralBridge;
 GO
 
+IF OBJECT_ID(N'dbo.member_notes', N'U') IS NOT NULL DROP TABLE dbo.member_notes;
 IF OBJECT_ID(N'dbo.member_avatars', N'U') IS NOT NULL DROP TABLE dbo.member_avatars;
 IF OBJECT_ID(N'dbo.member_buckets', N'U') IS NOT NULL DROP TABLE dbo.member_buckets;
 IF OBJECT_ID(N'dbo.member_info_values', N'U') IS NOT NULL DROP TABLE dbo.member_info_values;
@@ -149,5 +150,17 @@ CREATE TABLE dbo.member_avatars
     downloaded_at   datetime2(3)   NULL,
     raw_json         nvarchar(max)  NULL,
     imported_at_utc datetime2(3)   NOT NULL CONSTRAINT DF_member_avatars_imported_at_utc DEFAULT SYSUTCDATETIME()
+);
+GO
+
+CREATE TABLE dbo.member_notes
+(
+    member_id       nvarchar(64)   NOT NULL,
+    note_file       nvarchar(260)  NOT NULL,
+    note_index      int            NULL,
+    endpoint        nvarchar(1000) NULL,
+    ok              bit            NULL,
+    raw_json         nvarchar(max)  NULL,
+    imported_at_utc datetime2(3)   NOT NULL CONSTRAINT DF_member_notes_imported_at_utc DEFAULT SYSUTCDATETIME()
 );
 GO

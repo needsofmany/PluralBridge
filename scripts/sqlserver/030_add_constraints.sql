@@ -59,6 +59,10 @@ ALTER TABLE dbo.member_avatars
     ADD CONSTRAINT PK_member_avatars PRIMARY KEY (member_id);
 GO
 
+ALTER TABLE dbo.member_notes
+    ADD CONSTRAINT PK_member_notes PRIMARY KEY (member_id, note_file);
+GO
+
 ALTER TABLE dbo.me
     ADD CONSTRAINT FK_me_user_uid
     FOREIGN KEY (uid)
@@ -113,6 +117,12 @@ ALTER TABLE dbo.member_avatars
     REFERENCES dbo.members(id);
 GO
 
+ALTER TABLE dbo.member_notes
+    ADD CONSTRAINT FK_member_notes_member
+    FOREIGN KEY (member_id)
+    REFERENCES dbo.members(id);
+GO
+
 CREATE INDEX IX_members_system_uid
     ON dbo.members(system_uid);
 GO
@@ -143,4 +153,12 @@ GO
 
 CREATE INDEX IX_member_avatars_system_uid
     ON dbo.member_avatars(system_uid);
+GO
+
+CREATE INDEX IX_member_notes_note_file
+    ON dbo.member_notes(note_file);
+GO
+
+CREATE INDEX IX_member_notes_note_index
+    ON dbo.member_notes(note_index);
 GO
