@@ -283,3 +283,44 @@ For front-history records, a single open interval with `end_time IS NULL` may be
 9. Run validation queries.
 10. Run report queries.
 11. Keep database backups private.
+
+## Database Name
+
+The public PluralBridge SQL Server database name is:
+
+    PluralBridge
+
+Earlier private development may have used a local database named `SimplyPlural`. That name should be treated as a private development artifact only.
+
+For public use, testing, documentation, and scripts, use `PluralBridge`.
+
+A safe migration path is:
+
+1. Keep any existing private `SimplyPlural` database as a reference copy.
+2. Create a fresh `PluralBridge` database from the public scripts.
+3. Load exported JSON into `PluralBridge`.
+4. Run the validation queries.
+5. Compare expected counts and reports against the known-good local reference, if one exists.
+6. Delete or archive the older private database only after `PluralBridge` has passed validation.
+
+## Raw JSON and Future Normalization
+
+PluralBridge stores selected high-value fields in relational columns and also preserves full source rows in `raw_json` columns.
+
+This is intentional.
+
+The first public release prioritizes preservation, safe loading, readable reports, and keeping enough original payload information to improve the schema later.
+
+Some API response fields may remain embedded inside `raw_json` during the initial release. Future versions may add more normalized tables and columns as additional response shapes are confirmed.
+
+Examples of possible future normalization work include:
+
+- additional member profile fields
+- nested custom field structures
+- notes metadata
+- chat-related structures
+- timer-related structures
+- poll-related structures
+- any other repeated embedded objects found across exports
+
+The initial SQL Server schema should be considered a preservation-first schema, not a final analytical warehouse.
