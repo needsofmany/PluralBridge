@@ -243,3 +243,25 @@ git diff --cached
 ```
 
 Review staged files carefully before pushing.
+
+## Visual Check on Windows
+
+After exporting member avatar images, it is useful to visually confirm that the image files were downloaded correctly.
+
+On Windows:
+
+1. Open File Explorer.
+2. Navigate to the avatar image output folder.
+
+Example local folder:
+
+    D:\!\PluralBridge\exports\member_images
+
+3. Right-click in the folder background.
+4. Select **View**.
+5. Choose **Large icons** or **Extra large icons**.
+6. Review the images by eye.
+
+This check helps confirm that the downloaded avatar files render correctly and are not empty, corrupted, HTML error pages, or placeholder files.
+
+The avatar image folder contains private exported data. Do not publish screenshots of this folder unless the images are intentionally redacted or synthetic.
