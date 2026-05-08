@@ -139,3 +139,48 @@ ORDER BY
     front_date_utc DESC,
     member_name;
 GO
+
+
+PRINT 'Member notes coverage';
+GO
+
+SELECT
+    m.name AS member_name,
+    m.id AS member_id,
+    COUNT(mn.note_file) AS note_file_count,
+    MIN(mn.note_file) AS first_note_file,
+    MAX(mn.note_file) AS last_note_file
+FROM dbo.members AS m
+LEFT JOIN dbo.member_notes AS mn
+    ON mn.member_id = m.id
+GROUP BY
+    m.name,
+    m.id
+ORDER BY
+    m.name;
+GO
+
+PRINT 'Member note files';
+GO
+
+SELECT
+    m.name AS member_name,
+    mn.member_id,
+    mn.note_file,
+    mn.note_index,
+    mn.endpoint,
+    mn.ok,
+    CASE
+        WHEN mn.raw_json IS NULL THEN 'missing'
+        WHEN ISJSON(mn.raw_json) = 1 THEN 'valid json'
+        ELSE 'invalid json'
+    END AS raw_json_status,
+    DATALENGTH(mn.raw_json) AS raw_json_bytes
+FROM dbo.member_notes AS mn
+LEFT JOIN dbo.members AS m
+    ON m.id = mn.member_id
+ORDER BY
+    m.name,
+    mn.note_index,
+    mn.note_file;
+GO

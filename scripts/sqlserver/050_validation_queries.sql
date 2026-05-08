@@ -26,6 +26,7 @@ UNION ALL SELECT 'chat_categories', COUNT(*) FROM dbo.chat_categories
 UNION ALL SELECT 'chat_channels', COUNT(*) FROM dbo.chat_channels
 UNION ALL SELECT 'friends', COUNT(*) FROM dbo.friends
 UNION ALL SELECT 'member_avatars', COUNT(*) FROM dbo.member_avatars
+UNION ALL SELECT 'member_notes', COUNT(*) FROM dbo.member_notes
 ORDER BY table_name;
 GO
 
@@ -87,6 +88,12 @@ SELECT 'member_avatars with missing member', COUNT(*)
 FROM dbo.member_avatars AS ma
 LEFT JOIN dbo.members AS m
     ON m.id = ma.member_id
+WHERE m.id IS NULL
+UNION ALL
+SELECT 'member_notes with missing member', COUNT(*)
+FROM dbo.member_notes AS mn
+LEFT JOIN dbo.members AS m
+    ON m.id = mn.member_id
 WHERE m.id IS NULL;
 GO
 
@@ -190,6 +197,15 @@ FROM
     FROM dbo.member_avatars
     GROUP BY member_id
     HAVING COUNT(*) > 1
+) AS d
+UNION ALL
+SELECT 'member_notes duplicate member_id + note_file', COUNT(*)
+FROM
+(
+    SELECT member_id, note_file
+    FROM dbo.member_notes
+    GROUP BY member_id, note_file
+    HAVING COUNT(*) > 1
 ) AS d;
 GO
 
@@ -228,4 +244,29 @@ LEFT JOIN dbo.member_avatars AS ma
     ON ma.member_id = m.id
 WHERE ma.member_id IS NULL
 ORDER BY m.name;
+GO
+
+
+PRINT 'Member notes coverage';
+GO
+
+SELECT
+    COUNT(*) AS member_note_rows,
+    SUM(CASE WHEN raw_json IS NULL THEN 1 ELSE 0 END) AS missing_raw_json_count,
+    SUM(CASE WHEN ISJSON(raw_json) = 1 THEN 0 ELSE 1 END) AS invalid_raw_json_count
+FROM dbo.member_notes;
+GO
+
+SELECT
+    m.id AS member_id,
+    m.name AS member_name,
+    COUNT(mn.note_file) AS note_file_count
+FROM dbo.members AS m
+LEFT JOIN dbo.member_notes AS mn
+    ON mn.member_id = m.id
+GROUP BY
+    m.id,
+    m.name
+ORDER BY
+    m.name;
 GO
