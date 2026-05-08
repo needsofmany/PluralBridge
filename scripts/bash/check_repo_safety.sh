@@ -6,7 +6,7 @@ echo "PluralBridge repository safety check"
 echo
 
 echo "1. Checking tracked files for token, identity, and private path leakage..."
-if git grep -nE "TBD///|Authorization: [A-Za-z0-9]|dd\.dice|Sharky|Yellowfish|stacy|gmail|hotmail|D:[/\\]+![/\\]+|/d/!/"; then
+if git grep -nE "TBD///|Authorization: [A-Za-z0-9]|dd\.dice|Sharky|Yellowfish|stacy|gmail|hotmail|D:[/\\]+![/\\]+|/d/!/" -- . ":(exclude)scripts/bash/check_repo_safety.sh"; then
   echo
   echo "FAILED: potential private/token/path leakage found."
   exit 1
