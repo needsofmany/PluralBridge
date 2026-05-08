@@ -26,6 +26,11 @@ def parse_args() -> argparse.Namespace:
         default="exports/member_images",
         help="Directory for avatar images. Default: exports/member_images",
     )
+    parser.add_argument(
+        "--manifest",
+        default="exports/avatar_manifest.tsv",
+        help="Avatar manifest TSV path. Default: exports/avatar_manifest.tsv",
+    )
     return parser.parse_args()
 
 
@@ -65,6 +70,10 @@ def main() -> int:
 
     members_path = Path(args.members_json)
     output_dir = ensure_dir(args.output_dir)
+    manifest_path = Path(args.manifest)
+    ensure_dir(manifest_path.parent)
+
+    manifest_rows: list[tuple[str, str, str, str, str, str]] = []
 
     try:
         with members_path.open("r", encoding="utf-8") as f:
@@ -77,14 +86,21 @@ def main() -> int:
             if not member_id:
                 continue
 
+            content = row.get("content", {}) or {}
+            system_uid = content.get("uid", "")
+            avatar_uuid = content.get("avatarUuid", "")
+
             url = avatar_url_for_member(row)
             if not url:
                 continue
+
+            print(f"Downloading avatar for {member_id}", flush=True)
 
             request = urllib.request.Request(
                 url,
                 headers={
                     "Accept": "image/*",
+                    "User-Agent": "PluralBridge/0.1",
                 },
                 method="GET",
             )
@@ -95,15 +111,36 @@ def main() -> int:
                     response.headers.get("Content-Type", "")
                 )
 
-            target = output_dir / f"{member_id}{extension}"
+            local_filename = f"{member_id}{extension}"
+            target = output_dir / local_filename
             target.write_bytes(data)
+
+            manifest_rows.append(
+                (
+                    member_id,
+                    system_uid,
+                    avatar_uuid,
+                    url,
+                    local_filename,
+                    str(target.as_posix()),
+                )
+            )
+
             count += 1
+
+        with manifest_path.open("w", encoding="utf-8", newline="\n") as f:
+            f.write(
+                "member_id\tsystem_uid\tavatar_uuid\tsource_url\tlocal_filename\tlocal_path\n"
+            )
+            for row in manifest_rows:
+                f.write("\t".join(row) + "\n")
 
     except Exception as exc:
         print(f"Avatar export failed: {exc}", file=sys.stderr)
         return 1
 
     print(f"Avatar export complete: {count} files written to {output_dir}")
+    print(f"Avatar manifest written to: {manifest_path}")
     return 0
 
 
