@@ -296,8 +296,21 @@ FROM OPENJSON(@channels_json) AS j
 WHERE JSON_VALUE(j.value, '$.id') IS NOT NULL;
 GO
 
-
 PRINT 'Loading member notes from manifest mappings';
+
+DECLARE @NotesExportFolder nvarchar(4000) = N'<local-export-folder>';
+DECLARE @notes_manifest_json nvarchar(max) = N'{}';
+DECLARE @notes_sql nvarchar(max);
+DECLARE @notes_path_manifest nvarchar(4000) = @NotesExportFolder + N'\manifest.json';
+
+BEGIN TRY
+    SET @notes_sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@notes_path_manifest, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+    EXEC sys.sp_executesql @notes_sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @notes_manifest_json OUTPUT;
+END TRY
+BEGIN CATCH
+    PRINT 'Optional file not loaded for member notes: manifest.json';
+    SET @notes_manifest_json = N'{}';
+END CATCH;
 
 DROP TABLE IF EXISTS #note_manifest;
 
@@ -330,18 +343,18 @@ FROM
         JSON_VALUE(j.value, '$.filename') AS filename,
         JSON_VALUE(j.value, '$.endpoint') AS endpoint,
         JSON_VALUE(j.value, '$.ok') AS ok_value
-    FROM OPENJSON(@manifest_json, '$.files') AS j
+    FROM OPENJSON(@notes_manifest_json, '$.files') AS j
 ) AS x
 WHERE filename LIKE N'notes/%.json'
   AND endpoint LIKE N'/v1/notes/%/%'
   AND CHARINDEX('/', REVERSE(endpoint)) > 1;
 
 DECLARE
-    @member_id nvarchar(64),
+    @note_member_id nvarchar(64),
     @note_file nvarchar(260),
     @note_index int,
-    @endpoint nvarchar(1000),
-    @ok bit,
+    @note_endpoint nvarchar(1000),
+    @note_ok bit,
     @note_json nvarchar(max),
     @note_path nvarchar(4000);
 
@@ -358,16 +371,16 @@ ORDER BY note_index, note_file;
 OPEN note_cursor;
 
 FETCH NEXT FROM note_cursor
-INTO @member_id, @note_file, @note_index, @endpoint, @ok;
+INTO @note_member_id, @note_file, @note_index, @note_endpoint, @note_ok;
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
     SET @note_json = N'[]';
-    SET @note_path = @ExportFolder + N'\..\notes\' + @note_file;
+    SET @note_path = @NotesExportFolder + N'\..\notes\' + @note_file;
 
     BEGIN TRY
-        SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@note_path, '''', '''''') + N''', SINGLE_CLOB) AS j;';
-        EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @note_json OUTPUT;
+        SET @notes_sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@note_path, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+        EXEC sys.sp_executesql @notes_sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @note_json OUTPUT;
     END TRY
     BEGIN CATCH
         PRINT 'Optional note file not loaded: ' + @note_file;
@@ -385,16 +398,16 @@ BEGIN
     )
     VALUES
     (
-        @member_id,
+        @note_member_id,
         @note_file,
         @note_index,
-        @endpoint,
-        @ok,
+        @note_endpoint,
+        @note_ok,
         @note_json
     );
 
     FETCH NEXT FROM note_cursor
-    INTO @member_id, @note_file, @note_index, @endpoint, @ok;
+    INTO @note_member_id, @note_file, @note_index, @note_endpoint, @note_ok;
 END
 
 CLOSE note_cursor;
