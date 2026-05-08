@@ -413,3 +413,66 @@ END
 CLOSE note_cursor;
 DEALLOCATE note_cursor;
 GO
+
+
+PRINT 'Loading avatar manifest when present';
+
+DROP TABLE IF EXISTS #avatar_manifest;
+
+CREATE TABLE #avatar_manifest
+(
+    member_id nvarchar(64) NOT NULL,
+    system_uid nvarchar(64) NULL,
+    avatar_uuid nvarchar(255) NULL,
+    source_url nvarchar(1000) NULL,
+    local_filename nvarchar(260) NULL,
+    local_path nvarchar(1000) NULL
+);
+
+DECLARE @AvatarExportFolder nvarchar(4000) = N'<local-export-folder>';
+DECLARE @avatar_manifest_path nvarchar(4000) = @AvatarExportFolder + N'\..\avatar_manifest.tsv';
+DECLARE @avatar_bulk_sql nvarchar(max);
+
+BEGIN TRY
+    SET @avatar_bulk_sql = N'
+        BULK INSERT #avatar_manifest
+        FROM ''' + REPLACE(@avatar_manifest_path, '''', '''''') + N'''
+        WITH
+        (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = ''\t'',
+            ROWTERMINATOR = ''0x0a'',
+            CODEPAGE = ''65001'',
+            TABLOCK
+        );';
+
+    EXEC sys.sp_executesql @avatar_bulk_sql;
+END TRY
+BEGIN CATCH
+    PRINT 'Optional avatar manifest not loaded: avatar_manifest.tsv';
+END CATCH;
+
+INSERT INTO dbo.member_avatars
+(
+    member_id,
+    system_uid,
+    avatar_uuid,
+    source_url,
+    local_filename,
+    local_path,
+    downloaded_at,
+    raw_json
+)
+SELECT
+    member_id,
+    system_uid,
+    avatar_uuid,
+    source_url,
+    local_filename,
+    local_path,
+    SYSUTCDATETIME(),
+    NULL
+FROM #avatar_manifest
+WHERE member_id IS NOT NULL
+  AND member_id <> N'';
+GO
