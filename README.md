@@ -14,6 +14,18 @@ The Simply Plural token will not be used for ongoing PluralBridge development, f
 
 PluralBridge will create and maintain its own authentication platform for any future hosted services, cloud-backed tools, REST APIs, or multi-device access.
 
+## Independent Design Boundary
+
+PluralBridge treats Simply Plural / Apparyllis as a source of user-owned export data, not as a product design template.
+
+The project uses public API access only to help users export and preserve their own data while the original service is still available.
+
+Future PluralBridge tools, viewers, clients, services, authentication systems, and user interfaces will be independently designed.
+
+PluralBridge will not copy the Simply Plural user interface, application flow, branding, visual design, source code, mobile app code, website code, server code, or authentication system.
+
+The long-term goal is to build a preservation and continuity platform around exported user data, with its own usability model, privacy model, storage targets, clients, and service architecture.
+
 PluralBridge is an independent preservation and migration toolkit maintained by **Needs of the Many** (`@needsofmany`).
 
 It helps users export, preserve, and bridge Simply Plural data into local JSON files, SQL databases, reports, viewers, converters, importers, and future tools.
