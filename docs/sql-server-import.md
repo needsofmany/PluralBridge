@@ -1,0 +1,285 @@
+# SQL Server Import
+
+PluralBridge can load exported Simply Plural JSON files into SQL Server.
+
+The SQL Server path is optional. The first preservation layer is the local JSON export. SQL Server makes the data easier to validate, query, join, report, and inspect.
+
+## Requirements
+
+You need:
+
+- SQL Server
+- SQL Server Management Studio or another SQL client
+- exported Simply Plural JSON files
+- SQL scripts from `scripts/sqlserver/`
+
+## Recommended Local Export Folder
+
+Examples may refer to this local JSON folder:
+
+```text
+<local-export-folder>
+```
+
+For public scripts and documentation, prefer configurable paths or clearly marked examples.
+
+Do not commit real exported JSON files.
+
+## Database Name
+
+Default database name used by PluralBridge examples:
+
+```text
+SimplyPlural
+```
+
+## Suggested Script Order
+
+Run scripts in this general order:
+
+```text
+001_create_database.sql
+010_create_tables.sql
+020_load_json.sql
+030_add_constraints.sql
+040_create_views.sql
+050_validation_queries.sql
+060_report_queries.sql
+```
+
+A convenience wrapper may also be provided:
+
+```text
+master.sql
+```
+
+## Script Responsibilities
+
+### 001_create_database.sql
+
+Creates the database if it does not already exist.
+
+Expected database:
+
+```text
+SimplyPlural
+```
+
+### 010_create_tables.sql
+
+Creates relational tables for exported Simply Plural data.
+
+Core tables may include:
+
+```text
+dbo.[user]
+dbo.me
+dbo.members
+dbo.front_history
+dbo.customfields
+dbo.member_info_values
+dbo.privacybuckets
+dbo.member_buckets
+dbo.chat_categories
+dbo.chat_channels
+dbo.friends
+dbo.member_avatars
+```
+
+### 020_load_json.sql
+
+Loads exported JSON files into SQL Server tables.
+
+This script may use `OPENROWSET`, `OPENJSON`, staging tables, or direct inserts depending on the final implementation.
+
+Expected source files may include:
+
+```text
+me.json
+members.json
+frontHistory.json
+customFields.json
+privacyBuckets.json
+categories.json
+channels.json
+friends.json
+```
+
+Empty JSON files should be handled safely.
+
+### 030_add_constraints.sql
+
+Adds primary keys, foreign keys, uniqueness checks, and supporting indexes after data load.
+
+Useful relationships include:
+
+```text
+members.system_uid -> user.uid
+me.uid -> user.uid
+front_history.member_id -> members.id
+member_info_values.member_id -> members.id
+member_info_values.field_id -> customfields.id
+member_buckets.member_id -> members.id
+member_buckets.bucket_id -> privacybuckets.id
+```
+
+### 040_create_views.sql
+
+Creates readable views for inspection and reports.
+
+Useful views may include:
+
+```text
+dbo.v_front_history_readable
+dbo.v_front_history_pacific
+dbo.v_current_front
+dbo.v_member_info_readable
+dbo.v_member_buckets_readable
+dbo.v_member_profile_summary
+dbo.v_member_profile_summary_with_avatar
+```
+
+### 050_validation_queries.sql
+
+Runs validation checks.
+
+Useful checks include:
+
+```text
+row counts
+missing parent records
+duplicate keys
+front history records with missing start_time
+front history records with end_time before start_time
+front history records with NULL end_time
+```
+
+A `NULL` `end_time` can be valid when a member is currently fronting.
+
+### 060_report_queries.sql
+
+Provides readable example queries.
+
+Useful reports include:
+
+```text
+current front
+fronting count by member
+recent front history
+member profile summary
+custom field summary
+member bucket summary
+members with no fronting history
+members with avatar images
+members without avatar images
+```
+
+## Time Conversion
+
+Simply Plural front-history timestamps may be stored as Unix timestamps in milliseconds.
+
+SQL Server conversion to UTC typically uses:
+
+```sql
+DATEADD(MILLISECOND, timestamp_ms % 1000,
+    DATEADD(SECOND, timestamp_ms / 1000, '19700101'))
+```
+
+Pacific time conversion can use:
+
+```sql
+utc_datetime AT TIME ZONE 'UTC' AT TIME ZONE 'Pacific Standard Time'
+```
+
+For reliable view definitions, compute UTC first, then convert UTC to Pacific time.
+
+## Avatar Metadata
+
+Avatar image files are usually stored on disk, not rendered directly inside SSMS result grids.
+
+A practical SQL table stores metadata:
+
+```text
+member_id
+system_uid
+avatar_uuid
+source_url
+local_filename
+local_path
+downloaded_at
+```
+
+A readable view can expose the local file path or file URL for reports and local viewers.
+
+## Privacy Warning
+
+A SQL Server database created from Simply Plural exports may contain private system data.
+
+This can include:
+
+- member names
+- descriptions
+- custom fields
+- notes
+- fronting history
+- friends
+- avatar paths
+- readable reports and views
+
+Do not publish:
+
+```text
+*.bak
+*.mdf
+*.ldf
+*.csv
+*.tsv
+*.xlsx
+screenshots of result grids
+query results containing private data
+```
+
+unless the material has been reviewed and intentionally redacted.
+
+## Before Publishing Scripts
+
+SQL scripts should be data-agnostic.
+
+They should not contain:
+
+- real member names
+- real note text
+- real API tokens
+- real private descriptions
+- real exported JSON payloads
+
+Environment-specific paths are acceptable when clearly marked as examples, but public scripts should prefer variables, SQLCMD parameters, or documented edits.
+
+## Validation After Import
+
+After loading, confirm:
+
+```text
+expected row counts
+zero missing parent records
+zero unexpected duplicate keys
+current front rows are understood
+time conversions are correct
+views return readable data
+```
+
+For front-history records, a single open interval with `end_time IS NULL` may be correct if the member is still fronting.
+
+## Recommended Workflow
+
+1. Export JSON locally.
+2. Inspect file presence and size.
+3. Create the SQL Server database.
+4. Create tables.
+5. Load JSON.
+6. Validate row counts.
+7. Add constraints.
+8. Create views.
+9. Run validation queries.
+10. Run report queries.
+11. Keep database backups private.
