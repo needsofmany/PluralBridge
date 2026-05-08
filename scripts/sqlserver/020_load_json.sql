@@ -25,6 +25,7 @@ DECLARE @privacybuckets_json  nvarchar(max) = N'[]';
 DECLARE @friends_json         nvarchar(max) = N'[]';
 DECLARE @categories_json      nvarchar(max) = N'[]';
 DECLARE @channels_json        nvarchar(max) = N'[]';
+DECLARE @manifest_json        nvarchar(max) = N'{}';
 
 DECLARE @sql nvarchar(max);
 
@@ -36,6 +37,7 @@ DECLARE @path_privacybuckets nvarchar(4000) = @ExportFolder + N'\privacyBuckets.
 DECLARE @path_friends        nvarchar(4000) = @ExportFolder + N'\friends.json';
 DECLARE @path_categories     nvarchar(4000) = @ExportFolder + N'\categories.json';
 DECLARE @path_channels       nvarchar(4000) = @ExportFolder + N'\channels.json';
+DECLARE @path_manifest       nvarchar(4000) = @ExportFolder + N'\manifest.json';
 
 PRINT 'Loading required JSON files';
 GO
@@ -50,6 +52,7 @@ DECLARE @privacybuckets_json  nvarchar(max) = N'[]';
 DECLARE @friends_json         nvarchar(max) = N'[]';
 DECLARE @categories_json      nvarchar(max) = N'[]';
 DECLARE @channels_json        nvarchar(max) = N'[]';
+DECLARE @manifest_json        nvarchar(max) = N'{}';
 
 DECLARE @sql nvarchar(max);
 
@@ -61,6 +64,7 @@ DECLARE @path_privacybuckets nvarchar(4000) = @ExportFolder + N'\privacyBuckets.
 DECLARE @path_friends        nvarchar(4000) = @ExportFolder + N'\friends.json';
 DECLARE @path_categories     nvarchar(4000) = @ExportFolder + N'\categories.json';
 DECLARE @path_channels       nvarchar(4000) = @ExportFolder + N'\channels.json';
+DECLARE @path_manifest       nvarchar(4000) = @ExportFolder + N'\manifest.json';
 
 SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_me, '''', '''''') + N''', SINGLE_CLOB) AS j;';
 EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @me_json OUTPUT;
@@ -110,6 +114,16 @@ END TRY
 BEGIN CATCH
     PRINT 'Optional file not loaded: channels.json';
     SET @channels_json = N'[]';
+END CATCH;
+
+
+BEGIN TRY
+    SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@path_manifest, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+    EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @manifest_json OUTPUT;
+END TRY
+BEGIN CATCH
+    PRINT 'Optional file not loaded: manifest.json';
+    SET @manifest_json = N'{}';
 END CATCH;
 
 DECLARE @system_uid nvarchar(64);
@@ -280,4 +294,109 @@ SELECT
     j.value AS raw_json
 FROM OPENJSON(@channels_json) AS j
 WHERE JSON_VALUE(j.value, '$.id') IS NOT NULL;
+GO
+
+
+PRINT 'Loading member notes from manifest mappings';
+
+DROP TABLE IF EXISTS #note_manifest;
+
+CREATE TABLE #note_manifest
+(
+    member_id nvarchar(64) NOT NULL,
+    note_file nvarchar(260) NOT NULL,
+    note_index int NULL,
+    endpoint nvarchar(1000) NULL,
+    ok bit NULL
+);
+
+INSERT INTO #note_manifest
+(
+    member_id,
+    note_file,
+    note_index,
+    endpoint,
+    ok
+)
+SELECT
+    RIGHT(endpoint, CHARINDEX('/', REVERSE(endpoint)) - 1) AS member_id,
+    REPLACE(filename, N'notes/', N'') AS note_file,
+    TRY_CONVERT(int, REPLACE(REPLACE(filename, N'notes/', N''), N'.json', N'')) AS note_index,
+    endpoint,
+    TRY_CONVERT(bit, CASE WHEN ok_value = 'true' THEN 1 WHEN ok_value = 'false' THEN 0 ELSE NULL END) AS ok
+FROM
+(
+    SELECT
+        JSON_VALUE(j.value, '$.filename') AS filename,
+        JSON_VALUE(j.value, '$.endpoint') AS endpoint,
+        JSON_VALUE(j.value, '$.ok') AS ok_value
+    FROM OPENJSON(@manifest_json, '$.files') AS j
+) AS x
+WHERE filename LIKE N'notes/%.json'
+  AND endpoint LIKE N'/v1/notes/%/%'
+  AND CHARINDEX('/', REVERSE(endpoint)) > 1;
+
+DECLARE
+    @member_id nvarchar(64),
+    @note_file nvarchar(260),
+    @note_index int,
+    @endpoint nvarchar(1000),
+    @ok bit,
+    @note_json nvarchar(max),
+    @note_path nvarchar(4000);
+
+DECLARE note_cursor CURSOR LOCAL FAST_FORWARD FOR
+SELECT
+    member_id,
+    note_file,
+    note_index,
+    endpoint,
+    ok
+FROM #note_manifest
+ORDER BY note_index, note_file;
+
+OPEN note_cursor;
+
+FETCH NEXT FROM note_cursor
+INTO @member_id, @note_file, @note_index, @endpoint, @ok;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @note_json = N'[]';
+    SET @note_path = @ExportFolder + N'\..\notes\' + @note_file;
+
+    BEGIN TRY
+        SET @sql = N'SELECT @json_out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@note_path, '''', '''''') + N''', SINGLE_CLOB) AS j;';
+        EXEC sys.sp_executesql @sql, N'@json_out nvarchar(max) OUTPUT', @json_out = @note_json OUTPUT;
+    END TRY
+    BEGIN CATCH
+        PRINT 'Optional note file not loaded: ' + @note_file;
+        SET @note_json = N'[]';
+    END CATCH;
+
+    INSERT INTO dbo.member_notes
+    (
+        member_id,
+        note_file,
+        note_index,
+        endpoint,
+        ok,
+        raw_json
+    )
+    VALUES
+    (
+        @member_id,
+        @note_file,
+        @note_index,
+        @endpoint,
+        @ok,
+        @note_json
+    );
+
+    FETCH NEXT FROM note_cursor
+    INTO @member_id, @note_file, @note_index, @endpoint, @ok;
+END
+
+CLOSE note_cursor;
+DEALLOCATE note_cursor;
 GO
