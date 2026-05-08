@@ -72,3 +72,13 @@ The screenshot guide covers:
 The Word document is intended for non-technical users and should be kept separate from private exported data.
 
 If screenshots show token values, those values must be blurred or replaced before the document is published.
+
+## Screenshot Walkthrough Document
+
+A standalone Word document with screenshots is available in the repository root:
+
+    PluralBridge_Token_Walkthrough.docx
+
+This document shows the token revocation and token creation process step by step.
+
+Before publishing or updating this document, confirm that any visible token values in screenshots are blurred or replaced.
