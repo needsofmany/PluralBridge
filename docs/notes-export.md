@@ -133,7 +133,7 @@ chmod +x scripts/bash/rename_notes.sh
 If your notes folder is somewhere else, pass that folder path:
 
 ```bash
-./scripts/bash/rename_notes.sh "/d/!/spdump/spdump/Notes"
+./scripts/bash/rename_notes.sh "exports/notes"
 ```
 
 The script uses `set +H` because Bash treats `!` as history expansion unless that behavior is disabled.
