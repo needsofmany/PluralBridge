@@ -255,7 +255,7 @@ On Windows:
 
 Example local folder:
 
-    D:\!\PluralBridge\exports\member_images
+    <repo-folder>\exports\member_images
 
 3. Right-click in the folder background.
 4. Select **View**.
