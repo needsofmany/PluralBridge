@@ -1,0 +1,14 @@
+[
+  {
+    "id": "front_history_id_redacted",
+    "member": "member_id_redacted",
+    "startTime": 1760000000000,
+    "endTime": 1760003600000
+  },
+  {
+    "id": "current_front_id_redacted",
+    "member": "member_id_redacted",
+    "startTime": 1760007200000,
+    "endTime": null
+  }
+]

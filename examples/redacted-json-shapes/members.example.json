@@ -1,0 +1,14 @@
+[
+  {
+    "exists": true,
+    "id": "member_id_redacted",
+    "content": {
+      "name": "Member A",
+      "uid": "system_uid_redacted",
+      "avatarUrl": "",
+      "avatarUuid": "avatar_uuid_redacted",
+      "pronouns": "they/them",
+      "description": "Redacted example description."
+    }
+  }
+]
