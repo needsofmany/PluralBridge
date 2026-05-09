@@ -316,3 +316,29 @@ For example:
     []
 
 This is still useful preservation information. An empty file means the endpoint was queried successfully and returned no rows for that data type at the time of export.
+
+## Re-running Exports
+
+The export process is safe to run multiple times while the Simply Plural service remains available.
+
+This is important for preservation. Users should run an export first, even if they plan to clean up, rename, edit, or reorganize Simply Plural data later.
+
+After making changes in Simply Plural, run the export again to create a newer snapshot.
+
+For dated snapshots, use separate output folders rather than overwriting the previous export.
+
+Example:
+
+    python scripts/python/export_json.py --output-dir exports/json-2026-05-08 --notes-dir exports/notes-2026-05-08
+
+A later export can use another folder:
+
+    python scripts/python/export_json.py --output-dir exports/json-2026-05-09 --notes-dir exports/notes-2026-05-09
+
+The safest preservation workflow is:
+
+1. Export now.
+2. Back up the export.
+3. Make changes in Simply Plural.
+4. Export again.
+5. Keep the latest snapshot, and optionally keep older snapshots for comparison.

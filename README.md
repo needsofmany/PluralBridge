@@ -247,3 +247,23 @@ PluralBridge is intended to help the broader plural-tooling ecosystem, including
 Even projects that compete with PluralBridge's future viewers or clients may benefit from using PluralBridge as an import bridge for preserved Simply Plural data.
 
 The immediate goal is to help users get their data out safely. A useful next goal is to make that preserved data easier for other tools to read, convert, import, and continue using.
+
+## Export First, Refine Later
+
+Run a preservation export as soon as you can.
+
+Do not wait until your Simply Plural account is perfectly cleaned up, reorganized, renamed, edited, or updated before making a backup.
+
+PluralBridge exports are safe to run multiple times while the Simply Plural service remains available. If you make changes in Simply Plural after one export, run PluralBridge again and create a newer export.
+
+This matters because the most important preservation step is getting a copy of your data while export is still possible. A rough export made today is safer than a perfect export that never happens.
+
+Recommended workflow:
+
+1. Run an export now.
+2. Keep that export private and backed up.
+3. Make any Simply Plural edits or cleanup you want.
+4. Run another export.
+5. Keep the newest export, and optionally keep older exports as dated snapshots.
+
+PluralBridge should be treated as a repeatable preservation tool. The export process is designed so users can capture data first, then rerun later as their Simply Plural data changes.
