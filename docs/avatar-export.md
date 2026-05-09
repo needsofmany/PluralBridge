@@ -265,3 +265,32 @@ Example local folder:
 This check helps confirm that the downloaded avatar files render correctly and are not empty, corrupted, HTML error pages, or placeholder files.
 
 The avatar image folder contains private exported data. Do not publish screenshots of this folder unless the images are intentionally redacted or synthetic.
+
+## Avatar Manifest
+
+The avatar exporter writes downloaded avatar image files under:
+
+    exports/member_images
+
+It also writes a TSV manifest at:
+
+    exports/avatar_manifest.tsv
+
+The manifest contains one header row and one row per downloaded avatar.
+
+Current columns:
+
+    member_id
+    system_uid
+    avatar_uuid
+    source_url
+    local_filename
+    local_path
+
+The SQL Server import path uses this manifest to populate:
+
+    dbo.member_avatars
+
+This lets reports and viewers join avatar metadata back to members without storing the image binary directly in SQL Server.
+
+The avatar manifest is private local export data. Do not commit it.
