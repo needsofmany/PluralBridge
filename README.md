@@ -1,5 +1,9 @@
 # PluralBridge
 
+Welcome to PluralBridge.
+
+This project exists to help Simply Plural users preserve their own data and keep that data useful after the original service is no longer available.
+
 PluralBridge is not trying to be a quick clone of Simply Plural.
 
 PluralBridge is a preservation and continuity project. The first job is to get user data safely out while the original service still exists. The next job is to make that preserved data useful through local viewers, portable databases, cloud migration, compatible APIs, and future clients.
