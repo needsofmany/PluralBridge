@@ -379,3 +379,11 @@ The tested local export layout is:
     exports/avatar_manifest.tsv
 
 The `exports` folder is private local output and must not be committed.
+
+## Schema Diagram
+
+A SQL Server schema diagram is available at:
+
+    docs/images/PluralBridge-DB-Schema.png
+
+Use this diagram as a visual companion to the numbered SQL Server scripts. It reflects the tested import path and the current preservation-first schema, including member notes and avatar metadata.

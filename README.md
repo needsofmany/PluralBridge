@@ -271,3 +271,11 @@ Recommended workflow:
 5. Keep the newest export, and optionally keep older exports as dated snapshots.
 
 PluralBridge should be treated as a repeatable preservation tool. The export process is designed so users can capture data first, then rerun later as their Simply Plural data changes.
+
+## Database Schema Diagram
+
+A SQL Server schema diagram is available at:
+
+    docs/images/PluralBridge-DB-Schema.png
+
+The diagram shows the current tested SQL Server schema, including members, front history, notes, avatars, custom fields, privacy buckets, friends, and chat tables.
