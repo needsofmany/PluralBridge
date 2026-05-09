@@ -324,3 +324,58 @@ Examples of possible future normalization work include:
 - any other repeated embedded objects found across exports
 
 The initial SQL Server schema should be considered a preservation-first schema, not a final analytical warehouse.
+
+## Tested Import Coverage
+
+The SQL Server import path has been tested against a live export using the `PluralBridge` database name.
+
+The tested import path loads:
+
+    user.json
+    me.json
+    members.json
+    frontHistory.json
+    fronthistory_starttime_and_endtime.json
+    customFields.json
+    privacyBuckets.json
+    friends.json
+    categories.json
+    channels.json
+    manifest.json
+    exports/notes/*.json
+    avatar_manifest.tsv
+
+The tested SQL tables include:
+
+    dbo.[user]
+    dbo.me
+    dbo.members
+    dbo.front_history
+    dbo.customfields
+    dbo.privacybuckets
+    dbo.friends
+    dbo.chat_categories
+    dbo.chat_channels
+    dbo.member_notes
+    dbo.member_avatars
+
+The `member_notes` table is populated from `manifest.json` and the neutral note files under:
+
+    exports/notes
+
+The `member_avatars` table is populated from:
+
+    exports/avatar_manifest.tsv
+
+This allows notes and avatar files to be joined back to members without exposing member names in exported filenames.
+
+## Tested Local Export Layout
+
+The tested local export layout is:
+
+    exports/json
+    exports/notes
+    exports/member_images
+    exports/avatar_manifest.tsv
+
+The `exports` folder is private local output and must not be committed.
