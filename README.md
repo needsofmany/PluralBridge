@@ -239,3 +239,11 @@ Suggested checks:
 PluralBridge is licensed under the GNU General Public License v3.0.
 
 Copyright (C) 2026 Needs of the Many
+
+## Import Path for Other Tools
+
+PluralBridge is intended to help the broader plural-tooling ecosystem, including other apps in this space.
+
+Even projects that compete with PluralBridge's future viewers or clients may benefit from using PluralBridge as an import bridge for preserved Simply Plural data.
+
+The immediate goal is to help users get their data out safely. A useful next goal is to make that preserved data easier for other tools to read, convert, import, and continue using.
