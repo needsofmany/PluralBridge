@@ -68,3 +68,11 @@ This preserves avatar file metadata while keeping the actual image files outside
 The current schema extracts high-value relational fields needed for validation, reports, member joins, note joins, and avatar joins.
 
 Some source payloads are still preserved in `raw_json` columns. Further normalization of embedded structures is planned after the initial public release.
+
+## Schema Diagram
+
+A schema diagram is available at:
+
+    docs/images/PluralBridge-DB-Schema.png
+
+The diagram is documentation only. It should not contain private exported data.
