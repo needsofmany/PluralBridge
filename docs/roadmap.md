@@ -196,3 +196,5 @@ PluralBridge should:
 The first public version is expected to be developer-centric.
 
 That is acceptable. The immediate goal is to provide a clear, safe, auditable preservation path that others can test, improve, and build upon.
+
+The public website is now live at `https://thepluralbridge.org`. It serves as the public-facing entry point for project information, Simply Plural export urgency, installation and run guidance, safety notes, and links back to the GitHub repository. Website source lives in the repository under `website/` and is deployed through Cloudflare Pages.

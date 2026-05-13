@@ -48,6 +48,17 @@ PluralBridge is in an early preservation-focused stage.
 
 The current repository contains documentation, safe examples, Python starter scripts, SQL Server script skeletons, and safety checks. The first priority is preserving user data locally in a way that keeps private data private.
 
+## Public Website
+
+The public PluralBridge website is live at:
+
+- https://thepluralbridge.org
+- https://www.thepluralbridge.org
+
+The website source is stored in the `website/` directory of this repository.
+
+The current site is deployed through Cloudflare Pages from the `master` branch, with `website` as the build output directory. It provides public-facing project information, Simply Plural export urgency, installation and run guidance, safety notes, and links back to this repository.
+
 ## Current Scope
 
 The first release of PluralBridge focuses on preservation:
