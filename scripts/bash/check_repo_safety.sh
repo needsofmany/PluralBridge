@@ -17,7 +17,7 @@ fi
 echo
 echo "2. Checking for tracked exported data, images, notes, or database files..."
 if git ls-files \
-  | grep -Ev "^docs/images/PluralBridge-DB-Schema\.png$" \
+  | grep -Ev "^(docs/images/PluralBridge-DB-Schema\.png|website/images/background\.jpg)$" \
   | grep -Ei "exports/|member_images|notes/|\.bak$|\.mdf$|\.ldf$|\.sqlite|\.db$|\.png$|\.jpg$|\.jpeg$|\.gif$|\.webp$"; then
   echo
   echo "FAILED: potentially private exported/generated files are tracked."
