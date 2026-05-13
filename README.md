@@ -81,6 +81,7 @@ Future work may include local viewers, converters, importers, reporting tools, a
     scripts/python/       Python export helpers
     scripts/sqlserver/    SQL Server import scripts
     tests/                Future tests using synthetic or redacted data only
+    website/              Public static website deployed through Cloudflare Pages
 
 ## Quick Start
 
