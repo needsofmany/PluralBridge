@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Install Requirements for PluralBridge Simply Plural Export Scripts</title>
+    <meta name="description" content="Software requirements for running the PluralBridge Simply Plural data export scripts locally.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="Install Requirements for PluralBridge Simply Plural Export Scripts">
+    <meta property="og:description" content="Set up the local tools needed to export Simply Plural data with PluralBridge.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://thepluralbridge.org/install.html">
+    <meta property="og:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Install Requirements for PluralBridge Simply Plural Export Scripts">
+    <meta name="twitter:description" content="Set up the local tools needed to export Simply Plural data with PluralBridge.">
+    <meta name="twitter:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="export-now.html">Export Now</a>
+            <a href="install.html">Install</a>
+            <a href="run.html">Run</a>
+            <a href="safety.html">Safety</a>
+            <a href="about.html">About</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <section class="hero">
+        <p class="eyebrow">Install requirements</p>
+        <h1>Set up the local tools before running the export scripts.</h1>
+        <p class="lede">
+            The current PluralBridge export path is script-based. The goal is a practical local setup that can pull
+            user-owned Simply Plural data into files on the user’s machine.
+        </p>
+        <div class="actions">
+            <a class="button primary" href="run.html">Next: Run the scripts</a>
+            <a class="button" href="https://github.com/needsofmany/PluralBridge">View source on GitHub</a>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>Current requirements</h2>
+        <ul>
+            <li>A computer where you can install and run command-line software.</li>
+            <li>Git, so the PluralBridge repository can be downloaded or updated.</li>
+            <li>Python 3, used by the current export scripts.</li>
+            <li>A Bash-compatible shell such as Git Bash on Windows.</li>
+            <li>A Simply Plural API token created by the user from inside their Simply Plural account.</li>
+        </ul>
+    </section>
+
+    <section class="section notice">
+        <h2>Token boundary</h2>
+        <p>
+            A Simply Plural API token is used only to let the local export scripts read the user’s Simply Plural data.
+            PluralBridge does not ask users to send tokens to this website, upload exported data, or hand private data
+            to Needs of the Many.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Windows notes</h2>
+        <p>
+            On Windows, Git Bash is a practical shell for the current workflow. The scripts are intended to run locally,
+            writing exported files into local folders controlled by the user.
+        </p>
+        <p>
+            Later PluralBridge tools may make this process friendlier, but the current preservation priority is getting
+            reliable local exports working while Simply Plural data remains reachable.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Where the current files live</h2>
+        <p>
+            The source code and documentation are published in the PluralBridge GitHub repository:
+        </p>
+        <p>
+            <a href="https://github.com/needsofmany/PluralBridge">https://github.com/needsofmany/PluralBridge</a>
+        </p>
+    </section>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-inner">
+        <p>PluralBridge is an independent project by Needs of the Many.</p>
+        <p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+    </div>
+</footer>
+</body>
+</html>

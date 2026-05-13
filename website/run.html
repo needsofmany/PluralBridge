@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>How to Run PluralBridge Simply Plural Export Scripts</title>
+    <meta name="description" content="Current PluralBridge workflow for running Simply Plural export scripts and creating local JSON files.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="How to Run PluralBridge Simply Plural Export Scripts">
+    <meta property="og:description" content="Run the current PluralBridge export workflow to preserve Simply Plural data locally.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://thepluralbridge.org/run.html">
+    <meta property="og:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How to Run PluralBridge Simply Plural Export Scripts">
+    <meta name="twitter:description" content="Run the current PluralBridge export workflow to preserve Simply Plural data locally.">
+    <meta name="twitter:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="export-now.html">Export Now</a>
+            <a href="install.html">Install</a>
+            <a href="run.html">Run</a>
+            <a href="safety.html">Safety</a>
+            <a href="about.html">About</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <section class="hero">
+        <p class="eyebrow">Run the scripts</p>
+        <h1>Create a local export before the source disappears.</h1>
+        <p class="lede">
+            The current PluralBridge scripts are designed to export Simply Plural data into local files that remain under
+            the user’s control.
+        </p>
+        <div class="actions">
+            <a class="button primary" href="safety.html">Review safety notes</a>
+            <a class="button" href="https://github.com/needsofmany/PluralBridge">Open the GitHub repository</a>
+        </div>
+    </section>
+
+    <section class="section notice">
+        <h2>Use the repository instructions as the command source</h2>
+        <p>
+            This page gives the public-facing shape of the workflow. The exact commands should be taken from the current
+            PluralBridge repository documentation, because scripts may change as the export path improves.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Current workflow shape</h2>
+        <ul>
+            <li>Download or update the PluralBridge repository from GitHub.</li>
+            <li>Create a Simply Plural API token from inside the user’s Simply Plural account.</li>
+            <li>Store the token locally as instructed by the repository documentation.</li>
+            <li>Run the JSON export script.</li>
+            <li>Confirm that JSON files were created in the local export folder.</li>
+            <li>Run avatar and notes export steps where supported.</li>
+            <li>Back up the exported files somewhere private and durable.</li>
+        </ul>
+    </section>
+
+    <section class="section">
+        <h2>Expected local output</h2>
+        <p>
+            The current export path is intended to create local JSON files and related export folders. Depending on the
+            user’s account data and the current script version, this may include members, groups, front history, custom
+            fields, notes, avatars, timers, polls, friends, chat data, and manifest files.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Database migration</h2>
+        <p>
+            PluralBridge also includes SQL Server migration scripts that can turn exported JSON files into database
+            tables, constraints, and readable views. That database path is mainly useful for developers, technically
+            comfortable users, reporting, validation, and future viewer development.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Source and current documentation</h2>
+        <p>
+            Use the GitHub repository for the current scripts and exact run instructions:
+        </p>
+        <p>
+            <a href="https://github.com/needsofmany/PluralBridge">https://github.com/needsofmany/PluralBridge</a>
+        </p>
+    </section>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-inner">
+        <p>PluralBridge is an independent project by Needs of the Many.</p>
+        <p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+    </div>
+</footer>
+</body>
+</html>

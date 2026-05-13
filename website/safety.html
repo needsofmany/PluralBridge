@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Simply Plural API Token Safety and Local Data Export — PluralBridge</title>
+    <meta name="description" content="Safety and privacy notes for using PluralBridge to export Simply Plural data locally.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="Simply Plural API Token Safety and Local Data Export — PluralBridge">
+    <meta property="og:description" content="Understand token handling, local exports, and privacy boundaries for PluralBridge.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://thepluralbridge.org/safety.html">
+    <meta property="og:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Simply Plural API Token Safety and Local Data Export — PluralBridge">
+    <meta name="twitter:description" content="Understand token handling, local exports, and privacy boundaries for PluralBridge.">
+    <meta name="twitter:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="export-now.html">Export Now</a>
+            <a href="install.html">Install</a>
+            <a href="run.html">Run</a>
+            <a href="safety.html">Safety</a>
+            <a href="about.html">About</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <section class="hero">
+        <p class="eyebrow">Safety and privacy</p>
+        <h1>Your token and exported data belong on your machine.</h1>
+        <p class="lede">
+            PluralBridge is designed around local export and user-controlled preservation. Tokens, JSON files, notes,
+            avatars, and database files should be treated as private data.
+        </p>
+        <div class="actions">
+            <a class="button primary" href="https://github.com/needsofmany/PluralBridge">Review the source</a>
+            <a class="button" href="export-now.html">Back to Export Now</a>
+        </div>
+    </section>
+
+    <section class="section notice">
+        <h2>Core safety boundary</h2>
+        <p>
+            PluralBridge does not ask users to send their Simply Plural API token to this website. PluralBridge does not
+            ask users to upload exported JSON files, notes, avatars, or database files to this website. The current export
+            workflow is intended to run locally on the user’s machine.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Token handling</h2>
+        <ul>
+            <li>Create the Simply Plural API token from inside your own Simply Plural account.</li>
+            <li>Use the token only with the local export scripts.</li>
+            <li>Do not paste the token into public posts, screenshots, issue reports, chat messages, or commits.</li>
+            <li>Do not store the token in the repository.</li>
+            <li>Delete or rotate the token when you no longer need it.</li>
+        </ul>
+    </section>
+
+    <section class="section">
+        <h2>Exported data handling</h2>
+        <ul>
+            <li>Assume exported JSON files may contain private System information.</li>
+            <li>Assume notes and avatars may contain sensitive personal material.</li>
+            <li>Back up exports somewhere private and durable.</li>
+            <li>Do not publish raw exports unless you have intentionally redacted them.</li>
+            <li>Use synthetic or redacted fixtures when reporting bugs or contributing tests.</li>
+        </ul>
+    </section>
+
+    <section class="section">
+        <h2>Independence</h2>
+        <p>
+            PluralBridge is an independent preservation project by Needs of the Many. It is not affiliated with Simply
+            Plural or Apparyllis. The project uses public API behavior and user-created tokens for export; it does not
+            rely on reverse engineering, decompiling, copying private code, or copying Simply Plural branding.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>License</h2>
+        <p>
+            PluralBridge is free/open-source software under the GNU GPL v3.0. Users and developers can inspect the code,
+            build from the repository, and contribute improvements under the project license.
+        </p>
+    </section>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-inner">
+        <p>PluralBridge is an independent project by Needs of the Many.</p>
+        <p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+    </div>
+</footer>
+</body>
+</html>
