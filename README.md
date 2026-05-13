@@ -54,6 +54,7 @@ The public PluralBridge website is live at:
 
 - https://thepluralbridge.org
 - https://www.thepluralbridge.org
+- https://pluralpedia.org/w/PluralBridge
 
 The website source is stored in the `website/` directory of this repository.
 
