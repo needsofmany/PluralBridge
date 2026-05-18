@@ -60,19 +60,19 @@ a:hover {
 .brand {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     text-decoration: none;
     color: var(--text-main);
 }
 
 .brand-title {
-    font-size: 1.45rem;
-    font-weight: 760;
+    font-size: 1.75rem;
+    font-weight: 800;
     letter-spacing: 0.02em;
 }
 
 .brand-subtitle {
-    font-size: 0.98rem;
+    font-size: 1.08rem;
     color: var(--text-soft);
 }
 
