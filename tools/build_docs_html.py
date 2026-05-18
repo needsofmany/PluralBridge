@@ -61,6 +61,15 @@ def markdown_to_html(markdown):
     code_lines = []
     in_ul = False
     in_ol = False
+    in_table = False
+
+    def split_table_row(line):
+        cells = line.strip().strip("|").split("|")
+        return [cell.strip() for cell in cells]
+
+    def is_table_separator(line):
+        cells = split_table_row(line)
+        return bool(cells) and all(re.match(r"^:?-{3,}:?$", cell) for cell in cells)
 
     def close_lists():
         nonlocal in_ul, in_ol
@@ -71,62 +80,125 @@ def markdown_to_html(markdown):
             out.append("</ol>")
             in_ol = False
 
-    for line in lines:
+    def close_table():
+        nonlocal in_table
+        if in_table:
+            out.append("</tbody></table>")
+            in_table = False
+
+    def close_blocks():
+        close_lists()
+        close_table()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        next_line = lines[i + 1] if i + 1 < len(lines) else ""
+
         fence = re.match(r"^```(\w+)?\s*$", line)
         if fence:
             if in_code:
-                out.append(f'<pre><code class="language-{html.escape(code_lang)}">' + html.escape("\n".join(code_lines)) + "</code></pre>")
+                out.append(
+                    f'<pre><code class="language-{html.escape(code_lang)}">'
+                    + html.escape("\n".join(code_lines))
+                    + "</code></pre>"
+                )
                 in_code = False
                 code_lang = "text"
                 code_lines = []
             else:
-                close_lists()
+                close_blocks()
                 in_code = True
                 code_lang = fence.group(1) or "text"
                 code_lines = []
+            i += 1
             continue
 
         if in_code:
             code_lines.append(line)
+            i += 1
             continue
 
         if not line.strip():
-            close_lists()
+            close_blocks()
+            i += 1
             continue
+
+        if (
+            "|" in line
+            and line.strip().startswith("|")
+            and line.strip().endswith("|")
+            and is_table_separator(next_line)
+        ):
+            close_blocks()
+            header_cells = split_table_row(line)
+            out.append("<table><thead><tr>")
+            for cell in header_cells:
+                out.append("<th>" + inline_markup(cell) + "</th>")
+            out.append("</tr></thead><tbody>")
+            in_table = True
+            i += 2
+            continue
+
+        if (
+            in_table
+            and "|" in line
+            and line.strip().startswith("|")
+            and line.strip().endswith("|")
+        ):
+            row_cells = split_table_row(line)
+            out.append("<tr>")
+            for cell in row_cells:
+                out.append("<td>" + inline_markup(cell) + "</td>")
+            out.append("</tr>")
+            i += 1
+            continue
+
+        if in_table:
+            close_table()
 
         heading = re.match(r"^(#{1,6})\s+(.*)$", line)
         if heading:
-            close_lists()
+            close_blocks()
             level = len(heading.group(1))
             text = heading.group(2).strip()
             ident = slugify(text)
             out.append(f'<h{level} id="{ident}">{inline_markup(text)}</h{level}>')
+            i += 1
             continue
 
         bullet = re.match(r"^\s*-\s+(.*)$", line)
         if bullet:
             if not in_ul:
-                close_lists()
+                close_blocks()
                 out.append("<ul>")
                 in_ul = True
             out.append("<li>" + inline_markup(bullet.group(1)) + "</li>")
+            i += 1
             continue
 
         numbered = re.match(r"^\s*\d+\.\s+(.*)$", line)
         if numbered:
             if not in_ol:
-                close_lists()
+                close_blocks()
                 out.append("<ol>")
                 in_ol = True
             out.append("<li>" + inline_markup(numbered.group(1)) + "</li>")
+            i += 1
             continue
 
-        close_lists()
+        close_blocks()
         out.append("<p>" + inline_markup(line) + "</p>")
+        i += 1
 
     if in_code:
-        out.append(f'<pre><code class="language-{html.escape(code_lang)}">' + html.escape("\n".join(code_lines)) + "</code></pre>")
-    close_lists()
+        out.append(
+            f'<pre><code class="language-{html.escape(code_lang)}">'
+            + html.escape("\n".join(code_lines))
+            + "</code></pre>"
+        )
+
+    close_blocks()
     return "\n".join(out)
 
 def page_title(markdown, fallback):
@@ -149,6 +221,8 @@ def render_page(md_path):
   <title>{html.escape(title)} — PluralBridge Documentation</title>
   <meta name="description" content="{html.escape(title)}. PluralBridge documentation published by Needs of the Many.">
   <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
 </head>
 <body>
 {NAV}
@@ -157,7 +231,13 @@ def render_page(md_path):
 {body}
   </article>
 </main>
-<script src="/js/code-highlight.js"></script>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {{
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}}
+</script>
 </body>
 </html>
 """, encoding="utf-8")

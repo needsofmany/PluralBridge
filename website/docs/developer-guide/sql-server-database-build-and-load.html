@@ -6,6 +6,8 @@
   <title>PluralBridge SQL Server Database Build and Load Guide — PluralBridge Documentation</title>
   <meta name="description" content="PluralBridge SQL Server Database Build and Load Guide. PluralBridge documentation published by Needs of the Many.">
   <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
 </head>
 <body>
 <header class="site-header">
@@ -37,13 +39,31 @@
 <p>This guide captures the repeatable procedure for building the PluralBridge SQL Server database and populating it from exported Simply Plural/Apparyllis JSON files. The workflow is staged: create the database and tables, bulk-load the exported JSON in dependency order, create readable reporting views, and run validation queries.</p>
 <p>The SQL scripts are data-agnostic. They reference table names, JSON file names, JSON paths, and reporting views. They do not embed member names, field values, notes, fronting history details, or other Simply Plural personal content as literal values.</p>
 <h2 id="inputs-and-assumptions">Inputs and Assumptions</h2>
-<p>| Item | Value |</p>
-<p>| --- | --- |</p>
-<p>| SQL Server database name | <code>PluralBridge</code> |</p>
-<p>| JSON export folder | <code>exports/json/</code> |</p>
-<p>| Avatar manifest, if loading avatars | <code>exports/avatar_manifest.tsv</code> |</p>
-<p>| SQL Server script folder | <code>scripts/sqlserver/</code> |</p>
-<p>| Master orchestrator script | <code>scripts/sqlserver/master.sql</code> |</p>
+<table><thead><tr>
+<th>Item</th>
+<th>Value</th>
+</tr></thead><tbody>
+<tr>
+<td>SQL Server database name</td>
+<td><code>PluralBridge</code></td>
+</tr>
+<tr>
+<td>JSON export folder</td>
+<td><code>exports/json/</code></td>
+</tr>
+<tr>
+<td>Avatar manifest, if loading avatars</td>
+<td><code>exports/avatar_manifest.tsv</code></td>
+</tr>
+<tr>
+<td>SQL Server script folder</td>
+<td><code>scripts/sqlserver/</code></td>
+</tr>
+<tr>
+<td>Master orchestrator script</td>
+<td><code>scripts/sqlserver/master.sql</code></td>
+</tr>
+</tbody></table>
 <h2 id="sql-server-feature-assumptions">SQL Server Feature Assumptions</h2>
 <ul>
 <li><code>OPENJSON</code>, <code>JSON_VALUE</code>, and <code>JSON_QUERY</code> are available.</li>
@@ -110,19 +130,51 @@ ORDER BY t.name;</code></pre>
 <p>The current Simply Plural JSON-to-SQL Server pipeline uses numbered scripts under:</p>
 <pre><code class="language-text">scripts/sqlserver/</code></pre>
 <h3 id="master-script">Master Script</h3>
-<p>| Script | Use | Notes |</p>
-<p>| --- | --- | --- |</p>
-<p>| <code>master.sql</code> | Fresh empty database | Orchestrates the numbered scripts. Re-running against already-loaded tables can cause key errors or duplicates. |</p>
+<table><thead><tr>
+<th>Script</th>
+<th>Use</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td><code>master.sql</code></td>
+<td>Fresh empty database</td>
+<td>Orchestrates the numbered scripts. Re-running against already-loaded tables can cause key errors or duplicates.</td>
+</tr>
+</tbody></table>
 <h3 id="numbered-scripts">Numbered Scripts</h3>
-<p>| Script | Purpose |</p>
-<p>| --- | --- |</p>
-<p>| <code>001_create_database.sql</code> | Creates or selects the <code>PluralBridge</code> database. |</p>
-<p>| <code>010_create_tables.sql</code> | Creates the base tables. |</p>
-<p>| <code>020_load_json.sql</code> | Loads the exported JSON files into the core tables. |</p>
-<p>| <code>030_add_constraints.sql</code> | Adds keys and constraints after the load structure is proven. |</p>
-<p>| <code>040_create_views.sql</code> | Creates readable reporting views. |</p>
-<p>| <code>050_validation_queries.sql</code> | Runs row count, referential, duplicate, and time-range validations. |</p>
-<p>| <code>060_report_queries.sql</code> | Provides useful post-load report queries. |</p>
+<table><thead><tr>
+<th>Script</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>001_create_database.sql</code></td>
+<td>Creates or selects the <code>PluralBridge</code> database.</td>
+</tr>
+<tr>
+<td><code>010_create_tables.sql</code></td>
+<td>Creates the base tables.</td>
+</tr>
+<tr>
+<td><code>020_load_json.sql</code></td>
+<td>Loads the exported JSON files into the core tables.</td>
+</tr>
+<tr>
+<td><code>030_add_constraints.sql</code></td>
+<td>Adds keys and constraints after the load structure is proven.</td>
+</tr>
+<tr>
+<td><code>040_create_views.sql</code></td>
+<td>Creates readable reporting views.</td>
+</tr>
+<tr>
+<td><code>050_validation_queries.sql</code></td>
+<td>Runs row count, referential, duplicate, and time-range validations.</td>
+</tr>
+<tr>
+<td><code>060_report_queries.sql</code></td>
+<td>Provides useful post-load report queries.</td>
+</tr>
+</tbody></table>
 <h2 id="populate-the-database-from-json-files">Populate the Database from JSON Files</h2>
 <p>This phase loads the export data. The cautious manual workflow is to examine the scripts and then run the numbered files in order. The master script can perform the load in one run after the process has been proven on redacted or safe test data.</p>
 <h3 id="recommended-run-order">Recommended Run Order</h3>
@@ -155,19 +207,55 @@ ORDER BY t.name;</code></pre>
 <h2 id="validation-baseline">Validation Baseline</h2>
 <p>The observed validation counts from a test import are useful as a reference for the same export set. They are not universal constants for future exports.</p>
 <h3 id="example-test-load-counts">Example Test-Load Counts</h3>
-<p>| Table | Example committed row count |</p>
-<p>| --- | --- |</p>
-<p>| <code>dbo.[user]</code> | 1 |</p>
-<p>| <code>dbo.me</code> | 1 |</p>
-<p>| <code>dbo.members</code> | 49 |</p>
-<p>| <code>dbo.front_history</code> | 886 |</p>
-<p>| <code>dbo.member_info_values</code> | 266 |</p>
-<p>| <code>dbo.member_buckets</code> | 49 |</p>
-<p>| <code>dbo.privacybuckets</code> | 2 |</p>
-<p>| <code>dbo.customfields</code> | 7 |</p>
-<p>| <code>dbo.chat_categories</code> | 1 |</p>
-<p>| <code>dbo.chat_channels</code> | 6 |</p>
-<p>| <code>dbo.friends</code> | 2 |</p>
+<table><thead><tr>
+<th>Table</th>
+<th>Example committed row count</th>
+</tr></thead><tbody>
+<tr>
+<td><code>dbo.[user]</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>dbo.me</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>dbo.members</code></td>
+<td>49</td>
+</tr>
+<tr>
+<td><code>dbo.front_history</code></td>
+<td>886</td>
+</tr>
+<tr>
+<td><code>dbo.member_info_values</code></td>
+<td>266</td>
+</tr>
+<tr>
+<td><code>dbo.member_buckets</code></td>
+<td>49</td>
+</tr>
+<tr>
+<td><code>dbo.privacybuckets</code></td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>dbo.customfields</code></td>
+<td>7</td>
+</tr>
+<tr>
+<td><code>dbo.chat_categories</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>dbo.chat_channels</code></td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>dbo.friends</code></td>
+<td>2</td>
+</tr>
+</tbody></table>
 <h3 id="validation-checks">Validation Checks</h3>
 <ul>
 <li>Missing parent references should report all zero.</li>
@@ -193,6 +281,12 @@ ORDER BY t.name;</code></pre>
 </ul>
   </article>
 </main>
-<script src="/js/code-highlight.js"></script>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
 </body>
 </html>

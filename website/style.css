@@ -274,19 +274,8 @@ code {
 }
 
 
-.doc-page .tok-keyword {
-    color: var(--warning);
-    font-weight: 700;
-}
 
-.doc-page .tok-comment {
-    color: var(--text-soft);
-    font-style: italic;
-}
 
-.doc-page .tok-number {
-    color: var(--accent);
-}
 \n.site-footer {
     border-top: 1px solid var(--line-soft);
     background: rgba(5, 8, 13, 0.82);
@@ -325,4 +314,34 @@ code {
     main {
         padding-top: 34px;
     }
+}
+
+.doc-page table {
+    border-collapse: collapse;
+    margin: 1.25rem 0 1.75rem;
+    width: auto;
+    max-width: 100%;
+}
+
+.doc-page th,
+.doc-page td {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    padding: 0.45rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.doc-page th {
+    background: rgba(15, 23, 42, 0.75);
+    color: #f8fafc;
+    font-weight: 700;
+}
+
+.doc-page td {
+    background: rgba(15, 23, 42, 0.35);
+}
+
+.doc-page td code,
+.doc-page th code {
+    white-space: nowrap;
 }

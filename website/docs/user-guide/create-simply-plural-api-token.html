@@ -6,6 +6,8 @@
   <title>Create a Simply Plural API Token — PluralBridge Documentation</title>
   <meta name="description" content="Create a Simply Plural API Token. PluralBridge documentation published by Needs of the Many.">
   <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
 </head>
 <body>
 <header class="site-header">
@@ -79,6 +81,12 @@ printf &#x27;Token length: %s\n&#x27; &quot;${#SP_TOKEN}&quot;</code></pre>
 <p>SP_TOKEN is export-only and used only to export user-owned data from Simply Plural/Apparyllis. It is not a PluralBridge credential.</p>
   </article>
 </main>
-<script src="/js/code-highlight.js"></script>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
 </body>
 </html>

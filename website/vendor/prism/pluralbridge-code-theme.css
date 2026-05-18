@@ -1,0 +1,98 @@
+/*
+PluralBridge local code highlighting theme.
+Uses Prism token classes with a dark, readable code-block style.
+*/
+
+.doc-page pre[class*="language-"],
+.doc-page pre {
+    background: #0d1117;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    line-height: 1.45;
+    text-shadow: none;
+}
+
+.doc-page code[class*="language-"],
+.doc-page code {
+    background: transparent;
+    color: #e6edf3;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.94rem;
+    text-shadow: none;
+}
+
+.doc-page :not(pre) > code {
+    background: #161b22;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 0.12em 0.35em;
+}
+
+.doc-page .token.comment,
+.doc-page .token.prolog,
+.doc-page .token.doctype,
+.doc-page .token.cdata {
+    color: #8b949e;
+    font-style: italic;
+}
+
+.doc-page .token.punctuation {
+    color: #c9d1d9;
+}
+
+.doc-page .token.property,
+.doc-page .token.tag,
+.doc-page .token.boolean,
+.doc-page .token.number,
+.doc-page .token.constant,
+.doc-page .token.symbol,
+.doc-page .token.deleted {
+    color: #79c0ff;
+}
+
+.doc-page .token.selector,
+.doc-page .token.attr-name,
+.doc-page .token.string,
+.doc-page .token.char,
+.doc-page .token.builtin,
+.doc-page .token.inserted {
+    color: #a5d6ff;
+}
+
+.doc-page .token.operator,
+.doc-page .token.entity,
+.doc-page .token.url,
+.doc-page .language-css .token.string,
+.doc-page .style .token.string {
+    color: #ff7b72;
+}
+
+.doc-page .token.atrule,
+.doc-page .token.attr-value,
+.doc-page .token.keyword {
+    color: #ff7b72;
+}
+
+.doc-page .token.function,
+.doc-page .token.class-name {
+    color: #d2a8ff;
+}
+
+.doc-page .token.regex,
+.doc-page .token.important,
+.doc-page .token.variable {
+    color: #ffa657;
+}
+
+.doc-page .token.important,
+.doc-page .token.bold {
+    font-weight: 600;
+}
+
+.doc-page .token.italic {
+    font-style: italic;
+}

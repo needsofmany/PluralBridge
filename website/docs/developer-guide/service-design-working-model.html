@@ -6,6 +6,8 @@
   <title>PluralBridge Service Design Working Model — PluralBridge Documentation</title>
   <meta name="description" content="PluralBridge Service Design Working Model. PluralBridge documentation published by Needs of the Many.">
   <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
 </head>
 <body>
 <header class="site-header">
@@ -412,6 +414,12 @@ pluralbridge.admin</code></pre>
 <p>Preserve data first. Put a service boundary around the preserved data. Validate the boundary with Swagger and Fiddler. Prove one full vertical slice. Stabilize the contract. Then build clients and storage backends around that contract.</p>
   </article>
 </main>
-<script src="/js/code-highlight.js"></script>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
 </body>
 </html>
