@@ -2,6 +2,19 @@
 
 Project website: https://thepluralbridge.org/
 
+## Regular users: start here
+
+If you are trying to preserve your Simply Plural data and GitHub looks confusing, start with the regular-user guide:
+
+- https://thepluralbridge.org/start-here.html
+
+Downloading the GitHub ZIP gives you the PluralBridge project files. It does not currently give you a finished double-click app installer.
+
+The fastest current user path is:
+
+1. Read the Start Here page.
+2. Continue to Export Now.
+3. Protect your exported files, notes, avatars, backups, and API token.
 
 Welcome to PluralBridge.
 

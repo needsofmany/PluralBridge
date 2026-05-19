@@ -79,7 +79,7 @@ a:hover {
 .nav {
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 20px;
     align-items: center;
     justify-content: flex-end;
 }
@@ -344,4 +344,33 @@ code {
 .doc-page td code,
 .doc-page th code {
     white-space: nowrap;
+}
+
+
+/* External navigation links */
+.nav a[href^="https://"] {
+    color: #ff8bdc;
+}
+
+.nav a[href^="https://"]:hover {
+    color: #ffb8ee;
+}
+
+.nav .github-link {
+    color: #ff8bdc;
+}
+
+
+/* Primary export navigation link */
+.nav a[href="export-now.html"] {
+    padding: 8px 12px;
+    border-radius: 999px;
+    color: #03111c;
+    background: var(--accent);
+    font-weight: 680;
+}
+
+.nav a[href="export-now.html"]:hover {
+    color: #03111c;
+    background: var(--accent-strong);
 }
