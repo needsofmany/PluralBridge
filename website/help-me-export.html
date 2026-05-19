@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Help Me Export — PluralBridge</title>
+    <meta name="description" content="Plain-language export guidance for Simply Plural users who are not software developers.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="Help Me Export — PluralBridge">
+    <meta property="og:description" content="A plain-language guide for preserving Simply Plural data with PluralBridge.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://thepluralbridge.org/help-me-export.html">
+    <meta property="og:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Help Me Export — PluralBridge">
+    <meta name="twitter:description" content="A plain-language guide for preserving Simply Plural data with PluralBridge.">
+    <meta name="twitter:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="canonical" href="https://thepluralbridge.org/help-me-export.html">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="start-here.html">Start Here</a>
+            <a href="export-now.html">Export Now</a>
+            <a href="docs.html">Docs</a>
+            <a href="simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="install.html">Install</a>
+            <a href="run.html">Run</a>
+            <a href="safety.html">Safety</a>
+            <a href="about.html">About</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <section class="hero">
+        <p class="eyebrow">Help me export</p>
+        <h1>If you are not a software developer, you can still preserve your Simply Plural data.</h1>
+        <p class="lede">
+            The current PluralBridge tools may require help from someone comfortable with command-line work. This guide explains the choices, the safety rules, and what a successful export should leave on your machine.
+        </p>
+        <div class="actions">
+            <a class="button primary" href="install.html">I can follow careful steps</a>
+            <a class="button" href="safety.html">Read safety notes first</a>
+        </div>
+    </section>
+
+    <section class="section notice">
+        <h2>The goal</h2>
+        <p>
+            The goal is to make a local copy of your Simply Plural data while the service and public API are still available. That local copy can later feed viewers, reports, databases, migration tools, and future preservation work.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Choose the path that fits you</h2>
+    </section>
+
+    <section class="grid" aria-label="Export paths">
+        <article class="card">
+            <h3>I have a trusted technical helper</h3>
+            <p>Ask them to sit with you, read the safety notes, install the requirements, and run the export scripts on a computer you trust.</p>
+            <p><a href="safety.html">Read Safety</a></p>
+        </article>
+
+        <article class="card">
+            <h3>I can follow careful steps</h3>
+            <p>Start with the install page, then use the run page. Move slowly and keep your token and exported files private.</p>
+            <p><a href="install.html">Go to Install</a></p>
+        </article>
+
+        <article class="card">
+            <h3>I need help before I run anything</h3>
+            <p>That is a reasonable place to be. Read this page first so you know what to ask for and what information must stay private.</p>
+            <p><a href="#what-to-protect">What to protect</a></p>
+        </article>
+    </section>
+
+    <section class="section" id="what-your-helper-needs">
+        <h2>What your helper needs to know</h2>
+        <ul>
+            <li>You create your own Simply Plural API token inside Simply Plural.</li>
+            <li>The token should be treated like a password.</li>
+            <li>The export should run on a computer you trust.</li>
+            <li>The exported files may include member data, notes, avatars, front history, groups, custom fields, and other private System information.</li>
+            <li>The exported files should stay out of public GitHub repositories, chat screenshots, paste sites, and public support threads.</li>
+        </ul>
+    </section>
+
+    <section class="section" id="what-to-protect">
+        <h2>What to protect</h2>
+        <p>
+            Protect the API token, the exported JSON files, notes, avatars, database files, screenshots of exported data, and backups. These files can contain private System information even when the filenames look harmless.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>What gets created</h2>
+        <p>
+            The current export path creates local files on your computer. The main output is JSON data. Depending on what is available in your Simply Plural account, the export may also preserve notes and avatar images. Later PluralBridge tools may use the same preserved data for databases, reports, viewers, and migration work.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>What success looks like</h2>
+        <ul>
+            <li>You have exported files stored locally on a computer or drive you control.</li>
+            <li>You have at least one backup copy somewhere safe.</li>
+            <li>Your API token has not been posted or shared publicly.</li>
+            <li>Your exported data has not been committed to GitHub or uploaded to a public site.</li>
+            <li>You know where the exported files are and can find them again.</li>
+        </ul>
+    </section>
+
+    <section class="section">
+        <h2>Where to go next</h2>
+        <p>
+            If you can follow careful steps, start with Install, then Run, then Safety. If you have a helper, ask them to read those same pages with you before touching the token or export files.
+        </p>
+        <div class="actions">
+            <a class="button primary" href="install.html">Open Install</a>
+            <a class="button" href="run.html">Open Run</a>
+            <a class="button" href="safety.html">Open Safety</a>
+        </div>
+    </section>
+
+    <section class="section notice">
+        <h2>What is coming later</h2>
+        <p>
+            PluralBridge is moving toward clearer packages, launcher-style tooling, local viewers, and easier guides. The current priority remains preservation: get the data safely out while export access still exists.
+        </p>
+    </section>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-inner">
+        <p>PluralBridge is an independent project by Needs of the Many.</p>
+        <p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+    </div>
+</footer>
+</body>
+</html>

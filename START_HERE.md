@@ -4,7 +4,10 @@ If you downloaded this ZIP because you want to preserve your Simply Plural data,
 
 This ZIP contains PluralBridge project files. It is not currently a normal double-click app installer.
 
-For regular-user instructions, go to:
+If you are not a software developer, use this plain-language guide first:
+https://thepluralbridge.org/help-me-export.html
+
+General starting page:
 https://thepluralbridge.org/start-here.html
 
 If GitHub looks confusing, that is understandable. GitHub is mainly a developer workbench, and PluralBridge needs a clearer path for people who only want to preserve their data.
@@ -14,7 +17,7 @@ The current priority is getting Simply Plural data safely exported before the sh
 Main project website:
 https://thepluralbridge.org/
 
-Export starting point:
+Direct export workflow:
 https://thepluralbridge.org/export-now.html
 
 Public GitHub repository:
