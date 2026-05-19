@@ -43,61 +43,124 @@
 
 <main>
     <section class="hero">
-        <p class="eyebrow">Run the scripts</p>
-        <h1>Create a local export before the source disappears.</h1>
+        <p class="eyebrow">Run the export</p>
+        <h1>Run the local export and check the files it creates.</h1>
         <p class="lede">
-            The current PluralBridge scripts are designed to export Simply Plural data into local files that remain under
-            the user’s control.
+            This page explains the current PluralBridge command-line export path in plain language.
+            The commands run on your computer and write exported Simply Plural data into local folders.
         </p>
         <div class="actions">
             <a class="button primary" href="safety.html">Review safety notes</a>
-            <a class="button" href="https://github.com/needsofmany/PluralBridge">Open the GitHub repository</a>
+            <a class="button" href="install.html">Back to install steps</a>
         </div>
     </section>
 
     <section class="section notice">
-        <h2>Use the repository instructions as the command source</h2>
+        <h2>Before you start</h2>
         <p>
-            This page gives the public-facing shape of the workflow. The exact commands should be taken from the current
-            PluralBridge repository documentation, because scripts may change as the export path improves.
+            You should already have Python 3, a Bash-compatible shell, the PluralBridge files, and your Simply Plural
+            API token ready. Run these commands from the main PluralBridge folder, the folder that contains
+            <code>README.md</code>, <code>docs</code>, <code>scripts</code>, and <code>website</code>.
+        </p>
+        <p>
+            Your exported files can contain private System information, notes, avatars, timestamps, custom fields,
+            and other sensitive data. Keep the export folder private.
         </p>
     </section>
 
     <section class="section">
-        <h2>Current workflow shape</h2>
+        <h2>Step 1: Open your shell in the PluralBridge folder</h2>
+        <p>
+            Open Git Bash on Windows, or Terminal on macOS or Linux. Change into the folder where you placed the
+            PluralBridge files.
+        </p>
+        <pre><code>cd PluralBridge</code></pre>
+        <p>
+            The folder name may be different if you downloaded a ZIP file or placed the files somewhere else.
+            The important point is that you are in the main folder before running the export commands.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 2: Put your Simply Plural token into the shell</h2>
+        <p>
+            PluralBridge reads your Simply Plural API token from an environment variable named <code>SP_TOKEN</code>.
+            This command lets you paste the token without printing it back onto the screen.
+        </p>
+        <pre><code>read -s -p "Paste Simply Plural token: " SP_TOKEN
+echo
+export SP_TOKEN</code></pre>
+        <p>
+            Check that a token was captured without revealing the token itself:
+        </p>
+        <pre><code>printf 'Token length: %s\n' "${#SP_TOKEN}"</code></pre>
+        <p>
+            A number greater than zero means the shell has a token value. Do not paste the token into screenshots,
+            public issues, chat rooms, pull requests, or shared documents.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 3: Export JSON data</h2>
+        <p>
+            Run the JSON export script:
+        </p>
+        <pre><code>python scripts/python/export_json.py --output-dir exports/json</code></pre>
+        <p>
+            Successful output creates JSON files under <code>exports/json</code>. The exact files depend on your
+            Simply Plural account data and the current script version.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 4: Export avatar images</h2>
+        <p>
+            After <code>members.json</code> exists, run the avatar export script:
+        </p>
+        <pre><code>python scripts/python/export_avatars.py --members-json exports/json/members.json --output-dir exports/member_images</code></pre>
+        <p>
+            Successful output creates image files under <code>exports/member_images</code> when avatar URLs are available.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 5: Check what was created</h2>
+        <p>
+            A successful local export should leave private files in local export folders such as:
+        </p>
         <ul>
-            <li>Download or update the PluralBridge repository from GitHub.</li>
-            <li>Create a Simply Plural API token from inside the user’s Simply Plural account.</li>
-            <li>Store the token locally as instructed by the repository documentation.</li>
-            <li>Run the JSON export script.</li>
-            <li>Confirm that JSON files were created in the local export folder.</li>
-            <li>Run avatar and notes export steps where supported.</li>
-            <li>Back up the exported files somewhere private and durable.</li>
+            <li><code>exports/json</code> for exported JSON data.</li>
+            <li><code>exports/member_images</code> for downloaded avatar images.</li>
+            <li>Additional export folders or manifest files as scripts are added or documented.</li>
+        </ul>
+        <p>
+            Back up the <code>exports</code> folder somewhere private and durable. Do not commit it to GitHub.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Common warning signs</h2>
+        <ul>
+            <li><code>Token length: 0</code> means the token was not captured by the shell.</li>
+            <li>A missing <code>exports/json</code> folder means the JSON export did not complete successfully.</li>
+            <li>A missing <code>exports/json/members.json</code> file means the avatar export cannot run yet.</li>
+            <li>Authentication or authorization errors usually mean the token is missing, pasted incorrectly, or no longer valid.</li>
         </ul>
     </section>
 
     <section class="section">
-        <h2>Expected local output</h2>
+        <h2>Optional database migration</h2>
         <p>
-            The current export path is intended to create local JSON files and related export folders. Depending on the
-            user’s account data and the current script version, this may include members, groups, front history, custom
-            fields, notes, avatars, timers, polls, friends, chat data, and manifest files.
+            PluralBridge also includes SQL Server migration scripts that can load exported JSON into database tables,
+            constraints, and readable views. That path is mainly for developers, technically comfortable users,
+            validation work, reporting, and future viewer development.
         </p>
     </section>
 
     <section class="section">
-        <h2>Database migration</h2>
+        <h2>Current source instructions</h2>
         <p>
-            PluralBridge also includes SQL Server migration scripts that can turn exported JSON files into database
-            tables, constraints, and readable views. That database path is mainly useful for developers, technically
-            comfortable users, reporting, validation, and future viewer development.
-        </p>
-    </section>
-
-    <section class="section">
-        <h2>Source and current documentation</h2>
-        <p>
-            Use the GitHub repository for the current scripts and exact run instructions:
+            The repository remains the command source for the current scripts and documentation:
         </p>
         <p>
             <a href="https://github.com/needsofmany/PluralBridge">https://github.com/needsofmany/PluralBridge</a>
