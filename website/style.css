@@ -374,3 +374,22 @@ code {
     color: #03111c;
     background: var(--accent-strong);
 }
+
+.privacy-banner {
+    width: min(var(--max-width), calc(100% - 32px));
+    margin: 18px auto 0;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 210, 122, 0.48);
+    border-radius: 18px;
+    color: var(--text-muted);
+    background: rgba(84, 56, 13, 0.34);
+    font-size: 0.95rem;
+}
+
+.privacy-banner strong {
+    color: var(--warning);
+}
+
+.privacy-banner + main {
+    padding-top: 28px;
+}
