@@ -6,6 +6,82 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.3.4 — Website logo and release-history access
+
+### Major tasks completed
+
+- Added the PluralBridge bridge image to the public website navigation.
+- Moved the larger PluralBridge logo/banner to the About page, where project identity is explained.
+- Updated homepage social preview image metadata to use the PluralBridge logo.
+- Added homepage access to the release and tag task history.
+- Added documentation-page access to the release and tag task history.
+- Previewed the website changes locally before merging into `dev`.
+
+### Notes
+
+This release added the first public PluralBridge logo treatment to the website, improved project identity presentation, and made the repository tag/task history easier for visitors to find.
+
+---
+
+## v0.3.3 — Official export probes and privacy banner
+
+### Major tasks completed
+
+- Added inspection/probe tooling for official Simply Plural export files.
+- Added normalization/probe support to help understand the shape of official export data.
+- Added a site-wide privacy reminder banner warning that Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data.
+- Reinforced that export files should be treated as private backups and should not be posted publicly or attached to support requests.
+
+### Pull requests and major commits included
+
+- PR #17: Add official export inspection and normalization probes.
+- PR #18: Add site-wide export privacy reminder.
+- PR #19: Release official export probes and privacy banner.
+
+### Notes
+
+This release started the investigation path for official Simply Plural export files while preserving the project safety boundary around private export data.
+
+---
+
+## v0.3.2 — Guided export launcher
+
+### Major tasks completed
+
+- Added a guided export launcher to make the export path easier for regular users.
+- Continued reducing command-line friction for users who need to preserve data before the Simply Plural shutdown.
+- Kept the export process aligned with the local-first safety model.
+
+### Pull requests and major commits included
+
+- PR #15: Add guided export launcher.
+- PR #16: Release guided export launcher.
+
+### Notes
+
+This release moved PluralBridge toward a more approachable export workflow while still keeping the current implementation script-based and local-first.
+
+---
+
+## v0.3.1 — Root tag task history
+
+### Major tasks completed
+
+- Added root-level `TAG_TASKS.md` to record major work represented by repository tags.
+- Established a project-facing release and task history outside generated website documentation.
+- Created a place to summarize release work, repair checkpoints, and follow-up queues.
+
+### Pull requests and major commits included
+
+- PR #13: Add tag task history.
+- PR #14: Release tag task history.
+
+### Notes
+
+This release added the repository-level task history that is now being linked from the public website.
+
+---
+
 ## v0.3.0 — Public website, documentation rendering, and non-technical user path
 
 ### Major tasks completed
