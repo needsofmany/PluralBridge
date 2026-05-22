@@ -6,9 +6,9 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
-## In progress — Website logo and release-history access
+## v0.3.4 — Website logo and release-history access
 
-### Major tasks completed or in progress
+### Major tasks completed
 
 - Added the PluralBridge bridge image to the public website navigation.
 - Moved the larger PluralBridge logo/banner to the About page, where project identity is explained.
@@ -19,7 +19,7 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ### Notes
 
-This section is a temporary in-progress entry. After this branch is merged and the next release tag is created, this entry should be renamed to the final tag or version identifier and updated with the completed pull request and release details.
+This release added the first public PluralBridge logo treatment to the website, improved project identity presentation, and made the repository tag/task history easier for visitors to find.
 
 ---
 
