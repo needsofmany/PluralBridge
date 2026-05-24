@@ -6,6 +6,25 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.4.2 — GitHub Discussions and public project links
+
+### Major tasks completed
+
+- Enabled and configured GitHub Discussions for the PluralBridge repository.
+- Created starter Discussions categories for announcements, design proposals, feature ideas, help and questions, community and documentation, and polls.
+- Added pinned starter discussions explaining how each major discussion area should be used.
+- Added GitHub Discussions links to `README.md`.
+- Added GitHub Discussions links to the public website navigation.
+- Refreshed the `TAG_TASKS.md` follow-up queue for the current `v0.4.1` project state.
+- Added developer-community publicizing follow-up items to the release task queue.
+- Added official Simply Plural export guidance follow-up items to the release task queue.
+
+### Notes
+
+This release prepares PluralBridge for developer and community participation by making GitHub Discussions visible from the repository and website, while keeping privacy boundaries and public-project workflow expectations clear.
+
+---
+
 ## v0.4.1 — Release-history bookkeeping
 
 ### Major tasks completed
@@ -274,7 +293,7 @@ This tag represents the initial public foundation: export-first preservation, lo
 
 ---
 
-## Current post-v0.3.0 follow-up queue
+## Current post-v0.4.1 follow-up queue
 
 ### Public site and user-path verification
 
@@ -282,30 +301,44 @@ This tag represents the initial public foundation: export-first preservation, lo
 - Check:
   - `https://thepluralbridge.org/start-here.html`
   - `https://thepluralbridge.org/help-me-export.html`
+  - `https://thepluralbridge.org/export-now.html`
   - `https://thepluralbridge.org/install.html`
   - `https://thepluralbridge.org/run.html`
   - `https://thepluralbridge.org/safety.html`
+  - `https://thepluralbridge.org/developer-workflow.html`
 - Verify the full click path:
-  - Start Here → Help Me Export → Install → Run → Safety
+  - Start Here → Help Me Export → Export Now → Install → Run → Safety
+- Confirm GitHub Discussions links are visible from the website and README.
 - Confirm `mailto:needsofthemany@thepluralbridge.org` behaves reasonably in common browsers.
 - Request search indexing for newly added or materially changed pages if needed.
+
+### Developer-community publicizing
+
+- Point developer outreach to GitHub Discussions before asking for broad participation.
+- Use Discussions for design proposals, questions, feature ideas, documentation suggestions, and polls.
+- Use Issues only for scoped, actionable work.
+- Keep contributor-facing messaging clear that private exports, real System data, tokens, avatars, notes, logs, and database files must not be posted publicly.
 
 ### Documentation and contributor workflow
 
 - Add a release checklist.
 - Decide whether to add `CHANGELOG.md`.
-- Document branch discipline in `CONTRIBUTING.md`.
-- Add a public contributor workflow page.
-- Include preview-before-merge expectations.
-- Include PR header visual-confirmation expectations.
+- Keep `CONTRIBUTING.md` and `website/developer-workflow.html` aligned as contributor workflow evolves.
+- Plan a later dropdown/grouped navigation branch if the flat nav becomes too crowded.
 
 ### Regular-user tooling
 
-- Add a guided runner or command wrapper.
 - Add export validation helper output.
 - Consider first-pass Windows-friendly helper script.
 - Improve notes export documentation once the workflow is ready.
 - Add clearer success/failure reporting.
+
+### Official Simply Plural export guidance
+
+- Add user-facing guidance that the official Simply Plural export should be saved now and treated as a private backup.
+- Explain that official Simply Plural export files may contain sensitive account, token, security, private, note, message, friend, avatar-reference, report, usage, and System data.
+- Explain that the official Simply Plural export does not download avatar image files.
+- Explain that PluralBridge API export can download actual member avatar files while they are still reachable.
 
 ### Private candidate review
 
@@ -322,3 +355,4 @@ This tag represents the initial public foundation: export-first preservation, lo
 - Review the current Pluralpedia page.
 - Restore or rewrite missing public-facing project context where appropriate.
 - Keep wording factual, calm, and focused on preservation and continuity.
+

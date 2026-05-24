@@ -71,8 +71,13 @@ The public PluralBridge website is live at:
 - https://thepluralbridge.org
 - https://www.thepluralbridge.org
 - https://pluralpedia.org/w/PluralBridge
+- https://github.com/needsofmany/PluralBridge/discussions
 
 The website source is stored in the `website/` directory of this repository.
+
+Project planning, contributor questions, design proposals, feature ideas, documentation suggestions, and structured polls are handled through GitHub Discussions:
+
+- https://github.com/needsofmany/PluralBridge/discussions
 
 The current site is deployed through Cloudflare Pages from the `master` branch, with `website` as the build output directory. It provides public-facing project information, Simply Plural export urgency, installation and run guidance, safety notes, and links back to this repository.
 
