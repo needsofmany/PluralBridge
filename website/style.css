@@ -345,6 +345,20 @@ code {
         white-space: normal;
     }
 
+    .privacy-banner {
+        font-size: 0.9rem;
+        line-height: 1.45;
+    }
+
+    .privacy-banner.is-collapsed .privacy-banner-text {
+        max-height: calc(2 * 1.45em);
+        overflow: hidden;
+    }
+
+    .privacy-banner .privacy-banner-toggle {
+        display: inline-block;
+    }
+
     .hero {
         padding: 28px;
     }
@@ -435,6 +449,24 @@ code {
 
 .privacy-banner strong {
     color: var(--warning);
+}
+
+.privacy-banner-toggle {
+    display: none;
+    appearance: none;
+    margin-top: 8px;
+    border: 1px solid rgba(255, 210, 122, 0.62);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--warning);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 6px 10px;
+}
+
+.privacy-banner-toggle:hover {
+    background: rgba(255, 255, 255, 0.14);
 }
 
 .privacy-banner + main {

@@ -6,6 +6,29 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.5.0 — Mobile navigation and privacy reminder usability
+
+### Major tasks completed
+
+- Added the first contributor-ready starter Issues for developer-community outreach.
+- Added and labeled starter Issues for synthetic fixtures, export validation, SQLite schema drafting, non-technical export guidance, and documentation/accessibility review.
+- Added a developer landing Discussion pointing contributors to scoped starter Issues and privacy-safe contribution boundaries.
+- Improved public website navigation for narrow screens and mobile devices.
+- Changed mobile navigation into a two-column tappable grid.
+- Preserved the existing desktop navigation and page structure while allowing better wrapping behavior.
+- Added a mobile privacy reminder toggle so the privacy warning starts compact on phones and can be expanded when needed.
+- Kept the full privacy warning visible on desktop.
+- Added `website/privacy-banner.js` for the mobile privacy reminder toggle.
+- Previewed website changes locally and on a real phone before release.
+
+### Notes
+
+This release is a visible website usability release. It improves the mobile path before adding the later Contact/Support page, so users can navigate the site more clearly on phones while still seeing the privacy reminder and having access to the full warning text.
+
+The developer-outreach foundation now includes scoped starter Issues and a GitHub Discussion landing point, with the same safety boundary: contributors should use synthetic examples, redacted descriptions, and public-safe fixtures only.
+
+---
+
 ## v0.4.2 — GitHub Discussions and public project links
 
 ### Major tasks completed
@@ -293,7 +316,7 @@ This tag represents the initial public foundation: export-first preservation, lo
 
 ---
 
-## Current post-v0.4.1 follow-up queue
+## Current post-v0.5.0 follow-up queue
 
 ### Public site and user-path verification
 
@@ -324,7 +347,7 @@ This tag represents the initial public foundation: export-first preservation, lo
 - Add a release checklist.
 - Decide whether to add `CHANGELOG.md`.
 - Keep `CONTRIBUTING.md` and `website/developer-workflow.html` aligned as contributor workflow evolves.
-- Plan a later dropdown/grouped navigation branch if the flat nav becomes too crowded.
+- Revisit dropdown/grouped navigation later if the flat desktop nav becomes too crowded again.
 
 ### Regular-user tooling
 
@@ -359,17 +382,17 @@ This tag represents the initial public foundation: export-first preservation, lo
 
 ---
 
-## Current contributor-ready issue planning
+## Current contributor-ready outreach state
 
-These are candidate starter Issues for developer-community outreach. They should be created only when each item has a clear scope, privacy-safe boundaries, and a synthetic-data path.
+The first starter Issues and developer landing Discussion have been created for developer-community outreach. Further Issues should still be created only when each item has a clear scope, privacy-safe boundaries, and a synthetic-data path.
 
-### Candidate starter Issues
+### Current starter Issues
 
-- Add synthetic export fixture set for tests and examples.
-- Add export validation summary output.
-- Draft initial SQLite schema for local/offline preserved data.
-- Improve non-technical export success/failure guidance.
-- Review documentation for accessibility and plain-language clarity.
+- #38 — Add synthetic export fixture set for tests and examples.
+- #39 — Add export validation summary output.
+- #40 — Draft initial SQLite schema for local/offline preserved data.
+- #41 — Improve non-technical export success/failure guidance.
+- #42 — Review documentation for accessibility and plain-language clarity.
 
 ### Privacy and data-safety boundary
 
@@ -377,4 +400,4 @@ All contributor-ready Issues should assume synthetic examples, redacted descript
 
 ### Outreach sequencing
 
-Developer-community outreach should come before the Contact/Support page and navigation/mobile repair work. The Contact/Support page and navbar/mobile cleanup are the next focused website task after the first developer outreach pass.
+Developer-community outreach should come before the Contact/Support page. Mobile navigation repair has now been addressed in the v0.5.0 work. The Contact/Support page remains the next focused website task after developer outreach stabilizes.
