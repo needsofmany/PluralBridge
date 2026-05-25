@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Export Simply Plural Member Avatars — PluralBridge Documentation</title>
+  <meta name="description" content="Export Simply Plural Member Avatars. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Export Now</a>
+            <a href="/docs.html">Docs</a>
+            <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="/install.html">Install</a>
+            <a href="/run.html">Run</a>
+            <a href="/safety.html">Safety</a>
+            <a href="/about.html">About</a>
+            <a href="/developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+<main class="page">
+  <article class="card doc-page">
+<h1 id="export-simply-plural-member-avatars">Export Simply Plural Member Avatars</h1>
+<p>This guide explains how to retrieve Simply Plural member avatar images using REST commands from a Bash shell.</p>
+<p>The procedure creates local image files named by Simply Plural member ID. This keeps avatar filenames data-stable and avoids placing member or decorator display names into the filesystem.</p>
+<p>PluralBridge is published by Needs of the Many.</p>
+<p>PluralBridge is independent and has no affiliation with Simply Plural, Apparyllis, or the Simply Plural development team.</p>
+<h2 id="purpose">Purpose</h2>
+<p>This document explains how to retrieve Simply Plural member avatar images using REST commands from a Bash shell. It follows the same working model as the JSON data extraction and SQL Server database creation guides: inspect first, save outputs to files, validate each result, and avoid embedding decorator/member display names in generated filenames.</p>
+<p>The procedure creates local image files named by Simply Plural member ID. This keeps avatar filenames data-stable and avoids putting member/decorator names into the filesystem.</p>
+<h2 id="required-tools">Required tools</h2>
+<p>Bash shell, such as Git Bash on Windows.</p>
+<p>curl, used to execute the REST calls.</p>
+<p>Python, used instead of jq to parse JSON because jq was not installed in the working environment.</p>
+<p>file command, used to verify the downloaded images and identify image types.</p>
+<p>A Simply Plural API token with Read permission.</p>
+<h2 id="create-and-enter-the-simply-plural-token">Create and enter the Simply Plural token</h2>
+<p>In Simply Plural, create a token from Settings -&gt; Account -&gt; Tokens. Enable Read permission. In Chrome, press and hold the token value to copy it. If the token begins with a prefix such as TBD///, keep the full value exactly as copied.</p>
+<p>Enter the token into Bash without displaying it on screen:</p>
+<pre><code class="language-bash">set +H
+export SP_API=&#x27;https://api.apparyllis.com&#x27;
+
+read -s -p &quot;Paste NEW Simply Plural token: &quot; SP_TOKEN
+echo
+export SP_TOKEN
+printf &#x27;Token length: %s\n&#x27; &quot;${#SP_TOKEN}&quot;</code></pre>
+<h2 id="test-api-authorization">Test API authorization</h2>
+<p>This REST call verifies that the token works before any member or avatar extraction begins.</p>
+<pre><code class="language-bash">curl -i -sS \
+  -H &quot;Authorization: ${SP_TOKEN}&quot; \
+  &quot;${SP_API}/v1/me&quot;</code></pre>
+<p>Expected result: HTTP 200 with JSON. If the response is HTTP 401 Unauthorized and says the authorization token is missing or invalid, revoke the token and create a fresh token with Read permission.</p>
+<h2 id="prepare-the-local-folders">Prepare the local folders</h2>
+<p>Create the avatar output folder and move into the export working folder.</p>
+<pre><code class="language-bash">set +H
+cd exports
+mkdir -p member_images</code></pre>
+<h2 id="retrieve-the-account-system-record">Retrieve the account/system record</h2>
+<p>This saves the authenticated account/system record as me_api.json.</p>
+<pre><code class="language-bash">curl -sS \
+  -H &quot;Authorization: ${SP_TOKEN}&quot; \
+  &quot;${SP_API}/v1/me&quot; \
+  -o me_api.json</code></pre>
+<p>Inspect the file if needed:</p>
+<pre><code class="language-bash">cat me_api.json</code></pre>
+<h2 id="extract-the-system-user-id-without-jq">Extract the system/user ID without jq</h2>
+<p>The local Bash environment did not have jq installed, so Python is used to extract the ID safely.</p>
+<pre><code class="language-bash">export SP_UID=&quot;$(
+python - &lt;&lt;&#x27;PY&#x27;
+import json
+
+with open(&quot;me_api.json&quot;, &quot;r&quot;, encoding=&quot;utf-8&quot;) as f:
+    data = json.load(f)
+
+value = (
+    data.get(&quot;id&quot;)
+    or data.get(&quot;uid&quot;)
+    or data.get(&quot;content&quot;, {}).get(&quot;id&quot;)
+    or data.get(&quot;content&quot;, {}).get(&quot;uid&quot;)
+)
+
+print(value or &quot;&quot;)
+PY
+)&quot;
+
+printf &#x27;SP_UID=%s\n&#x27; &quot;$SP_UID&quot;</code></pre>
+<p>Expected result: SP_UID prints a non-empty ID. If it prints blank, inspect me_api.json before continuing.</p>
+<h2 id="retrieve-the-member-list">Retrieve the member list</h2>
+<p>This REST call retrieves all members for the authenticated system and saves the result as members_api.json.</p>
+<pre><code class="language-bash">curl -sS \
+  -H &quot;Authorization: ${SP_TOKEN}&quot; \
+  &quot;${SP_API}/v1/members/${SP_UID}&quot; \
+  -o members_api.json</code></pre>
+<p>Validate that the file contains JSON member records:</p>
+<pre><code class="language-bash">head -20 members_api.json</code></pre>
+<h2 id="observed-member-avatar-fields">Observed member avatar fields</h2>
+<p>The retrieved member records used this useful structure:</p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;&lt;member_id&gt;&quot;,
+  &quot;content&quot;: {
+    &quot;uid&quot;: &quot;&lt;system_uid&gt;&quot;,
+    &quot;avatarUrl&quot;: &quot;&quot;,
+    &quot;avatarUuid&quot;: &quot;&lt;avatar_uuid&gt;&quot;
+  }
+}</code></pre>
+<p>Most member records had an empty avatarUrl and a populated avatarUuid. Therefore the working image URL is constructed from content.uid and avatarUuid:</p>
+<pre><code class="language-bash">https://spaces.apparyllis.com/avatars/&lt;content.uid&gt;/&lt;avatarUuid&gt;</code></pre>
+<h2 id="build-the-member-avatar-url-list">Build the member avatar URL list</h2>
+<p>This Python block creates member_avatar_urls.tsv. The file contains only member IDs and avatar URLs. It does not place member/decorator display names into the generated filenames.</p>
+<pre><code class="language-bash">cd exports
+
+python - &lt;&lt;&#x27;PY&#x27;
+import json
+
+with open(&quot;members_api.json&quot;, &quot;r&quot;, encoding=&quot;utf-8&quot;) as f:
+    members = json.load(f)
+
+with open(&quot;member_avatar_urls.tsv&quot;, &quot;w&quot;, encoding=&quot;utf-8&quot;, newline=&quot;\n&quot;) as out:
+    for row in members:
+        member_id = row.get(&quot;id&quot;, &quot;&quot;)
+        c = row.get(&quot;content&quot;, {}) or {}
+
+        uid = c.get(&quot;uid&quot;, &quot;&quot;)
+        avatar_uuid = c.get(&quot;avatarUuid&quot;, &quot;&quot;)
+        avatar_url = c.get(&quot;avatarUrl&quot;, &quot;&quot;)
+
+        if avatar_url:
+            url = avatar_url
+        elif uid and avatar_uuid:
+            url = f&quot;https://spaces.apparyllis.com/avatars/{uid}/{avatar_uuid}&quot;
+        else:
+            continue
+
+        out.write(f&quot;{member_id}\t{url}\n&quot;)
+PY</code></pre>
+<p>Verify the count and sample contents:</p>
+<pre><code class="language-bash">wc -l member_avatar_urls.tsv
+head member_avatar_urls.tsv</code></pre>
+<p>The avatar manifest count may be lower than the member count because some members may not have an avatar image reference.</p>
+<h2 id="download-the-avatar-images">Download the avatar images</h2>
+<p>This loop downloads each avatar image and saves it as &lt;member_id&gt;.img. The temporary .img extension is used because the downloaded content type is verified afterward.</p>
+<pre><code class="language-bash">mkdir -p member_images
+
+while IFS=$&#x27;\t&#x27; read -r member_id avatar_url
+do
+  curl -L -sS &quot;$avatar_url&quot; \
+    -o &quot;member_images/${member_id}.img&quot;
+done &lt; member_avatar_urls.tsv</code></pre>
+<h2 id="verify-downloaded-image-types">Verify downloaded image types</h2>
+<p>This checks the first downloaded files. In the verified run, the files reported as PNG image data, 512 x 512.</p>
+<pre><code class="language-bash">file member_images/*.img | head</code></pre>
+<p>Expected output looks like this:</p>
+<pre><code class="language-text">member_images/&lt;member_id&gt;.img: PNG image data, 512 x 512, 8-bit/color RGB, non-interlaced</code></pre>
+<h2 id="rename-img-files-to-real-image-extensions">Rename .img files to real image extensions</h2>
+<p>This version renames files according to their actual MIME type.</p>
+<pre><code class="language-bash">cd member_images
+
+for f in *.img
+do
+  mime=&quot;$(file -b --mime-type &quot;$f&quot;)&quot;
+
+  case &quot;$mime&quot; in
+    image/png)  mv &quot;$f&quot; &quot;${f%.img}.png&quot; ;;
+    image/jpeg) mv &quot;$f&quot; &quot;${f%.img}.jpg&quot; ;;
+    image/gif)  mv &quot;$f&quot; &quot;${f%.img}.gif&quot; ;;
+    image/webp) mv &quot;$f&quot; &quot;${f%.img}.webp&quot; ;;
+    *) echo &quot;Unknown type: $f -&gt; $mime&quot; ;;
+  esac
+done</code></pre>
+<p>If every downloaded file verifies as PNG, this simpler rename is also acceptable after verification:</p>
+<pre><code class="language-bash">cd member_images
+
+for f in *.img
+do
+  mv &quot;$f&quot; &quot;${f%.img}.png&quot;
+done</code></pre>
+<h2 id="final-verification">Final verification</h2>
+<p>Count the downloaded image files:</p>
+<pre><code class="language-bash">find member_images -maxdepth 1 -type f | wc -l</code></pre>
+<p>Expected result: a number matching the count of downloaded avatar files.</p>
+<p>List the downloaded files:</p>
+<pre><code class="language-bash">find member_images -maxdepth 1 -type f | sort</code></pre>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

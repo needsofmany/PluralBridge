@@ -1,0 +1,21 @@
+# Local configuration
+config.local.json
+.env
+*.local
+
+# Exported user data
+exports/
+spdump/
+member_images/
+Notes/
+
+# Tokens / secrets
+*.token
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Local SQL Server test scripts
+scripts/sqlserver/*.local.sql

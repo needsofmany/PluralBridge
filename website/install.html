@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Install Requirements for PluralBridge Simply Plural Export Scripts</title>
+    <meta name="description" content="Software requirements for running the PluralBridge Simply Plural data export scripts locally.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="Install Requirements for PluralBridge Simply Plural Export Scripts">
+    <meta property="og:description" content="Set up the local tools needed to export Simply Plural data with PluralBridge.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://thepluralbridge.org/install.html">
+    <meta property="og:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Install Requirements for PluralBridge Simply Plural Export Scripts">
+    <meta name="twitter:description" content="Set up the local tools needed to export Simply Plural data with PluralBridge.">
+    <meta name="twitter:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="index.html">
+            <img class="brand-logo" src="assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+                <nav class="nav" aria-label="Main navigation">
+            <a href="start-here.html">Start Here</a>
+            <a href="export-now.html">Export Now</a>
+            <a href="docs.html">Docs</a>
+            <a href="simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="install.html">Install</a>
+            <a href="run.html">Run</a>
+            <a href="safety.html">Safety</a>
+            <a href="about.html">About</a>
+            <a href="developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+
+<main>
+    <section class="hero">
+        <p class="eyebrow">Install requirements</p>
+        <h1>Set up the local tools you need before running the export.</h1>
+        <p class="lede">
+            PluralBridge currently uses local scripts. This page explains what to install, what to download,
+            and what to have ready before you move to the Run page.
+        </p>
+        <div class="actions">
+            <a class="button primary" href="run.html">Next: Run the export</a>
+            <a class="button" href="help-me-export.html">Help me choose a path</a>
+        </div>
+    </section>
+
+    <section class="section notice">
+        <h2>What this page is for</h2>
+        <p>
+            Use this page to get the local setup ready. After this page, you should have Python installed,
+            a Bash-compatible shell available, the PluralBridge files on your computer, and your Simply Plural
+            API token ready to use.
+        </p>
+        <p>
+            This setup keeps the export on your computer. This website does not collect your token or receive
+            your exported Simply Plural data.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 1: Install Python 3</h2>
+        <p>
+            Python 3 runs the current PluralBridge export scripts. Install Python 3 for the operating system
+            on the computer you will use for the export.
+        </p>
+        <ul>
+            <li>Windows: install Python 3 from <a href="https://www.python.org/downloads/windows/">Python for Windows</a>.</li>
+            <li>macOS: install Python 3 from <a href="https://www.python.org/downloads/macos/">Python for macOS</a> if it is not already available.</li>
+            <li>Linux: install Python 3 using your distribution package manager if needed, or start from <a href="https://www.python.org/downloads/">Python downloads</a>.</li>
+        </ul>
+        <p>
+            During installation on Windows, enable the option that adds Python to PATH when it is offered.
+            That makes the <code>python</code> command available from the shell.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 2: Choose your command-line path</h2>
+        <p>
+            PluralBridge currently runs from a desktop or laptop command line. Choose the path that matches
+            the computer you are using.
+        </p>
+
+        <h3>Windows</h3>
+        <ul>
+            <li>Install Git for Windows from <a href="https://git-scm.com/downloads/win">Git for Windows</a> if you need Git Bash.</li>
+            <li>Use Git Bash for the commands on the Run page.</li>
+        </ul>
+
+        <h3>macOS</h3>
+        <ul>
+            <li>Use Terminal for the commands on the Run page.</li>
+            <li>Install Git from <a href="https://git-scm.com/install/mac">Git for macOS</a> only if you want to clone or update the repository with Git.</li>
+        </ul>
+
+        <h3>Linux</h3>
+        <ul>
+            <li>Use your normal terminal for the commands on the Run page.</li>
+            <li>Install Git using your distribution package manager if needed, or start from <a href="https://git-scm.com/downloads/linux">Git for Linux</a>.</li>
+        </ul>
+
+        <h3>Another desktop or laptop setup</h3>
+        <p>
+            If you use a desktop or laptop setup that is not covered here, contact
+            <a href="mailto:needsofthemany@thepluralbridge.org">needsofthemany@thepluralbridge.org</a>.
+        </p>
+        <p>
+            Mobile-only export is not the current PluralBridge path.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 3: Get the PluralBridge files</h2>
+        <p>
+            The PluralBridge files are published on GitHub:
+        </p>
+        <p>
+            <a href="https://github.com/needsofmany/PluralBridge">https://github.com/needsofmany/PluralBridge</a>
+        </p>
+        <p>
+            A trusted technical helper may use Git to clone or update the repository. A regular user doing a
+            one-time export may be able to download the ZIP file from GitHub instead.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 4: Create your Simply Plural API token</h2>
+        <p>
+            The export scripts need a Simply Plural API token created from inside your own Simply Plural account.
+            The token lets the local script read your data so it can save a copy on your computer.
+        </p>
+        <p>
+            Treat the token like a password. Do not post it publicly, commit it to GitHub, or send it to anyone
+            you do not trust with access to your Simply Plural data.
+        </p>
+    </section>
+
+    <section class="section">
+        <h2>Step 5: Go to the Run page</h2>
+        <p>
+            When Python, a shell, the PluralBridge files, and your token are ready, continue to the Run page.
+            That page explains how to start the export and what successful output should look like.
+        </p>
+        <div class="actions">
+            <a class="button primary" href="run.html">Next: Run the export</a>
+            <a class="button" href="safety.html">Review safety guidance</a>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>Current requirements checklist</h2>
+        <ul>
+            <li>A computer where you can install and run command-line software.</li>
+            <li>Python 3, used by the current export scripts.</li>
+            <li>A Bash-compatible shell such as Git Bash on Windows.</li>
+            <li>The PluralBridge files from GitHub.</li>
+            <li>A Simply Plural API token created by the user from inside their Simply Plural account.</li>
+        </ul>
+        <p>
+            Git is helpful for developers and trusted helpers who want to download or update the repository directly.
+            If you downloaded the ZIP file from GitHub, you may not need Git for a one-time export.
+        </p>
+    </section>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-inner">
+        <p>PluralBridge is an independent project by Needs of the Many.</p>
+        <p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+    </div>
+</footer>
+</body>
+</html>

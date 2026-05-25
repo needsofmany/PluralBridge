@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge Roadmap and Post-Release Task List — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge Roadmap and Post-Release Task List. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Export Now</a>
+            <a href="/docs.html">Docs</a>
+            <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="/install.html">Install</a>
+            <a href="/run.html">Run</a>
+            <a href="/safety.html">Safety</a>
+            <a href="/about.html">About</a>
+            <a href="/developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-roadmap-and-post-release-task-list">PluralBridge Roadmap and Post-Release Task List</h1>
+<p>This roadmap captures the PluralBridge post-release work queue after the initial public repository release. The priority remains preservation first. The next engineering layer is the local REST service boundary.</p>
+<p>SQL Server remains the proven backend for the first service cut. SQLite, the Windows viewer, and cloud migration follow after the API contract is shaped.</p>
+<p>PluralBridge is published by Needs of the Many.</p>
+<p>PluralBridge is independent and has no affiliation with Simply Plural, Apparyllis, or the Simply Plural development team.</p>
+<h2 id="purpose">Purpose</h2>
+<p>This roadmap reflects the current service-side design priorities:</p>
+<ul>
+<li>Preserve exported data first.</li>
+<li>Establish a local REST service boundary above preserved storage.</li>
+<li>Keep the current SQL Server path as the known-good backend for the first service cut.</li>
+<li>Add SQLite, viewers, cloud migration, and future clients after the service contract has a working shape.</li>
+</ul>
+<h2 id="task-summary">Task Summary</h2>
+<p>The main post-release workstreams are:</p>
+<ol>
+<li>Implement the local REST service boundary.</li>
+<li>Define API contracts and versioning.</li>
+<li>Use MVC-style service organization.</li>
+<li>Build a console client or shell client.</li>
+<li>Apply contract-centered testing.</li>
+<li>Define the security model.</li>
+<li>Create the non-technical user Word guide.</li>
+<li>Add SQLite support after the service boundary is shaped.</li>
+<li>Start the local viewer after the REST/service path is established.</li>
+<li>Roadmap cloud migration and REST expansion.</li>
+<li>Continue platform expansion and outreach.</li>
+</ol>
+<h2 id="implement-the-local-rest-service-boundary">Implement the Local REST Service Boundary</h2>
+<p>Build the first service layer before migrating SQL scripts to SQLite or starting the viewer as the main development target.</p>
+<p>Key tasks:</p>
+<ul>
+<li>Keep the current PluralBridge SQL Server database as the known-good backend for the first service cut.</li>
+<li>Create a local C# REST service that returns JSON from the populated PluralBridge database.</li>
+<li>Treat the REST layer as the formal separation point between storage and clients.</li>
+<li>Make future SQLite, Azure, AWS, viewer, and mobile work depend on the service contract rather than direct database access.</li>
+<li>Start with read-only GET behavior.</li>
+<li>Add PUT, POST, PATCH, and DELETE only when concrete workflows require them.</li>
+</ul>
+<p>Initial service-side solution shape:</p>
+<pre><code class="language-text">PluralBridge.Service.sln
+
+src/PluralBridge.Api/
+src/PluralBridge.Business/
+src/PluralBridge.Data/
+src/PluralBridge.Data.SqlServer/
+src/PluralBridge.Models/
+src/PluralBridge.Common/
+
+tests/PluralBridge.Api.Tests/
+tests/PluralBridge.Business.Tests/
+tests/PluralBridge.Data.Tests/</code></pre>
+<h2 id="define-api-contracts-and-versioning">Define API Contracts and Versioning</h2>
+<p>PluralBridge REST interfaces are contracts. During development they may change; after public release of a contract version, they become stable while supported.</p>
+<p>Key tasks:</p>
+<ul>
+<li>Use route-level versioning from the start.</li>
+<li>Separate PluralBridge-native routes from Simply Plural/Apparyllis-shaped compatibility routes.</li>
+<li>Mark early contracts as draft until endpoint shape, error shape, date/time behavior, ID behavior, and null/empty behavior are settled.</li>
+<li>Expose versioned OpenAPI/Swagger output with Swashbuckle.</li>
+<li>Protect stable contracts with contract tests.</li>
+</ul>
+<p>Recommended route families:</p>
+<pre><code class="language-text">/api/v1/...    PluralBridge native API
+/sp/v1/...     Simply Plural/Apparyllis-shaped compatibility API</code></pre>
+<p>Contract lifecycle:</p>
+<pre><code class="language-text">draft -&gt; preview -&gt; stable -&gt; deprecated -&gt; retired</code></pre>
+<h2 id="use-mvc-style-service-organization">Use MVC-Style Service Organization</h2>
+<p>The service is not a monolithic app. The first executable may be a console-hosted service, but the parts should remain separated.</p>
+<p>Service organization:</p>
+<ul>
+<li>Model: DTOs and response models.</li>
+<li>View: JSON returned over HTTP.</li>
+<li>Controller: routing/glue layer that accepts requests, calls business services, and returns serialized responses.</li>
+<li>Business layer: service-level rules, mappings, read-only policy, and future write-operation rules.</li>
+<li>Data layer: repository contracts and storage-specific SQL Server implementation.</li>
+<li>Swashbuckle/OpenAPI: API discovery, collaborator onboarding, and smoke-test target.</li>
+</ul>
+<h2 id="build-the-console-client-shell-client">Build the Console Client / Shell Client</h2>
+<p>Create a client that exercises the service boundary rather than talking directly to SQL Server.</p>
+<p>Key tasks:</p>
+<ul>
+<li>Support command-line one-shot mode for startup/init and simple calls.</li>
+<li>Support an interactive shell mode that behaves like a simple Bash-style command dispatcher.</li>
+<li>Convert typed commands into REST calls against the local PluralBridge service.</li>
+<li>Dump or format JSON responses initially.</li>
+<li>Use C# first if rapid validation matters most.</li>
+<li>Add a small C++ reference client later if useful for portability and outside developers.</li>
+</ul>
+<p>Example shell direction:</p>
+<pre><code class="language-text">pbcli shell
+PluralBridge&gt; members list
+PluralBridge&gt; member get &lt;id&gt;
+PluralBridge&gt; notes list &lt;id&gt;
+PluralBridge&gt; fronts recent
+PluralBridge&gt; quit</code></pre>
+<h2 id="apply-contract-centered-testing">Apply Contract-Centered Testing</h2>
+<p>Tests should verify design promises and public contracts. They should not become line-by-line implementation policing or coverage theater.</p>
+<p>Useful test targets:</p>
+<ul>
+<li>Exporter creates the expected preservation layout.</li>
+<li><code>manifest.json</code> maps exported files to source endpoints.</li>
+<li>Notes remain decorrelated from member/decorator names in filenames.</li>
+<li><code>avatar_manifest.tsv</code> maps member IDs to local files.</li>
+<li>Safety check rejects tokens, private paths, export folders, database files, and unintended images.</li>
+<li>SQL scripts exist in required order.</li>
+<li>REST endpoints return documented JSON shapes.</li>
+<li>First service version remains read-only.</li>
+<li>Stable API versions remain compatible while supported.</li>
+</ul>
+<h2 id="define-the-security-model">Define the Security Model</h2>
+<p>Separate local-service security from future hosted/cloud identity. The local service is the immediate concern; passkeys/WebAuthn belong in the future hosted-service design.</p>
+<p>Local service rules:</p>
+<ul>
+<li>Bind to localhost by default.</li>
+<li>Require explicit opt-in for LAN binding.</li>
+<li>Require a generated local bearer key or equivalent local access credential for LAN/non-loopback mode.</li>
+<li>Keep the first service version read-only.</li>
+<li>Do not expose the local service directly to the public internet.</li>
+<li>Do not treat the Simply Plural token as a PluralBridge account credential.</li>
+</ul>
+<p>Future hosted-service direction:</p>
+<ul>
+<li>Prefer passkeys/WebAuthn.</li>
+<li>Design account recovery deliberately.</li>
+<li>Provide authenticator management.</li>
+<li>Keep authentication and authorization separate.</li>
+</ul>
+<h2 id="create-the-non-technical-user-word-guide">Create the Non-Technical User Word Guide</h2>
+<p>Create a root-level <code>.docx</code> guide for ordinary users. The guide should be a Word document, not Markdown.</p>
+<p>Key tasks:</p>
+<ul>
+<li>Explain PluralBridge for users who know how to install and run software.</li>
+<li>Explain how to open/display the Word document.</li>
+<li>Include the basic double-click workflow for opening a <code>.docx</code> file.</li>
+<li>Include options for users without Microsoft Word or LibreOffice.</li>
+<li>Keep the tone user-facing, low-assumption, and preservation-first.</li>
+</ul>
+<p>Suggested filename:</p>
+<pre><code class="language-text">PluralBridge_User_Guide.docx</code></pre>
+<h2 id="add-sqlite-support-after-the-service-boundary-is-shaped">Add SQLite Support After the Service Boundary Is Shaped</h2>
+<p>SQLite remains the preferred local/offline runtime database for ordinary users, but it should follow the service-boundary work rather than precede it.</p>
+<p>Key tasks:</p>
+<ul>
+<li>Define SQLite schema.</li>
+<li>Create SQLite import path from exported JSON, notes, and avatar manifest data.</li>
+<li>Implement SQLite data-layer project behind the same repository contracts used by SQL Server.</li>
+<li>Create validation queries and sample reports.</li>
+<li>Document the SQLite workflow.</li>
+<li>Test with synthetic/redacted fixtures only.</li>
+</ul>
+<h2 id="start-the-local-viewer-after-the-rest-service-path-is-established">Start the Local Viewer After the REST/Service Path Is Established</h2>
+<p>Build a Visual Studio 2022 C++20 Win32 local/offline viewer after the service contract and local access model are stable enough to consume.</p>
+<p>Initial viewer direction:</p>
+<ul>
+<li>Target Windows 7 SP1 through Windows 11.</li>
+<li>Produce 32-bit and 64-bit builds where feasible.</li>
+<li>List alters/slivers.</li>
+<li>Display avatar images.</li>
+<li>Use the REST service boundary where practical rather than binding the viewer to SQL Server internals.</li>
+<li>Brief mode TBD.</li>
+<li>Verbose/full-info mode TBD.</li>
+</ul>
+<h2 id="roadmap-cloud-migration-and-rest-expansion">Roadmap Cloud Migration and REST Expansion</h2>
+<p>Cloud migration and hosted services should build on the same versioned contract thinking established by the local service.</p>
+<p>Key tasks:</p>
+<ul>
+<li>Design Azure migration around PluralBridge-owned authentication.</li>
+<li>Leave room for AWS support later.</li>
+<li>Preserve public API compatibility where feasible without copying Simply Plural/Apparyllis code, UI, branding, server implementation, app flow, or authentication systems.</li>
+<li>Support a compatibility-style API for preserved Simply Plural-shaped data.</li>
+<li>Support a native PluralBridge API for future clients and hosted services.</li>
+<li>Use versioned contracts and documented deprecation/retirement windows.</li>
+</ul>
+<h2 id="platform-expansion-and-outreach">Platform Expansion and Outreach</h2>
+<p>Long-term targets after outside developer help becomes realistic:</p>
+<ul>
+<li>Windows desktop viewer.</li>
+<li>Linux tooling/support.</li>
+<li>Web client.</li>
+<li>Android app.</li>
+<li>iOS/iPadOS app.</li>
+<li>AWS migration support after Azure.</li>
+<li>Native macOS deferred unless demand or outside development support appears.</li>
+</ul>
+<p>Outreach and support tasks:</p>
+<ul>
+<li>Provide email support; details TBD.</li>
+<li>Create GitHub Issues with <code>help-wanted</code> and <code>good-first-issue</code> labels.</li>
+<li>Use Discord outreach only with moderator permission.</li>
+<li>Contact adjacent plural-tool maintainers.</li>
+<li>Position PluralBridge as an import/preservation bridge, including for other tools.</li>
+</ul>
+<h2 id="suggested-work-order">Suggested Work Order</h2>
+<ol>
+<li>Create the local REST service design issue/milestone and make it the next major engineering workstream.</li>
+<li>Define the initial read-only endpoint list from the current exported Simply Plural/Apparyllis-shaped data set.</li>
+<li>Create the C# service-side solution skeleton with Api, Business, Models, Data, and Data.SqlServer projects.</li>
+<li>Add Swashbuckle/OpenAPI and mark the first API contracts as draft.</li>
+<li>Implement health/database health endpoints.</li>
+<li>Implement the first GET endpoints against the current PluralBridge SQL Server database.</li>
+<li>Create the first console client in C# to validate REST calls and JSON responses.</li>
+<li>Add contract-centered tests using synthetic/redacted fixtures.</li>
+<li>Document API versioning, deprecation, retirement, and read-only behavior.</li>
+<li>Document the local-service security model: localhost default, LAN opt-in, local bearer key for LAN mode.</li>
+<li>Create the non-technical <code>.docx</code> user guide.</li>
+<li>Begin SQLite data-layer work behind the service boundary.</li>
+<li>Begin Windows viewer design after the REST/service contract is usable.</li>
+<li>Draft Azure/native API/compatibility API roadmap documentation.</li>
+<li>Continue public documentation, support-channel planning, and contributor onboarding as the project grows.</li>
+</ol>
+<h2 id="guiding-principle">Guiding Principle</h2>
+<p>Preserve data first. Establish the local REST boundary. Stabilize the contract. Then make the preserved data portable through SQLite, local viewers, cloud migration, compatible APIs, and future clients.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

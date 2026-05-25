@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simply Plural Shutdown and Data Preservation — PluralBridge Documentation</title>
+  <meta name="description" content="Simply Plural Shutdown and Data Preservation. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Export Now</a>
+            <a href="/docs.html">Docs</a>
+            <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="/install.html">Install</a>
+            <a href="/run.html">Run</a>
+            <a href="/safety.html">Safety</a>
+            <a href="/about.html">About</a>
+            <a href="/developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+<main class="page">
+  <article class="card doc-page">
+<h1 id="simply-plural-shutdown-and-data-preservation">Simply Plural Shutdown and Data Preservation</h1>
+<p>Simply Plural/Apparyllis announced that the Simply Plural servers will shut down on July 1, 2026.</p>
+<p>The announcement says that after shutdown, user data and avatars associated with users will be permanently deleted. It also says users will have a chance to export user data and avatars from the app before that date.</p>
+<p>PluralBridge exists to help users preserve their Simply Plural data while the original service is still available.</p>
+<p>PluralBridge is published by Needs of the Many.</p>
+<p>PluralBridge is independent and has no affiliation with Simply Plural, Apparyllis, or the Simply Plural development team.</p>
+<h2 id="what-users-should-do-now">What users should do now</h2>
+<ol>
+<li>Update the Simply Plural app.</li>
+<li>Look for the official export path in the app.</li>
+<li>Create a Simply Plural/Apparyllis API token with Read permission.</li>
+<li>Run PluralBridge export tooling to save raw JSON locally.</li>
+<li>Export or download avatar images where available.</li>
+<li>Keep exported files private unless intentionally redacted.</li>
+<li>Repeat exports periodically before July 1, 2026.</li>
+</ol>
+<h2 id="official-export-path">Official export path</h2>
+<p>The Apparyllis announcement describes this export path:</p>
+<pre><code class="language-text">Settings -&gt; Account Settings -&gt; Export your data</code></pre>
+<p>If that option is not visible, check nearby account, data, backup, privacy, and advanced settings, and confirm that the app is updated.</p>
+<h2 id="pluralkit-export-path">PluralKit export path</h2>
+<p>For users migrating to PluralKit, the announcement describes this path:</p>
+<pre><code class="language-text">Settings -&gt; Integrations -&gt; PluralKit -&gt; Export</code></pre>
+<h2 id="why-export-early">Why export early</h2>
+<p>The safest preservation plan uses more than one method:</p>
+<ol>
+<li>Official app export, if available.</li>
+<li>Raw API JSON export through a user-created token.</li>
+<li>Avatar download or avatar export.</li>
+<li>Local app data preservation where technically possible.</li>
+</ol>
+<p>Exporting early gives users time to verify the files, rerun exports, and fix problems before the shutdown date.</p>
+<h2 id="what-pluralbridge-preserves">What PluralBridge preserves</h2>
+<p>The current PluralBridge preservation model focuses on:</p>
+<ul>
+<li>Raw JSON exported through public Apparyllis REST API endpoints.</li>
+<li>Member records.</li>
+<li>Group records.</li>
+<li>Front history.</li>
+<li>Custom fields.</li>
+<li>Privacy buckets.</li>
+<li>Friends and chat-related metadata where available.</li>
+<li>Notes where available.</li>
+<li>Avatar image files where available.</li>
+<li>SQL Server import scripts and readable views for preserved data.</li>
+</ul>
+<h2 id="what-pluralbridge-does-not-do">What PluralBridge does not do</h2>
+<p>PluralBridge does not use a Simply Plural token as a PluralBridge login.</p>
+<p>PluralBridge does not require users to upload their exported data to a third-party service.</p>
+<p>PluralBridge does not copy Simply Plural branding, application code, or private implementation materials.</p>
+<h2 id="token-boundary">Token boundary</h2>
+<p>SP_TOKEN is export-only and used only to export user-owned data from Simply Plural/Apparyllis. It is not a PluralBridge credential.</p>
+<p>Treat SP_TOKEN like a password. Do not post it publicly, commit it to Git, paste it into screenshots, or include it in support messages.</p>
+<h2 id="related-pluralbridge-guides">Related PluralBridge guides</h2>
+<ul>
+<li><a href="../user-guide/create-simply-plural-api-token.html">Create a Simply Plural API token</a></li>
+<li><a href="../user-guide/preserve-your-data.html">Preserve your data</a></li>
+<li><a href="../user-guide/export-avatars.html">Export avatars</a></li>
+<li><a href="../developer-guide/rest-api-with-token.html">Use the REST API with a token</a></li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

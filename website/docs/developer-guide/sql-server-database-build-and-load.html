@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge SQL Server Database Build and Load Guide — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge SQL Server Database Build and Load Guide. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Export Now</a>
+            <a href="/docs.html">Docs</a>
+            <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="/install.html">Install</a>
+            <a href="/run.html">Run</a>
+            <a href="/safety.html">Safety</a>
+            <a href="/about.html">About</a>
+            <a href="/developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-sql-server-database-build-and-load-guide">PluralBridge SQL Server Database Build and Load Guide</h1>
+<p>Database creation, script map, JSON population sequence, reporting views, and validation workflow.</p>
+<p>PluralBridge is published by Needs of the Many.</p>
+<p>PluralBridge is independent and has no affiliation with Simply Plural, Apparyllis, or the Simply Plural development team.</p>
+<h2 id="purpose">Purpose</h2>
+<p>This guide captures the repeatable procedure for building the PluralBridge SQL Server database and populating it from exported Simply Plural/Apparyllis JSON files. The workflow is staged: create the database and tables, bulk-load the exported JSON in dependency order, create readable reporting views, and run validation queries.</p>
+<p>The SQL scripts are data-agnostic. They reference table names, JSON file names, JSON paths, and reporting views. They do not embed member names, field values, notes, fronting history details, or other Simply Plural personal content as literal values.</p>
+<h2 id="inputs-and-assumptions">Inputs and Assumptions</h2>
+<table><thead><tr>
+<th>Item</th>
+<th>Value</th>
+</tr></thead><tbody>
+<tr>
+<td>SQL Server database name</td>
+<td><code>PluralBridge</code></td>
+</tr>
+<tr>
+<td>JSON export folder</td>
+<td><code>exports/json/</code></td>
+</tr>
+<tr>
+<td>Avatar manifest, if loading avatars</td>
+<td><code>exports/avatar_manifest.tsv</code></td>
+</tr>
+<tr>
+<td>SQL Server script folder</td>
+<td><code>scripts/sqlserver/</code></td>
+</tr>
+<tr>
+<td>Master orchestrator script</td>
+<td><code>scripts/sqlserver/master.sql</code></td>
+</tr>
+</tbody></table>
+<h2 id="sql-server-feature-assumptions">SQL Server Feature Assumptions</h2>
+<ul>
+<li><code>OPENJSON</code>, <code>JSON_VALUE</code>, and <code>JSON_QUERY</code> are available.</li>
+<li><code>OPENROWSET(BULK ...)</code> is allowed, and the SQL Server service account can read the export folder.</li>
+<li><code>AT TIME ZONE</code> is available for UTC-to-Pacific reporting views.</li>
+<li><code>STRING_AGG</code> is available for the member profile summary view. SQL Server 2017 or newer is recommended.</li>
+</ul>
+<h2 id="create-the-empty-database-and-schema">Create the Empty Database and Schema</h2>
+<p>This phase creates the database, tables, keys, and base schema. No Simply Plural export data is inserted during this phase.</p>
+<h3 id="create-or-select-the-database">Create or Select the Database</h3>
+<p>Create the empty database named <code>PluralBridge</code>, or select an already-created empty database intended for this import.</p>
+<pre><code class="language-sql">CREATE DATABASE PluralBridge;
+GO
+
+USE PluralBridge;
+GO</code></pre>
+<h3 id="apply-the-schema-script">Apply the Schema Script</h3>
+<p>Run the schema creation script:</p>
+<pre><code class="language-text">scripts/sqlserver/010_create_tables.sql</code></pre>
+<p>This creates the tables used by the load scripts, including:</p>
+<ul>
+<li><code>dbo.[user]</code></li>
+<li><code>dbo.me</code></li>
+<li><code>dbo.members</code></li>
+<li><code>dbo.front_history</code></li>
+<li><code>dbo.customfields</code></li>
+<li><code>dbo.member_info_values</code></li>
+<li><code>dbo.privacybuckets</code></li>
+<li><code>dbo.member_buckets</code></li>
+<li><code>dbo.chat_categories</code></li>
+<li><code>dbo.chat_channels</code></li>
+<li><code>dbo.friends</code></li>
+<li><code>dbo.member_avatars</code></li>
+<li><code>dbo.member_notes</code></li>
+</ul>
+<h3 id="add-constraints">Add Constraints</h3>
+<p>After the base tables exist and data loading has been proven, run the constraint script:</p>
+<pre><code class="language-text">scripts/sqlserver/030_add_constraints.sql</code></pre>
+<p>Foreign-key and constraint validation should match the load order defined in the numbered scripts.</p>
+<h3 id="confirm-table-columns">Confirm Table Columns</h3>
+<pre><code class="language-sql">SELECT
+    TABLE_NAME,
+    COLUMN_NAME,
+    DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = &#x27;dbo&#x27;
+ORDER BY TABLE_NAME, ORDINAL_POSITION;</code></pre>
+<h3 id="confirm-the-database-is-empty">Confirm the Database Is Empty</h3>
+<p>Before loading, confirm that the target tables have zero rows. The master load script is designed for a fresh or empty schema.</p>
+<pre><code class="language-sql">SELECT
+    s.name AS schema_name,
+    t.name AS table_name,
+    SUM(p.rows) AS row_count
+FROM sys.tables t
+JOIN sys.schemas s
+    ON s.schema_id = t.schema_id
+JOIN sys.partitions p
+    ON p.object_id = t.object_id
+WHERE p.index_id IN (0, 1)
+  AND s.name = &#x27;dbo&#x27;
+GROUP BY s.name, t.name
+ORDER BY t.name;</code></pre>
+<h2 id="script-map">Script Map</h2>
+<p>The current Simply Plural JSON-to-SQL Server pipeline uses numbered scripts under:</p>
+<pre><code class="language-text">scripts/sqlserver/</code></pre>
+<h3 id="master-script">Master Script</h3>
+<table><thead><tr>
+<th>Script</th>
+<th>Use</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td><code>master.sql</code></td>
+<td>Fresh empty database</td>
+<td>Orchestrates the numbered scripts. Re-running against already-loaded tables can cause key errors or duplicates.</td>
+</tr>
+</tbody></table>
+<h3 id="numbered-scripts">Numbered Scripts</h3>
+<table><thead><tr>
+<th>Script</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>001_create_database.sql</code></td>
+<td>Creates or selects the <code>PluralBridge</code> database.</td>
+</tr>
+<tr>
+<td><code>010_create_tables.sql</code></td>
+<td>Creates the base tables.</td>
+</tr>
+<tr>
+<td><code>020_load_json.sql</code></td>
+<td>Loads the exported JSON files into the core tables.</td>
+</tr>
+<tr>
+<td><code>030_add_constraints.sql</code></td>
+<td>Adds keys and constraints after the load structure is proven.</td>
+</tr>
+<tr>
+<td><code>040_create_views.sql</code></td>
+<td>Creates readable reporting views.</td>
+</tr>
+<tr>
+<td><code>050_validation_queries.sql</code></td>
+<td>Runs row count, referential, duplicate, and time-range validations.</td>
+</tr>
+<tr>
+<td><code>060_report_queries.sql</code></td>
+<td>Provides useful post-load report queries.</td>
+</tr>
+</tbody></table>
+<h2 id="populate-the-database-from-json-files">Populate the Database from JSON Files</h2>
+<p>This phase loads the export data. The cautious manual workflow is to examine the scripts and then run the numbered files in order. The master script can perform the load in one run after the process has been proven on redacted or safe test data.</p>
+<h3 id="recommended-run-order">Recommended Run Order</h3>
+<ol>
+<li>Run <code>001_create_database.sql</code> if the database does not already exist.</li>
+<li>Run <code>010_create_tables.sql</code>.</li>
+<li>Run <code>020_load_json.sql</code> after confirming the JSON path and SQL Server file permissions.</li>
+<li>Run <code>030_add_constraints.sql</code>.</li>
+<li>Run <code>040_create_views.sql</code>.</li>
+<li>Run <code>050_validation_queries.sql</code>.</li>
+<li>Run <code>060_report_queries.sql</code>.</li>
+</ol>
+<h3 id="load-dependency-order">Load Dependency Order</h3>
+<p>The load order follows the foreign-key and reporting dependency graph. Parent rows are inserted before child rows.</p>
+<pre><code class="language-text">dbo.[user]
+    -&gt; dbo.me
+    -&gt; dbo.members
+    -&gt; dbo.front_history
+    -&gt; dbo.member_info_values
+    -&gt; dbo.member_buckets
+    -&gt; dbo.privacybuckets
+    -&gt; dbo.customfields
+    -&gt; dbo.chat_categories
+    -&gt; dbo.chat_channels
+    -&gt; dbo.friends
+    -&gt; dbo.member_avatars
+    -&gt; dbo.member_notes
+    -&gt; reporting views
+    -&gt; validations</code></pre>
+<h2 id="validation-baseline">Validation Baseline</h2>
+<p>The observed validation counts from a test import are useful as a reference for the same export set. They are not universal constants for future exports.</p>
+<h3 id="example-test-load-counts">Example Test-Load Counts</h3>
+<table><thead><tr>
+<th>Table</th>
+<th>Example committed row count</th>
+</tr></thead><tbody>
+<tr>
+<td><code>dbo.[user]</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>dbo.me</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>dbo.members</code></td>
+<td>49</td>
+</tr>
+<tr>
+<td><code>dbo.front_history</code></td>
+<td>886</td>
+</tr>
+<tr>
+<td><code>dbo.member_info_values</code></td>
+<td>266</td>
+</tr>
+<tr>
+<td><code>dbo.member_buckets</code></td>
+<td>49</td>
+</tr>
+<tr>
+<td><code>dbo.privacybuckets</code></td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>dbo.customfields</code></td>
+<td>7</td>
+</tr>
+<tr>
+<td><code>dbo.chat_categories</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>dbo.chat_channels</code></td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>dbo.friends</code></td>
+<td>2</td>
+</tr>
+</tbody></table>
+<h3 id="validation-checks">Validation Checks</h3>
+<ul>
+<li>Missing parent references should report all zero.</li>
+<li>Duplicate logical keys should report all zero.</li>
+<li>Front-history rows should not have end times before start times.</li>
+<li>A front-history row with a <code>NULL</code> end_time can represent a currently open front interval.</li>
+</ul>
+<h2 id="operating-notes">Operating Notes</h2>
+<ul>
+<li>The master script is best for a fresh, empty database after the process has been proven.</li>
+<li>The master script does not replace the exported JSON files. The JSON files remain the source evidence.</li>
+<li>The load scripts use <code>INSERT</code>, so re-running them against already-loaded tables can cause key errors or duplicates.</li>
+<li>Wrapper-style tables preserve content as JSON. They can be normalized later after the high-value relational tables are stable.</li>
+<li>Reporting views are non-destructive. They can be dropped and recreated without altering imported source data.</li>
+<li>The SQL Server database is a queryable representation of the exported files, not a substitute for keeping the original JSON export.</li>
+</ul>
+<h2 id="safety-notes">Safety Notes</h2>
+<ul>
+<li>Do not commit real export files, local database files, database backups, or connection strings.</li>
+<li>Do not use real member names, notes, avatar filenames, or fronting history details in public documentation.</li>
+<li>Use synthetic, redacted, or minimal example data for reports and tests.</li>
+<li>Any future public database documentation should point to a redacted fixture set or a toy export, not an actual user export.</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

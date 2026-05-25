@@ -1,0 +1,7 @@
+{
+  "api_base": "https://api.apparyllis.com",
+  "output_dir": "./exports/json",
+  "avatar_output_dir": "./exports/member_images",
+  "notes_output_dir": "./exports/notes",
+  "token_env_var": "SP_TOKEN"
+}

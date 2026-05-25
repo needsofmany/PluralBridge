@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Use the Simply Plural REST API with a Token — PluralBridge Documentation</title>
+  <meta name="description" content="Use the Simply Plural REST API with a Token. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Export Now</a>
+            <a href="/docs.html">Docs</a>
+            <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="/install.html">Install</a>
+            <a href="/run.html">Run</a>
+            <a href="/safety.html">Safety</a>
+            <a href="/about.html">About</a>
+            <a href="/developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+<main class="page">
+  <article class="card doc-page">
+<h1 id="use-the-simply-plural-rest-api-with-a-token">Use the Simply Plural REST API with a Token</h1>
+<p>This guide explains the token-based REST access pattern used by PluralBridge export tooling.</p>
+<p>PluralBridge uses a user-created Simply Plural/Apparyllis API token only to export user-owned data from Simply Plural.</p>
+<p>SP_TOKEN is export-only. It is not a PluralBridge credential.</p>
+<p>PluralBridge is published by Needs of the Many.</p>
+<p>PluralBridge is independent and has no affiliation with Simply Plural, Apparyllis, or the Simply Plural development team.</p>
+<h2 id="overview">Overview</h2>
+<p>Simply Plural data can be exported through Apparyllis REST API endpoints when the user supplies a Simply Plural API token with Read permission.</p>
+<p>The basic workflow is:</p>
+<ol>
+<li>Create a Simply Plural API token with Read permission.</li>
+<li>Store the token locally as <code>SP_TOKEN</code>.</li>
+<li>Send the token in the HTTP <code>Authorization</code> header.</li>
+<li>Save the API responses as local JSON files.</li>
+<li>Keep the exported files private unless deliberately redacted for publication.</li>
+</ol>
+<h2 id="token-handling">Token handling</h2>
+<p>Treat the token like a password.</p>
+<p>Do not post it publicly. Do not commit it to Git. Do not paste it into screenshots. Do not place it in shared logs.</p>
+<p>In Git Bash, enter the token without displaying it on screen:</p>
+<pre><code class="language-bash">read -s -p &quot;Paste Simply Plural token: &quot; SP_TOKEN
+echo
+export SP_TOKEN
+printf &#x27;Token length: %s\n&#x27; &quot;${#SP_TOKEN}&quot;</code></pre>
+<p>Expected result:</p>
+<pre><code class="language-text">Token length: &lt;number&gt;</code></pre>
+<h2 id="api-base-url">API base URL</h2>
+<p>Use the Apparyllis API base URL:</p>
+<pre><code class="language-text">https://api.apparyllis.com</code></pre>
+<p>A convenient Git Bash variable is:</p>
+<pre><code class="language-bash">export SP_API=&#x27;https://api.apparyllis.com&#x27;</code></pre>
+<h2 id="authorization-header">Authorization header</h2>
+<p>PluralBridge uses the token directly in the <code>Authorization</code> header:</p>
+<pre><code class="language-bash">-H &quot;Authorization: ${SP_TOKEN}&quot;</code></pre>
+<p>Do not add <code>Bearer</code> unless a future API change explicitly requires it.</p>
+<h2 id="verify-the-token">Verify the token</h2>
+<p>Test the token with <code>/v1/me</code>:</p>
+<pre><code class="language-bash">curl -i -sS \
+  -H &quot;Authorization: ${SP_TOKEN}&quot; \
+  &quot;${SP_API}/v1/me&quot;</code></pre>
+<p>Expected result:</p>
+<pre><code class="language-text">HTTP/2 200</code></pre>
+<p>The response body should contain JSON for the authenticated user/system. If the response is <code>401 Unauthorized</code>, revoke the token, create a fresh token with Read permission, and try again.</p>
+<h2 id="save-an-api-response-to-a-json-file">Save an API response to a JSON file</h2>
+<p>Example: save <code>/v1/me</code> as <code>me.json</code>:</p>
+<pre><code class="language-bash">curl -sS \
+  -H &quot;Authorization: ${SP_TOKEN}&quot; \
+  &quot;${SP_API}/v1/me&quot; \
+  -o me.json</code></pre>
+<p>Inspect the result:</p>
+<pre><code class="language-bash">head -40 me.json</code></pre>
+<h2 id="common-export-endpoints">Common export endpoints</h2>
+<p>Common endpoints used or investigated by PluralBridge include:</p>
+<pre><code class="language-text">GET /v1/me
+GET /v1/user/{uid}
+GET /v1/members/{uid}
+GET /v1/groups/{uid}
+GET /v1/customFronts/{uid}
+GET /v1/frontHistory
+GET /v1/frontHistory/{uid}?startTime=0&amp;endTime=9999999999999
+GET /v1/timers/automated/{uid}
+GET /v1/timers/repeated/{uid}
+GET /v1/polls/{uid}
+GET /v1/customFields/{uid}
+GET /v1/privacyBuckets
+GET /v1/filters
+GET /v1/chat/categories
+GET /v1/chat/channels
+GET /v1/friends/
+GET /v1/notes/{uid}/{member_id}</code></pre>
+<h2 id="saving-output-files">Saving output files</h2>
+<p>Use stable, boring filenames that describe the endpoint or dataset:</p>
+<pre><code class="language-text">me.json
+user.json
+members.json
+groups.json
+frontHistory.json
+customFields.json
+privacyBuckets.json
+filters.json
+friends.json
+chat_categories.json
+chat_channels.json
+notes_by_member.json</code></pre>
+<p>Avoid embedding member display names, decorator names, token fragments, or account identifiers in generated filenames.</p>
+<h2 id="clean-json-and-wrappers">Clean JSON and wrappers</h2>
+<p>Some API responses may contain wrapper fields such as <code>id</code>, <code>exists</code>, or <code>content</code>. Preserve the raw JSON first. Any cleanup or projection should happen after the raw export is safely saved.</p>
+<p>The preferred preservation model is:</p>
+<ol>
+<li>Save raw API JSON exactly as returned.</li>
+<li>Build derived cleaned JSON only from the raw files.</li>
+<li>Keep raw exports as the evidence-grade source of truth.</li>
+</ol>
+<h2 id="security-notes">Security notes</h2>
+<ul>
+<li>Keep <code>SP_TOKEN</code> private.</li>
+<li>Keep raw exports private unless deliberately redacted.</li>
+<li>Do not commit tokens or private export data to source control.</li>
+<li>Use synthetic or redacted fixtures for tests and documentation.</li>
+<li>Rotate the token if it is exposed.</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

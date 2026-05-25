@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Preserve Your Simply Plural Data — PluralBridge Documentation</title>
+  <meta name="description" content="Preserve Your Simply Plural Data. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Export Now</a>
+            <a href="/docs.html">Docs</a>
+            <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="/install.html">Install</a>
+            <a href="/run.html">Run</a>
+            <a href="/safety.html">Safety</a>
+            <a href="/about.html">About</a>
+            <a href="/developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+<main class="page">
+  <article class="card doc-page">
+<h1 id="preserve-your-simply-plural-data">Preserve Your Simply Plural Data</h1>
+<p>Simply Plural by Apparyllis has announced that its servers will shut down on July 1, 2026, and that user data and avatars will be deleted after shutdown.</p>
+<p>This guide gathers the major preservation paths discussed for PluralBridge users and developers.</p>
+<p>For ordinary users, the preferred sequence is simple: use the official export if available, create an API token with Read permission, run the PluralBridge export tooling, and save the resulting files somewhere private.</p>
+<p>PluralBridge is published by Needs of the Many.</p>
+<p>PluralBridge is independent and has no affiliation with Simply Plural, Apparyllis, or the Simply Plural development team.</p>
+<h2 id="official-export-path">Official Export Path</h2>
+<p>Official shutdown notice states that servers shut down July 1, 2026 and user data/avatars will be deleted after shutdown.</p>
+<p>Official export path (if visible):</p>
+<p>Simply Plural → Settings → Account Settings → Export your data</p>
+<p>PluralKit export path:</p>
+<p>Settings → Integrations → PluralKit → Export</p>
+<p>If the export option is not visible, possible causes include:</p>
+<ol>
+<li>Export rollout not enabled for the account/app version.</li>
+<li>Wording/path changed after the announcement.</li>
+<li>Export is server-gated and temporarily disabled.</li>
+</ol>
+<p>Additional paths worth checking:</p>
+<ul>
+<li>Settings → Account</li>
+<li>Settings → Data</li>
+<li>Settings → Backup</li>
+<li>Settings → Advanced</li>
+<li>Settings → Privacy</li>
+<li>Settings → Experimental</li>
+</ul>
+<p>Also update the app from the app store before proceeding.</p>
+<h2 id="api-token-acquisition">API Token Acquisition</h2>
+<p>The API route is the most reliable extraction path because it avoids dependence on the application UI.</p>
+<p>Potential token paths:</p>
+<p>Settings → Tokens</p>
+<p>Settings → Account → Tokens</p>
+<p>Create a token with at least Read permission.</p>
+<p>API base URL:</p>
+<p>https://api.apparyllis.com</p>
+<p>Authorization header format:</p>
+<p>Authorization: YOUR_TOKEN</p>
+<p>Verification test from shell:</p>
+<p>curl https://api.apparyllis.com/v1/me   -H "Authorization: YOUR_TOKEN"</p>
+<p>If JSON is returned, the API is accessible and the dataset can be harvested programmatically.</p>
+<h2 id="known-api-endpoints">Known API Endpoints</h2>
+<p>Core endpoints identified from public documentation and route listings:</p>
+<pre><code class="language-text">GET /v1/me
+GET /v1/user/{uid}
+GET /v1/members/{uid}
+GET /v1/groups/{uid}
+GET /v1/customFronts/{uid}
+GET /v1/frontHistory
+GET /v1/frontHistory/{uid}?startTime=0&amp;endTime=9999999999999
+GET /v1/timers/automated/{uid}
+GET /v1/timers/repeated/{uid}
+GET /v1/polls/{uid}
+GET /v1/customFields/{uid}
+GET /v1/privacyBuckets
+GET /v1/filters
+GET /v1/chat/categories
+GET /v1/chat/channels
+GET /v1/friends/</code></pre>
+<p>For notes, enumerate members first, then:</p>
+<pre><code class="language-text">GET /v1/notes/{uid}/{member_id}</code></pre>
+<p>The public route definitions suggest a conventional REST architecture.</p>
+<h2 id="python-extraction-script">Python Extraction Script</h2>
+<p>Example extraction script:</p>
+<pre><code class="language-python">import json
+import pathlib
+import requests
+
+BASE = &quot;https://api.apparyllis.com&quot;
+TOKEN = &quot;PASTE_TOKEN_HERE&quot;
+OUT = pathlib.Path(&quot;exports/json&quot;)
+OUT.mkdir(exist_ok=True)
+
+s = requests.Session()
+s.headers.update({
+    &quot;Authorization&quot;: TOKEN,
+    &quot;Accept&quot;: &quot;application/json&quot;,
+})
+
+def get(path, params=None):
+    r = s.get(BASE + path, params=params, timeout=60)
+    r.raise_for_status()
+    return r.json() if r.text else None
+
+def save(name, obj):
+    (OUT / name).write_text(
+        json.dumps(obj, indent=2, ensure_ascii=False),
+        encoding=&quot;utf-8&quot;
+    )
+
+me = get(&quot;/v1/me&quot;)
+save(&quot;me.json&quot;, me)
+
+uid = me.get(&quot;id&quot;) or me.get(&quot;uid&quot;) or me.get(&quot;_id&quot;)
+if not uid:
+    raise RuntimeError(f&quot;Could not determine uid from /v1/me: {me}&quot;)
+
+targets = {
+    &quot;user.json&quot;: f&quot;/v1/user/{uid}&quot;,
+    &quot;members.json&quot;: f&quot;/v1/members/{uid}&quot;,
+    &quot;groups.json&quot;: f&quot;/v1/groups/{uid}&quot;,
+    &quot;custom_fronts.json&quot;: f&quot;/v1/customFronts/{uid}&quot;,
+    &quot;front_history_all.json&quot;: &quot;/v1/frontHistory&quot;,
+    &quot;front_history_range.json&quot;: f&quot;/v1/frontHistory/{uid}&quot;,
+    &quot;automated_timers.json&quot;: f&quot;/v1/timers/automated/{uid}&quot;,
+    &quot;repeated_timers.json&quot;: f&quot;/v1/timers/repeated/{uid}&quot;,
+    &quot;polls.json&quot;: f&quot;/v1/polls/{uid}&quot;,
+    &quot;custom_fields.json&quot;: f&quot;/v1/customFields/{uid}&quot;,
+    &quot;privacy_buckets.json&quot;: &quot;/v1/privacyBuckets&quot;,
+    &quot;filters.json&quot;: &quot;/v1/filters&quot;,
+    &quot;chat_categories.json&quot;: &quot;/v1/chat/categories&quot;,
+    &quot;chat_channels.json&quot;: &quot;/v1/chat/channels&quot;,
+    &quot;friends.json&quot;: &quot;/v1/friends/&quot;,
+}
+
+for filename, path in targets.items():
+    try:
+        params = None
+        if filename == &quot;front_history_range.json&quot;:
+            params = {&quot;startTime&quot;: &quot;0&quot;, &quot;endTime&quot;: &quot;9999999999999&quot;}
+        save(filename, get(path, params=params))
+        print(&quot;saved&quot;, filename)
+    except Exception as e:
+        print(&quot;FAILED&quot;, filename, path, e)
+
+members = json.loads((OUT / &quot;members.json&quot;).read_text(encoding=&quot;utf-8&quot;))
+notes = {}
+
+for m in members:
+    mid = m.get(&quot;id&quot;) or m.get(&quot;_id&quot;)
+    if not mid:
+        continue
+    try:
+        notes[mid] = get(f&quot;/v1/notes/{uid}/{mid}&quot;)
+        print(&quot;saved notes for&quot;, mid)
+    except Exception as e:
+        notes[mid] = {&quot;error&quot;: str(e)}
+
+save(&quot;notes_by_member.json&quot;, notes)</code></pre>
+<h2 id="avatar-preservation">Avatar Preservation</h2>
+<p>The official shutdown post states that the built-in export includes avatars.</p>
+<p>API-level avatar recovery may involve fields such as:</p>
+<p>avatarUuid</p>
+<p>avatarUrl</p>
+<p>uid</p>
+<p>Older tooling reportedly used patterns such as:</p>
+<p>https://spaces.apparyllis.com/avatars/{uid}/{avatarUuid}</p>
+<p>This should be treated as implementation-derived rather than contractual API behavior.</p>
+<h2 id="preservation-recommendations">Preservation Recommendations</h2>
+<p>Preserve all available user-controlled export formats.</p>
+<p>Recommended preservation set:</p>
+<ul>
+<li>Official Simply Plural export, if available.</li>
+<li>PluralKit export, if relevant.</li>
+<li>Raw API JSON exported through the user-created token.</li>
+<li>Avatar files where available.</li>
+<li>Front history.</li>
+<li>Notes.</li>
+<li>Polls.</li>
+<li>Journals.</li>
+<li>Custom fields.</li>
+<li>Group relationships.</li>
+</ul>
+<p>The safest preservation strategy uses more than one ordinary export method:</p>
+<ol>
+<li>Official app export.</li>
+<li>API JSON export.</li>
+<li>Avatar export or avatar download.</li>
+</ol>
+<p>Keep the original exported files unchanged. Make working copies for experiments, imports, reports, or future conversion tools.</p>
+<h2 id="operational-recommendations">Operational Recommendations</h2>
+<p>Immediate recommended sequence:</p>
+<ol>
+<li>Update the Simply Plural application.</li>
+<li>Search the app settings for export and token options.</li>
+<li>Generate a Read-permission API token.</li>
+<li>Verify the <code>/v1/me</code> endpoint.</li>
+<li>Execute the full API JSON export.</li>
+<li>Download avatars where available.</li>
+<li>Save the official app export, if available.</li>
+<li>Repeat exports periodically before shutdown.</li>
+</ol>
+<p>If the service becomes unstable near shutdown, prioritize:</p>
+<ul>
+<li>official export files</li>
+<li>API JSON export files</li>
+<li>front history</li>
+<li>member metadata</li>
+<li>notes and journals</li>
+<li>avatars</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

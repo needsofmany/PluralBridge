@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge Service Design Working Model — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge Service Design Working Model. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <span class="brand-title">PluralBridge</span>
+            <span class="brand-subtitle">Needs of the Many</span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Export Now</a>
+            <a href="/docs.html">Docs</a>
+            <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+            <a href="/install.html">Install</a>
+            <a href="/run.html">Run</a>
+            <a href="/safety.html">Safety</a>
+            <a href="/about.html">About</a>
+            <a href="/developer-workflow.html">Contributing</a>
+            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+
+<div class="privacy-banner" role="note">
+    <strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.
+</div>
+
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-service-design-working-model">PluralBridge Service Design Working Model</h1>
+<p>This document captures the current working model for the PluralBridge service side: a local REST service boundary above preserved data storage, validated with Swagger/OpenAPI and Fiddler before clients are built against it.</p>
+<p>PluralBridge is published by Needs of the Many.</p>
+<p>PluralBridge is independent and has no affiliation with Simply Plural, Apparyllis, or the Simply Plural development team.</p>
+<h2 id="purpose">Purpose</h2>
+<p>This document captures the current working model for the PluralBridge service side. The design establishes a formal service boundary above the preserved database so future clients, viewers, importers, converters, storage backends, and cloud services do not couple themselves directly to SQL scripts or local database details.</p>
+<p>The updated priority is to build the local REST service boundary first, validate it with Swagger/OpenAPI and Fiddler, prove one full vertical slice through GET /sp/v1/me, and defer the command-line client until the first endpoint contract has settled.</p>
+<p>The central design statement is:</p>
+<p>&gt; The local REST layer is the first formal separation point between preserved data storage and future PluralBridge clients.</p>
+<h2 id="architectural-spine">Architectural Spine</h2>
+<p>The immediate architecture keeps the already-proven SQL Server path in place and adds a service boundary above it. SQLite, Azure, AWS, and client applications should be introduced after the service contract has a working shape.</p>
+<pre><code class="language-text">Simply Plural export data
+        -&gt;
+PluralBridge SQL Server database
+        -&gt;
+Local PluralBridge REST service
+        -&gt;
+Swagger/OpenAPI and Fiddler validation
+        -&gt;
+Contract tests
+        -&gt;
+Console client / shell client
+        -&gt;
+Future viewers, importers, converters, cloud services, and mobile clients</code></pre>
+<p>The REST service becomes the canonical interface for clients. Clients should call the service; they should not query SQL Server, SQLite, Azure, AWS, or raw exported JSON directly unless the tool is explicitly an importer or storage utility.</p>
+<h2 id="updated-near-term-priority-order">Updated Near-Term Priority Order</h2>
+<h2 id="service-side-separation-of-concerns">Service-Side Separation of Concerns</h2>
+<p>The service should be implemented as a multi-project solution rather than a monolithic console program. The first host may run as a console application, but the executable host is only the transport boundary. API routing, business logic, storage contracts, SQL Server persistence, shared models, and common utilities remain separate.</p>
+<h3 id="proposed-solution-layout">Proposed Solution Layout</h3>
+<pre><code class="language-text">PluralBridge.Service.sln
+
+src/
+  PluralBridge.Api/
+  PluralBridge.Business/
+  PluralBridge.Data/
+  PluralBridge.Data.SqlServer/
+  PluralBridge.Models/
+  PluralBridge.Common/
+
+tests/
+  PluralBridge.Api.Tests/
+  PluralBridge.Business.Tests/
+  PluralBridge.Data.Tests/</code></pre>
+<h3 id="future-backend-projects">Future Backend Projects</h3>
+<pre><code class="language-text">src/
+  PluralBridge.Data.Sqlite/
+  PluralBridge.Data.Azure/
+  PluralBridge.Data.Aws/</code></pre>
+<h2 id="project-responsibilities">Project Responsibilities</h2>
+<h3 id="pluralbridge-api">PluralBridge.Api</h3>
+<p>Hosted REST service and HTTP boundary.</p>
+<ul>
+<li>Application startup</li>
+<li>HTTP routing and controllers</li>
+<li>JSON serialization</li>
+<li>Swagger/Swashbuckle setup</li>
+<li>Request validation at the transport edge</li>
+<li>Configuration loading</li>
+<li>Dependency-injection wiring</li>
+<li>Local bind address and port configuration</li>
+</ul>
+<h3 id="pluralbridge-models">PluralBridge.Models</h3>
+<p>DTOs and API-facing model shapes.</p>
+<ul>
+<li>Compatibility models for Simply Plural/Apparyllis-shaped API</li>
+<li>Native PluralBridge models after the compatibility surface is proven</li>
+<li>Error response DTOs</li>
+<li>Version/status metadata models</li>
+</ul>
+<h3 id="pluralbridge-business">PluralBridge.Business</h3>
+<p>Service-level operations and design-policy enforcement.</p>
+<ul>
+<li>Read-only policy enforcement</li>
+<li>Compatibility mapping decisions</li>
+<li>Member, note, avatar, and front-history aggregation</li>
+<li>Future write-rule enforcement when PUT, POST, PATCH, or DELETE are designed</li>
+</ul>
+<h3 id="pluralbridge-data">PluralBridge.Data</h3>
+<p>Storage-neutral repository contracts.</p>
+<ul>
+<li>Repository interfaces</li>
+<li>Storage-neutral records</li>
+<li>Query abstractions that avoid SQL Server leakage</li>
+</ul>
+<h3 id="pluralbridge-data-sqlserver">PluralBridge.Data.SqlServer</h3>
+<p>Current proven backend implementation.</p>
+<ul>
+<li>SQL Server connection handling</li>
+<li>Queries against PluralBridge tables/views</li>
+<li>Mapping rows to storage records</li>
+<li>Implementation of PluralBridge.Data interfaces</li>
+</ul>
+<h3 id="pluralbridge-common">PluralBridge.Common</h3>
+<p>Small shared infrastructure.</p>
+<ul>
+<li>Constants</li>
+<li>Configuration helpers</li>
+<li>Result/error helpers</li>
+<li>Logging helpers; keep this project small and boring</li>
+</ul>
+<h2 id="mvc-mental-model">MVC Mental Model</h2>
+<p>MVC is a good fit for the service side. There is no UI state to bind. The model is the DTO or response model. The view is the JSON response body. The controller is the HTTP endpoint glue.</p>
+<pre><code class="language-text">Model      -&gt; DTOs / response models
+View       -&gt; JSON response body
+Controller -&gt; HTTP endpoint glue</code></pre>
+<p>Controller actions should stay thin. The controller accepts an HTTP request, calls a business service, and returns a serialized response. Policy belongs in the business layer. Storage details belong behind repository interfaces.</p>
+<pre><code class="language-text">HTTP request
+    -&gt; Controller
+    -&gt; Business service
+    -&gt; Repository interface
+    -&gt; SQL Server implementation
+    -&gt; Business service
+    -&gt; Controller returns JSON</code></pre>
+<h2 id="openapi-swashbuckle">OpenAPI / Swashbuckle</h2>
+<p>Swashbuckle should be included in the first cut. The local API needs discovery, collaborator onboarding, and a live contract surface. Swagger/OpenAPI output should identify the contract family, version, status, release date, and whether the surface is read-only.</p>
+<pre><code class="language-text">/swagger
+/swagger/v1/swagger.json
+/swagger/sp-v1/swagger.json</code></pre>
+<p>Swagger is the API map. Fiddler is the first API workbench. Contract tests come after enough endpoint behavior deserves to be pinned down.</p>
+<h2 id="initial-rest-validation-strategy">Initial REST Validation Strategy</h2>
+<p>The first PluralBridge REST service should be validated with Fiddler before a dedicated command-line client is written. During early service development, the API contract is still expected to change. Fiddler provides a direct way to compose requests, inspect JSON responses, verify status codes, examine headers, and confirm error behavior without coupling validation work to an early client implementation.</p>
+<p>Fiddler record/playback should be used as an early service-development aid. Known-good request sequences can be captured and replayed while the service implementation is being refactored. This provides a practical check that endpoint behavior, response shape, headers, and error handling remain stable before the command-line client or full automated contract-test suite exists.</p>
+<pre><code class="language-text">service -&gt; Swagger/OpenAPI -&gt; Fiddler Composer -&gt; Fiddler record/playback -&gt; contract tests -&gt; CLI</code></pre>
+<h3 id="fiddler-capture-to-test-seed">Fiddler Capture to Test Seed</h3>
+<p>Fiddler captures should seed tests, not blindly become tests. Useful captures should be curated into representative request/response cases that protect route contracts, JSON shape, read-only behavior, error behavior, auth behavior, and version/deprecation behavior.</p>
+<pre><code class="language-text">Fiddler capture -&gt; curated examples -&gt; contract tests -&gt; regression tests</code></pre>
+<p>Preserve method, route, query string, required headers, expected status code, expected content type, expected response shape, important fields, and error behavior.</p>
+<p>Treat these as API contract or integration tests rather than narrow unit tests.</p>
+<p>Do not convert every captured session into a test; keep only cases that protect a design promise.</p>
+<h2 id="first-vertical-slice-get-sp-v1-me">First Vertical Slice: GET /sp/v1/me</h2>
+<p>The first endpoint should be <code>GET /sp/v1/me</code>. This endpoint is small enough to build quickly but large enough to prove the full service path from HTTP request to SQL Server query and JSON response.</p>
+<pre><code class="language-text">GET /sp/v1/me</code></pre>
+<p>This first vertical slice proves:</p>
+<ul>
+<li>Service starts</li>
+<li>Routing works</li>
+<li>Swagger sees the endpoint</li>
+<li>Fiddler can call it</li>
+<li>SQL Server connection works</li>
+<li>Data layer can read from <code>dbo.me</code></li>
+<li>Business layer maps database output to API JSON</li>
+<li>Controller returns the response</li>
+<li>Error handling works when the row is missing</li>
+</ul>
+<h3 id="suggested-implementation-sequence">Suggested Implementation Sequence</h3>
+<ul>
+<li>Create solution/project skeleton.</li>
+<li>Add configuration and localhost binding.</li>
+<li>Add Swagger/Swashbuckle.</li>
+<li>Add HealthController.</li>
+<li>Add MeController.</li>
+<li>Add IMeRepository.</li>
+<li>Add SqlServerMeRepository.</li>
+<li>Add MeService.</li>
+<li>Map <code>dbo.me</code> to <code>MeDto</code>.</li>
+<li>Validate with Fiddler.</li>
+<li>Capture Fiddler request/response.</li>
+<li>Convert the captured behavior into a contract/integration test.</li>
+</ul>
+<h3 id="endpoint-expansion-after-me">Endpoint Expansion After /me</h3>
+<pre><code class="language-text">GET /sp/v1/me
+GET /sp/v1/user/{uid}
+GET /sp/v1/members/{uid}
+GET /sp/v1/groups/{uid}
+GET /sp/v1/customFields/{uid}
+GET /sp/v1/privacyBuckets
+GET /sp/v1/frontHistory
+GET /sp/v1/frontHistory/{uid}?startTime=...&amp;endTime=...
+GET /sp/v1/notes/{uid}/{memberId}
+GET /sp/v1/avatars</code></pre>
+<h2 id="initial-endpoint-shape">Initial Endpoint Shape</h2>
+<p>The first service should support a read-only compatibility-shaped route set first. A native PluralBridge route set can be added after the compatibility surface is proven.</p>
+<h3 id="compatibility-shaped-routes">Compatibility-Shaped Routes</h3>
+<pre><code class="language-text">GET /sp/v1/me
+GET /sp/v1/user/{uid}
+GET /sp/v1/members/{uid}
+GET /sp/v1/groups/{uid}
+GET /sp/v1/frontHistory
+GET /sp/v1/frontHistory/{uid}?startTime=0&amp;endTime=9999999999999
+GET /sp/v1/notes/{uid}/{memberId}</code></pre>
+<h3 id="native-pluralbridge-routes">Native PluralBridge Routes</h3>
+<pre><code class="language-text">GET /api/v1/members
+GET /api/v1/members/{memberId}
+GET /api/v1/members/{memberId}/notes
+GET /api/v1/members/{memberId}/avatar
+GET /api/v1/front-history
+GET /api/v1/manifest</code></pre>
+<h3 id="health-endpoints">Health Endpoints</h3>
+<pre><code class="language-text">GET /health
+GET /health/database</code></pre>
+<h2 id="read-only-first-version">Read-Only First Version</h2>
+<p>The first service version should be explicitly read-only. GET and HEAD may be supported. PUT, POST, PATCH, and DELETE should return 405 Method Not Allowed unless and until those operations are deliberately designed.</p>
+<pre><code class="language-text">First API version: read-oriented.
+Write operations grow only from concrete workflows.</code></pre>
+<h2 id="configuration-model">Configuration Model</h2>
+<p>The service needs configuration from the beginning, even if the first configuration set is small. Commit example files only. Real local configuration files must be ignored.</p>
+<pre><code class="language-json">{
+  &quot;PluralBridgeService&quot;: {
+    &quot;BindUrl&quot;: &quot;http://127.0.0.1:5217&quot;,
+    &quot;Backend&quot;: &quot;SqlServer&quot;,
+    &quot;ReadOnly&quot;: true,
+    &quot;AllowLanBinding&quot;: false,
+    &quot;RequireLocalToken&quot;: false
+  },
+  &quot;ConnectionStrings&quot;: {
+    &quot;PluralBridgeSqlServer&quot;: &quot;Server=localhost;Database=PluralBridge;Trusted_Connection=True;TrustServerCertificate=True;&quot;
+  }
+}</code></pre>
+<pre><code class="language-text">Commit:
+  appsettings.example.json
+  appsettings.Development.example.json
+
+Ignore:
+  appsettings.Local.json
+  appsettings.Development.json
+  *.user
+  .env</code></pre>
+<h2 id="data-access-boundary">Data Access Boundary</h2>
+<p>The API and business layers should not depend directly on SQL Server table layout. The data layer should expose repository interfaces and storage-neutral records. SQL Server, SQLite, Azure, and AWS backends can then implement the same contracts.</p>
+<pre><code class="language-csharp">public interface IMeRepository
+{
+    Task&lt;MeRecord?&gt; GetMeAsync(CancellationToken ct);
+}
+
+public interface IMemberRepository
+{
+    Task&lt;IReadOnlyList&lt;MemberRecord&gt;&gt; GetMembersAsync(string systemUid, CancellationToken ct);
+    Task&lt;MemberRecord?&gt; GetMemberAsync(string memberId, CancellationToken ct);
+}</code></pre>
+<p>Where stable SQL Server views exist, the service should prefer those views for higher-level response shapes. Tables can be used directly where necessary, but composite responses should eventually sit on views or clear repository queries.</p>
+<h2 id="console-client-direction">Console Client Direction</h2>
+<p>The command-line client remains important, but it should follow the first service slice and Fiddler validation. The client should be a consumer of a known draft contract, not the tool used to discover the contract.</p>
+<pre><code class="language-text">pbcli members list
+pbcli member get &lt;member-id&gt;
+pbcli fronts list
+pbcli notes list &lt;member-id&gt;
+pbcli avatars list
+
+pbcli shell
+PluralBridge&gt; members list
+PluralBridge&gt; member get &lt;id&gt;
+PluralBridge&gt; notes list &lt;id&gt;
+PluralBridge&gt; fronts recent
+PluralBridge&gt; quit</code></pre>
+<p>A C# validation client is likely the fastest first cut after the service stabilizes. A later small C++ reference client has value because it proves the REST layer is language-neutral and helps future Windows/Linux developers.</p>
+<h2 id="testing-philosophy">Testing Philosophy</h2>
+<p>PluralBridge tests should be contract-centered. The goal is to verify that the system behaves according to its design boundaries: exported data is preserved safely, generated files are named and mapped correctly, safety checks prevent accidental leakage, SQL/import scripts remain ordered and usable, REST endpoints return documented JSON shapes, and the service remains read-only until write operations are deliberately designed.</p>
+<p>Tests should avoid line-by-line implementation policing. They should not exist to chase coverage percentages or duplicate trivial code behavior. A useful test protects a design promise, a public contract, a data transformation, a safety boundary, or a historically fragile behavior.</p>
+<h3 id="useful-test-targets">Useful Test Targets</h3>
+<ul>
+<li>Exporter creates the expected preservation layout.</li>
+<li>Manifest entries map exported files to their source endpoints.</li>
+<li>Notes remain decorrelated from member/decorator names in filenames.</li>
+<li>Avatar manifest maps member IDs to local files.</li>
+<li>Safety check rejects tokens, private paths, export folders, database files, and unintended images.</li>
+<li>SQL scripts exist in the required order.</li>
+<li>REST service returns the documented JSON shape.</li>
+<li>REST service is read-only for the first version.</li>
+<li>REST service does not require or use a Simply Plural token.</li>
+<li>Data layer can be swapped behind repository interfaces.</li>
+<li>Fiddler captures can be curated into API contract/integration tests.</li>
+</ul>
+<h3 id="initial-test-groups">Initial Test Groups</h3>
+<pre><code class="language-text">tests/
+  ExporterContractTests
+  ManifestContractTests
+  NotesExportTests
+  AvatarManifestTests
+  SafetyScriptTests
+  SqlScriptOrderTests
+  RestApiContractTests
+  ReadOnlyBoundaryTests
+  FiddlerSeededContractTests</code></pre>
+<h2 id="rest-contract-versioning">REST Contract Versioning</h2>
+<p>PluralBridge REST interfaces are versioned contracts. During early development, API routes and payloads may change while the design is being shaped. Once a contract version is publicly released, that version becomes immutable while supported. Clients written against a released version must continue to work during its support window.</p>
+<p>Breaking changes require a new versioned contract. Existing released contracts may be extended by adding optional fields, optional query parameters, or new endpoints, but existing routes, required parameters, response field names, field meanings, status-code behavior, error shape, identifier formats, and date/time formats must remain stable.</p>
+<pre><code class="language-text">/api/v1/...    PluralBridge native API
+/sp/v1/...     Simply Plural/Apparyllis-shaped compatibility API</code></pre>
+<h2 id="contract-lifecycle-deprecation-and-retirement">Contract Lifecycle, Deprecation, and Retirement</h2>
+<p>A released interface version is immutable while supported, but no interface version is immortal. PluralBridge needs a compatibility promise with a retirement valve so the codebase does not become a cluster of obsolete compatibility paths.</p>
+<pre><code class="language-text">draft -&gt; preview -&gt; stable -&gt; deprecated -&gt; retired</code></pre>
+<p>Deprecated endpoints should advertise their status through OpenAPI documentation and runtime HTTP headers. Response bodies should not be changed merely to announce deprecation because that can break clients that parse those bodies.</p>
+<pre><code class="language-text">Deprecation: true
+Sunset: Wed, 01 Jul 2027 00:00:00 GMT
+Link: &lt;/docs/api/sp-v2-migration&gt;; rel=&quot;successor-version&quot;</code></pre>
+<p>Older contract versions should be preserved at the HTTP/model adapter layer where feasible, while shared business services and data repositories continue to evolve behind that boundary.</p>
+<h2 id="security-model">Security Model</h2>
+<p>PluralBridge should separate local-service security from future hosted-service identity. The first local REST service is read-only and binds to localhost by default. It does not use the Simply Plural API token. The Simply Plural token is an export credential only and is never treated as a PluralBridge account credential.</p>
+<h3 id="local-service-defaults">Local Service Defaults</h3>
+<ul>
+<li>Bind to 127.0.0.1 / localhost by default.</li>
+<li>Keep the first API version read-only.</li>
+<li>Require explicit opt-in for LAN binding.</li>
+<li>Do not support direct public-internet exposure for the local service.</li>
+<li>Do not use the Simply Plural token for the service.</li>
+<li>Use a PluralBridge-owned local token only when the service is configured to require one, especially for LAN/non-loopback access.</li>
+</ul>
+<h3 id="lan-binding">LAN Binding</h3>
+<p>LAN binding should require a deliberate configuration change. The service should refuse to bind to a non-loopback address unless LAN binding is explicitly enabled.</p>
+<pre><code class="language-json">{
+  &quot;PluralBridgeService&quot;: {
+    &quot;BindUrl&quot;: &quot;http://192.168.1.50:5217&quot;,
+    &quot;AllowLanBinding&quot;: true,
+    &quot;RequireLocalToken&quot;: true
+  }
+}</code></pre>
+<h3 id="pluralbridge-owned-local-token">PluralBridge-Owned Local Token</h3>
+<p>SP_TOKEN is export-only and belongs only to the Simply Plural/Apparyllis export phase. PB_LOCAL_TOKEN is PluralBridge-owned and belongs only to the local PluralBridge REST service. This is a direct credential replacement for service access, not a reuse or reshaping of the Simply Plural token.</p>
+<p>For the first implementation, PB_LOCAL_TOKEN may be represented as a PluralBridge-prefixed GUID string. If stronger local bearer-key material is desired while retaining the universal, public GUID shape, two or more GUIDs can be concatenated.</p>
+<pre><code class="language-text">SP_TOKEN          used only by exporter
+PB_LOCAL_TOKEN    used only by local PluralBridge REST service
+
+PB_LOCAL_TOKEN=pb_local_&lt;guid&gt;
+PB_LOCAL_TOKEN=pb_local_&lt;guid&gt;_&lt;guid&gt;</code></pre>
+<p>GUIDs are universal and public. Using a GUID-shaped PluralBridge token further decouples the local service credential from any Simply Plural/Apparyllis token format or authentication model.</p>
+<pre><code class="language-text">Authorization: Bearer pb_local_&lt;guid&gt;</code></pre>
+<h3 id="hosted-cloud-identity-direction">Hosted / Cloud Identity Direction</h3>
+<p>Future hosted PluralBridge services should use a real identity platform. Passkeys/WebAuthn should be the preferred authentication method because they provide phishing-resistant authentication using public-key cryptography. Password-based login may be supported only as a compatibility or recovery path, and should require strong account protection.</p>
+<ul>
+<li>Support multiple passkeys per account.</li>
+<li>Provide recovery codes.</li>
+<li>Provide authenticator/passkey management and revocation.</li>
+<li>Separate authentication from authorization.</li>
+<li>Use short-lived access tokens and refresh-token rotation where appropriate.</li>
+<li>Enforce per-system data ownership checks.</li>
+</ul>
+<h3 id="authorization-scopes">Authorization Scopes</h3>
+<pre><code class="language-text">pluralbridge.read
+pluralbridge.write
+pluralbridge.export
+pluralbridge.import
+pluralbridge.admin</code></pre>
+<p>For the local first cut, only read behavior exists. Write scopes become relevant when PUT, POST, PATCH, or DELETE operations are designed.</p>
+<h3 id="threat-model-for-local-service">Threat Model for Local Service</h3>
+<ul>
+<li>Accidental LAN exposure.</li>
+<li>Accidental internet exposure.</li>
+<li>Malware or a local process reading from localhost.</li>
+<li>Leaked config file.</li>
+<li>Committed local API key.</li>
+<li>Committed connection string.</li>
+<li>Accidental write endpoints.</li>
+<li>Sensitive member/note/avatar data exposed through logs.</li>
+</ul>
+<h3 id="logging-rule">Logging Rule</h3>
+<p>Logs should support diagnosis without leaking preserved user data.</p>
+<ul>
+<li>Do not log JSON response bodies by default.</li>
+<li>Do not log notes.</li>
+<li>Do not log member names unless debug logging is explicitly enabled.</li>
+<li>Do not log bearer tokens or connection strings.</li>
+<li>Do log request path, method, status code, elapsed time, and correlation ID.</li>
+</ul>
+<h2 id="outside-collaborator-expectations">Outside Collaborator Expectations</h2>
+<p>This architecture tells collaborators where to plug in. The service boundary is the work surface. Contributors should not couple new tools to local SQL scripts unless they are working specifically on storage/import tasks.</p>
+<ul>
+<li>Client tools should call the PluralBridge REST service.</li>
+<li>Importer tools may read exported JSON/notes/avatar files when that is their explicit job.</li>
+<li>Database-specific work belongs behind storage interfaces.</li>
+<li>API consumers should target documented contract versions.</li>
+<li>Stable contracts should be treated as promises while they remain supported.</li>
+<li>Early collaborators should expect draft contracts to move until a stable API release is declared.</li>
+</ul>
+<h2 id="near-term-engineering-tasks">Near-Term Engineering Tasks</h2>
+<ul>
+<li>Create the C# service solution and project skeleton.</li>
+<li>Add Swashbuckle/OpenAPI.</li>
+<li>Add localhost-only read-only health endpoints.</li>
+<li>Implement the first vertical slice: <code>GET /sp/v1/me</code>.</li>
+<li>Validate <code>/health</code> and <code>/sp/v1/me</code> with Fiddler.</li>
+<li>Capture known-good Fiddler request/response pairs.</li>
+<li>Curate captures into API contract/integration test seeds.</li>
+<li>Add SQL Server repository interfaces and first implementations.</li>
+<li>Add configuration examples and Git ignore rules for local config.</li>
+<li>Add PB_LOCAL_TOKEN handling for non-loopback/LAN mode if enabled.</li>
+<li>Add safety-script checks for PB_LOCAL_TOKEN, Authorization headers, unsafe config, and connection strings.</li>
+<li>Add the next compatibility-shaped GET endpoints after <code>/me</code> is stable.</li>
+<li>Create the command-line client after the first endpoint set and error model stabilize.</li>
+</ul>
+<h2 id="guiding-principle">Guiding Principle</h2>
+<p>Preserve data first. Put a service boundary around the preserved data. Validate the boundary with Swagger and Fiddler. Prove one full vertical slice. Stabilize the contract. Then build clients and storage backends around that contract.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>
