@@ -104,6 +104,103 @@ a:hover {
     white-space: nowrap;
 }
 
+.nav summary {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    cursor: pointer;
+    list-style: none;
+}
+
+.nav summary::-webkit-details-marker {
+    display: none;
+}
+
+.nav summary::after {
+    content: " ▾";
+    color: var(--text-soft);
+}
+
+.nav-menu {
+    position: relative;
+}
+
+.nav-menu-panel {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 10px);
+    min-width: 220px;
+    padding: 10px;
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.98);
+    box-shadow: var(--shadow-soft);
+    z-index: 20;
+}
+
+.nav-menu[open] .nav-menu-panel {
+    display: grid;
+    gap: 8px;
+}
+
+.nav-menu-panel a[aria-current="page"] {
+    color: var(--text-main);
+    font-weight: 720;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    text-decoration: none;
+}
+
+.nav-menu-panel a[aria-current="page"]::before {
+    content: "•";
+    color: var(--accent);
+    font-size: 1.2rem;
+    line-height: 1;
+    font-weight: 900;
+    flex: 0 0 auto;
+}
+
+.nav-menu-disabled {
+    display: block;
+    padding: 7px 9px;
+    border-radius: 10px;
+    color: var(--text-soft);
+    font-size: 0.9rem;
+    cursor: default;
+}
+
+.nav-menu-note {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.nav-menu-panel a {
+    display: block;
+    padding: 7px 9px;
+    border-radius: 10px;
+}
+
+.nav > a[aria-current="page"],
+.nav summary[data-current="section"] {
+    color: var(--text-main);
+    font-weight: 720;
+}
+
+.nav > a[aria-current="page"],
+.nav summary[data-current="section"] {
+    text-decoration: underline;
+    text-underline-offset: 6px;
+    text-decoration-thickness: 2px;
+}
+
+.nav a[href="export-now.html"][aria-current="page"] {
+    outline: 2px solid rgba(255, 255, 255, 0.72);
+    outline-offset: 2px;
+}
+
 .nav a:hover {
     color: var(--text-main);
 }
@@ -332,7 +429,8 @@ code {
         justify-content: stretch;
     }
 
-    .nav a {
+    .nav a,
+    .nav summary {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -343,6 +441,18 @@ code {
         background: rgba(255, 255, 255, 0.04);
         text-align: center;
         white-space: normal;
+    }
+
+    .nav-menu {
+        width: 100%;
+    }
+
+    .nav-menu-panel {
+        left: 0;
+        right: 0;
+        top: calc(100% + 8px);
+        width: 100%;
+        min-width: 0;
     }
 
     .privacy-banner {

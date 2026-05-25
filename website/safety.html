@@ -30,18 +30,36 @@
             </span>
         </a>
                 <nav class="nav" aria-label="Main navigation">
+            <a href="index.html">Home</a>
             <a href="start-here.html">Start Here</a>
             <a href="export-now.html">Export Now</a>
-            <a href="docs.html">Docs</a>
-            <a href="simply-plural-shutdown.html">Shutdown Info</a>
-            <a href="install.html">Install</a>
-            <a href="run.html">Run</a>
-            <a href="safety.html">Safety</a>
-            <a href="about.html">About</a>
-            <a href="developer-workflow.html">Contributing</a>
-            <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
-            <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
-            <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="docs.html">Documentation Home</a>
+                    <a href="install.html">Install</a>
+                    <a href="run.html">Run</a>
+                    <a href="safety.html" aria-current="page">Safety</a>
+                    <a href="developer-workflow.html">Contributing</a>
+                    <a href="simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="about.html">About PluralBridge</a>
+                    <span class="nav-menu-disabled">Contact Us <span class="nav-menu-note">coming soon</span></span>
+                </div>
+            </details>
         </nav>
     </div>
 </header>
@@ -123,5 +141,6 @@
     </div>
 </footer>
     <script src="privacy-banner.js"></script>
+    <script src="site-menu.js"></script>
 </body>
 </html>
