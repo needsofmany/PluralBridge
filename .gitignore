@@ -22,3 +22,4 @@ scripts/sqlserver/*.local.sql
 database/tracking/
 database/bash/
 database/targeting/prop_candidate/private_export/json/
+database/targeting/prop_candidate_fail_*/
