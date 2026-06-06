@@ -23,3 +23,11 @@ database/tracking/
 database/bash/
 database/targeting/prop_candidate/private_export/json/
 database/targeting/prop_candidate_fail_*/
+
+# Cloud-readiness local/transient artifacts
+database/targeting/prop_candidate/cloud/*_tmp/
+database/targeting/prop_candidate/cloud/*.tmp
+database/targeting/prop_candidate/cloud/*.log
+database/targeting/prop_candidate/cloud/*.local.txt
+database/targeting/prop_candidate/cloud/**/*.json
+database/targeting/prop_candidate/cloud/**/*.jsonl
