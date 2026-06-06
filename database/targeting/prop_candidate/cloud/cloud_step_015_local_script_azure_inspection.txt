@@ -1,0 +1,87 @@
+SOURCE=database/targeting/prop_candidate/pop_candidate_one_script_001_local_repeatbuild_001_006.sql
+SOURCE_SHA256=2937841E03F23255C9A5483BDC8BAECD93240A14D52F0CE76A9CAE7B307C2FBD
+SOURCE_LINES=766
+
+CHECK=Dead database reference COUNT=0
+
+CHECK=Local repeatbuild database reference COUNT=9
+11:IF DB_ID(N'PluralBridge_RepeatBuild') IS NOT NULL
+13:    ALTER DATABASE [PluralBridge_RepeatBuild]
+16:    DROP DATABASE [PluralBridge_RepeatBuild];
+20:DBCC CLONEDATABASE (N'PluralBridge', N'PluralBridge_RepeatBuild');
+23:ALTER DATABASE [PluralBridge_RepeatBuild]
+27:ALTER DATABASE [PluralBridge_RepeatBuild]
+37:WHERE name = N'PluralBridge_RepeatBuild';
+40:USE [PluralBridge_RepeatBuild];
+747:USE [PluralBridge_RepeatBuild];
+
+CHECK=Prequel reference COUNT=25
+86:DECLARE @SourceExportName nvarchar(500) = N'PluralBridge-Prequel';
+89:DECLARE @ImportNotes nvarchar(max) = N'Repeatable canonical population from preserved PluralBridge-Prequel database.';
+99:    SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.me
+100:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.members
+101:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.privacybuckets
+102:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.customfields
+103:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.front_history
+104:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.member_avatars
+105:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.member_notes
+106:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.chat_categories
+107:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.chat_channels
+108:    UNION ALL SELECT imported_at_utc FROM [PluralBridge-Prequel].dbo.friends
+157:DECLARE @SourceExportName nvarchar(500) = N'PluralBridge-Prequel';
+179:FROM [PluralBridge-Prequel].dbo.me AS me
+240:DECLARE @SourceExportName nvarchar(500) = N'PluralBridge-Prequel';
+251:FROM [PluralBridge-Prequel].dbo.me AS me;
+288:FROM [PluralBridge-Prequel].dbo.members AS m
+350:DECLARE @SourceExportName nvarchar(500) = N'PluralBridge-Prequel';
+360:FROM [PluralBridge-Prequel].dbo.me AS me;
+389:FROM [PluralBridge-Prequel].dbo.privacybuckets AS pb
+
+CHECK=Preop reference COUNT=0
+
+CHECK=USE statement COUNT=3
+8:USE [master];
+40:USE [PluralBridge_RepeatBuild];
+747:USE [PluralBridge_RepeatBuild];
+
+CHECK=CREATE DATABASE statement COUNT=0
+
+CHECK=DROP DATABASE statement COUNT=1
+16:    DROP DATABASE [PluralBridge_RepeatBuild];
+
+CHECK=ALTER DATABASE statement COUNT=3
+13:    ALTER DATABASE [PluralBridge_RepeatBuild]
+23:ALTER DATABASE [PluralBridge_RepeatBuild]
+27:ALTER DATABASE [PluralBridge_RepeatBuild]
+
+CHECK=File path or filegroup option COUNT=0
+
+CHECK=Single user multi user rollback option COUNT=2
+14:        SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+28:    SET MULTI_USER;
+
+CHECK=SQLCMD directive COUNT=0
+
+CHECK=SQLCMD variable token COUNT=0
+
+CHECK=Bulk external file operation COUNT=0
+
+CHECK=Private JSON path leak COUNT=0
+
+CHECK=GO batch separator COUNT=15
+9:GO
+18:GO
+21:GO
+25:GO
+29:GO
+38:GO
+41:GO
+47:GO
+146:GO
+230:GO
+339:GO
+440:GO
+542:GO
+740:GO
+748:GO
+
