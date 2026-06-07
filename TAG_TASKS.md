@@ -6,6 +6,28 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.6.0 — Azure SQL cloud-readiness proof
+
+### Major tasks completed
+
+- Created the Azure SQL cloud-readiness proof database for the validated PluralBridge 1-6 vertical slice.
+- Proved the 1-6 schema in Azure SQL with the expected 9 proof tables.
+- Validated expected core columns, primary keys, foreign keys, and unique constraints in Azure SQL.
+- Confirmed the Azure proof database was writable and suitable for schema and data-load validation.
+- Generated a private ignored data-load SQL artifact from the private JSON export.
+- Loaded the validated 1-6 slice into Azure SQL using SSMS.
+- Confirmed all expected Azure data counts passed: 1 source system, 1 import batch, 1 system, 49 members, 2 privacy buckets, 7 custom fields, 886 front-history rows, 945 source records, and 945 source ID mappings.
+- Archived failed candidate paths instead of repairing failed generated SQL forward.
+- Added compact non-private audit checkpoints for the Azure schema proof and data-load proof.
+
+### Notes
+
+This release marks the first completed Azure SQL database-backed proof for the minimal PluralBridge 1-6 vertical slice. Private JSON export files and generated private SQL load files remain ignored and are not part of the public repository history.
+
+The next project phase can build on this proof toward the read-only REST/browser demo path for token-scoped member and front-history data.
+
+---
+
 ## v0.5.2 — Website menu restructure
 
 ### Major tasks completed
