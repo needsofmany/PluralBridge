@@ -31,3 +31,9 @@ database/targeting/prop_candidate/cloud/*.log
 database/targeting/prop_candidate/cloud/*.local.txt
 database/targeting/prop_candidate/cloud/**/*.json
 database/targeting/prop_candidate/cloud/**/*.jsonl
+
+# Visual Studio / .NET build output
+.vs/
+**/bin/
+**/obj/
+*.user

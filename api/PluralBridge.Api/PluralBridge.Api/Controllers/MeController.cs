@@ -1,0 +1,139 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+
+namespace PluralBridge.Api.Controllers;
+
+/// <summary>
+/// Provides the Phase 2B read-only proof endpoint for the current proof context.
+/// This controller verifies that the API can reach the validated PluralBridge cloud proof database
+/// and returns the system identifier plus table counts needed by the browser proof surface.
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+public sealed class MeController(IConfiguration configuration) : ControllerBase
+{
+	/// <summary>
+	/// Returns the current Phase 2B proof context.
+	/// The response is intentionally read-only and includes the proof system plus validated table counts
+	/// so the browser can confirm that it is receiving real database-backed data.
+	/// </summary>
+	/// <returns>
+	/// HTTP 200 with proof metadata, the selected proof system, write capability set to false,
+	/// and counts for the Phase 2B source and 1-6 slice tables.
+	/// </returns>
+	[HttpGet]
+	public async Task<IActionResult> Get()
+	{
+		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+
+		if (string.IsNullOrWhiteSpace(connectionString))
+		{
+			return Problem(
+				title: "Missing connection string",
+				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				statusCode: StatusCodes.Status500InternalServerError);
+		}
+
+		await using SqlConnection connection = new(connectionString);
+		await connection.OpenAsync();
+
+		var counts = await ReadCountsAsync(connection);
+		var proofSystem = await ReadProofSystemAsync(connection);
+
+		return Ok(new
+		{
+			api = "PluralBridge.Api",
+			phase = "Phase 2B",
+			mode = "read-only proof",
+			database = "PluralBridgeCloudProof001",
+			canWrite = false,
+			proofSystem,
+			counts
+		});
+	}
+
+	/// <summary>
+	/// Reads count totals from the source and 1-6 proof tables in the validated database.
+	/// These totals are used as a compact integrity check for the Phase 2B browser proof.
+	/// </summary>
+	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
+	/// <returns>A dictionary keyed by API-facing count names.</returns>
+	private static async Task<Dictionary<string, long>> ReadCountsAsync(SqlConnection connection)
+	{
+		const string sql = """
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_systems;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_import_batches;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_systems;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_members;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_privacy_buckets;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_custom_fields;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_front_history;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_records;
+		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_id_map;
+		                   """;
+
+		string[] names =
+		[
+			"sourceSystems",
+			"importBatches",
+			"systems",
+			"members",
+			"privacyBuckets",
+			"customFields",
+			"frontHistory",
+			"sourceRecords",
+			"sourceIdMappings"
+		];
+
+		Dictionary<string, long> counts = new();
+
+		await using SqlCommand command = new(sql, connection);
+		await using var reader = await command.ExecuteReaderAsync();
+
+		for (var index = 0; index < names.Length; index++)
+		{
+			if (await reader.ReadAsync())
+			{
+				counts[names[index]] = reader.GetInt64(0);
+			}
+
+			if (index < names.Length - 1)
+			{
+				await reader.NextResultAsync();
+			}
+		}
+
+		return counts;
+	}
+
+	/// <summary>
+	/// Reads the first proof system from the validated database.
+	/// Phase 2B uses this fixed proof context until Phase 3 replaces it with login/session mapping.
+	/// </summary>
+	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
+	/// <returns>The selected proof system, or null when the proof database has no system row.</returns>
+	private static async Task<ProofSystem?> ReadProofSystemAsync(SqlConnection connection)
+	{
+		const string sql = """
+		                   SELECT TOP (1)
+		                       SystemId,
+		                       SystemName
+		                   FROM dbo.pb_systems
+		                   ORDER BY CreatedAtUtc, SystemId;
+		                   """;
+
+		await using SqlCommand command = new(sql, connection);
+		await using var reader = await command.ExecuteReaderAsync();
+
+		if (!await reader.ReadAsync())
+		{
+			return null;
+		}
+
+		return new ProofSystem(
+			reader.GetGuid(0),
+			reader.IsDBNull(1) ? null : reader.GetString(1));
+	}
+
+	private sealed record ProofSystem(Guid SystemId, string? SystemName);
+}

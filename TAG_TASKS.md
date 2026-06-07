@@ -6,6 +6,30 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.7.0 — Read-only C# API and database-backed browser proof
+
+### Major tasks completed
+
+- Added the first durable ASP.NET Core C# REST API under `api/`.
+- Added Microsoft.Data.SqlClient database access against the validated Azure SQL proof database.
+- Added read-only REST endpoints for `me`, source systems, import batches, systems, members, privacy buckets, custom fields, front history, source records, source ID mappings, and import metadata.
+- Wired the browser app read-only buttons to real API calls instead of static mock contract payloads.
+- Preserved the Phase 3A login/session surface as frozen placeholder behavior while completing Phase 2B.
+- Confirmed all required Phase 2B browser/API counts from the validated 1-6 proof slice: 1 source system, 1 import batch, 1 system, 49 members, 2 privacy buckets, 7 custom fields, 886 front-history rows, 945 source records, and 945 source ID mappings.
+- Kept all Phase 2B endpoints read-only with `canWrite` set to false.
+- Excluded raw source JSON from the public source-record endpoint while preserving source inventory and hash metadata.
+- Added Visual Studio and .NET ignore rules so local build output, user settings, and transient IDE files stay out of repository history.
+- Added output-box CSS wrapping and height limits so large JSON payloads remain usable in the browser proof surface.
+
+### Notes
+
+This release marks the first PluralBridge browser proof backed by a durable C# REST API and real Azure SQL data. It corrects the Phase 2 read-only surface so the app now proves live database retrieval across the complete 1-6 proof slice instead of static browser-side contract JSON.
+
+The API still uses a fixed Phase 2B proof context. Phase 3 remains responsible for replacing that fixed context with real login, session, and user-to-System mapping behavior.
+
+
+---
+
 ## v0.6.0 — Azure SQL cloud-readiness proof
 
 ### Major tasks completed
