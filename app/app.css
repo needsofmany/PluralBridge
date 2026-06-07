@@ -79,6 +79,7 @@ button[aria-pressed="true"] {
 
 .output-box {
   min-height: 22rem;
+  max-height: 34rem;
   overflow: auto;
   margin: 0;
   padding: 1rem;
@@ -87,6 +88,8 @@ button[aria-pressed="true"] {
   background: #070a0d;
   color: #d8e1ed;
   font-size: 0.92rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .login-panel {
