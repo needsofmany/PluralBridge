@@ -6,6 +6,27 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.7.1 — Protected browser button app proof
+
+### Major tasks completed
+
+- Added a protected browser button app proof under the ASP.NET Core API project.
+- Copied the browser proof app into `api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/` so the Azure API App Service can host `/app/` directly.
+- Added cookie-auth login and logout endpoints for the protected proof surface.
+- Protected `/app/`, copied app static files, and `/api/*` controller endpoints behind authentication.
+- Added configuration support for demo credentials through local User Secrets and Azure App Service app settings.
+- Guarded the temporary `/whoami` auth diagnostic endpoint behind `DEBUG_MODE` so it remains available for local diagnostics without appearing in normal release builds.
+- Deployed the protected proof to the Azure App Service `pluralbridge-api-proof-001` using Kudu ZIP deployment.
+- Turned SCM Basic Auth Publishing Credentials back off after deployment.
+- Validated the Azure end-to-end flow: login, app load, protected `me` API call, and logout.
+
+### Notes
+
+This release proves that the Azure-hosted PluralBridge API can serve a protected browser app and protected REST surface from the same App Service. It keeps the demo credential values outside repository history by using User Secrets locally and Azure App Service app settings in the deployed proof.
+
+The protected browser app remains a proof path for the Plural conference/demo objective. Later work can replace the fixed demo login with durable user/session/System mapping and decide how `https://thepluralbridge.org/app` routes to the application surface.
+
+
 ## v0.7.0 — Read-only C# API and database-backed browser proof
 
 ### Major tasks completed
