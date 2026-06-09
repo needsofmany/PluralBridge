@@ -1,0 +1,142 @@
+{
+  "target_database": "PluralBridgeDemoAnonXlat",
+  "tables": {
+    "pb_custom_fields": 7,
+    "pb_front_history": 886,
+    "pb_import_batches": 1,
+    "pb_members": 49,
+    "pb_privacy_buckets": 2,
+    "pb_source_id_map": 945,
+    "pb_source_records": 945,
+    "pb_source_systems": 1,
+    "pb_systems": 1
+  },
+  "primary_keys": [
+    [
+      "pb_custom_fields",
+      "PK_pb_custom_fields",
+      "CustomFieldId"
+    ],
+    [
+      "pb_front_history",
+      "PK_pb_front_history",
+      "FrontHistoryId"
+    ],
+    [
+      "pb_import_batches",
+      "PK_pb_import_batches",
+      "ImportBatchId"
+    ],
+    [
+      "pb_members",
+      "PK_pb_members",
+      "MemberId"
+    ],
+    [
+      "pb_privacy_buckets",
+      "PK_pb_privacy_buckets",
+      "PrivacyBucketId"
+    ],
+    [
+      "pb_source_id_map",
+      "PK_pb_source_id_map",
+      "SourceIdMapId"
+    ],
+    [
+      "pb_source_records",
+      "PK_pb_source_records",
+      "SourceRecordId"
+    ],
+    [
+      "pb_source_systems",
+      "PK_pb_source_systems",
+      "SourceSystemCode"
+    ],
+    [
+      "pb_systems",
+      "PK_pb_systems",
+      "SystemId"
+    ]
+  ],
+  "foreign_keys": [
+    [
+      "FK_pb_custom_fields_pb_systems",
+      "pb_custom_fields",
+      "SystemId",
+      "pb_systems",
+      "SystemId"
+    ],
+    [
+      "FK_pb_front_history_pb_members",
+      "pb_front_history",
+      "MemberId",
+      "pb_members",
+      "MemberId"
+    ],
+    [
+      "FK_pb_front_history_pb_systems",
+      "pb_front_history",
+      "SystemId",
+      "pb_systems",
+      "SystemId"
+    ],
+    [
+      "FK_pb_import_batches_pb_source_systems",
+      "pb_import_batches",
+      "SourceSystemCode",
+      "pb_source_systems",
+      "SourceSystemCode"
+    ],
+    [
+      "FK_pb_members_pb_systems",
+      "pb_members",
+      "SystemId",
+      "pb_systems",
+      "SystemId"
+    ],
+    [
+      "FK_pb_privacy_buckets_pb_systems",
+      "pb_privacy_buckets",
+      "SystemId",
+      "pb_systems",
+      "SystemId"
+    ],
+    [
+      "FK_pb_source_id_map_pb_import_batches",
+      "pb_source_id_map",
+      "ImportBatchId",
+      "pb_import_batches",
+      "ImportBatchId"
+    ],
+    [
+      "FK_pb_source_id_map_pb_source_systems",
+      "pb_source_id_map",
+      "SourceSystemCode",
+      "pb_source_systems",
+      "SourceSystemCode"
+    ],
+    [
+      "FK_pb_source_records_pb_import_batches",
+      "pb_source_records",
+      "ImportBatchId",
+      "pb_import_batches",
+      "ImportBatchId"
+    ],
+    [
+      "FK_pb_source_records_pb_source_systems",
+      "pb_source_records",
+      "SourceSystemCode",
+      "pb_source_systems",
+      "SourceSystemCode"
+    ]
+  ],
+  "unique_constraints": [
+    [
+      "pb_source_id_map",
+      "UQ_pb_source_id_map_SourceIdentity",
+      "SourceSystemCode,SourceEntityTypeCode,SourceId"
+    ]
+  ],
+  "default_constraints_count": 22,
+  "columns_count": 92
+}

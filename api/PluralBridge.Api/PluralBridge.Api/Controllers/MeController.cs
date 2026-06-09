@@ -45,7 +45,7 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			api = "PluralBridge.Api",
 			phase = "Phase 2B",
 			mode = "read-only proof",
-			database = "PluralBridgeCloudProof001",
+			database = "PluralBridgeDemoAnonXlat",
 			canWrite = false,
 			proofSystem,
 			counts

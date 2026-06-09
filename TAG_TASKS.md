@@ -6,6 +6,29 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.7.2 — Conference-safe hosted demo database
+
+### Major tasks completed
+
+- Created and validated the conference-safe Azure SQL demo database `PluralBridgeDemoAnonXlat`.
+- Rebuilt the anonymized demo database from an SSMS-generated script with remapped GUID literals instead of live GUID mutation.
+- Replaced member display names with a 49-name synthetic list.
+- Replaced member descriptions and the System description with same-character-count lorem ipsum text.
+- Cleared `dbo.pb_source_records.RawJson` to `N'[ ]'` for all 945 source-record rows.
+- Validated row counts, table and column shape, primary keys, foreign keys, constraints, foreign-key orphan checks, DBCC constraint validation, and uniqueidentifier profiling.
+- Retained the conference demo anonymization and validation scripts under `database/demo/`.
+- Updated the hosted API proof so `/api/me` reports `PluralBridgeDemoAnonXlat`.
+- Updated the Azure App Service connection string so the protected browser demo reads from `PluralBridgeDemoAnonXlat`.
+- Validated the live protected browser path: login, `me`, `members`, anonymized member names, and lorem ipsum descriptions.
+
+### Notes
+
+This release marks the protected Azure-hosted browser/API proof as conference-demo ready. The deployed demo reads from the anonymized `PluralBridgeDemoAnonXlat` database, while private/source proof databases remain outside public demo configuration.
+
+Historical Azure proof and targeting artifacts remain project history. Runtime public surfaces for the app, API, website, and GitHub deployment path do not point at the private/source proof database.
+
+---
+
 ## v0.7.1 — Protected browser button app proof
 
 ### Major tasks completed
