@@ -100,6 +100,31 @@ button[aria-pressed="true"] {
   background: rgba(15, 23, 42, 0.28);
 }
 
+.login-panel {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.session-summary {
+	display: grid;
+	gap: 0.25rem;
+}
+
+	.session-summary strong {
+		color: #f4f7fb;
+	}
+
+	.session-summary span {
+		color: #d8e1ed;
+	}
+
+.login-panel .button-row {
+	margin: 0;
+}
+
 .field-row {
   display: grid;
   gap: 0.35rem;
@@ -129,4 +154,229 @@ button[aria-pressed="true"] {
   font-weight: 700;
   color: #dbeafe;
   background: rgba(30, 64, 175, 0.28);
+}
+
+.json-output {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.output-heading {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+}
+
+.output-note {
+  margin: 0 0 1rem;
+  color: #cbd5e1;
+}
+
+.member-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.member-card {
+  border: 1px solid rgba(168, 199, 255, 0.28);
+  border-radius: 0.85rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.member-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+}
+
+.member-name {
+  font-weight: 800;
+}
+
+.member-pronouns {
+  color: #a8c7ff;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.member-body {
+  padding: 0 1rem 1rem;
+}
+
+.member-toggle-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.member-toggle-button {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.member-content {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 0.75rem;
+}
+
+.member-description {
+  margin: 0;
+}
+
+.member-json {
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.85rem;
+  border-radius: 0.65rem;
+  background: #070a0d;
+}
+
+.me-fields {
+	display: grid;
+	gap: 0.65rem;
+	margin-bottom: 1rem;
+}
+
+.me-field {
+	display: grid;
+	grid-template-columns: 10rem minmax(0, 1fr);
+	gap: 0.75rem;
+}
+
+.me-label,
+.me-count-label {
+	color: #a8c7ff;
+	font-size: 0.85rem;
+	font-weight: 700;
+}
+
+.me-value {
+	color: #f4f7fb;
+	overflow-wrap: anywhere;
+}
+
+.me-section-heading {
+	margin: 1rem 0 0.75rem;
+	font-size: 1rem;
+}
+
+.me-count-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+
+.me-count {
+	padding: 0.85rem;
+	border: 1px solid rgba(168, 199, 255, 0.22);
+	border-radius: 0.75rem;
+	background: rgba(7, 10, 13, 0.42);
+}
+
+.me-count-value {
+	display: block;
+	color: #f4f7fb;
+	font-size: 1.35rem;
+	font-weight: 800;
+}
+
+.me-json-details summary {
+	cursor: pointer;
+	color: #a8c7ff;
+	font-weight: 700;
+}
+
+.member-summary {
+	grid-template-columns: minmax(0, 1fr) auto;
+}
+
+	.member-summary::marker {
+		content: "";
+	}
+
+	.member-summary::-webkit-details-marker {
+		display: none;
+	}
+
+.member-identity {
+	display: grid;
+	gap: 0.2rem;
+}
+
+.member-pronouns {
+	justify-self: start;
+}
+
+.member-chevron {
+	align-self: center;
+	color: #a8c7ff;
+	font-weight: 900;
+	transition: transform 0.15s ease;
+}
+
+.member-card[open] .member-chevron {
+	transform: rotate(180deg);
+}
+
+.front-history-list {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.front-history-card {
+	border: 1px solid rgba(168, 199, 255, 0.28);
+	border-radius: 0.85rem;
+	background: rgba(15, 23, 42, 0.55);
+}
+
+.front-history-summary {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 1rem;
+	align-items: center;
+	padding: 0.9rem 1rem;
+	cursor: pointer;
+}
+
+	.front-history-summary::marker {
+		content: "";
+	}
+
+	.front-history-summary::-webkit-details-marker {
+		display: none;
+	}
+
+.front-history-name {
+	font-weight: 800;
+}
+
+.front-history-time {
+	color: #a8c7ff;
+	font-size: 0.9rem;
+	font-weight: 700;
+	text-align: right;
+}
+
+.front-history-chevron {
+	align-self: center;
+	color: #a8c7ff;
+	font-weight: 900;
+	transition: transform 0.15s ease;
+}
+
+.front-history-card[open] .front-history-chevron {
+	transform: rotate(180deg);
+}
+
+.front-history-json {
+	max-height: 18rem;
+	overflow: auto;
+	margin: 0 1rem 1rem;
+	padding: 0.85rem;
+	border-radius: 0.65rem;
+	background: #070a0d;
 }

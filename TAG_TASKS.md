@@ -1,3 +1,12 @@
+## v0.7.3 — Demo UI polish
+
+- Replaced the in-app login proof panel with a compact protected-session strip and logout action.
+- Added friendly read-only demo views for every app button.
+- Rendered members, front history, source systems, systems, privacy buckets, custom fields, import batches, source records, source ID mappings, import metadata, and demo session data as readable cards/rows.
+- Kept raw JSON available behind row expanders for proof and verification.
+- Updated the app page title to “Explore the PluralBridge read-only demo.”
+- Preserved the served/root app split and the required apiBaseUrl difference.
+
 # PluralBridge Tag Task History
 
 This file records the major work represented by each repository tag. It is intended as a project-facing release/task history for the repository root.
