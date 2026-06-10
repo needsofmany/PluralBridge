@@ -1,9 +1,41 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.37314.3 d17.14
+VisualStudioVersion = 17.14.37314.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PluralBridge.Api", "PluralBridge.Api\PluralBridge.Api.csproj", "{D40E659B-E483-405D-BD49-1EE1EBDE890C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Website", "Website", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\website\about.html = ..\..\website\about.html
+		..\..\website\developer-workflow.html = ..\..\website\developer-workflow.html
+		..\..\website\docs.html = ..\..\website\docs.html
+		..\..\website\export-now.html = ..\..\website\export-now.html
+		..\..\website\googleb087a67406285ba0.html = ..\..\website\googleb087a67406285ba0.html
+		..\..\website\help-me-export.html = ..\..\website\help-me-export.html
+		..\..\website\index.html = ..\..\website\index.html
+		..\..\website\install.html = ..\..\website\install.html
+		..\..\website\privacy-banner.js = ..\..\website\privacy-banner.js
+		..\..\website\robots.txt = ..\..\website\robots.txt
+		..\..\website\run.html = ..\..\website\run.html
+		..\..\website\safety.html = ..\..\website\safety.html
+		..\..\website\simply-plural-shutdown.html = ..\..\website\simply-plural-shutdown.html
+		..\..\website\site-menu.js = ..\..\website\site-menu.js
+		..\..\website\sitemap.xml = ..\..\website\sitemap.xml
+		..\..\website\start-here.html = ..\..\website\start-here.html
+		..\..\website\style.css = ..\..\website\style.css
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CC619F1C-AF5F-4A27-AAB6-75BBFCE18148}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\website\docs\index.html = ..\..\website\docs\index.html
+		..\..\website\docs\index.md = ..\..\website\docs\index.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "images", "images", "{7B6E8868-C9C0-4C68-BCC1-A667DAFDB7BE}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\website\images\background.jpg = ..\..\website\images\background.jpg
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,6 +50,10 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{CC619F1C-AF5F-4A27-AAB6-75BBFCE18148} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{7B6E8868-C9C0-4C68-BCC1-A667DAFDB7BE} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BF5C65E4-340D-4E25-AC7D-DA2AA63CC3CC}
