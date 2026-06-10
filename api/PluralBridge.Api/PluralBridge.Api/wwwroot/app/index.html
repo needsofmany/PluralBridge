@@ -8,48 +8,37 @@
 </head>
 <body>
   <main class="app-shell" aria-labelledby="app-title">
-    <section class="app-card">
-      <p class="eyebrow">PluralBridge application proof</p>
-      <h1 id="app-title">Phase 2B: complete read-only database surface</h1>
-      <p>Real database-backed read-only responses from the Phase 2B C# REST API over the validated 1-6 proof slice.</p>
-      <p>No browser-side mock data, no write path, and no private raw source payload exposure.</p>
+      <section class="app-card">
+          <p class="eyebrow">PluralBridge application proof</p>
+          <h1 id="app-title">Explore the PluralBridge read-only demo</h1>
+          <p>Real database-backed read-only responses from the Phase 2B C# REST API over the validated 1-6 proof slice.</p>
+          <p>No browser-side mock data, no write path, and no private raw source payload exposure.</p>
 
-      <form id="loginForm" class="login-panel">
-        <div class="field-row">
-          <label for="username">Username</label>
-          <input id="username" name="username" autocomplete="username" value="demo.user">
-        </div>
-        <div class="field-row">
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" value="pluralbridge-demo">
-        </div>
-        <div class="button-row" aria-label="Session contract actions">
-          <button type="submit" data-session-action="login">login</button>
-          <button type="button" data-session-action="loginFailure">login failure</button>
-          <button type="button" data-session-action="session">session</button>
-          <button type="button" data-session-action="systemMapping">system mapping</button>
-          <button type="button" data-session-action="logout">logout</button>
-        </div>
-      </form>
+          <form id="loginForm" class="login-panel">
+              <div class="session-summary">
+                  <strong>Protected demo session</strong>
+                  <span id="sessionStatus">You are signed in to the read-only PluralBridge demo.</span>
+              </div>
+              <div class="button-row" aria-label="Session actions">
+                  <button type="button" data-session-action="logout">logout</button>
+              </div>
+          </form>
+          <div class="button-row" aria-label="Read-only database actions">
+              <button type="button" data-contract="me">me</button>
+              <button type="button" data-contract="sourceSystems">source systems</button>
+              <button type="button" data-contract="importBatches">import batches</button>
+              <button type="button" data-contract="systems">systems</button>
+              <button type="button" data-contract="members">members</button>
+              <button type="button" data-contract="privacyBuckets">privacy buckets</button>
+              <button type="button" data-contract="customFields">custom fields</button>
+              <button type="button" data-contract="frontHistory">front history</button>
+              <button type="button" data-contract="sourceRecords">source records</button>
+              <button type="button" data-contract="sourceIdMappings">source ID mappings</button>
+              <button type="button" data-contract="importMetadata">import metadata</button>
+          </div>
 
-      <div id="sessionStatus" class="session-status">Session: signed out</div>
-
-      <div class="button-row" aria-label="Read-only database actions">
-        <button type="button" data-contract="me">me</button>
-        <button type="button" data-contract="sourceSystems">source systems</button>
-        <button type="button" data-contract="importBatches">import batches</button>
-        <button type="button" data-contract="systems">systems</button>
-        <button type="button" data-contract="members">members</button>
-        <button type="button" data-contract="privacyBuckets">privacy buckets</button>
-        <button type="button" data-contract="customFields">custom fields</button>
-        <button type="button" data-contract="frontHistory">front history</button>
-        <button type="button" data-contract="sourceRecords">source records</button>
-        <button type="button" data-contract="sourceIdMappings">source ID mappings</button>
-        <button type="button" data-contract="importMetadata">import metadata</button>
-      </div>
-
-      <pre id="appOutput" class="output-box" aria-live="polite">{ }</pre>
-    </section>
+          <div id="appOutput" class="output-box" aria-live="polite">{ }</div>
+      </section>
   </main>
 
   <script src="./app.js"></script>
