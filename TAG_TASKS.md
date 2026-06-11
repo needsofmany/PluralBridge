@@ -1,3 +1,11 @@
+## v0.7.4 — Conference booth website update
+
+- Added a public homepage notice that PluralBridge will be at the Power to the Plurals Conference.
+- Added the static website files to the Visual Studio solution as solution items for easier editing.
+- Set up the Friday Airmeet virtual booth for PluralBridge with booth description, resource links, website link, chat, and interest button.
+- Created real Microsoft 365 mailboxes for Molly Westin and Allison Bethson for conference and booth access.
+- Kept app, API, database, import, upload, and Azure runtime behavior frozen from v0.7.3.
+
 ## v0.7.3 — Demo UI polish
 
 - Replaced the in-app login proof panel with a compact protected-session strip and logout action.
