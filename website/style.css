@@ -580,5 +580,61 @@ code {
 }
 
 .privacy-banner + main {
-    padding-top: 28px;
+    padding-top: 24px;
+}
+
+.homepage-conference-notice {
+    margin-top: 0;
+}
+
+.homepage-conference-notice + .hero {
+    margin-top: 24px;
+}
+
+.screenshot-section {
+    overflow: hidden;
+}
+
+.page-screenshot {
+    display: block;
+    width: 100%;
+    margin-top: 18px;
+    border: 1px solid var(--line-soft);
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+}
+
+.nav .nav-demo-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    color: #ffffff;
+    background: #166534;
+    font-weight: 800;
+    box-shadow: 0 10px 24px rgba(125, 211, 252, 0.24);
+}
+
+.nav .nav-demo-button:hover {
+    color: #ffffff;
+    filter: brightness(1.08);
+}
+
+.nav a.nav-demo-button,
+.nav a.nav-demo-button:visited,
+.nav a.nav-demo-button:hover,
+.nav a.nav-demo-button:focus {
+    color: #ffffff;
+    background: #166534;
+}
+
+.button.demo-button,
+.button.demo-button:visited,
+.button.demo-button:hover,
+.button.demo-button:focus {
+    color: #ffffff;
+    background: #166534;
+    border-color: #166534;
+    box-shadow: 0 12px 30px rgba(22, 101, 52, 0.28);
 }

@@ -1,3 +1,11 @@
+# PluralBridge Tag Task History
+
+This file records the major work represented by each repository tag. It is intended as a project-facing release/task history for the repository root.
+
+Tags are listed in reverse chronological order so the latest project changes appear first.
+
+---
+
 ## v0.7.4 — Conference booth website update
 
 - Added a public homepage notice that PluralBridge will be at the Power to the Plurals Conference.
@@ -14,14 +22,6 @@
 - Kept raw JSON available behind row expanders for proof and verification.
 - Updated the app page title to “Explore the PluralBridge read-only demo.”
 - Preserved the served/root app split and the required apiBaseUrl difference.
-
-# PluralBridge Tag Task History
-
-This file records the major work represented by each repository tag. It is intended as a project-facing release/task history for the repository root.
-
-Tags are listed in reverse chronological order so the latest project changes appear first.
-
----
 
 ## v0.7.2 — Conference-safe hosted demo database
 
