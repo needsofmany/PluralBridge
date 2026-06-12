@@ -1,3 +1,23 @@
+# PluralBridge Tag Task History
+
+This file records the major work represented by each repository tag. It is intended as a project-facing release/task history for the repository root.
+
+Tags are listed in reverse chronological order so the latest project changes appear first.
+
+---
+
+## v0.7.5 — Conference website demo navigation polish
+
+- Added a Projects navigation menu between Guides and Community.
+- Added the first Projects item, “PluralBridge Application,” linking to the new application project page.
+- Added a new PluralBridge Application page describing the browser app direction, cloud-hosted database, REST API, and browser app demo.
+- Added demo screenshots for the PluralBridge Application page.
+- Added prominent Demo buttons that open the hosted demo app at `https://demo.thepluralbridge.org/app/`.
+- Styled Demo buttons as forest green call-to-action buttons with white text.
+- Kept Export Now as the primary homepage preservation action.
+- Kept the privacy reminder near the top of the homepage.
+- Left app, API, database, import, upload, and Azure runtime behavior unchanged.
+
 ## v0.7.4 — Conference booth website update
 
 - Added a public homepage notice that PluralBridge will be at the Power to the Plurals Conference.
@@ -14,14 +34,6 @@
 - Kept raw JSON available behind row expanders for proof and verification.
 - Updated the app page title to “Explore the PluralBridge read-only demo.”
 - Preserved the served/root app split and the required apiBaseUrl difference.
-
-# PluralBridge Tag Task History
-
-This file records the major work represented by each repository tag. It is intended as a project-facing release/task history for the repository root.
-
-Tags are listed in reverse chronological order so the latest project changes appear first.
-
----
 
 ## v0.7.2 — Conference-safe hosted demo database
 
