@@ -6,6 +6,19 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.7.6 — Contact page
+
+Static public website release adding a dedicated Contact page for project-level communication.
+
+- Added `website/contact.html`.
+- Replaced disabled `Contact Us` placeholders in the About menu with live `contact.html` links across static pages.
+- Added project-level contact paths:
+  - General contact: `info@thepluralbridge.org`
+  - Support/export help: `support@thepluralbridge.org`
+- Added privacy and safety boundaries telling visitors not to send Simply Plural tokens, passwords, export files, private System data, or screenshots with private data.
+- Added not-emergency-support language and an independent-project disclaimer.
+- Added `contact.html` to the website sitemap and VS solution website items.
+
 ## v0.7.5 — Conference website demo navigation polish
 
 - Added a Projects navigation menu between Guides and Community.
