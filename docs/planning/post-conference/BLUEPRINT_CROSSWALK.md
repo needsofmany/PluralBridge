@@ -12,8 +12,6 @@ This crosswalk is based on:
 1. `pluralbridge_post_conference_design_blueprint_all_32_chapters(1).docx`
 2. `Post advice 1st user r slash software architecture.txt`
 
-`Do I Pass.txt` is explicitly out of scope and is not a planning source for PB-NEXT-001.
-
 ## 2. Baseline Blueprint Decisions Preserved
 
 The 32-chapter post-conference blueprint remains the governing planning baseline. The r/softwarearchitecture feedback corrects foundation assumptions before implementation begins; it does not replace the blueprint.
