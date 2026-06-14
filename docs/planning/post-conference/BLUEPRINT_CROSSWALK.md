@@ -11,6 +11,7 @@ This crosswalk is based on:
 
 1. `pluralbridge_post_conference_design_blueprint_all_32_chapters(1).docx`
 2. `Post advice 1st user r slash software architecture.txt`
+3. Public r/softwarearchitecture comments by `u/bartekus`, June 2026
 
 ## 2. Baseline Blueprint Decisions Preserved
 

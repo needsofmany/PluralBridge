@@ -4,6 +4,7 @@ Status: Planning draft
 Parent: PB-NEXT-001  
 Depends on: `BLUEPRINT_CROSSWALK.md`, `PB-NEXT-DATA-001.md`  
 Scope: Account identity, System membership, stewardship, helper/support/tester access, and relationship seams before implementation.
+Architecture feedback source: public r/softwarearchitecture comments by `u/bartekus`, June 2026.
 
 ## 1. Purpose
 

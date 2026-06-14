@@ -4,6 +4,7 @@ Status: Planning draft
 Parent: PB-NEXT-001  
 Depends on: `BLUEPRINT_CROSSWALK.md`  
 Scope: Data-layer isolation, partition key, protected domain boundaries, and table-design rules before implementation.
+Architecture feedback source: public r/softwarearchitecture comments by `u/bartekus`, June 2026.
 
 ## 1. Purpose
 

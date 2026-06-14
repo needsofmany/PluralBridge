@@ -4,6 +4,7 @@ Status: Planning draft
 Parent: PB-NEXT-001  
 Depends on: `BLUEPRINT_CROSSWALK.md`, `PB-NEXT-DATA-001.md`, `PB-NEXT-USER-001.md`  
 Scope: Central authorization decision shape, policy inputs, action/resource framing, obligations, and audit authority references before implementation.
+Architecture feedback source: public r/softwarearchitecture comments by `u/bartekus`, June 2026.
 
 ## 1. Purpose
 
