@@ -296,7 +296,7 @@ Exit criteria:
 
 The next practical planning document should be:
 
-`PB-NEXT-ACCOUNT-001 — Account Lifecycle And System Membership Implementation Plan`
+`PB-NEXT-IDENTITY-MEMBERSHIP-001 — Identity And Membership Implementation Plan`
 
 That document should translate Slice 1 and Slice 2 into concrete schema and task boundaries.
 
