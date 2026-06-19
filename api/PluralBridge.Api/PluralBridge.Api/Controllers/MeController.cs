@@ -34,8 +34,18 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
+		// get connection to the database
 		await using SqlConnection connection = new(connectionString);
 		await connection.OpenAsync();
+
+		var currentAccount = await ResolveCurrentAccountAsync(connection);
+		if (currentAccount is null)
+		{
+			return Problem(
+				title: "Current account not found",
+				detail: "The configured Chapter 2 current account could not be resolved.",
+				statusCode: StatusCodes.Status500InternalServerError);
+		}
 
 		var counts = await ReadCountsAsync(connection);
 		var proofSystem = await ReadProofSystemAsync(connection);
@@ -45,8 +55,9 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			api = "PluralBridge.Api",
 			phase = "Phase 2B",
 			mode = "read-only proof",
-			database = "PluralBridgeDemoAnonXlat",
+			database = "PluralBridgeCloudProof001",
 			canWrite = false,
+			currentAccount,
 			proofSystem,
 			counts
 		});
@@ -135,6 +146,28 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			reader.IsDBNull(1) ? null : reader.GetString(1));
 	}
 
+	/// <summary>
+	/// Resolves the current working account for the Chapter 2 safe-spine path.
+	/// </summary>
+	/// <param name="connection"></param>
+	/// <returns></returns>
+	private static async Task<Account?> ResolveCurrentAccountAsync(SqlConnection connection)
+	{
+		const string currentAccountEmail = "demo@thepluralbridge.local";
+
+		var account = await ReadAccountByEmailAsync(
+			connection,
+			currentAccountEmail);
+
+		return account;
+	}
+
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="connection"></param>
+	/// <param name="email"></param>
+	/// <returns></returns>
 	private static async Task<Account?> ReadAccountByEmailAsync(
 	SqlConnection connection,
 	string email)
@@ -146,9 +179,9 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 		                       a.DisplayName,
 		                       a.AccountStatusId,
 		                       s.StatusName,
-		                       s.SortOrder,
+		                       s.StatusDesc,
+		                       s.DisplayOrder,
 		                       s.IsActive,
-		                       s.CreatedAtUtc,
 		                       a.CreatedAtUtc,
 		                       a.UpdatedAtUtc
 		                   FROM dbo.pb_accounts AS a
@@ -168,12 +201,12 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			return null;
 		}
 
-		AccountStatus accountStatus = new(
+		var accountStatus = new AccountStatus(
 			reader.GetInt32(3),
 			reader.GetString(4),
-			reader.GetInt32(5),
-			reader.GetBoolean(6),
-			reader.GetDateTime(7));
+			reader.GetString(5),
+			reader.GetInt32(6),
+			reader.GetBoolean(7));
 
 		return new Account(
 			reader.GetGuid(0),
@@ -185,6 +218,12 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			reader.IsDBNull(9) ? null : reader.GetDateTime(9));
 	}
 
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="connection"></param>
+	/// <param name="accountId"></param>
+	/// <returns></returns>
 	private static async Task<SystemMembership?> ReadActiveMembershipAsync(
 		SqlConnection connection,
 		Guid accountId)
@@ -196,9 +235,9 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 		                       m.SystemId,
 		                       m.MembershipStatusId,
 		                       s.StatusName,
-		                       s.SortOrder,
+		                       s.StatusDesc,
+		                       s.DisplayOrder,
 		                       s.IsActive,
-		                       s.CreatedAtUtc,
 		                       m.CreatedAtUtc,
 		                       m.UpdatedAtUtc
 		                   FROM dbo.pb_system_memberships AS m
@@ -243,7 +282,7 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			updatedAtUtc = reader.IsDBNull(9) ? null : reader.GetDateTime(9);
 		}
 
-		IReadOnlyList<Role> roles = await ReadRolesForMembershipAsync(
+		var roles = await ReadRolesForMembershipAsync(
 			connection,
 			systemMembershipId);
 
@@ -258,6 +297,12 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			updatedAtUtc);
 	}
 
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="connection"></param>
+	/// <param name="systemMembershipId"></param>
+	/// <returns></returns>
 	private static async Task<IReadOnlyList<Role>> ReadRolesForMembershipAsync(
 		SqlConnection connection,
 		Guid systemMembershipId)
@@ -296,17 +341,42 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 		return roles;
 	}
 
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="SystemId"></param>
+	/// <param name="SystemName"></param>
 	private sealed record ProofSystem(
 		Guid SystemId, 
 		string? SystemName);
 
+	/// <summary>
+	/// Represents one account status row.
+	/// </summary>
+	/// <param name="AccountStatusId"></param>
+	/// <param name="StatusName"></param>
+	/// <param name="StatusDesc"></param>
+	/// <param name="DisplayOrder"></param>
+	/// <param name="IsActive"></param>
 	private sealed record AccountStatus(
 		int AccountStatusId,
 		string StatusName,
-		int SortOrder,
-		bool IsActive,
-		DateTime CreatedAtUtc);
+		string StatusDesc,
+		int DisplayOrder,
+		bool IsActive)
+	{
 
+	};
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="AccountId"></param>
+	/// <param name="Email"></param>
+	/// <param name="DisplayName"></param>
+	/// <param name="AccountStatusId"></param>
+	/// <param name="AccountStatus"></param>
+	/// <param name="CreatedAtUtc"></param>
+	/// <param name="UpdatedAtUtc"></param>
 	private sealed record Account(
 		Guid AccountId,
 		string Email,
@@ -316,13 +386,29 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 		DateTime CreatedAtUtc,
 		DateTime? UpdatedAtUtc);
 
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="RoleId"></param>
+	/// <param name="RoleName"></param>
+	/// <param name="SortOrder"></param>
+	/// <param name="IsActive"></param>
+	/// <param name="CreatedAtUtc"></param>
 	private sealed record Role(
 		int RoleId,
 		string RoleName,
 		int SortOrder,
 		bool IsActive,
 		DateTime CreatedAtUtc);
-
+	
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="MembershipStatusId"></param>
+	/// <param name="StatusName"></param>
+	/// <param name="SortOrder"></param>
+	/// <param name="IsActive"></param>
+	/// <param name="CreatedAtUtc"></param>
 	private sealed record MembershipStatus(
 		int MembershipStatusId,
 		string StatusName,
@@ -330,6 +416,17 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 		bool IsActive,
 		DateTime CreatedAtUtc);
 
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="SystemMembershipId"></param>
+	/// <param name="AccountId"></param>
+	/// <param name="SystemId"></param>
+	/// <param name="MembershipStatusId"></param>
+	/// <param name="MembershipStatus"></param>
+	/// <param name="Roles"></param>
+	/// <param name="CreatedAtUtc"></param>
+	/// <param name="UpdatedAtUtc"></param>
 	private sealed record SystemMembership(
 		Guid SystemMembershipId,
 		Guid AccountId,
