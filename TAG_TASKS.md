@@ -6,6 +6,56 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.8.0 — PB-NEXT Chapter 2 safe-spine SQL foundation
+
+### Major tasks completed
+
+* Added Chapter 2 safe-spine SQL scripts under `scripts/sqlserver/chap2_safe_spine/scripts/`.
+* Confirmed frozen demo behavior before safe-spine work:
+
+  * demo login still works
+  * `/api/me` still works
+  * existing read-only demo counts remain unchanged
+* Confirmed current runtime schema contract around:
+
+  * `pb_systems`
+  * `pb_members`
+  * `pb_front_history`
+  * `pb_privacy_buckets`
+  * `pb_custom_fields`
+* Added account lifecycle foundation:
+
+  * `pb_account_statuses`
+  * `pb_accounts`
+  * demo account seed scripts
+* Added constrained role and membership lifecycle lookups:
+
+  * `pb_roles`
+  * `pb_system_membership_statuses`
+* Added system membership foundation:
+
+  * `pb_system_memberships`
+  * `pb_system_membership_roles`
+* Corrected membership-role design to support multiple roles per system membership by moving role assignment into `pb_system_membership_roles`.
+* Added foreign key coverage for:
+
+  * account status
+  * account membership
+  * system membership
+  * membership status
+  * membership role assignment
+* Added composite primary key on `pb_system_membership_roles` to prevent duplicate role assignments for the same membership.
+* Seeded the demo account.
+* Seeded the demo account’s active Owner membership on the existing demo system.
+
+### Notes
+
+* This tag is SQL/script foundation work only.
+* Runtime authorization behavior is not changed yet.
+* Existing demo read-only behavior remains the baseline.
+* The Simply Plural-shaped privacy bucket data remains untouched.
+* PB-native visibility scope, account resolver, membership resolver, authorization boundary, and diagnostic tracing remain future Chapter 2 tasks.
+
 ## v0.7.6 — Contact page
 
 Static public website release adding a dedicated Contact page for project-level communication.
