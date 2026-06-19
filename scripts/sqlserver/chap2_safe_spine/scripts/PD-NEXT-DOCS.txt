@@ -1,0 +1,29 @@
+1. PB-NEXT-ACCOUNT-001
+   Account Lifecycle And System Membership Implementation Plan
+
+2. PB-NEXT-AUTHZ-SHELL-001
+   Central Authorization Decision Shell Implementation Plan
+
+3. PB-NEXT-RELATIONSHIP-001
+   Relationship Authority Model Implementation Plan
+
+4. PB-NEXT-CONSENT-SCHEMA-001
+   Consent Record Schema And Lifecycle Implementation Plan
+
+5. PB-NEXT-AUDIT-SCHEMA-001
+   Payload-Free Audit Event Schema Implementation Plan
+
+6. PB-NEXT-IMPORT-LEDGER-001
+   Import Batch, Job Ledger, Source Record, And Source ID Map Implementation Plan
+
+7. PB-NEXT-UPLOAD-INTAKE-001
+   Upload Intake, Quarantine, Retention, And Purge Implementation Plan
+
+8. PB-NEXT-DRYRUN-001
+   Validation And Dry Run Import Plan
+
+9. PB-NEXT-ALPHA-COMMIT-001
+   Smallest Safe Alpha Commit Plan
+
+10. PB-NEXT-IMPLEMENTATION-QUEUE-001
+   Final ordered task queue for actual implementation branches
