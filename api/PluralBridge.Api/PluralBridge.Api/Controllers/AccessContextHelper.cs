@@ -201,9 +201,46 @@ namespace PluralBridge.Api.Controllers
 				connection,
 				currentAccount);
 
+			var currentSystem = await ResolveCurrentSystemFromMembershipAccessAsync(
+				connection,
+				membershipAccess,
+				CancellationToken.None);
+
+			if (currentSystem is null)
+			{
+				return null;
+			}
+
 			return new AccessContext(
 				currentAccount,
-				membershipAccess);
+				membershipAccess,
+				currentSystem);
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="connection"></param>
+		/// <param name="membershipAccess"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		internal static async Task<CurrentSystem?> ResolveCurrentSystemFromMembershipAccessAsync(
+			SqlConnection connection,
+			IReadOnlyList<SystemMembership> membershipAccess,
+			CancellationToken cancellationToken)
+		{
+			var currentMembership = membershipAccess.FirstOrDefault();
+
+			if (currentMembership is null)
+			{
+				return null;
+			}
+
+			return await ResolveCurrentSystemAsync(
+				connection,
+				currentMembership.SystemId,
+				currentMembership.SystemMembershipId,
+				cancellationToken);
 		}
 
 		/// <summary>
@@ -247,11 +284,54 @@ namespace PluralBridge.Api.Controllers
 		/// <summary>
 		/// 
 		/// </summary>
+		/// <param name="connection"></param>
+		/// <param name="systemId"></param>
+		/// <param name="systemMembershipId"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		internal static async Task<CurrentSystem?> ResolveCurrentSystemAsync(
+			SqlConnection connection,
+			Guid systemId,
+			Guid systemMembershipId,
+			CancellationToken cancellationToken)
+		{
+			const string sql = """
+			                   SELECT TOP (1)
+			                       s.SystemId,
+			                       s.SystemName
+			                   FROM dbo.pb_systems AS s
+			                   WHERE s.SystemId = @SystemId;
+			                   """;
+
+			await using var command = new SqlCommand(sql, connection);
+			command.Parameters.AddWithValue("@SystemId", systemId);
+
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+			if (!await reader.ReadAsync(cancellationToken))
+			{
+				return null;
+			}
+
+			return new CurrentSystem(
+				reader.GetGuid(reader.GetOrdinal("SystemId")),
+				reader.IsDBNull(reader.GetOrdinal("SystemName"))
+					? null
+					: reader.GetString(reader.GetOrdinal("SystemName")),
+				systemMembershipId);
+		}
+
+
+
+		/// <summary>
+		/// 
+		/// </summary>
 		/// <param name="CurrentAccount"></param>
 		/// <param name="MembershipAccess"></param>
 		internal sealed record AccessContext(
 			Account CurrentAccount,
-			IReadOnlyList<SystemMembership> MembershipAccess);
+			IReadOnlyList<SystemMembership> MembershipAccess,
+			CurrentSystem CurrentSystem);
 
 		/// <summary>
 		/// Represents one account status row.
@@ -338,5 +418,16 @@ namespace PluralBridge.Api.Controllers
 			IReadOnlyList<Role> Roles,
 			DateTime CreatedAtUtc,
 			DateTime? UpdatedAtUtc);
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="SystemId"></param>
+		/// <param name="SystemName"></param>
+		/// <param name="SystemMembershipId"></param>
+		internal sealed record CurrentSystem(
+			Guid SystemId,
+			string? SystemName,
+			Guid SystemMembershipId);
 	}
 }

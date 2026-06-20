@@ -51,6 +51,7 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 
 		var currentAccount = accessContext.CurrentAccount;
 		var membershipAccess = accessContext.MembershipAccess;
+		var currentSystem = accessContext.CurrentSystem;
 
 		var counts = await ReadCountsAsync(connection);
 		var proofSystem = await ReadProofSystemAsync(connection);
@@ -64,6 +65,7 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 			canWrite = false,
 			currentAccount,
 			membershipAccess,
+			currentSystem,
 			proofSystem,
 			counts
 		});
