@@ -49,9 +49,20 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
+		// retrieve everything we need to know for this System
 		var currentAccount = accessContext.CurrentAccount;
 		var membershipAccess = accessContext.MembershipAccess;
 		var currentSystem = accessContext.CurrentSystem;
+
+		// Check if the current account has an active membership access for the current system
+		var isAuthorizedForCurrentSystem = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
+		if (!isAuthorizedForCurrentSystem)
+		{
+			return Problem(
+				title: "Not authorized for current system",
+				detail: "The current account does not have active membership access to the resolved current system.",
+				statusCode: StatusCodes.Status403Forbidden);
+		}
 
 		var counts = await ReadCountsAsync(connection);
 		var proofSystem = await ReadProofSystemAsync(connection);
