@@ -4,16 +4,16 @@ using Microsoft.Data.SqlClient;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the Phase 2B read-only proof endpoint for the current proof context.
+/// Provides the /api/me endpoint for the Chapter 2 access context and authorization-gated proof data.
 /// This controller verifies that the API can reach the validated PluralBridge cloud proof database
-/// and returns the system identifier plus table counts needed by the browser proof surface.
+/// and returns the current access context, resolved system, authorization-gated proof data, and table counts.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public sealed class MeController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
-	/// Returns the current Phase 2B proof context.
+	/// Provides the /api/me endpoint for the Chapter 2 access context and authorization-gated proof data.
 	/// The response is intentionally read-only and includes the proof system plus validated table counts
 	/// so the browser can confirm that it is receiving real database-backed data.
 	/// </summary>
@@ -24,8 +24,8 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 	[HttpGet]
 	public async Task<IActionResult> Get()
 	{
+		// get info to connect to the database
 		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
-
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
@@ -39,8 +39,8 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 		await connection.OpenAsync();
 		var databaseName = connection.Database;
 
+		// should contain the account and it's available System memberships
 		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
-
 		if (accessContext is null)
 		{
 			return Problem(
@@ -54,7 +54,7 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 		var membershipAccess = accessContext.MembershipAccess;
 		var currentSystem = accessContext.CurrentSystem;
 
-		// Check if the current account has an active membership access for the current system
+		// Check whether the current account has an active membership for the current system.
 		var isAuthorizedForCurrentSystem = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
 		if (!isAuthorizedForCurrentSystem)
 		{
@@ -166,7 +166,7 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 	}
 
 	/// <summary>
-	/// 
+	/// Current System name and id token
 	/// </summary>
 	/// <param name="SystemId"></param>
 	/// <param name="SystemName"></param>

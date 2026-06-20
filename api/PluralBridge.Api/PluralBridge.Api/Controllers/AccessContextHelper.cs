@@ -5,11 +5,11 @@ namespace PluralBridge.Api.Controllers
 	internal static class AccessContextHelper
 	{
 		/// <summary>
-		/// Return an Account record by the user's email address
+		/// Returns an account record by email address.
 		/// </summary>
-		/// <param name="connection">current database connection</param>
-		/// <param name="email">user's email address</param>
-		/// <returns>return the user's account record</returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="email">The account email address.</param>
+		/// <returns>The matching account record, or null when no account is found.</returns>
 		internal static async Task<Account?> ReadAccountByEmailAsync(
 			SqlConnection connection,
 			string email)
@@ -63,9 +63,9 @@ namespace PluralBridge.Api.Controllers
 		/// <summary>
 		/// Reads the active system membership for one account.
 		/// </summary>
-		/// <param name="connection">current database connection</param>
-		/// <param name="accountId"></param>
-		/// <returns></returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="accountId">The account identifier.</param>
+		/// <returns>The active system membership for the account, or null when no active membership is found.</returns>
 		private static async Task<SystemMembership?> ReadActiveMembershipAsync(
 			SqlConnection connection,
 			Guid accountId)
@@ -142,9 +142,9 @@ namespace PluralBridge.Api.Controllers
 		/// <summary>
 		/// Reads all roles attached to one system membership.
 		/// </summary>
-		/// <param name="connection">current database connection</param>
-		/// <param name="systemMembershipId"></param>
-		/// <returns></returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="systemMembershipId">The system membership identifier.</param>
+		/// <returns>The active roles attached to the system membership.</returns>
 		private static async Task<IReadOnlyList<Role>> ReadRolesForMembershipAsync(
 			SqlConnection connection,
 			Guid systemMembershipId)
@@ -186,8 +186,8 @@ namespace PluralBridge.Api.Controllers
 		/// <summary>
 		/// Resolves the current account and its available system memberships.
 		/// </summary>
-		/// <param name="connection">current database connection</param>
-		/// <returns></returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <returns>The resolved access context, or null when the current account or current system cannot be resolved.</returns>
 		internal static async Task<AccessContext?> ResolveCurrentAccessAsync(SqlConnection connection)
 		{
 			var currentAccount = await ResolveCurrentAccountAsync(connection);
@@ -217,12 +217,12 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Retrieve the root System associated with this membership
+		/// Resolves the current system from the account's membership access.
 		/// </summary>
-		/// <param name="connection">current database connection</param>
-		/// <param name="membershipAccess"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="membershipAccess">The system memberships available to the current account.</param>
+		/// <param name="cancellationToken">The cancellation token.</param>
+		/// <returns>The current system, or null when no membership is available.</returns>
 		internal static async Task<CurrentSystem?> ResolveCurrentSystemFromMembershipAccessAsync(
 			SqlConnection connection,
 			IReadOnlyList<SystemMembership> membershipAccess,
@@ -243,10 +243,10 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// does the account for the current System have access to this resource?
+		/// Checks whether the current account has active membership access to the current system.
 		/// </summary>
-		/// <param name="accessContext"></param>
-		/// <returns></returns>
+		/// <param name="accessContext">The resolved access context for the current request.</param>
+		/// <returns>True when the current account has active membership access to the current system; otherwise, false.</returns>
 		internal static bool IsAuthorizedForCurrentSystem(
 			AccessContext accessContext)
 		{
@@ -263,8 +263,8 @@ namespace PluralBridge.Api.Controllers
 		/// <summary>
 		/// Resolves the current working account for the Chapter 2 safe-spine path.
 		/// </summary>
-		/// <param name="connection">current database connection</param>
-		/// <returns></returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <returns>The configured current account, or null when no account is found.</returns>
 		internal static async Task<Account?> ResolveCurrentAccountAsync(SqlConnection connection)
 		{
 			const string currentAccountEmail = "demo@thepluralbridge.local";
@@ -279,9 +279,9 @@ namespace PluralBridge.Api.Controllers
 		/// <summary>
 		/// Resolves the active system memberships available to the current account.
 		/// </summary>
-		/// <param name="connection"></param>
-		/// <param name="currentAccount"></param>
-		/// <returns></returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="currentAccount">The resolved current account.</param>
+		/// <returns>The active system memberships available to the current account.</returns>
 		internal static async Task<IReadOnlyList<SystemMembership>> ResolveMembershipAccessAsync(
 			SqlConnection connection,
 			Account currentAccount)
@@ -299,13 +299,13 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Returns the current System for this Account's membership
+		/// Reads the current system using the resolved system and membership identifiers.
 		/// </summary>
-		/// <param name="connection">current database connection</param>
-		/// <param name="systemId"></param>
-		/// <param name="systemMembershipId"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="systemId">The system identifier resolved from membership access.</param>
+		/// <param name="systemMembershipId">The system membership identifier.</param>
+		/// <param name="cancellationToken">The cancellation token.</param>
+		/// <returns>The current system, or null when no matching system is found.</returns>
 		internal static async Task<CurrentSystem?> ResolveCurrentSystemAsync(
 			SqlConnection connection,
 			Guid systemId,
@@ -338,13 +338,11 @@ namespace PluralBridge.Api.Controllers
 				systemMembershipId);
 		}
 
-
-
 		/// <summary>
-		/// Holds the current Account, it's membership list and the current System
+		/// Holds the current account, its membership list, and the current system.
 		/// </summary>
 		/// <param name="CurrentAccount"></param>
-		/// <param name="MembershipAccess"></param>
+		/// <param name="MembershipAccess">The system memberships available to the current account.</param>
 		internal sealed record AccessContext(
 			Account CurrentAccount,
 			IReadOnlyList<SystemMembership> MembershipAccess,
@@ -366,9 +364,9 @@ namespace PluralBridge.Api.Controllers
 			bool IsActive);
 
 		/// <summary>
-		/// principal / login identity
+		/// Represents the account principal used for login identity.
 		/// </summary>
-		/// <param name="AccountId"></param>
+		/// <param name="AccountId">The account identifier.</param>
 		/// <param name="Email"></param>
 		/// <param name="DisplayName"></param>
 		/// <param name="AccountStatusId"></param>
@@ -385,7 +383,7 @@ namespace PluralBridge.Api.Controllers
 			DateTime? UpdatedAtUtc);
 
 		/// <summary>
-		/// permission bundle attached to that relationship
+		/// Represents a permission role attached to a system membership.
 		/// </summary>
 		/// <param name="RoleId"></param>
 		/// <param name="RoleName"></param>
@@ -400,9 +398,9 @@ namespace PluralBridge.Api.Controllers
 			bool IsActive);
 
 		/// <summary>
-		/// Status of a membership for the user's Accout
+		/// Represents the status of a system membership for an account.
 		/// </summary>
-		/// <param name="MembershipStatusId"></param>
+		/// <param name="MembershipStatusId">The system membership identifier.</param>
 		/// <param name="StatusName"></param>
 		/// <param name="StatusDesc"></param>
 		/// <param name="DisplayOrder"></param>
@@ -416,10 +414,10 @@ namespace PluralBridge.Api.Controllers
 
 
 		/// <summary>
-		/// 
+		/// Represents one account-to-system membership.
 		/// </summary>
 		/// <param name="SystemMembershipId"></param>
-		/// <param name="AccountId"></param>
+		/// <param name="AccountId">The account identifier.</param>
 		/// <param name="SystemId"></param>
 		/// <param name="MembershipStatusId"></param>
 		/// <param name="MembershipStatus"></param>
@@ -437,7 +435,7 @@ namespace PluralBridge.Api.Controllers
 			DateTime? UpdatedAtUtc);
 
 		/// <summary>
-		/// 
+		/// Represents the currently resolved system for the request.
 		/// </summary>
 		/// <param name="SystemId"></param>
 		/// <param name="SystemName"></param>
