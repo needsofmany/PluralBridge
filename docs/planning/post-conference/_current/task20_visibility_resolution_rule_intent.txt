@@ -1,0 +1,18 @@
+Task 20 intent: Add visibility resolution rule
+
+Visibility resolution uses this rule:
+- check PB visibility scope first
+- when PB visibility scope is absent, fall back to SP privacy bucket behavior
+
+PB visibility scopes are the PB runtime visibility authority.
+
+SP privacy buckets remain Simply Plural import/export fidelity data.
+
+Task 20 defines the visibility resolution rule as design groundwork.
+
+Task 20 does not:
+- activate runtime visibility enforcement
+- change import behavior
+- change upload behavior
+- change API authorization behavior
+- modify SP privacy bucket schema or data
