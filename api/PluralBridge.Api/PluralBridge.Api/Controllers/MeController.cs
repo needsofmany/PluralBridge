@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using System.Diagnostics;
 
 namespace PluralBridge.Api.Controllers;
 
@@ -10,7 +11,9 @@ namespace PluralBridge.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-public sealed class MeController(IConfiguration configuration) : ControllerBase
+public sealed class MeController(
+	IConfiguration configuration,
+	ILogger<MeController> logger) : ControllerBase
 {
 	/// <summary>
 	/// Provides the /api/me endpoint for the Chapter 2 access context and authorization-gated proof data.
@@ -24,62 +27,144 @@ public sealed class MeController(IConfiguration configuration) : ControllerBase
 	[HttpGet]
 	public async Task<IActionResult> Get()
 	{
-		// get info to connect to the database
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
-		if (string.IsNullOrWhiteSpace(connectionString))
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId)
+				? correlationId.ToString()
+				: null);
+
+		try
 		{
+			// get info to connect to the database
+			var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				requestTrace.LogStage(
+					logger,
+					"error_path",
+					"reached");
+
+				return Problem(
+					title: "Missing connection string",
+					detail: "ConnectionStrings:PluralBridgeProof was not found.",
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			// get connection to the database
+			await using SqlConnection connection = new(connectionString);
+			await connection.OpenAsync();
+			var databaseName = connection.Database;
+
+			// should contain the account and it's available System memberships
+			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
+				connection,
+				requestTrace,
+				logger);
+
+			if (accessContext is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					"error_path",
+					"reached");
+
+				return Problem(
+					title: "Current access context not found",
+					detail: "The configured Chapter 2 current account could not be resolved.",
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			// retrieve everything we need to know for this System
+			var currentAccount = accessContext.CurrentAccount;
+			var membershipAccess = accessContext.MembershipAccess;
+			var currentSystem = accessContext.CurrentSystem;
+
+			// Check whether the current account has an active membership for the current system.
+			var isAuthorizedForCurrentSystem = AccessContextHelper.IsAuthorizedForCurrentSystem(
+				accessContext,
+				requestTrace,
+				logger);
+
+			if (!isAuthorizedForCurrentSystem)
+			{
+				requestTrace.LogStage(
+					logger,
+					"error_path",
+					"reached");
+
+				return Problem(
+					title: "Not authorized for current system",
+					detail: "The current account does not have active membership access to the resolved current system.",
+					statusCode: StatusCodes.Status403Forbidden);
+			}
+
+			var dataAccessStopwatch = Stopwatch.StartNew();
+
+			requestTrace.LogStage(
+				logger,
+				"data_access",
+				"started");
+
+			Dictionary<string, long> counts;
+			ProofSystem? proofSystem;
+
+			try
+			{
+				counts = await ReadCountsAsync(connection);
+				proofSystem = await ReadProofSystemAsync(connection);
+
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					"data_access",
+					"completed",
+					dataAccessStopwatch.Elapsed);
+			}
+			catch
+			{
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					"data_access",
+					"failed",
+					dataAccessStopwatch.Elapsed);
+
+				requestTrace.LogStage(
+					logger,
+					"error_path",
+					"reached");
+
+				throw;
+			}
+
+			return Ok(new
+			{
+				api = "PluralBridge.Api",
+				phase = "Phase 2B",
+				mode = "read-only proof",
+				database = databaseName,
+				canWrite = false,
+				currentAccount,
+				membershipAccess,
+				currentSystem,
+				proofSystem,
+				counts
+			});
+		}
+		catch
+		{
+			requestTrace.LogStage(
+				logger,
+				"error_path",
+				"reached");
+
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: "Request failed",
+				detail: "The request failed while resolving the Chapter 2 access context.",
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
-
-		// get connection to the database
-		await using SqlConnection connection = new(connectionString);
-		await connection.OpenAsync();
-		var databaseName = connection.Database;
-
-		// should contain the account and it's available System memberships
-		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
-		if (accessContext is null)
-		{
-			return Problem(
-				title: "Current access context not found",
-				detail: "The configured Chapter 2 current account could not be resolved.",
-				statusCode: StatusCodes.Status500InternalServerError);
-		}
-
-		// retrieve everything we need to know for this System
-		var currentAccount = accessContext.CurrentAccount;
-		var membershipAccess = accessContext.MembershipAccess;
-		var currentSystem = accessContext.CurrentSystem;
-
-		// Check whether the current account has an active membership for the current system.
-		var isAuthorizedForCurrentSystem = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
-		if (!isAuthorizedForCurrentSystem)
-		{
-			return Problem(
-				title: "Not authorized for current system",
-				detail: "The current account does not have active membership access to the resolved current system.",
-				statusCode: StatusCodes.Status403Forbidden);
-		}
-
-		var counts = await ReadCountsAsync(connection);
-		var proofSystem = await ReadProofSystemAsync(connection);
-
-		return Ok(new
-		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			mode = "read-only proof",
-			database = databaseName,
-			canWrite = false,
-			currentAccount,
-			membershipAccess,
-			currentSystem,
-			proofSystem,
-			counts
-		});
 	}
 
 	/// <summary>

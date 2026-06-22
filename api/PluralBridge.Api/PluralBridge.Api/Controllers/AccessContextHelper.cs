@@ -1,4 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace PluralBridge.Api.Controllers
 {
@@ -187,29 +189,79 @@ namespace PluralBridge.Api.Controllers
 		/// Resolves the current account and its available system memberships.
 		/// </summary>
 		/// <param name="connection">The current database connection.</param>
+		/// <param name="requestTrace">The optional Level 1 diagnostic trace context for the current request spine.</param>
+		/// <param name="logger">The optional logger used to emit safe Level 1 diagnostic trace facts.</param>
 		/// <returns>The resolved access context, or null when the current account or current system cannot be resolved.</returns>
-		internal static async Task<AccessContext?> ResolveCurrentAccessAsync(SqlConnection connection)
+		internal static async Task<AccessContext?> ResolveCurrentAccessAsync(
+			SqlConnection connection,
+			RequestTraceContext? requestTrace = null,
+			ILogger? logger = null)
 		{
+			var accountStopwatch = Stopwatch.StartNew();
+
+			requestTrace?.LogStage(
+				logger!,
+				"account_resolution",
+				"started");
+
 			var currentAccount = await ResolveCurrentAccountAsync(connection);
+
+			accountStopwatch.Stop();
+
+			requestTrace?.LogStage(
+				logger!,
+				"account_resolution",
+				currentAccount is null ? "failed" : "completed",
+				accountStopwatch.Elapsed);
+
 			if (currentAccount is null)
 			{
 				return null;
 			}
 
+			var membershipStopwatch = Stopwatch.StartNew();
+
+			requestTrace?.LogStage(
+				logger!,
+				"membership_resolution",
+				"started");
+
 			var membershipAccess = await ResolveMembershipAccessAsync(
 				connection,
 				currentAccount);
+
+			membershipStopwatch.Stop();
+
+			requestTrace?.LogStage(
+				logger!,
+				"membership_resolution",
+				membershipAccess.Count == 0 ? "failed" : "completed",
+				membershipStopwatch.Elapsed);
+
+			var currentSystemStopwatch = Stopwatch.StartNew();
+
+			requestTrace?.LogStage(
+				logger!,
+				"current_system_resolution",
+				"started");
 
 			var currentSystem = await ResolveCurrentSystemFromMembershipAccessAsync(
 				connection,
 				membershipAccess,
 				CancellationToken.None);
 
+			currentSystemStopwatch.Stop();
+
+			requestTrace?.LogStage(
+				logger!,
+				"current_system_resolution",
+				currentSystem is null ? "failed" : "completed",
+				currentSystemStopwatch.Elapsed);
+
 			if (currentSystem is null)
 			{
 				return null;
 			}
-
 			return new AccessContext(
 				currentAccount,
 				membershipAccess,
@@ -246,11 +298,22 @@ namespace PluralBridge.Api.Controllers
 		/// Checks whether the current account has active membership access to the current system.
 		/// </summary>
 		/// <param name="accessContext">The resolved access context for the current request.</param>
+		/// <param name="requestTrace">The optional Level 1 diagnostic trace context for the current request spine.</param>
+		/// <param name="logger">The optional logger used to emit safe Level 1 diagnostic trace facts.</param>
 		/// <returns>True when the current account has active membership access to the current system; otherwise, false.</returns>
 		internal static bool IsAuthorizedForCurrentSystem(
-			AccessContext accessContext)
+			AccessContext accessContext,
+			RequestTraceContext? requestTrace = null,
+			ILogger? logger = null)
 		{
-			return accessContext.MembershipAccess.Any(membership =>
+			var authorizationStopwatch = Stopwatch.StartNew();
+
+			requestTrace?.LogStage(
+				logger!,
+				"authorization_check",
+				"started");
+
+			var isAuthorized = accessContext.MembershipAccess.Any(membership =>
 				membership.SystemId == accessContext.CurrentSystem.SystemId
 				&& membership.SystemMembershipId == accessContext.CurrentSystem.SystemMembershipId
 				&& membership.MembershipStatus.IsActive
@@ -258,6 +321,16 @@ namespace PluralBridge.Api.Controllers
 					membership.MembershipStatus.StatusName,
 					"Active",
 					StringComparison.OrdinalIgnoreCase));
+
+			authorizationStopwatch.Stop();
+
+			requestTrace?.LogStage(
+				logger!,
+				"authorization_check",
+				isAuthorized ? "allowed" : "denied",
+				authorizationStopwatch.Elapsed);
+
+			return isAuthorized;
 		}
 
 		/// <summary>
