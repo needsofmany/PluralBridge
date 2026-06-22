@@ -1,0 +1,91 @@
+Task 24-Prereq is **Add local rolling trace file sink**. The Chapter 2 build list says this prereq adds a durable local development log file for existing `PB_LEVEL1_TRACE` entries, using the current `ILogger` trace boundary without adding new trace facts or changing `/api/me` behavior.
+
+24-Prereq.1  Define local rolling trace file sink intent
+      Add the Task 24-Prereq note that defines local rolling file logging as durable developer-readable trace output.
+      Done when:
+        existing PB_LEVEL1_TRACE entries are named as the source events
+        local file logging is described as developer diagnostics
+        no new trace facts are added
+        no /api/me behavior is changed
+
+24-Prereq.2  Add local rolling trace file sink design record
+      Add a design file that defines how the local rolling trace file sink works.
+      Done when it states:
+        local trace output uses the existing ILogger trace boundary
+        local log files are generated under the API project logs folder
+        log files roll by day
+        generated log files are excluded from git
+        PB_LEVEL1_TRACE remains the search token
+        sensitive content remains forbidden
+
+24-Prereq.3  Add local file logging package references
+      Add the package references needed for local rolling file logging.
+      Done when:
+        API project references the selected logging packages
+        package restore succeeds
+        API project still builds
+
+24-Prereq.4  Configure local rolling trace file logging
+      Configure the API logging pipeline to write existing ILogger output to a local rolling file.
+      Done when:
+        the API starts normally
+        a local logs folder is created when needed
+        running /api/me creates or appends a local log file
+        existing PB_LEVEL1_TRACE entries are written to the file
+
+24-Prereq.5  Ignore generated local log files
+      Add git ignore protection for generated local runtime log files.
+      Done when:
+        generated log files are ignored
+        generated log files do not appear in git status
+        source files and configuration files remain trackable
+
+24-Prereq.6  Build the API solution
+      Build api/PluralBridge.Api/PluralBridge.Api.sln in Visual Studio.
+      Done when:
+        Build succeeded
+        0 errors
+
+24-Prereq.7  Verify /api/me writes trace entries to file
+      Run the API and open /api/me to confirm the existing Level 1 trace entries persist locally.
+      Done when the local log file contains:
+        PB_LEVEL1_TRACE
+        TraceId
+        CorrelationId
+        Stage
+        Outcome
+
+24-Prereq.8  Inspect local trace file
+      Open the generated local trace file and confirm it is usable as a developer diagnostic artifact.
+      Done when:
+        file can be opened directly
+        file can be searched for PB_LEVEL1_TRACE
+        file can be searched for TraceId
+        file can be searched for CorrelationId
+        file can be searched for Stage
+        file can be searched for Outcome
+
+24-Prereq.9  Verify /api/me owner path still works
+      Run /api/me and confirm logging did not change the current owner path.
+      Done when:
+        currentAccount.email = demo@thepluralbridge.local
+        membershipAccess[0].membershipStatus.statusName = Active
+        membershipAccess[0].roles[0].roleName = Owner
+        members = 49
+        privacyBuckets = 2
+        customFields = 7
+        frontHistory = 886
+
+24-Prereq.10  Commit Task 24-Prereq
+      Commit the bounded local rolling trace file sink change.
+      Done when the branch contains a commit named:
+        Add local rolling trace file sink
+        no generated log files in git status
+        no remaining Task 24-Prereq files in git status
+
+24-Prereq.11  Push Task 24-Prereq
+      Push feature/pb-next-account-model-010 to origin.
+      Done when:
+        remote branch has Add local rolling trace file sink
+        no generated log files in git status
+        no remaining Task 24-Prereq files in git status

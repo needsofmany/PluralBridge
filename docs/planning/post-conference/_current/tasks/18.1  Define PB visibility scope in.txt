@@ -1,0 +1,69 @@
+18.1  Define PB visibility scope intent
+      Add a short planning note for Task 18.
+      Done when:
+        visibility scope means resource visibility inside one System
+        membership/role remains account authority
+        SP privacy buckets remain preserved source data
+        Task 18 makes no runtime behavior change
+
+18.2  Add visibility scope table
+      Add dbo.pb_visibility_scopes.
+      Done when the table supports:
+        VisibilityScopeId
+        SystemId
+        ScopeName
+        ScopeDesc
+        IsSystemDefault
+        IsActive
+        CreatedAtUtc
+        UpdatedAtUtc
+
+18.3  Add visibility scope member table
+      Add dbo.pb_visibility_scope_members.
+      Done when the table supports:
+        VisibilityScopeMemberId
+        VisibilityScopeId
+        MemberId
+        CreatedAtUtc
+
+18.4  Add schema constraints
+      Add the required foreign keys and uniqueness rules.
+      Done when:
+        each visibility scope belongs to one System
+        each visibility scope member row belongs to one visibility scope
+        each visibility scope member row points to one PB member
+        duplicate scope names inside the same System are blocked
+        duplicate members inside the same scope are blocked
+
+18.5  Add baseline visibility scope seed data
+      Seed the current demo system with minimal PB visibility scopes.
+      Done when baseline scopes exist:
+        Whole System
+        Owners
+        Private
+
+18.6  Verify visibility scope schema
+      Run a focused SQL verification.
+      Done when:
+        pb_visibility_scopes exists
+        pb_visibility_scope_members exists
+        baseline scopes exist for the demo system
+        SP privacy buckets still exist unchanged
+
+18.7  Build the database project or API solution
+      Use the existing Visual Studio build path for this phase.
+      Done when:
+        Build succeeded
+        0 errors
+
+18.8  Commit Task 18
+      Commit the bounded visibility scope schema change.
+      Done when the branch contains a commit named:
+        Add visibility scope schema
+        local status is clean
+
+18.9  Push Task 18
+      Push feature/pb-next-account-model-010 to origin.
+      Done when:
+        remote branch has Add visibility scope schema
+        local status is clean
