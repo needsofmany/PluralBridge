@@ -1,0 +1,19 @@
+Task 21 design: Inactive PB Visibility Scope boundary
+2026-06-22 12:03 AM PT
+
+Boundary name: Inactive PB Visibility Scope
+
+PB visibility scopes exist as schema and design groundwork.
+
+PB-first / SP-fallback visibility resolution is defined but not enforced.
+
+Current data reads do not filter by PB visibility scope.
+
+Current owner path remains unchanged.
+
+Role-specific visibility behavior waits for a concrete feature.
+
+Task 21 does not activate runtime visibility enforcement.
+Task 21 does not change API authorization behavior.
+Task 21 does not change import behavior.
+Task 21 does not change upload behavior.
