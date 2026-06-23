@@ -1,0 +1,30 @@
+Task 24 expanded diagnostic trace mode design
+
+Purpose:
+  Define where Expanded Diagnostic Trace fits after the Level 1 trace boundary.
+
+Trace levels:
+  Level 1 trace remains the always-on request-spine trace.
+  Level 2 trace is Expanded Diagnostic Trace.
+  Level 2 trace is an optional diagnostic expansion.
+  Level 2 trace is controlled by a future flag.
+  Level 2 trace remains diagnostic-only.
+
+Trace spine:
+  Level 2 trace uses the existing TraceId spine.
+  Level 2 trace uses the existing CorrelationId spine.
+  Level 2 trace does not replace Level 1 trace.
+  Level 2 trace can add safe diagnostic detail around the same request-spine stages.
+
+Runtime boundary:
+  Task 24 is design-only.
+  No expanded trace flag is added in Task 24.
+  No expanded trace code path is activated in Task 24.
+  No current API behavior changes in Task 24.
+
+Done when it states:
+  Level 1 trace remains the always-on request-spine trace
+  Level 2 trace is an optional diagnostic expansion
+  Level 2 trace is controlled by a future flag
+  Level 2 trace uses the existing TraceId and CorrelationId spine
+  Level 2 trace remains diagnostic-only

@@ -1,8 +1,26 @@
+using Serilog;
+using Serilog.Events;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+	loggerConfiguration
+		.MinimumLevel.Information()
+		.MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+		.MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+		.Enrich.FromLogContext()
+		.WriteTo.Console()
+		.WriteTo.Debug()
+		.WriteTo.File(
+			path: "logs/pb-api-.log",
+			rollingInterval: RollingInterval.Day,
+			retainedFileCountLimit: 14,
+			shared: true);
+});
 
 // Add services to the container.
 builder.Services.AddControllers();

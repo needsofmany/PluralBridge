@@ -1,0 +1,22 @@
+Task 26 groups support verification
+
+pb_groups exists.
+pb_group_members exists.
+Group table constraints exist.
+Group membership is many-to-many.
+Groups are system-scoped.
+Groups are data/import preservation support.
+Groups are not Accounts.
+Groups are not Systems.
+Groups are not Memberships.
+Groups are not Roles.
+Groups are not security boundaries.
+
+/api/me owner path remains unchanged.
+currentAccount.email = demo@thepluralbridge.local
+membershipAccess[0].membershipStatus.statusName = Active
+membershipAccess[0].roles[0].roleName = Owner
+members = 49
+privacyBuckets = 2
+customFields = 7
+frontHistory = 886

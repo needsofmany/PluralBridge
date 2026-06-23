@@ -1,0 +1,37 @@
+Task 23 design: Baseline diagnostic trace boundary
+2026-06-22 02:00 AM PT
+
+Boundary name: Level 1 Request Spine Trace
+
+Level 1 trace is always on for the Chapter 2 request spine.
+
+Allowed Level 1 trace facts:
+- TraceId
+- CorrelationId
+- stage name
+- stage outcome
+- elapsed timing
+- safe internal IDs when needed for diagnostics
+
+Covered request spine stages:
+- account resolution
+- membership resolution
+- current system resolution
+- authorization decision
+- data access
+- error handling
+
+Forbidden Level 1 trace content:
+- email addresses
+- display names
+- member names
+- note text
+- custom field values
+- avatar data
+- imported raw payloads
+- exception detail containing user data
+
+Level 1 trace is diagnostic-only.
+Level 1 trace does not change authorization behavior.
+Level 1 trace does not change data access behavior.
+Level 1 trace does not add audit storage.

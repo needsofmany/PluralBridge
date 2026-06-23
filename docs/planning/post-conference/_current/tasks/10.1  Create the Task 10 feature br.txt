@@ -1,0 +1,93 @@
+10.1  Create the Task 10 feature branch
+      Create feature/pb-next-account-model-010 from dev.
+      Done when Git reports the current branch as feature/pb-next-account-model-010.
+
+10.2  Confirm existing REST API code pattern
+      Confirm the API uses controller-local SQL and private record shapes.
+      Done when we know Task 10 must follow the existing direct-SQL controller pattern.
+
+10.3  Add AccountStatus helper record
+      Add a private controller-local record shape for pb_account_statuses.
+      Done when controller code can hold:
+        AccountStatusId
+        StatusName
+        SortOrder
+        IsActive
+        CreatedAtUtc
+
+10.4  Add Account helper record
+      Add a private controller-local record shape for pb_accounts.
+      Done when controller code can hold:
+        AccountId
+        Email
+        DisplayName
+        AccountStatusId
+        AccountStatus
+        CreatedAtUtc
+        UpdatedAtUtc
+
+10.5  Add Role helper record
+      Add a private controller-local record shape for pb_roles.
+      Done when controller code can hold:
+        RoleId
+        RoleName
+        SortOrder
+        IsActive
+        CreatedAtUtc
+
+10.6  Add MembershipStatus helper record
+      Add a private controller-local record shape for pb_system_membership_statuses.
+      Done when controller code can hold:
+        MembershipStatusId
+        StatusName
+        SortOrder
+        IsActive
+        CreatedAtUtc
+
+10.7  Add SystemMembership helper record
+      Add a private controller-local record shape for pb_system_memberships.
+      Done when controller code can hold:
+        SystemMembershipId
+        AccountId
+        SystemId
+        MembershipStatusId
+        MembershipStatus
+        Roles
+        CreatedAtUtc
+        UpdatedAtUtc
+
+10.8  Add SystemMembershipRole helper record only if needed
+      Add a private controller-local record shape for pb_system_membership_roles only if the SQL helper needs raw join rows.
+      Done when controller code can hold:
+        SystemMembershipId
+        RoleId
+        CreatedAtUtc
+
+10.9  Add account and membership SQL helper methods
+      Add private async helper methods using the existing direct-SQL controller pattern.
+      Done when controller code can resolve:
+        current account
+        account status
+        active membership
+        membership status
+        membership roles
+        membership-derived SystemId
+
+10.10  Build the project
+       Build the solution in VS2022.
+       Done when Build Solution succeeds.
+
+10.11  Review the Task 10 diff
+       Confirm the change is limited to inline helper records and helper methods.
+       Done when the diff shows:
+         no new endpoint
+         no Models folder
+         no DbContext
+         no standalone model classes
+         no authorization enforcement yet
+         no behavior change outside the account/membership helper path
+
+10.12  Commit Task 10
+       Commit the bounded account/membership helper change.
+       Done when feature/pb-next-account-model-010 contains a commit named:
+         Add account model layer

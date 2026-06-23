@@ -1,0 +1,86 @@
+Task 10 should be split like this:
+
+10.1  Create the Task 10 feature branch
+      Create feature/pb-next-account-model-010 from dev.
+      Done when Git reports the current branch as feature/pb-next-account-model-010.
+
+10.2  Inspect the existing C# model layout
+      Identify the existing project, model/entity folders, DbContext location, and naming style.
+      Done when we know exactly where the new account model classes belong.
+
+10.3  Add AccountStatus model
+      Add a model class for pb_account_statuses.
+      Done when code can represent:
+        AccountStatusId
+        StatusName
+        SortOrder
+        IsActive
+        CreatedAtUtc
+
+10.4  Add Account model
+      Add a model class for pb_accounts.
+      Done when code can represent:
+        AccountId
+        Email
+        DisplayName
+        AccountStatusId
+        CreatedAtUtc
+        UpdatedAtUtc
+
+10.5  Add Role model
+      Add a model class for pb_roles.
+      Done when code can represent:
+        RoleId
+        RoleName
+        SortOrder
+        IsActive
+        CreatedAtUtc
+
+10.6  Add MembershipStatus model
+      Add a model class for pb_system_membership_statuses.
+      Done when code can represent:
+        MembershipStatusId
+        StatusName
+        SortOrder
+        IsActive
+        CreatedAtUtc
+
+10.7  Add SystemMembership model
+      Add a model class for pb_system_memberships.
+      Done when code can represent:
+        SystemMembershipId
+        AccountId
+        SystemId
+        MembershipStatusId
+        CreatedAtUtc
+        UpdatedAtUtc
+
+10.8  Add SystemMembershipRole model
+      Add a model class for pb_system_membership_roles.
+      Done when code can represent:
+        SystemMembershipId
+        RoleId
+        CreatedAtUtc
+
+10.9  Wire account models into the data context
+      Add DbSet entries and key mappings for the new account, status, role, membership, and membership-role models.
+      Done when the DbContext knows:
+        AccountStatus
+        Account
+        Role
+        MembershipStatus
+        SystemMembership
+        SystemMembershipRole
+
+10.10  Build the project
+       Run a compile-only verification.
+       Done when dotnet build succeeds.
+
+10.11  Review the Task 10 diff
+       Confirm the change is limited to model classes and required DbContext wiring.
+       Done when the diff shows no controller, resolver, authorization, SQL, or runtime behavior changes.
+
+10.12  Commit Task 10
+       Commit the bounded account model layer change.
+       Done when feature/pb-next-account-model-010 contains a commit named:
+         Add account model layer

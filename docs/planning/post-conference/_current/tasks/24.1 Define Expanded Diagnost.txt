@@ -1,0 +1,96 @@
+Task 24 is **Define expanded diagnostic trace mode**. The Chapter 2 build list says this task defines Level 2 diagnostic tracing controlled by a future flag. The design names Expanded Diagnostic Trace as optional flag-controlled logging and identifies the additional non-sensitive detail it may emit.
+
+24.1  Define expanded diagnostic trace mode intent
+      Add the Task 24 note that names Expanded Diagnostic Trace as the optional Level 2 diagnostic mode.
+      Done when:
+        Expanded Diagnostic Trace is named
+        Level 2 trace is described as optional
+        Level 2 trace is described as flag-controlled
+        Level 1 trace remains always-on
+        no Level 2 runtime behavior is activated
+
+24.2  Add expanded diagnostic trace mode design record
+      Add a design file that defines where Expanded Diagnostic Trace fits after the Level 1 trace boundary.
+      Done when it states:
+        Level 1 trace remains the always-on request-spine trace
+        Level 2 trace is an optional diagnostic expansion
+        Level 2 trace is controlled by a future flag
+        Level 2 trace uses the existing TraceId and CorrelationId spine
+        Level 2 trace remains diagnostic-only
+
+24.3  Define expanded diagnostic trace allowed facts
+      Define the additional non-sensitive facts that Level 2 trace may emit in the future.
+      Done when allowed facts include:
+        controller name
+        action name
+        route pattern
+        safe table family name
+        row count
+        resolved SystemId
+        resolved SystemMembershipId
+        authorization reason category
+        feature flag name
+        elapsed timing
+
+24.4  Define expanded diagnostic trace forbidden facts
+      Define the content that Level 2 trace must never emit.
+      Done when forbidden facts include:
+        email addresses
+        display names
+        member names
+        note text
+        custom field values
+        avatar data
+        imported raw payloads
+        exception detail containing user data
+        request body content
+        response body content
+
+24.5  Add expanded diagnostic trace verification record
+      Add a verification record that confirms Task 24 remains design-only.
+      Done when it states:
+        Level 1 trace remains active
+        Level 2 trace is named but inactive
+        no expanded trace flag exists yet
+        no expanded trace code path is active yet
+        no new sensitive content is emitted
+        /api/me behavior remains unchanged
+
+24.6  Verify expanded diagnostic trace design files
+      Review the Task 24 files and confirm the design-only boundary.
+      Done when:
+        Task 24 intent file exists
+        Task 24 design file exists
+        Task 24 verification record exists
+        Expanded Diagnostic Trace is optional and flag-controlled
+        Level 2 emitted facts are limited to non-sensitive diagnostic detail
+        Level 2 runtime behavior remains inactive
+
+24.7  Build the API solution
+      Build api/PluralBridge.Api/PluralBridge.Api.sln in Visual Studio.
+      Done when:
+        Build succeeded
+        0 errors
+
+24.8  Verify /api/me owner path still works
+      Run /api/me and confirm Task 24 did not change current behavior.
+      Done when:
+        currentAccount.email = demo@thepluralbridge.local
+        membershipAccess[0].membershipStatus.statusName = Active
+        membershipAccess[0].roles[0].roleName = Owner
+        members = 49
+        privacyBuckets = 2
+        customFields = 7
+        frontHistory = 886
+
+24.9  Commit Task 24
+      Commit the bounded expanded diagnostic trace mode design files.
+      Done when the branch contains a commit named:
+        Define expanded diagnostic trace mode
+        no remaining Task 24 files in git status
+
+24.10  Push Task 24
+      Push feature/pb-next-account-model-010 to origin.
+      Done when:
+        remote branch has Define expanded diagnostic trace mode
+        no remaining Task 24 files in git status

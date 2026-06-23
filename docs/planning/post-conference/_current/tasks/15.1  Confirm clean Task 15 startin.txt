@@ -1,0 +1,89 @@
+15.1  Confirm clean Task 15 starting point
+      Verify Task 14 and comment cleanup are committed and pushed, branch is correct, and working tree is clean.
+      Done when:
+        branch = feature/pb-next-account-model-010
+        status is clean
+        HEAD shows Clean up access context comments
+
+15.2  Locate existing SystemId-scoped data reads
+      Identify the current API/controller/helper code paths that read:
+        pb_members
+        pb_front_history
+        pb_privacy_buckets
+        pb_custom_fields
+      Done when the relevant methods/files are known.
+
+15.3  Confirm current SystemId source
+      Confirm the request spine now resolves the active system through:
+        accessContext.CurrentSystem.SystemId
+      Done when there is one clear current-system source for request-scoped reads.
+
+15.4  Check members query SystemId partitioning
+      Confirm member reads are filtered by the resolved current SystemId.
+      Done when members data is read under:
+        accessContext.CurrentSystem.SystemId
+      or an equivalent supplied SystemId derived from currentSystem.
+
+15.5  Check front-history query SystemId partitioning
+      Confirm front-history reads are filtered by the resolved current SystemId.
+      Done when front history data is read under:
+        accessContext.CurrentSystem.SystemId
+      or an equivalent supplied SystemId derived from currentSystem.
+
+15.6  Check privacy-bucket query SystemId partitioning
+      Confirm privacy-bucket reads are filtered by the resolved current SystemId.
+      Done when privacy bucket data is read under:
+        accessContext.CurrentSystem.SystemId
+      or an equivalent supplied SystemId derived from currentSystem.
+
+15.7  Check custom-field query SystemId partitioning
+      Confirm custom-field reads are filtered by the resolved current SystemId.
+      Done when custom field data is read under:
+        accessContext.CurrentSystem.SystemId
+      or an equivalent supplied SystemId derived from currentSystem.
+
+15.8  Repair any stale proof/demo SystemId source
+      If any existing data read still gets SystemId from proofSystem, first-row pb_systems lookup, hard-coded demo state, or an unscoped query, repair it.
+      Done when existing data reads use the resolved current system context.
+
+15.9  Build the REST API
+      Build the solution in VS2022.
+      Done when:
+        Build succeeded
+
+15.10 Verify /api/me still works
+      Run the API and open /api/me.
+      Done when:
+        currentSystem is present
+        authorization still passes
+        counts are still present as a smoke check
+
+15.11 Verify existing SystemId-scoped data still loads
+      Run the existing browser/API path that loads members, front history, privacy buckets, and custom fields.
+      Done when:
+        members still load
+        front history still loads
+        privacy buckets still load
+        custom fields still load
+        all are scoped to the resolved current SystemId
+
+15.12 Review the Task 15 diff
+      Confirm the change preserves existing SystemId partitioning.
+      Done when the diff shows:
+        no new endpoint unless already required by existing behavior
+        no new controller
+        no Models folder
+        no DbContext
+        no replacement of membership/currentSystem spine
+        existing data reads remain SystemId-scoped
+
+15.13 Commit Task 15
+      Commit the bounded SystemId query preservation change.
+      Done when the branch contains a commit named:
+        Preserve existing SystemId queries
+
+15.14 Push Task 15 commit to remote
+      Push feature/pb-next-account-model-010 to origin.
+      Done when:
+        remote branch has Preserve existing SystemId queries
+        local status is clean

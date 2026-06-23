@@ -1,0 +1,47 @@
+11.1  Confirm clean Task 11 starting point
+      Verify we are still on feature/pb-next-account-model-010 and the working tree is clean.
+      Done when Task 10 is committed and no uncommitted files remain.
+
+11.2  Add current-account resolver helper method
+      Add a private async helper method that resolves the current working account through the existing seeded account email.
+      Done when controller code can call one method to get the current Account.
+
+11.3  Wire current-account resolver into /api/me
+      Update the existing GET /api/me path so it calls the current-account resolver after opening the SQL connection.
+      Done when /api/me has a currentAccount object available before returning JSON.
+
+11.4  Return current account in /api/me JSON
+      Add currentAccount to the existing /api/me response without changing the existing counts or proof/system output.
+      Done when /api/me includes:
+        AccountId
+        Email
+        DisplayName
+        AccountStatus
+
+11.5  Add missing-account failure handling
+      If the seeded current account cannot be resolved, return a clean server problem response instead of continuing with null account data.
+      Done when missing account fails clearly.
+
+11.6  Build the REST API
+      Build the solution in VS2022.
+      Done when Build Solution succeeds.
+
+11.7  Verify /api/me current-account output
+      Run the API and open /api/me.
+      Done when the response shows the seeded current account:
+        demo@thepluralbridge.local
+        Active
+
+11.8  Review the Task 11 diff
+      Confirm the change is limited to MeController current-account resolver wiring.
+      Done when the diff shows:
+        no new endpoint
+        no new controller
+        no Models folder
+        no DbContext
+        existing /api/me counts preserved
+
+11.9  Commit Task 11
+      Commit the bounded current-account resolver change.
+      Done when the branch contains a commit named:
+        Add current account resolver

@@ -1,0 +1,23 @@
+Task 20 design: Visibility resolution rule
+2026-06-21 11:44 PM PT
+
+Rule name: PB first, SP fallback
+
+Resolution order:
+1. Check for a PB visibility scope assigned to the resource.
+2. If PB visibility scope exists, use the PB visibility scope decision.
+3. If PB visibility scope is absent, fall back to SP privacy bucket behavior.
+4. If both PB visibility scope and SP privacy bucket data are absent, existing behavior remains unchanged for now.
+
+Conflict rule:
+When PB visibility scope and SP privacy bucket data both exist for the same resource, PB visibility scope wins.
+
+Authority split:
+PB visibility scopes are the PB runtime visibility authority.
+SP privacy buckets remain Simply Plural import/export fidelity data.
+
+Task 20 records the rule only.
+Task 20 does not add runtime visibility enforcement.
+Task 20 does not change import behavior.
+Task 20 does not change upload behavior.
+Task 20 does not change API authorization behavior.

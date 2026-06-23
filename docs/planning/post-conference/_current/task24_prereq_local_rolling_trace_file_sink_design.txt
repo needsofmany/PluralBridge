@@ -1,0 +1,49 @@
+Task 24-Prereq local rolling trace file sink design
+
+Purpose:
+  Persist existing Level 1 request-spine trace output to a local developer-readable rolling log file.
+
+Selected local sink:
+  Use the existing ASP.NET Core ILogger call sites.
+  Add a local rolling file sink through the API logging pipeline.
+  Prefer Serilog with the file sink for local rolling file output.
+
+Local log path:
+  api/PluralBridge.Api/PluralBridge.Api/logs/pb-api-.log
+
+Rolling behavior:
+  Local log files roll by day.
+  Local log files are generated runtime artifacts.
+  Local log files are not source artifacts.
+
+Git boundary:
+  Generated log files must be excluded from git.
+  Logging package references and logging configuration remain source artifacts.
+
+Search token:
+  PB_LEVEL1_TRACE remains the primary search token.
+
+Expected searchable fields:
+  TraceId
+  CorrelationId
+  Stage
+  Outcome
+  ElapsedMs
+
+Sensitive content boundary:
+  Local trace files must not include email addresses.
+  Local trace files must not include display names.
+  Local trace files must not include member names.
+  Local trace files must not include note text.
+  Local trace files must not include custom field values.
+  Local trace files must not include avatar data.
+  Local trace files must not include imported raw payloads.
+  Local trace files must not include exception detail containing user data.
+
+Done when it states:
+  local trace output uses the existing ILogger trace boundary
+  local log files are generated under the API project logs folder
+  log files roll by day
+  generated log files are excluded from git
+  PB_LEVEL1_TRACE remains the search token
+  sensitive content remains forbidden

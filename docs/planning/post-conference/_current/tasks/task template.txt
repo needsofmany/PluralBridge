@@ -1,0 +1,30 @@
+Agreed. For the remaining tasks, the operating rule becomes mechanical:
+
+1. The task list is the controlling spec.
+2. I do not renumber steps.
+3. I do not insert build steps early.
+4. I do not combine dependent edits into one step.
+5. I do not invent type names, method names, or file anchors.
+6. I use uploaded source files as the source of truth before giving symbol-specific C#.
+7. C# steps stay in Visual Studio.
+8. Git Bash appears only for status, diff, commit, push, or repo verification.
+9. Every edit step changes one thing only.
+10. Every expected outcome is visual and narrow.
+11. No pasteback requests unless there is no other safe way.
+12. When the plan and current code disagree, I stop and state the mismatch instead of pushing forward.
+
+For the next task, the first response should be only this shape:
+
+Current checkpoint:
+Task 13 complete and pushed.
+
+Next controlling task:
+<exact task number and title from the plan>
+
+Dependency check:
+<one sentence>
+
+Next step:
+<one bounded edit or verification>
+
+No broad reset. No architecture detour. No invented repair plan.

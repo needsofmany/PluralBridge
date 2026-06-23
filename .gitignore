@@ -37,3 +37,6 @@ database/targeting/prop_candidate/cloud/**/*.jsonl
 **/bin/
 **/obj/
 *.user
+
+# PluralBridge local runtime logs
+api/PluralBridge.Api/PluralBridge.Api/logs/

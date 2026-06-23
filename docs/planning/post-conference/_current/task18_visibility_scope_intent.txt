@@ -1,0 +1,21 @@
+Task 18 intent: PB visibility scope schema
+
+PB visibility scopes control resource visibility inside one System.
+
+Membership and role remain account authority:
+- membership says an Account belongs to a System
+- role says what that Account can do inside the System
+
+Visibility scope answers a separate question:
+- which members or audiences inside the System can see a resource
+
+Simply Plural privacy buckets remain preserved imported source data.
+
+Task 18 adds PB-native visibility schema groundwork only.
+
+Task 18 does not:
+- replace Simply Plural privacy buckets
+- change import behavior
+- change upload behavior
+- change runtime visibility behavior
+- change API authorization behavior

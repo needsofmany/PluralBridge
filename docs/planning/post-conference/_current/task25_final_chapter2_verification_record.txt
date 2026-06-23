@@ -1,0 +1,53 @@
+Task 25 final Chapter 2 verification record
+
+Purpose:
+  Record the final Chapter 2 end-to-end spine verification result.
+
+Verification result:
+  Build passed.
+  RequestTraceContextTests passed.
+  AccessContextAuthorizationTests passed.
+  Protected browser sign-in worked.
+  Demo app loaded after sign-in.
+  /api/me required login.
+  /api/me returned HTTP 200 after login.
+
+Resolved spine:
+  Account resolved.
+  Membership resolved.
+  Current system resolved.
+  Authorization allowed.
+
+Verified owner path:
+  currentAccount.email = demo@thepluralbridge.local
+  membershipAccess[0].membershipStatus.statusName = Active
+  membershipAccess[0].roles[0].roleName = Owner
+  currentSystem.systemId = 826d77cf-8b1a-a301-4efe-1113e5a17e88
+
+Verified unchanged data counts:
+  members = 49
+  privacyBuckets = 2
+  customFields = 7
+  frontHistory = 886
+
+Verified Level 1 local trace persistence:
+  PB_LEVEL1_TRACE persisted to the local rolling trace file.
+  TraceId persisted.
+  CorrelationId persisted.
+  account_resolution persisted.
+  membership_resolution persisted.
+  current_system_resolution persisted.
+  authorization_check persisted with Outcome=allowed.
+  data_access persisted with Outcome=completed.
+
+Done when it states:
+  build passed
+  trace tests passed
+  authorization tests passed
+  protected sign-in worked
+  account resolved
+  membership resolved
+  current system resolved
+  authorization allowed
+  existing data counts remained unchanged
+  Level 1 trace still persisted locally

@@ -1,0 +1,59 @@
+12.1  Confirm clean Task 12 starting point
+      Verify Task 11 is committed, branch is correct, and working tree is clean.
+      Done when:
+        branch = feature/pb-next-account-model-010
+        status is clean
+        HEAD shows Add current account resolver
+
+12.2  Add membership access resolver helper
+      Add a private async helper method that resolves active system memberships for the current account.
+      Done when controller code can ask:
+        which SystemId values can this AccountId access?
+
+12.3  Use existing role reader inside membership resolver
+      Use the existing ReadRolesForMembershipAsync helper so each active membership includes its roles.
+      Done when each resolved membership can carry:
+        MembershipStatus
+        Roles
+        SystemId
+
+12.4  Wire membership resolver into /api/me
+      After currentAccount resolves, call the membership resolver using currentAccount.AccountId.
+      Done when /api/me has membership access data available before returning JSON.
+
+12.5  Return membership access in /api/me JSON
+      Add membership access output to the existing /api/me response.
+      Done when /api/me includes:
+        SystemMembershipId
+        AccountId
+        SystemId
+        MembershipStatus
+        Roles
+
+12.6  Build the REST API
+      Build the solution in VS2022.
+      Done when:
+        Build succeeded
+
+12.7  Verify /api/me membership access output
+      Run the API, log in, and open /api/me.
+      Done when /api/me shows:
+        currentAccount
+        active membership
+        membership-derived SystemId
+        Owner role
+
+12.8  Review the Task 12 diff
+      Confirm the change is limited to MeController membership resolver wiring.
+      Done when the diff shows:
+        no new endpoint
+        no new controller
+        no Models folder
+        no DbContext
+        existing /api/me counts preserved
+
+12.9  Commit Task 12
+      Commit the bounded membership resolver change.
+      Done when the branch contains a commit named:
+        Add membership resolver
+

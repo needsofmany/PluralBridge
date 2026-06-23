@@ -1,0 +1,17 @@
+Task 21 intent: Keep PB Visibility Scope inactive until needed
+2026-06-22 12:02 AM PT
+
+PB visibility scope schema exists as future PB runtime visibility authority.
+
+PB-first / SP-fallback visibility resolution is defined as a rule.
+
+Task 21 keeps visibility enforcement inactive.
+
+Current owner path remains unchanged.
+
+Current data reads remain unchanged.
+
+Role-specific visibility behavior waits for a concrete feature.
+
+Task 21 introduces no API behavior change.
+Task 21 introduces no runtime visibility behavior change.
