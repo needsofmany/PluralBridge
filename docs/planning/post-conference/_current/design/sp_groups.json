@@ -1,0 +1,110 @@
+{
+  "exists": true,
+  "id": "bVP6Jt40jqYWC2tfp54TZlg0sqq2",
+  "content": {
+    "uid": "bVP6Jt40jqYWC2tfp54TZlg0sqq2",
+    "isAsystem": true,
+    "fields": {
+      "1tWbCHMCj6xNcMszCSCw4Q0": {
+        "name": "Birthday",
+        "order": 0,
+        "private": false,
+        "preventTrusted": false,
+        "type": 5
+      },
+      "sgXr3VQPTi8dcdvQyfq8eM1": {
+        "name": "Favorite Color",
+        "order": 1,
+        "private": false,
+        "preventTrusted": false,
+        "type": 1
+      },
+      "kyafkSp3se1DX1YX6WmQFC2": {
+        "name": "Favorite Food",
+        "order": 2,
+        "private": false,
+        "preventTrusted": false,
+        "type": 0
+      },
+      "1pjUHjNsxPnhcTau6wo6GF3": {
+        "name": "System Role",
+        "order": 3,
+        "private": false,
+        "preventTrusted": false,
+        "type": 0
+      },
+      "jZLSsmJz6oueq4b1cvoSFd4": {
+        "name": "Likes",
+        "order": 4,
+        "private": false,
+        "preventTrusted": false,
+        "type": 0
+      },
+      "bdufsmYoWLUxKDFSBUSopX5": {
+        "name": "Dislikes",
+        "order": 5,
+        "private": false,
+        "preventTrusted": false,
+        "type": 0
+      },
+      "nimBe6dNrDAoMBn4E87iQJ6": {
+        "name": "Age",
+        "order": 6,
+        "private": false,
+        "preventTrusted": false,
+        "type": 0
+      }
+    },
+    "lastOperationTime": 1782074363749,
+    "username": "yellowfish",
+    "avatarUrl": "",
+    "color": "#8367ea",
+    "desc": "I am the queen of hellfire",
+    "frame": {},
+    "supportDescMarkdown": true
+  }
+}
+
+[
+  {
+    "exists": true,
+    "id": "<redacted>",
+    "content": {
+      "parent": "root",
+      "name": "Smokers",
+      "color": "#63d589",
+      "desc": "Slivers stuck on cigarrettes",
+      "emoji": "",
+      "supportDescMarkdown": true,
+      "members": [
+        "62a59da9d28b4f302a70fd67",
+        "66b8259d8302d53c17f097ae"
+      ],
+      "uid": "<redacted>",
+      "lastOperationTime": 1782074325647,
+      "buckets": []
+    }
+  },
+  {
+    "exists": true,
+    "id": "<redacted>",
+    "content": {
+      "parent": "root",
+      "name": "Yellow Frogs",
+      "color": "#d5af63",
+      "desc": "All of my yellow frogs",
+      "emoji": "",
+      "supportDescMarkdown": true,
+      "members": [
+        "67d53f67ee421b299e000000",
+        "62c98a6f518dae911bb76353",
+        "62a55bd998d6e9ea7d5d1610"
+      ],
+      "uid": "<redacted>",
+      "lastOperationTime": 1782075147874,
+      "buckets": []
+    }
+  }
+]
+
+
