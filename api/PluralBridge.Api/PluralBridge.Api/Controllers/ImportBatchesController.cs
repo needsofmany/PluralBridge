@@ -8,7 +8,8 @@ namespace PluralBridge.Api.Controllers;
 /// Import batches describe when source data was imported and which source system produced it.
 /// </summary>
 [ApiController]
-[Route("api/import-batches")]
+// ReSharper disable once RouteTemplates.ControllerRouteParameterIsNotPassedToMethods
+[Route(Globals.importBatchesRoute)]
 public sealed class ImportBatchesController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
@@ -19,29 +20,49 @@ public sealed class ImportBatchesController(IConfiguration configuration) : Cont
 	/// HTTP 200 with import batch rows, total count, and read-only capability metadata.
 	/// </returns>
 	[HttpGet]
-	public async Task<IActionResult> Get()
+	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importBatchesEndpointSegment}",
+				canWrite = false,
+				systemId,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext) || accessContext.CurrentSystem.SystemId != systemId)
+		{
+			return Forbid();
+		}
 
 		var importBatches = await ReadImportBatchesAsync(connection);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = "/api/import-batches",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importBatchesEndpointSegment}",
 			canWrite = false,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = importBatches.Count,
 			importBatches
 		});

@@ -16,7 +16,7 @@ Agreed. For the remaining tasks, the operating rule becomes mechanical:
 For the next task, the first response should be only this shape:
 
 Current checkpoint:
-Task 13 complete and pushed.
+<current checkpoint>.
 
 Next controlling task:
 <exact task number and title from the plan>

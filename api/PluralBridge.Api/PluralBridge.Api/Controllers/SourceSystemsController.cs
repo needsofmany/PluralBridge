@@ -4,11 +4,11 @@ using Microsoft.Data.SqlClient;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the read-only source systems endpoint for the Phase 2B proof surface.
+/// Provides the read-only source systems endpoint for the Phase 3 proof surface.
 /// Source systems identify the external application families represented in the import data.
 /// </summary>
 [ApiController]
-[Route("api/source-systems")]
+[Route(Globals.sourceSystemsRoute)]
 public sealed class SourceSystemsController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
@@ -21,27 +21,47 @@ public sealed class SourceSystemsController(IConfiguration configuration) : Cont
 	[HttpGet]
 	public async Task<IActionResult> Get()
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = Globals.sourceSystemsEndpoint,
+				canWrite = false,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext))
+		{
+			return Forbid();
+		}
+
 		var sourceSystems = await ReadSourceSystemsAsync(connection);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = "/api/source-systems",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = Globals.sourceSystemsEndpoint,
 			canWrite = false,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = sourceSystems.Count,
 			sourceSystems
 		});

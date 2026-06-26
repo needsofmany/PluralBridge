@@ -4,46 +4,68 @@ using Microsoft.Data.SqlClient;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the read-only custom fields endpoint for the Phase 2B proof surface.
-/// Custom fields are returned for a specific imported PluralBridge system.
+/// Provides the read-only custom fields endpoint for the Phase 3 protected API surface.
+/// Custom fields are returned only for the current system resolved from AccessContext.
 /// </summary>
 [ApiController]
-[Route("api/systems/{systemId:guid}/custom-fields")]
+[Route(Globals.customFieldsRoute)]
 public sealed class CustomFieldsController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
-	/// Returns all custom fields for the requested system from the validated proof database.
-	/// The response includes count metadata and keeps write capability explicitly disabled.
+	/// Returns all custom fields for the requested system when the requested system matches
+	/// the current protected AccessContext system.
 	/// </summary>
-	/// <param name="systemId">The PluralBridge system identifier used to scope the custom field query.</param>
+	/// <param name="systemId">The PluralBridge system identifier from the route.</param>
 	/// <returns>
-	/// HTTP 200 with custom field rows, total count, and read-only capability metadata.
+	/// HTTP 200 with custom field rows, total count, and read-only capability metadata when authorized.
 	/// </returns>
 	[HttpGet]
 	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
-		var customFields = await ReadCustomFieldsAsync(connection, systemId);
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.customFieldsEndpointSegment}",
+				canWrite = false,
+				systemId,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext) || accessContext.CurrentSystem.SystemId != systemId)
+		{
+			return Forbid();
+		}
+
+		var customFields = await ReadCustomFieldsAsync(
+			connection,
+			accessContext.CurrentSystem.SystemId);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = $"/api/systems/{systemId}/custom-fields",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.customFieldsEndpointSegment}",
 			canWrite = false,
-			systemId,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = customFields.Count,
 			customFields
 		});

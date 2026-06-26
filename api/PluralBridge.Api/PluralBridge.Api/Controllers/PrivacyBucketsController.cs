@@ -8,7 +8,7 @@ namespace PluralBridge.Api.Controllers;
 /// Privacy buckets are returned for a specific imported PluralBridge system.
 /// </summary>
 [ApiController]
-[Route("api/systems/{systemId:guid}/privacy-buckets")]
+[Route(Globals.privacyBucketsRoute)]
 public sealed class PrivacyBucketsController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
@@ -22,28 +22,50 @@ public sealed class PrivacyBucketsController(IConfiguration configuration) : Con
 	[HttpGet]
 	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
-		var privacyBuckets = await ReadPrivacyBucketsAsync(connection, systemId);
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.privacyBucketsEndpointSegment}",
+				canWrite = false,
+				systemId,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext) || accessContext.CurrentSystem.SystemId != systemId)
+		{
+			return Forbid();
+		}
+
+		var privacyBuckets = await ReadPrivacyBucketsAsync(
+			connection,
+			accessContext.CurrentSystem.SystemId);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = $"/api/systems/{systemId}/privacy-buckets",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.privacyBucketsEndpointSegment}",
 			canWrite = false,
-			systemId,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = privacyBuckets.Count,
 			privacyBuckets
 		});

@@ -4,46 +4,69 @@ using Microsoft.Data.SqlClient;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the read-only front history endpoint for the Phase 2B proof surface.
-/// Front history rows are returned for a specific imported PluralBridge system.
+/// Provides the read-only front history endpoint for the Phase 3 protected API surface.
+/// Front history rows are returned only for the current system resolved from AccessContext.
 /// </summary>
 [ApiController]
-[Route("api/systems/{systemId:guid}/front-history")]
+[Route(Globals.frontHistoryRoute)]
 public sealed class FrontHistoryController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
-	/// Returns all front history rows for the requested system from the validated proof database.
-	/// The response includes count metadata and keeps write capability explicitly disabled.
+	/// Returns all front history rows for the requested system when the requested system matches
+	/// the current protected AccessContext system.
 	/// </summary>
-	/// <param name="systemId">The PluralBridge system identifier used to scope the front history query.</param>
+	/// <param name="systemId">The PluralBridge system identifier from the route.</param>
 	/// <returns>
-	/// HTTP 200 with front history rows, total count, and read-only capability metadata.
+	/// HTTP 200 with front history rows, total count, and read-only capability metadata when authorized.
 	/// </returns>
 	[HttpGet]
 	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
-		var frontHistory = await ReadFrontHistoryAsync(connection, systemId);
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.frontHistoryEndpointSegment}",
+				canWrite = false,
+				systemId,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
+			|| accessContext.CurrentSystem.SystemId != systemId)
+		{
+			return Forbid();
+		}
+
+		var frontHistory = await ReadFrontHistoryAsync(
+			connection,
+			accessContext.CurrentSystem.SystemId);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = $"/api/systems/{systemId}/front-history",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.frontHistoryEndpointSegment}",
 			canWrite = false,
-			systemId,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = frontHistory.Count,
 			frontHistory
 		});

@@ -4,46 +4,67 @@ using Microsoft.Data.SqlClient;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the read-only source ID mappings endpoint for the Phase 2B proof surface.
+/// Provides the read-only source ID mappings endpoint for the Phase 3 proof surface.
 /// Source ID mappings connect external source identifiers to PluralBridge entity identifiers.
 /// </summary>
 [ApiController]
-[Route("api/systems/{systemId:guid}/source-id-mappings")]
+[Route(Globals.sourceIdMappingsRoute)]
 public sealed class SourceIdMappingsController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
-	/// Returns source ID mapping rows for the requested proof system route.
+	/// Returns source ID mapping rows for the requested system route.
 	/// The response includes count metadata and keeps write capability explicitly disabled.
 	/// </summary>
-	/// <param name="systemId">The PluralBridge system identifier used to scope the proof route.</param>
+	/// <param name="systemId">The PluralBridge system identifier used to scope the protected route.</param>
 	/// <returns>
 	/// HTTP 200 with source ID mapping rows, total count, and read-only capability metadata.
 	/// </returns>
 	[HttpGet]
 	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.sourceIdMappingsEndpointSegment}",
+				canWrite = false,
+				systemId,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
+			|| accessContext.CurrentSystem.SystemId != systemId)
+		{
+			return Forbid();
+		}
+
 		var sourceIdMappings = await ReadSourceIdMappingsAsync(connection);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = $"/api/systems/{systemId}/source-id-mappings",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.sourceIdMappingsEndpointSegment}",
 			canWrite = false,
-			systemId,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = sourceIdMappings.Count,
 			sourceIdMappings
 		});

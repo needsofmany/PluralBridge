@@ -6,6 +6,60 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.8.2 — PB-NEXT Chapter 3 access enforcement retrofit
+
+### Major tasks completed
+
+* Completed the PB-NEXT Chapter 3 Task 3A access-context enforcement retrofit for existing API endpoints.
+* Preserved the protected read-only proof surface while moving existing endpoint metadata to Phase 3.
+* Centralized repeated API contract strings through `Globals.cs`, including:
+
+  * project API name
+  * project phase
+  * connection string name
+  * common connection-string error text
+  * route roots
+  * endpoint roots
+  * endpoint segments
+  * route templates
+* Retrofitted current access-context enforcement into existing protected read endpoints:
+
+  * custom fields
+  * front history
+  * import batches
+  * import metadata
+  * members
+  * privacy buckets
+  * source ID mappings
+  * source records
+  * source systems
+  * systems
+* Enforced the current-system boundary on system-routed endpoints:
+
+  * route `systemId` must match the resolved current system
+  * mismatched route system identifiers do not return protected endpoint data
+* Added current access enforcement to global protected endpoints without route `systemId` values:
+
+  * `/api/source-systems`
+  * `/api/systems`
+* Scoped `/api/systems` to the resolved current system so it returns only the current authorized system row.
+* Added focused xUnit coverage for the current-system authorization rule in `AccessContextHelper`.
+* Confirmed browser verification for protected existing endpoints:
+
+  * logged-in current-system routes return protected JSON
+  * wrong-system routes do not expose protected endpoint data
+  * global protected endpoints return Phase 3 metadata and current-system context
+  * logged-out access remains protected by authentication handling
+
+### Notes
+
+* This release is a Chapter 3 Pre-Bravo enforcement retrofit.
+* Runtime remains protected and read-only.
+* Member editing is not implemented in this release.
+* Browser member management is not implemented in this release.
+* Existing imported data remains unchanged.
+* Task 4 begins the editable member API path.
+
 ## v0.8.1 — PB-NEXT Chapter 2 implementation complete
 
 ### Major tasks completed

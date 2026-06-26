@@ -8,7 +8,7 @@ namespace PluralBridge.Api.Controllers;
 /// Import metadata summarizes source-system, batch, source-record, and source-ID mapping state for the proof route.
 /// </summary>
 [ApiController]
-[Route("api/systems/{systemId:guid}/import-metadata")]
+[Route(Globals.importMetadataRoute)]
 public sealed class ImportMetadataController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
@@ -22,28 +22,51 @@ public sealed class ImportMetadataController(IConfiguration configuration) : Con
 	[HttpGet]
 	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
-		var importMetadata = await ReadImportMetadataAsync(connection, systemId);
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importMetadataEndpointSegment}",
+				canWrite = false,
+				systemId,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
+		    || accessContext.CurrentSystem.SystemId != systemId)
+		{
+			return Forbid();
+		}
+
+		var importMetadata = await ReadImportMetadataAsync(
+			connection,
+			accessContext.CurrentSystem.SystemId);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = $"/api/systems/{systemId}/import-metadata",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importMetadataEndpointSegment}",
 			canWrite = false,
-			systemId,
+			systemId = accessContext.CurrentSystem.SystemId,
 			importMetadata
 		});
 	}

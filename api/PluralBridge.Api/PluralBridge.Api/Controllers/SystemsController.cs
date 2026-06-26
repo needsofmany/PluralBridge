@@ -4,15 +4,15 @@ using Microsoft.Data.SqlClient;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the read-only systems endpoint for the Phase 2B proof surface.
+/// Provides the read-only systems endpoint for the Phase 3 proof surface.
 /// Systems represent imported PluralBridge system records from the validated proof database.
 /// </summary>
 [ApiController]
-[Route("api/systems")]
+[Route(Globals.systemsRouteRoot)]
 public sealed class SystemsController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
-	/// Returns all systems present in the validated proof database.
+	/// Returns the current system resolved from the active access context.
 	/// The response includes count metadata and keeps write capability explicitly disabled.
 	/// </summary>
 	/// <returns>
@@ -21,39 +21,60 @@ public sealed class SystemsController(IConfiguration configuration) : Controller
 	[HttpGet]
 	public async Task<IActionResult> Get()
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
-		var systems = await ReadSystemsAsync(connection);
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = Globals.systemsEndpointRoot,
+				canWrite = false,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext))
+		{
+			return Forbid();
+		}
+
+		var systems = await ReadSystemsAsync(connection, accessContext.CurrentSystem.SystemId);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = "/api/systems",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = Globals.systemsEndpointRoot,
 			canWrite = false,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = systems.Count,
 			systems
 		});
 	}
 
 	/// <summary>
-	/// Reads system rows from the validated proof database.
+	/// Reads the current system row from the validated proof database.
 	/// The selected fields expose imported system metadata needed by the browser proof surface.
 	/// </summary>
 	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
-	/// <returns>The system rows ordered by creation time and system identifier.</returns>
-	private static async Task<List<SystemRecord>> ReadSystemsAsync(SqlConnection connection)
+	/// <param name="systemId">The authorized current system identifier resolved from the active access context.</param>
+	/// <returns>The current system row ordered by creation time and system identifier.</returns>
+	private static async Task<List<SystemRecord>> ReadSystemsAsync(SqlConnection connection, Guid systemId)
 	{
 		const string sql = """
 		                   SELECT
@@ -69,12 +90,15 @@ public sealed class SystemsController(IConfiguration configuration) : Controller
 		                       CreatedAtUtc,
 		                       UpdatedAtUtc
 		                   FROM dbo.pb_systems
+		                   WHERE SystemId = @SystemId
 		                   ORDER BY CreatedAtUtc, SystemId;
 		                   """;
 
 		var systems = new List<SystemRecord>();
 
 		await using var command = new SqlCommand(sql, connection);
+		command.Parameters.AddWithValue("@SystemId", systemId);
+
 		await using var reader = await command.ExecuteReaderAsync();
 
 		while (await reader.ReadAsync())

@@ -4,46 +4,67 @@ using Microsoft.Data.SqlClient;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the read-only source records endpoint for the Phase 2B proof surface.
-/// Source records are returned as inventory metadata for a specific proof system route.
+/// Provides the read-only source records endpoint for the Phase 3 proof surface.
+/// Source records are returned as inventory metadata for a specific protected system route.
 /// </summary>
 [ApiController]
-[Route("api/systems/{systemId:guid}/source-records")]
+[Route(Globals.sourceRecordsRoute)]
 public sealed class SourceRecordsController(IConfiguration configuration) : ControllerBase
 {
 	/// <summary>
-	/// Returns source record inventory rows for the requested proof system route.
+	/// Returns source record inventory rows for the requested system route.
 	/// The response includes count metadata and excludes raw imported JSON payloads.
 	/// </summary>
-	/// <param name="systemId">The PluralBridge system identifier used to scope the proof route.</param>
+	/// <param name="systemId">The PluralBridge system identifier used to scope the protected route.</param>
 	/// <returns>
 	/// HTTP 200 with source record inventory rows, total count, and read-only capability metadata.
 	/// </returns>
 	[HttpGet]
 	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.missingConnectionString,
+				detail: Globals.missingConnStringDetail,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
 		await using var connection = new SqlConnection(connectionString);
 		await connection.OpenAsync();
 
+		var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(connection);
+
+		if (accessContext is null)
+		{
+			return Unauthorized(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.sourceRecordsEndpointSegment}",
+				canWrite = false,
+				systemId,
+				error = Globals.cantResolveAccess
+			});
+		}
+
+		if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
+			|| accessContext.CurrentSystem.SystemId != systemId)
+		{
+			return Forbid();
+		}
+
 		var sourceRecords = await ReadSourceRecordsAsync(connection);
 
 		return Ok(new
 		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = $"/api/systems/{systemId}/source-records",
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.sourceRecordsEndpointSegment}",
 			canWrite = false,
-			systemId,
+			systemId = accessContext.CurrentSystem.SystemId,
 			count = sourceRecords.Count,
 			sourceRecords
 		});
