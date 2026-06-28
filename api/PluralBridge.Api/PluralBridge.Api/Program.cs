@@ -81,8 +81,33 @@ app.UseAuthorization();
 // add static app redirects
 app.MapGet("/", () => Results.Redirect("/app/"));
 
+var allowedBrowserCssFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+	"base.css",
+	"layout.css",
+	"members.css",
+	"developer-tools.css",
+	"legacy-app.css"
+};
+
+var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+	"bootstrap.js",
+	"api-client.js",
+	"members.js",
+	"developer-tools.js",
+	"legacy-app.js"
+};
+
 // require login for the browser button app files
 app.MapGet("/app/", () =>
+{
+	var path = Path.Combine(app.Environment.WebRootPath!, "app", "index.html");
+
+	return Results.File(path, "text/html");
+}).RequireAuthorization();
+
+app.MapGet("/app/index.html", () =>
 {
 	var path = Path.Combine(app.Environment.WebRootPath!, "app", "index.html");
 
@@ -99,6 +124,30 @@ app.MapGet("/app/app.css", () =>
 app.MapGet("/app/app.js", () =>
 {
 	var path = Path.Combine(app.Environment.WebRootPath!, "app", "app.js");
+
+	return Results.File(path, "text/javascript");
+}).RequireAuthorization();
+
+app.MapGet("/app/css/{fileName}", (string fileName) =>
+{
+	if (!allowedBrowserCssFiles.Contains(fileName))
+	{
+		return Results.NotFound();
+	}
+
+	var path = Path.Combine(app.Environment.WebRootPath!, "app", "css", fileName);
+
+	return Results.File(path, "text/css");
+}).RequireAuthorization();
+
+app.MapGet("/app/js/{fileName}", (string fileName) =>
+{
+	if (!allowedBrowserJsFiles.Contains(fileName))
+	{
+		return Results.NotFound();
+	}
+
+	var path = Path.Combine(app.Environment.WebRootPath!, "app", "js", fileName);
 
 	return Results.File(path, "text/javascript");
 }).RequireAuthorization();
@@ -179,6 +228,20 @@ app.MapGet("/whoami", (HttpContext context) => Results.Json(new
 	isAuthenticated = context.User.Identity?.IsAuthenticated ?? false,
 	name = context.User.Identity?.Name ?? string.Empty
 }));
+#endif
+
+#if DEBUG_MODE
+app.MapGet("/debug/browser-paths", () =>
+{
+	return Results.Json(new
+	{
+		contentRootPath = app.Environment.ContentRootPath,
+		webRootPath = app.Environment.WebRootPath,
+		appIndexPath = Path.Combine(app.Environment.WebRootPath!, "app", "index.html"),
+		appApiClientPath = Path.Combine(app.Environment.WebRootPath!, "app", "js", "api-client.js"),
+		appApiClientExists = File.Exists(Path.Combine(app.Environment.WebRootPath!, "app", "js", "api-client.js"))
+	});
+}).RequireAuthorization();
 #endif
 
 // add API controller endpoints

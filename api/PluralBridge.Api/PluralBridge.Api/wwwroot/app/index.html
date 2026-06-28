@@ -1,46 +1,75 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PluralBridge App Proof</title>
-  <link rel="stylesheet" href="./app.css">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PluralBridge App Proof</title>
+    <link rel="stylesheet" href="./app.css">
 </head>
 <body>
-  <main class="app-shell" aria-labelledby="app-title">
-      <section class="app-card">
-          <p class="eyebrow">PluralBridge application proof</p>
-          <h1 id="app-title">Explore the PluralBridge read-only demo</h1>
-          <p>Real database-backed read-only responses from the Phase 2B C# REST API over the validated 1-6 proof slice.</p>
-          <p>No browser-side mock data, no write path, and no private raw source payload exposure.</p>
+    <main class="app-shell" aria-labelledby="app-title">
+        <section class="app-card">
+            <p class="eyebrow">PluralBridge application proof</p>
+            <h1 id="app-title">Explore this PluralBridge demo</h1>
 
-          <form id="loginForm" class="login-panel">
-              <div class="session-summary">
-                  <strong>Protected demo session</strong>
-                  <span id="sessionStatus">You are signed in to the read-only PluralBridge demo.</span>
-              </div>
-              <div class="button-row" aria-label="Session actions">
-                  <button type="button" data-session-action="logout">logout</button>
-              </div>
-          </form>
-          <div class="button-row" aria-label="Read-only database actions">
-              <button type="button" data-contract="me">me</button>
-              <button type="button" data-contract="sourceSystems">source systems</button>
-              <button type="button" data-contract="importBatches">import batches</button>
-              <button type="button" data-contract="systems">systems</button>
-              <button type="button" data-contract="members">members</button>
-              <button type="button" data-contract="privacyBuckets">privacy buckets</button>
-              <button type="button" data-contract="customFields">custom fields</button>
-              <button type="button" data-contract="frontHistory">front history</button>
-              <button type="button" data-contract="sourceRecords">source records</button>
-              <button type="button" data-contract="sourceIdMappings">source ID mappings</button>
-              <button type="button" data-contract="importMetadata">import metadata</button>
-          </div>
+            <details class="demo-explainer">
+                <summary class="demo-explainer-summary">What this demo shows</summary>
+                <p>
+                    This demo shows the protected member-management path in PluralBridge.
+                    While signed in, you can view members, add a new member, and edit member details.
+                </p>
+                <p>
+                    The developer tools below are available for checking the protected API responses during development.
+                </p>
+            </details>
 
-          <div id="appOutput" class="output-box" aria-live="polite">{ }</div>
-      </section>
-  </main>
+            <div class="demo-action-row" aria-label="Demo actions">
+                <div class="demo-action-primary">
+                    <button type="button" data-contract="me">
+                        <svg class="demo-action-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                            <path fill="currentColor" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z" />
+                        </svg>
+                        <span>session</span>
+                    </button>
 
-  <script src="./app.js"></script>
+                    <button type="button" data-contract="members">
+                        <svg class="demo-action-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                            <path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm7.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM9 13c-4.4 0-7 2.2-7 5v1h14v-1c0-2.8-2.6-5-7-5zm7.5 1c-.8 0-1.5.1-2.2.3 1.5 1 2.4 2.3 2.7 3.7h5v-1c0-1.8-2.1-3-5.5-3z" />
+                        </svg>
+                        <span>members</span>
+                    </button>
+                </div>
+
+                <div class="demo-action-session">
+                    <button type="button" data-session-action="logout">
+                        <svg class="demo-action-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                            <path fill="currentColor" d="M5 3h8v2H5v14h8v2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm11 4 5 5-5 5v-3H9v-4h7V7z" />
+                        </svg>
+                        <span>logout</span>
+                    </button>
+                </div>
+            </div>
+
+            <details class="developer-tools-panel">
+                <summary class="developer-tools-summary">Developer tools</summary>
+                <p class="output-note">Inspection endpoints for validating the protected API surface during development.</p>
+                <div class="button-row developer-tools-actions" aria-label="Developer database inspection actions">
+                    <button type="button" data-contract="sourceSystems">source systems</button>
+                    <button type="button" data-contract="importBatches">import batches</button>
+                    <button type="button" data-contract="systems">systems</button>
+                    <button type="button" data-contract="privacyBuckets">privacy buckets</button>
+                    <button type="button" data-contract="customFields">custom fields</button>
+                    <button type="button" data-contract="frontHistory">front history</button>
+                    <button type="button" data-contract="sourceRecords">source records</button>
+                    <button type="button" data-contract="sourceIdMappings">source ID mappings</button>
+                    <button type="button" data-contract="importMetadata">import metadata</button>
+                </div>
+            </details>
+
+            <div id="appOutput" class="output-box" aria-live="polite">{ }</div>
+        </section>
+    </main>
+
+    <script src="./app.js"></script>
 </body>
 </html>

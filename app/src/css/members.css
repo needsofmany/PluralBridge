@@ -1,2 +1,406 @@
 /* Member browser app styles.
-   Initial module placeholder; existing styles remain in legacy-app.css during the first split. */
+   Minimal member management styles for the editable member path. */
+
+.member-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin: 0 0 0.75rem;
+	padding: 0.65rem;
+	border: 1px solid rgba(168, 199, 255, 0.22);
+	border-radius: 0.85rem;
+	background: rgba(7, 10, 13, 0.32);
+}
+
+.member-toolbar-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.member-toolbar-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	border-radius: 0.65rem;
+	padding: 0.55rem 0.7rem;
+}
+
+	.member-toolbar-button:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+
+		.member-toolbar-button:disabled:hover,
+		.member-toolbar-button:disabled:focus-visible {
+			background: #a8c7ff;
+			outline: none;
+		}
+
+.member-toolbar-icon {
+	display: inline-grid;
+	min-width: 1.15rem;
+	place-items: center;
+	font-weight: 900;
+}
+
+.member-toolbar-label {
+	font-size: 0.88rem;
+}
+
+.member-add-container[hidden] {
+	display: none;
+}
+
+.member-add-panel,
+.member-edit-panel {
+	padding: 1rem;
+	border: 1px solid rgba(168, 199, 255, 0.22);
+	border-radius: 0.85rem;
+	background: rgba(7, 10, 13, 0.32);
+}
+
+.member-add-panel {
+	margin-bottom: 0.75rem;
+}
+
+.member-add-form,
+.member-edit-form {
+	display: grid;
+	gap: 0.85rem;
+}
+
+	.member-add-form .field-row,
+	.member-edit-form .field-row {
+		margin-bottom: 0;
+	}
+
+	.member-add-form textarea,
+	.member-edit-form textarea {
+		width: min(100%, 32rem);
+		padding: 0.65rem 0.75rem;
+		border: 1px solid rgba(148, 163, 184, 0.55);
+		border-radius: 0.5rem;
+		color: #e5e7eb;
+		background: rgba(15, 23, 42, 0.72);
+		font: inherit;
+		resize: vertical;
+	}
+
+.member-form-button-row {
+	margin: 0;
+}
+
+.member-form-status {
+	margin: 0;
+	color: #cbd5e1;
+	font-weight: 700;
+}
+
+.member-add-panel,
+.member-edit-panel {
+	padding-bottom: 0.75rem;
+}
+
+.member-add-form,
+.member-edit-form {
+	gap: 0.65rem;
+}
+
+	.member-add-form textarea,
+	.member-edit-form textarea {
+		width: min(100%, 44rem);
+		min-height: 9rem;
+	}
+
+.member-form-status:empty {
+	display: none;
+}
+
+.member-add-panel,
+.member-edit-panel {
+  padding: 0.85rem 1rem 0.65rem;
+}
+
+.member-add-panel .me-section-heading,
+.member-edit-panel .me-section-heading {
+  margin: 0 0 0.65rem;
+}
+
+.member-add-form,
+.member-edit-form {
+  gap: 0.55rem;
+}
+
+.member-add-form .field-row,
+.member-edit-form .field-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.member-add-form label,
+.member-edit-form label {
+  margin: 0;
+}
+
+.member-add-form input,
+.member-edit-form input {
+  margin: 0;
+}
+
+.member-add-form textarea,
+.member-edit-form textarea {
+  margin: 0;
+}
+
+.member-form-button-row {
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+
+.member-form-status {
+  margin: 0;
+}
+
+.member-form-status:empty {
+  display: none;
+}
+
+.member-add-panel,
+.member-edit-panel {
+  padding: 0.85rem 1rem 0.65rem;
+}
+
+.member-add-panel .me-section-heading,
+.member-edit-panel .me-section-heading {
+  margin: 0 0 0.65rem;
+}
+
+.member-add-form,
+.member-edit-form {
+  gap: 0.55rem;
+}
+
+.member-add-form .field-row,
+.member-edit-form .field-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.member-add-form label,
+.member-edit-form label {
+  margin: 0;
+}
+
+.member-add-form input,
+.member-edit-form input {
+  margin: 0;
+}
+
+.member-add-form textarea,
+.member-edit-form textarea {
+  margin: 0;
+}
+
+.member-form-button-row {
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+
+.member-form-status {
+  margin: 0;
+}
+
+.member-form-status:empty {
+  display: none;
+}
+
+.member-summary {
+	gap: 0.85rem;
+}
+
+.member-avatar-placeholder {
+	display: inline-block;
+	flex: 0 0 auto;
+	width: 3rem;
+	height: 3rem;
+	border: 1px solid rgba(196, 181, 253, 0.55);
+	border-radius: 0.75rem;
+	background: rgba(196, 181, 253, 0.22);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.member-identity {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.member-summary-main {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.85rem;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+	.member-summary-main .member-identity {
+		align-items: flex-start;
+		text-align: left;
+	}
+
+.member-summary > .member-chevron {
+	margin-left: auto;
+	flex: 0 0 auto;
+}
+
+.member-list .output-heading {
+	margin-bottom: 0.35rem;
+}
+
+.member-list .output-note {
+	margin: 0 0 0.55rem;
+}
+
+.member-toolbar {
+	align-items: center;
+	gap: 0.45rem;
+	margin: 0 0 0.55rem;
+	padding: 0.45rem 0.55rem;
+	border-radius: 0.75rem;
+}
+
+.member-toolbar-group {
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.member-toolbar-button {
+	gap: 0.35rem;
+	padding: 0.42rem 0.6rem;
+	border-radius: 0.55rem;
+	line-height: 1.1;
+}
+
+.member-toolbar-icon {
+	width: 1rem;
+	height: 1rem;
+	min-width: 1rem;
+}
+
+.member-toolbar-label {
+	font-size: 0.82rem;
+}
+
+#appOutput.output-box:has(.member-list) {
+	overflow: hidden;
+}
+
+.member-list {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	max-height: calc(100vh - 12rem);
+}
+
+.member-list > .output-heading {
+	flex: 0 0 auto;
+	margin: 0 0 0.25rem;
+}
+
+.member-list > .output-note {
+	flex: 0 0 auto;
+	margin: 0 0 0.45rem;
+}
+
+.member-list > .member-toolbar {
+	flex: 0 0 auto;
+	margin: 0 0 0.55rem;
+}
+
+.member-scroll-list {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding-right: 0.35rem;
+}
+
+.member-scroll-list .member-card:first-child {
+	margin-top: 0;
+}
+
+#appOutput.output-box:has(.member-list) {
+	overflow: hidden;
+}
+
+.member-list {
+	max-height: none;
+}
+
+.member-scroll-list {
+	display: block;
+	max-height: 58vh;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: 0.35rem;
+	overscroll-behavior: contain;
+}
+
+.member-scroll-list .member-card:first-child {
+	margin-top: 0;
+}
+
+.member-toggle-text-button,
+.member-toggle-icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+}
+
+.member-toggle-icon {
+	flex: 0 0 auto;
+}
+
+.member-toggle-icon-button {
+	width: 2.35rem;
+	min-width: 2.35rem;
+	padding-left: 0.55rem;
+	padding-right: 0.55rem;
+}
+
+.member-form-action-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+}
+
+.member-form-action-icon {
+	flex: 0 0 auto;
+}
+
+#appOutput.output-box:has(.member-add-container:not([hidden])) {
+	overflow: visible;
+}
+
+#appOutput.output-box:has(.member-add-container:not([hidden])) .member-list {
+	max-height: none;
+}
+
+#appOutput.output-box:has(.member-add-container:not([hidden])) .member-scroll-list {
+	max-height: 24vh;
+}
+
+.member-add-panel {
+	margin-bottom: 0.65rem;
+}
+
+.member-add-form textarea {
+	min-height: 6.5rem;
+}
+
+.member-add-form .member-form-button-row {
+	display: flex;
+	margin-top: 0.45rem;
+}

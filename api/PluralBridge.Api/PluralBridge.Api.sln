@@ -57,6 +57,39 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PB App", "PB App", "{E8A029
 		..\..\app\index.html = ..\..\app\index.html
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{0B1D42DE-0373-49E5-9F90-5FF3F58AC702}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\app\scripts\sync-browser-app.sh = ..\..\app\scripts\sync-browser-app.sh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EF40D666-3BD9-4A8E-9EEA-0BE38508AA71}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\app\src\index.html = ..\..\app\src\index.html
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "assets", "assets", "{962CC03A-6F55-4272-B7D5-999F2F5AE46F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "css", "css", "{FE8104D0-8D43-42E7-BF2A-D50F29A9B4B2}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\app\src\css\app.css = ..\..\app\src\css\app.css
+		..\..\app\src\css\base.css = ..\..\app\src\css\base.css
+		..\..\app\src\css\developer-tools.css = ..\..\app\src\css\developer-tools.css
+		..\..\app\src\css\layout.css = ..\..\app\src\css\layout.css
+		..\..\app\src\css\legacy-app.css = ..\..\app\src\css\legacy-app.css
+		..\..\app\src\css\members.css = ..\..\app\src\css\members.css
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "js", "js", "{A5254E8E-8B0C-4026-B391-500A83BC7994}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\app\src\js\api-client.js = ..\..\app\src\js\api-client.js
+		..\..\app\src\js\app.js = ..\..\app\src\js\app.js
+		..\..\app\app.js = ..\..\app\app.js
+		..\..\app\src\js\bootstrap.js = ..\..\app\src\js\bootstrap.js
+		..\..\app\src\js\developer-tools.js = ..\..\app\src\js\developer-tools.js
+		..\..\app\src\js\legacy-app.js = ..\..\app\src\js\legacy-app.js
+		..\..\app\src\js\members.js = ..\..\app\src\js\members.js
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -98,6 +131,11 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{CC619F1C-AF5F-4A27-AAB6-75BBFCE18148} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{7B6E8868-C9C0-4C68-BCC1-A667DAFDB7BE} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{0B1D42DE-0373-49E5-9F90-5FF3F58AC702} = {E8A02964-6D6B-42B4-8BD3-05E213A4B9BA}
+		{EF40D666-3BD9-4A8E-9EEA-0BE38508AA71} = {E8A02964-6D6B-42B4-8BD3-05E213A4B9BA}
+		{962CC03A-6F55-4272-B7D5-999F2F5AE46F} = {EF40D666-3BD9-4A8E-9EEA-0BE38508AA71}
+		{FE8104D0-8D43-42E7-BF2A-D50F29A9B4B2} = {EF40D666-3BD9-4A8E-9EEA-0BE38508AA71}
+		{A5254E8E-8B0C-4026-B391-500A83BC7994} = {EF40D666-3BD9-4A8E-9EEA-0BE38508AA71}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BF5C65E4-340D-4E25-AC7D-DA2AA63CC3CC}

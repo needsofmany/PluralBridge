@@ -45,7 +45,9 @@ const endpointBuilders = {
 };
 
 function updateSessionStatus() {
-    sessionStatus.textContent = "You are signed in to the read-only PluralBridge demo.";
+    if (sessionStatus) {
+        sessionStatus.textContent = "You are signed in to the read-only PluralBridge demo.";
+    }
 }
 
 function clearOutput() {
@@ -171,6 +173,7 @@ function renderSourceSystems(payload) {
     output.appendChild(wrapper);
     updateSessionStatus();
 }
+
 
 function getSystemsFromPayload(payload) {
     if (Array.isArray(payload)) {
@@ -1183,11 +1186,78 @@ function getMemberDescription(member) {
 }
 
 function createMemberAccordion(member) {
+    function createMemberActionIcon(iconName) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-toggle-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "16");
+        svg.setAttribute("height", "16");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("fill", "currentColor");
+
+        if (iconName === "description") {
+            path.setAttribute("d", "M6 3h9l3 3v15H6V3zm8 1.8V7h2.2L14 4.8zM8 10h8v2H8v-2zm0 4h8v2H8v-2z");
+        } else if (iconName === "json") {
+            path.setAttribute("d", "M8.6 7.4 4 12l4.6 4.6L7.2 18 1.2 12l6-6 1.4 1.4zm6.8 0L16.8 6l6 6-6 6-1.4-1.4L20 12l-4.6-4.6zM13.2 5h2L10.8 19h-2l4.4-14z");
+        } else {
+            path.setAttribute("d", "M4 17.3V21h3.7L18.8 9.9l-3.7-3.7L4 17.3zM20.7 8c.4-.4.4-1 0-1.4l-2.3-2.3c-.4-.4-1-.4-1.4 0l-1.2 1.2 3.7 3.7L20.7 8z");
+        }
+
+        svg.appendChild(path);
+        return svg;
+    }
+
+    function createMemberTextButton(iconName, labelText) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "member-toggle-button member-toggle-text-button";
+
+        button.appendChild(createMemberActionIcon(iconName));
+
+        const label = document.createElement("span");
+        label.textContent = labelText;
+
+        button.appendChild(label);
+
+        return button;
+    }
+
+    function createMemberIconButton(iconName, labelText) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "member-toggle-button member-toggle-icon-button";
+        button.setAttribute("aria-label", labelText);
+        button.title = labelText;
+
+        button.appendChild(createMemberActionIcon(iconName));
+
+        return button;
+    }
+
     const details = document.createElement("details");
     details.className = "member-card";
 
     const summary = document.createElement("summary");
     summary.className = "member-summary";
+
+    const summaryMain = document.createElement("span");
+    summaryMain.className = "member-summary-main";
+
+    const avatarPlaceholder = document.createElement("span");
+    avatarPlaceholder.className = "member-avatar-placeholder";
+    avatarPlaceholder.setAttribute("aria-hidden", "true");
+
+    const red = Math.floor(Math.random() * 256);
+    const green = Math.floor(Math.random() * 256);
+    const blue = Math.floor(Math.random() * 256);
+
+    avatarPlaceholder.style.backgroundColor = "rgb(" + red + ", " + green + ", " + blue + ")";
+    avatarPlaceholder.style.borderColor = "rgba(" + red + ", " + green + ", " + blue + ", 0.85)";
 
     const identity = document.createElement("span");
     identity.className = "member-identity";
@@ -1208,7 +1278,10 @@ function createMemberAccordion(member) {
     identity.appendChild(name);
     identity.appendChild(pronouns);
 
-    summary.appendChild(identity);
+    summaryMain.appendChild(avatarPlaceholder);
+    summaryMain.appendChild(identity);
+
+    summary.appendChild(summaryMain);
     summary.appendChild(chevron);
     details.appendChild(summary);
 
@@ -1219,15 +1292,9 @@ function createMemberAccordion(member) {
     toggleRow.className = "member-toggle-row";
     toggleRow.setAttribute("aria-label", "Member detail display mode");
 
-    const descriptionButton = document.createElement("button");
-    descriptionButton.type = "button";
-    descriptionButton.className = "member-toggle-button";
-    descriptionButton.textContent = "Description";
-
-    const jsonButton = document.createElement("button");
-    jsonButton.type = "button";
-    jsonButton.className = "member-toggle-button";
-    jsonButton.textContent = "JSON";
+    const descriptionButton = createMemberTextButton("description", "Description");
+    const jsonButton = createMemberTextButton("json", "JSON");
+    const editButton = createMemberTextButton("edit", "Edit");
 
     const content = document.createElement("div");
     content.className = "member-content";
@@ -1240,23 +1307,58 @@ function createMemberAccordion(member) {
     jsonBlock.className = "member-json json-output";
     jsonBlock.textContent = JSON.stringify(member, null, 2);
 
+    function setPressed(selectedButton) {
+        descriptionButton.setAttribute("aria-pressed", String(selectedButton === descriptionButton));
+        jsonButton.setAttribute("aria-pressed", String(selectedButton === jsonButton));
+        editButton.setAttribute("aria-pressed", String(selectedButton === editButton));
+    }
+
+    function refreshMembersFromApi() {
+        return window.PluralBridge.apiClient.readMembers()
+            .then(function (payload) {
+                renderMembers(payload);
+            });
+    }
+
     function showDescription() {
-        descriptionButton.setAttribute("aria-pressed", "true");
-        jsonButton.setAttribute("aria-pressed", "false");
+        setPressed(descriptionButton);
         content.replaceChildren(descriptionText);
     }
 
     function showJson() {
-        descriptionButton.setAttribute("aria-pressed", "false");
-        jsonButton.setAttribute("aria-pressed", "true");
+        setPressed(jsonButton);
         content.replaceChildren(jsonBlock);
+    }
+
+    function showEdit() {
+        setPressed(editButton);
+        details.open = true;
+
+        if (
+            window.PluralBridge &&
+            window.PluralBridge.members &&
+            typeof window.PluralBridge.members.createMemberEditForm === "function"
+        ) {
+            content.replaceChildren(window.PluralBridge.members.createMemberEditForm(member, {
+                cancelEdit: showDescription,
+                refreshMembers: refreshMembersFromApi
+            }));
+            return;
+        }
+
+        const unavailable = document.createElement("p");
+        unavailable.className = "member-description";
+        unavailable.textContent = "Member edit is not available in the current browser session.";
+        content.replaceChildren(unavailable);
     }
 
     descriptionButton.addEventListener("click", showDescription);
     jsonButton.addEventListener("click", showJson);
+    editButton.addEventListener("click", showEdit);
 
     toggleRow.appendChild(descriptionButton);
     toggleRow.appendChild(jsonButton);
+    toggleRow.appendChild(editButton);
 
     body.appendChild(toggleRow);
     body.appendChild(content);
@@ -1281,21 +1383,68 @@ function renderMembers(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = members.length + " members returned from the read-only demo API.";
+    note.textContent = members.length + " members returned.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
+
+    const memberAddContainer = document.createElement("div");
+    memberAddContainer.className = "member-add-container";
+    memberAddContainer.hidden = true;
+
+    function refreshMembersFromApi() {
+        return window.PluralBridge.apiClient.readMembers()
+            .then(function (payload) {
+                renderMembers(payload);
+            });
+    }
+
+    function hideAddMemberForm() {
+        memberAddContainer.hidden = true;
+    }
+
+    function toggleAddMemberForm() {
+        memberAddContainer.hidden = !memberAddContainer.hidden;
+    }
+
+    if (
+        window.PluralBridge &&
+        window.PluralBridge.members &&
+        typeof window.PluralBridge.members.createMemberToolbar === "function"
+    ) {
+        wrapper.appendChild(window.PluralBridge.members.createMemberToolbar({
+            toggleAddMember: toggleAddMemberForm
+        }));
+    }
+
+    if (
+        window.PluralBridge &&
+        window.PluralBridge.members &&
+        typeof window.PluralBridge.members.createMemberAddForm === "function"
+    ) {
+        memberAddContainer.appendChild(window.PluralBridge.members.createMemberAddForm({
+            refreshMembers: refreshMembersFromApi,
+            cancelAddMember: hideAddMemberForm
+        }));
+
+        wrapper.appendChild(memberAddContainer);
+    }
+
+    const memberScrollList = document.createElement("div");
+    memberScrollList.className = "member-scroll-list";
 
     if (members.length === 0) {
         const empty = document.createElement("p");
         empty.className = "output-note";
         empty.textContent = "No members were returned.";
-        wrapper.appendChild(empty);
+        memberScrollList.appendChild(empty);
     } else {
         members.forEach(function (member) {
-            wrapper.appendChild(createMemberAccordion(member));
+            memberScrollList.appendChild(createMemberAccordion(member));
         });
     }
+
+    wrapper.appendChild(memberScrollList);
 
     output.appendChild(wrapper);
     updateSessionStatus();
@@ -1566,30 +1715,35 @@ async function logout() {
   }
 }
 
-loginForm.addEventListener("submit", function(event) {
-  event.preventDefault();
-  renderFrozenSessionAction("login");
-});
-
-sessionButtons.forEach(function(button) {
-  if (button.dataset.sessionAction !== "login") {
-    button.addEventListener("click", function() {
-      const action = button.dataset.sessionAction;
-
-      if (action === "logout") {
-        logout();
-        return;
-      }
-
-      renderFrozenSessionAction(action);
+if (loginForm) {
+    loginForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        renderFrozenSessionAction("login");
     });
-  }
-});
+}
 
-contractButtons.forEach(function(button) {
-  button.addEventListener("click", function() {
-    renderContract(button.dataset.contract);
-  });
-});
+document.addEventListener("click", function (event) {
+    const contractButton = event.target.closest("[data-contract]");
+
+    if (contractButton) {
+        renderContract(contractButton.dataset.contract);
+        return;
+    }
+
+    const sessionButton = event.target.closest("[data-session-action]");
+
+    if (sessionButton) {
+        const action = sessionButton.dataset.sessionAction;
+
+        if (action === "logout") {
+            logout();
+            return;
+        }
+
+        if (action !== "login") {
+            renderFrozenSessionAction(action);
+        }
+    }
+}); 
 
 updateSessionStatus();

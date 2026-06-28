@@ -1,0 +1,43 @@
+/* Member browser app styles.
+   Minimal member management styles for the editable member path. */
+
+.member-add-panel,
+.member-edit-panel {
+	padding: 1rem;
+	border: 1px solid rgba(168, 199, 255, 0.22);
+	border-radius: 0.85rem;
+	background: rgba(7, 10, 13, 0.32);
+}
+
+.member-add-form,
+.member-edit-form {
+	display: grid;
+	gap: 0.85rem;
+}
+
+	.member-add-form .field-row,
+	.member-edit-form .field-row {
+		margin-bottom: 0;
+	}
+
+	.member-add-form textarea,
+	.member-edit-form textarea {
+		width: min(100%, 32rem);
+		padding: 0.65rem 0.75rem;
+		border: 1px solid rgba(148, 163, 184, 0.55);
+		border-radius: 0.5rem;
+		color: #e5e7eb;
+		background: rgba(15, 23, 42, 0.72);
+		font: inherit;
+		resize: vertical;
+	}
+
+.member-form-button-row {
+	margin: 0;
+}
+
+.member-form-status {
+	margin: 0;
+	color: #cbd5e1;
+	font-weight: 700;
+}

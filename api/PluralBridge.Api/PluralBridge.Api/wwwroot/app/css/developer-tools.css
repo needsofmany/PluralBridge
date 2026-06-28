@@ -1,2 +1,36 @@
 /* Developer tools browser app styles.
-   Initial module placeholder; existing styles remain in legacy-app.css during the first split. */
+   Minimal separation between normal member controls and developer inspection controls. */
+
+.member-management-panel {
+	margin: 1.5rem 0;
+	padding: 1rem;
+	border: 1px solid rgba(168, 199, 255, 0.28);
+	border-radius: 0.85rem;
+	background: rgba(15, 23, 42, 0.34);
+}
+
+	.member-management-panel .button-row {
+		margin: 1rem 0 0;
+	}
+
+.developer-tools-panel {
+	margin: 1.5rem 0;
+	padding: 1rem;
+	border: 1px dashed rgba(148, 163, 184, 0.45);
+	border-radius: 0.85rem;
+	background: rgba(7, 10, 13, 0.28);
+}
+
+.developer-tools-summary {
+	color: #cbd5e1;
+	font-weight: 800;
+	cursor: pointer;
+}
+
+.developer-tools-panel .output-note {
+	margin-top: 0.75rem;
+}
+
+.developer-tools-actions {
+	margin: 1rem 0 0;
+}
