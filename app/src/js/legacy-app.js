@@ -1200,10 +1200,10 @@ function createMemberAccordion(member) {
         const path = document.createElementNS(svgNamespace, "path");
         path.setAttribute("fill", "currentColor");
 
-        if (iconName === "description") {
-            path.setAttribute("d", "M6 3h9l3 3v15H6V3zm8 1.8V7h2.2L14 4.8zM8 10h8v2H8v-2zm0 4h8v2H8v-2z");
-        } else if (iconName === "json") {
+        if (iconName === "json") {
             path.setAttribute("d", "M8.6 7.4 4 12l4.6 4.6L7.2 18 1.2 12l6-6 1.4 1.4zm6.8 0L16.8 6l6 6-6 6-1.4-1.4L20 12l-4.6-4.6zM13.2 5h2L10.8 19h-2l4.4-14z");
+        } else if (iconName === "save") {
+            path.setAttribute("d", "M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zM7 5h8v5H7V5zm10 14H7v-6h10v6z");
         } else {
             path.setAttribute("d", "M4 17.3V21h3.7L18.8 9.9l-3.7-3.7L4 17.3zM20.7 8c.4-.4.4-1 0-1.4l-2.3-2.3c-.4-.4-1-.4-1.4 0l-1.2 1.2 3.7 3.7L20.7 8z");
         }
@@ -1212,35 +1212,519 @@ function createMemberAccordion(member) {
         return svg;
     }
 
-    function createMemberTextButton(iconName, labelText) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "member-toggle-button member-toggle-text-button";
+    function getMemberIdForSave() {
+        return member && member.memberId ? member.memberId : "";
+    }
 
-        button.appendChild(createMemberActionIcon(iconName));
+    function getProfilePlaceholder(fieldName) {
+        if (fieldName === "displayName") {
+            return "(unnamed member)";
+        }
+
+        if (fieldName === "pronouns") {
+            return "Not set";
+        }
+
+        return "No description available.";
+    }
+
+    function getProfileDisplayText(fieldName) {
+        const value = draftValues[fieldName];
+
+        if (value) {
+            return value;
+        }
+
+        return getProfilePlaceholder(fieldName);
+    }
+
+    function hasDirtyFields() {
+        return draftValues.displayName !== persistedValues.displayName ||
+            draftValues.pronouns !== persistedValues.pronouns ||
+            draftValues.description !== persistedValues.description;
+    }
+
+    function setProfileStatus(message, statusType) {
+        profileStatus.classList.remove("is-error");
+        profileStatus.classList.remove("is-success");
+        profileStatus.textContent = message || "";
+
+        if (statusType === "error") {
+            profileStatus.classList.add("is-error");
+        }
+
+        if (statusType === "success") {
+            profileStatus.classList.add("is-success");
+        }
+    }
+
+    function setGuardStatus(message, statusType) {
+        guardStatus.classList.remove("is-error");
+        guardStatus.classList.remove("is-success");
+        guardStatus.textContent = message || "";
+
+        if (statusType === "error") {
+            guardStatus.classList.add("is-error");
+        }
+
+        if (statusType === "success") {
+            guardStatus.classList.add("is-success");
+        }
+    }
+
+    function updateSummaryPreview() {
+        name.textContent = getProfileDisplayText("displayName");
+        pronouns.textContent = draftValues.pronouns || "";
+    }
+
+    function updateStaticFieldDisplay(fieldName) {
+        const rowInfo = fieldRows[fieldName];
+
+        if (!rowInfo) {
+            return;
+        }
+
+        rowInfo.value.textContent = getProfileDisplayText(fieldName);
+        rowInfo.value.dataset.draftValue = draftValues[fieldName] || "";
+    }
+
+    function updateAllStaticFieldDisplays() {
+        Object.keys(fieldRows).forEach(function (fieldName) {
+            updateStaticFieldDisplay(fieldName);
+        });
+
+        updateSummaryPreview();
+        updateSaveButtonState();
+    }
+
+    function updateSaveButtonState() {
+        if (!saveButton) {
+            return;
+        }
+
+        const isDirty = hasDirtyFields();
+
+        saveButton.disabled = isSaving || !isDirty;
+        saveButton.title = isDirty ? "Save profile changes" : "No profile changes to save";
+    }
+
+    function closeActiveEditor(applyChange) {
+        if (!activeEdit) {
+            return;
+        }
+
+        const editState = activeEdit;
+        activeEdit = null;
+
+        if (applyChange) {
+            draftValues[editState.fieldName] = editState.editor.value.trim();
+            setProfileStatus("");
+        }
+
+        updateStaticFieldDisplay(editState.fieldName);
+
+        if (editState.editor.parentNode) {
+            editState.editor.replaceWith(editState.displayElement);
+        }
+
+        editState.row.classList.remove("is-active");
+        editState.editButton.disabled = isSaving;
+
+        updateSummaryPreview();
+        updateSaveButtonState();
+    }
+
+    function createEditorForField(fieldName, isLongText) {
+        let editor = null;
+
+        if (isLongText) {
+            editor = document.createElement("textarea");
+            editor.rows = 6;
+            editor.className = "member-profile-field-editor member-profile-field-textarea";
+        } else {
+            editor = document.createElement("input");
+            editor.type = "text";
+            editor.className = "member-profile-field-editor member-profile-field-input";
+            editor.autocomplete = "off";
+        }
+
+        editor.value = draftValues[fieldName] || "";
+        editor.setAttribute("aria-label", "Edit " + fieldLabels[fieldName]);
+
+        editor.addEventListener("blur", function () {
+            closeActiveEditor(true);
+        });
+
+        editor.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeActiveEditor(false);
+                return;
+            }
+
+            if (!isLongText && event.key === "Enter") {
+                event.preventDefault();
+                closeActiveEditor(true);
+            }
+        });
+
+        return editor;
+    }
+
+    function startEditingField(fieldName) {
+        const rowInfo = fieldRows[fieldName];
+
+        if (!rowInfo || isSaving) {
+            return;
+        }
+
+        if (activeEdit && activeEdit.fieldName === fieldName) {
+            activeEdit.editor.focus();
+            return;
+        }
+
+        closeActiveEditor(true);
+
+        const editor = createEditorForField(fieldName, rowInfo.isLongText);
+
+        rowInfo.row.classList.add("is-active");
+        rowInfo.editButton.disabled = true;
+        rowInfo.value.replaceWith(editor);
+
+        activeEdit = {
+            fieldName: fieldName,
+            row: rowInfo.row,
+            displayElement: rowInfo.value,
+            editor: editor,
+            editButton: rowInfo.editButton
+        };
+
+        window.setTimeout(function () {
+            editor.focus();
+            editor.select();
+        }, 0);
+    }
+
+    function createMemberProfileFieldRow(labelText, fieldName, rawValue, isLongText) {
+        const row = document.createElement("div");
+        row.className = "member-profile-field-row";
+        row.dataset.memberProfileField = fieldName;
 
         const label = document.createElement("span");
+        label.className = "member-profile-field-label";
         label.textContent = labelText;
+
+        const value = document.createElement("span");
+        value.className = "member-profile-field-value";
+        value.dataset.memberProfileValue = fieldName;
+        value.dataset.persistedValue = rawValue || "";
+        value.dataset.draftValue = rawValue || "";
+        value.textContent = rawValue || getProfilePlaceholder(fieldName);
+
+        if (isLongText) {
+            value.classList.add("member-profile-field-value-long");
+        }
+
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "member-profile-field-edit-button";
+        editButton.dataset.memberProfileEdit = fieldName;
+        editButton.title = "Edit " + labelText;
+        editButton.setAttribute("aria-label", "Edit " + labelText);
+
+        editButton.appendChild(createMemberActionIcon("edit"));
+
+        editButton.addEventListener("click", function () {
+            startEditingField(fieldName);
+        });
+
+        row.appendChild(label);
+        row.appendChild(value);
+        row.appendChild(editButton);
+
+        fieldRows[fieldName] = {
+            row: row,
+            value: value,
+            editButton: editButton,
+            isLongText: isLongText
+        };
+
+        return row;
+    }
+
+    function createProfileSaveButton() {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "member-profile-save-button";
+        button.disabled = true;
+        button.title = "No profile changes to save.";
+
+        button.appendChild(createMemberActionIcon("save"));
+
+        const label = document.createElement("span");
+        label.textContent = "Save";
 
         button.appendChild(label);
 
+        button.addEventListener("click", saveProfileChanges);
+
         return button;
     }
 
-    function createMemberIconButton(iconName, labelText) {
+    function setProfileBusy(isBusy) {
+        isSaving = isBusy;
+
+        Object.keys(fieldRows).forEach(function (fieldName) {
+            fieldRows[fieldName].editButton.disabled = isBusy;
+        });
+
+        if (activeEdit && activeEdit.editor) {
+            activeEdit.editor.disabled = isBusy;
+        }
+
+        updateSaveButtonState();
+    }
+
+    function setGuardBusy(isBusy) {
+        saveChangesButton.disabled = isBusy;
+        discardChangesButton.disabled = isBusy;
+        keepEditingButton.disabled = isBusy;
+    }
+
+    function buildMemberEditRequest() {
+        return {
+            displayName: draftValues.displayName.trim(),
+            pronouns: draftValues.pronouns.trim(),
+            description: draftValues.description.trim()
+        };
+    }
+
+    function applySuccessfulSave() {
+        persistedValues.displayName = draftValues.displayName;
+        persistedValues.pronouns = draftValues.pronouns;
+        persistedValues.description = draftValues.description;
+
+        Object.keys(fieldRows).forEach(function (fieldName) {
+            fieldRows[fieldName].value.dataset.persistedValue = persistedValues[fieldName] || "";
+            fieldRows[fieldName].value.dataset.draftValue = draftValues[fieldName] || "";
+            updateStaticFieldDisplay(fieldName);
+        });
+
+        if (member) {
+            member.displayName = persistedValues.displayName;
+            member.pronouns = persistedValues.pronouns;
+            member.description = persistedValues.description;
+        }
+
+        jsonBlock.textContent = JSON.stringify(member, null, 2);
+
+        updateSummaryPreview();
+        updateSaveButtonState();
+    }
+
+    async function saveProfileChanges() {
+        closeActiveEditor(true);
+
+        if (!hasDirtyFields()) {
+            updateSaveButtonState();
+            return true;
+        }
+
+        const memberId = getMemberIdForSave();
+
+        if (!memberId) {
+            setProfileStatus("Member edit is not available because this member has no member ID.", "error");
+            return false;
+        }
+
+        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+
+        if (!apiClient || typeof apiClient.editMember !== "function") {
+            setProfileStatus("Member edit is not available in the current browser session.", "error");
+            return false;
+        }
+
+        const request = buildMemberEditRequest();
+
+        if (!request.displayName) {
+            setProfileStatus("Name is required.", "error");
+            updateSaveButtonState();
+            return false;
+        }
+
+        setProfileBusy(true);
+        setProfileStatus("Saving member.");
+
+        try {
+            await apiClient.editMember(memberId, request);
+            applySuccessfulSave();
+            setProfileStatus("Member saved.", "success");
+            return true;
+        } catch (error) {
+            setProfileStatus("Member could not be saved. Confirm the API is running and try again.", "error");
+            return false;
+        } finally {
+            setProfileBusy(false);
+        }
+    }
+
+    function discardProfileChanges() {
+        closeActiveEditor(false);
+
+        draftValues.displayName = persistedValues.displayName;
+        draftValues.pronouns = persistedValues.pronouns;
+        draftValues.description = persistedValues.description;
+
+        setProfileStatus("");
+        updateAllStaticFieldDisplays();
+    }
+
+    function showUnsavedDialog() {
+        setGuardStatus("");
+
+        guardDialog.hidden = false;
+        guardDialog.removeAttribute("hidden");
+
+        if (typeof guardDialog.showModal === "function" && !guardDialog.open) {
+            guardDialog.showModal();
+        } else {
+            guardDialog.setAttribute("open", "open");
+        }
+
+        keepEditingButton.focus();
+    }
+
+    function hideUnsavedDialog() {
+        if (typeof guardDialog.close === "function" && guardDialog.open) {
+            guardDialog.close();
+        }
+
+        guardDialog.hidden = true;
+        guardDialog.removeAttribute("open");
+        setGuardStatus("");
+        setGuardBusy(false);
+    }
+
+    function completePendingLeave(shouldLeave) {
+        const resolve = pendingLeaveResolve;
+        const action = pendingLeaveAction;
+
+        pendingLeaveResolve = null;
+        pendingLeaveAction = null;
+
+        hideUnsavedDialog();
+
+        if (shouldLeave && typeof action === "function") {
+            action();
+        }
+
+        if (typeof resolve === "function") {
+            resolve(shouldLeave);
+        }
+    }
+
+    function requestProfileLeave(leaveAction) {
+        closeActiveEditor(true);
+
+        if (!hasDirtyFields()) {
+            if (typeof leaveAction === "function") {
+                leaveAction();
+            }
+
+            return Promise.resolve(true);
+        }
+
+        if (pendingLeaveResolve) {
+            return Promise.resolve(false);
+        }
+
+        pendingLeaveAction = leaveAction || null;
+        showUnsavedDialog();
+
+        return new Promise(function (resolve) {
+            pendingLeaveResolve = resolve;
+        });
+    }
+
+    async function saveChangesAndLeave() {
+        setGuardBusy(true);
+        setGuardStatus("Saving changes.");
+
+        const didSave = await saveProfileChanges();
+
+        if (didSave) {
+            completePendingLeave(true);
+            return;
+        }
+
+        setGuardBusy(false);
+        setGuardStatus("Changes could not be saved. Keep editing or discard changes.", "error");
+    }
+
+    function discardChangesAndLeave() {
+        discardProfileChanges();
+        completePendingLeave(true);
+    }
+
+    function returnToCurrentProfile() {
+        cardDetails.open = true;
+
+        window.setTimeout(function () {
+            cardDetails.scrollIntoView({
+                block: "center",
+                inline: "nearest"
+            });
+
+            try {
+                summary.focus({
+                    preventScroll: true
+                });
+            } catch (error) {
+                summary.focus();
+            }
+        }, 0);
+    }
+
+    function keepEditing() {
+        completePendingLeave(false);
+        returnToCurrentProfile();
+    }
+    function createGuardActionButton(labelText, className) {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "member-toggle-button member-toggle-icon-button";
-        button.setAttribute("aria-label", labelText);
-        button.title = labelText;
-
-        button.appendChild(createMemberActionIcon(iconName));
-
+        button.className = className;
+        button.textContent = labelText;
         return button;
     }
 
-    const details = document.createElement("details");
-    details.className = "member-card";
+    const draftValues = {
+        displayName: member && member.displayName ? member.displayName : "",
+        pronouns: member && member.pronouns ? member.pronouns : "",
+        description: member && member.description ? member.description : ""
+    };
+
+    const persistedValues = {
+        displayName: draftValues.displayName,
+        pronouns: draftValues.pronouns,
+        description: draftValues.description
+    };
+
+    const fieldLabels = {
+        displayName: "Name",
+        pronouns: "Pronouns",
+        description: "Description"
+    };
+
+    const fieldRows = {};
+    let activeEdit = null;
+    let isSaving = false;
+    let pendingLeaveResolve = null;
+    let pendingLeaveAction = null;
+
+    const cardDetails = document.createElement("details");
+    cardDetails.className = "member-card";
 
     const summary = document.createElement("summary");
     summary.className = "member-summary";
@@ -1264,11 +1748,11 @@ function createMemberAccordion(member) {
 
     const name = document.createElement("span");
     name.className = "member-name";
-    name.textContent = getMemberDisplayName(member);
+    name.textContent = getProfileDisplayText("displayName");
 
     const pronouns = document.createElement("span");
     pronouns.className = "member-pronouns";
-    pronouns.textContent = getMemberPronouns(member);
+    pronouns.textContent = draftValues.pronouns || "";
 
     const chevron = document.createElement("span");
     chevron.className = "member-chevron";
@@ -1283,90 +1767,153 @@ function createMemberAccordion(member) {
 
     summary.appendChild(summaryMain);
     summary.appendChild(chevron);
-    details.appendChild(summary);
+
+    summary.addEventListener("click", async function (event) {
+        const currentGuard = window.PluralBridge && window.PluralBridge.memberProfileGuard
+            ? window.PluralBridge.memberProfileGuard
+            : null;
+
+        if (
+            !cardDetails.open &&
+            currentGuard &&
+            currentGuard !== profileGuard &&
+            typeof currentGuard.hasDirtyChanges === "function" &&
+            currentGuard.hasDirtyChanges() &&
+            typeof currentGuard.requestLeave === "function"
+        ) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            await currentGuard.requestLeave(function () {
+                cardDetails.open = true;
+            });
+
+            return;
+        }
+
+        if (cardDetails.open && hasDirtyFields()) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            requestProfileLeave(function () {
+                cardDetails.open = false;
+            });
+        }
+    });
+
+    cardDetails.appendChild(summary);
 
     const body = document.createElement("div");
     body.className = "member-body";
 
-    const toggleRow = document.createElement("div");
-    toggleRow.className = "member-toggle-row";
-    toggleRow.setAttribute("aria-label", "Member detail display mode");
+    const profilePanel = document.createElement("section");
+    profilePanel.className = "member-profile-panel";
+    profilePanel.setAttribute("aria-label", "Member profile fields");
 
-    const descriptionButton = createMemberTextButton("description", "Description");
-    const jsonButton = createMemberTextButton("json", "JSON");
-    const editButton = createMemberTextButton("edit", "Edit");
+    const profileHeading = document.createElement("h3");
+    profileHeading.className = "me-section-heading";
+    profileHeading.textContent = "Profile";
 
-    const content = document.createElement("div");
-    content.className = "member-content";
+    const profileFields = document.createElement("div");
+    profileFields.className = "member-profile-fields";
 
-    const descriptionText = document.createElement("p");
-    descriptionText.className = "member-description";
-    descriptionText.textContent = getMemberDescription(member);
+    profileFields.appendChild(createMemberProfileFieldRow("Name", "displayName", draftValues.displayName, false));
+    profileFields.appendChild(createMemberProfileFieldRow("Pronouns", "pronouns", draftValues.pronouns, false));
+    profileFields.appendChild(createMemberProfileFieldRow("Description", "description", draftValues.description, true));
+
+    const profileActions = document.createElement("div");
+    profileActions.className = "member-profile-action-row";
+
+    const saveButton = createProfileSaveButton();
+    profileActions.appendChild(saveButton);
+
+    const profileStatus = document.createElement("p");
+    profileStatus.className = "member-form-status";
+    profileStatus.setAttribute("aria-live", "polite");
+    profileStatus.textContent = "";
+
+    const guardDialog = document.createElement("dialog");
+    guardDialog.className = "member-profile-unsaved-dialog";
+    guardDialog.setAttribute("aria-label", "Unsaved member profile changes");
+    guardDialog.hidden = true;
+
+    const guardMessage = document.createElement("p");
+    guardMessage.className = "member-profile-unsaved-message";
+    guardMessage.textContent = "This member has unsaved profile changes.";
+
+    const guardButtonRow = document.createElement("div");
+    guardButtonRow.className = "member-profile-unsaved-actions";
+
+    const saveChangesButton = createGuardActionButton("Save changes", "member-profile-unsaved-button");
+    const discardChangesButton = createGuardActionButton("Discard changes", "member-profile-unsaved-button");
+    const keepEditingButton = createGuardActionButton("Keep editing", "member-profile-unsaved-button");
+
+    saveChangesButton.addEventListener("click", saveChangesAndLeave);
+    discardChangesButton.addEventListener("click", discardChangesAndLeave);
+    keepEditingButton.addEventListener("click", keepEditing);
+
+    guardDialog.addEventListener("cancel", function (event) {
+        event.preventDefault();
+        keepEditing();
+    });
+
+    guardButtonRow.appendChild(saveChangesButton);
+    guardButtonRow.appendChild(discardChangesButton);
+    guardButtonRow.appendChild(keepEditingButton);
+
+    const guardStatus = document.createElement("p");
+    guardStatus.className = "member-form-status member-profile-unsaved-status";
+    guardStatus.setAttribute("aria-live", "polite");
+    guardStatus.textContent = "";
+
+    guardDialog.appendChild(guardMessage);
+    guardDialog.appendChild(guardButtonRow);
+    guardDialog.appendChild(guardStatus);
+
+    profilePanel.appendChild(profileHeading);
+    profilePanel.appendChild(profileFields);
+    profilePanel.appendChild(profileActions);
+    profilePanel.appendChild(profileStatus);
+    profilePanel.appendChild(guardDialog);
 
     const jsonBlock = document.createElement("pre");
     jsonBlock.className = "member-json json-output";
     jsonBlock.textContent = JSON.stringify(member, null, 2);
 
-    function setPressed(selectedButton) {
-        descriptionButton.setAttribute("aria-pressed", String(selectedButton === descriptionButton));
-        jsonButton.setAttribute("aria-pressed", String(selectedButton === jsonButton));
-        editButton.setAttribute("aria-pressed", String(selectedButton === editButton));
-    }
+    const rawJsonDetails = document.createElement("details");
+    rawJsonDetails.className = "member-profile-json-details";
 
-    function refreshMembersFromApi() {
-        return window.PluralBridge.apiClient.readMembers()
-            .then(function (payload) {
-                renderMembers(payload);
-            });
-    }
+    const rawJsonSummary = document.createElement("summary");
+    rawJsonSummary.textContent = "Raw JSON";
 
-    function showDescription() {
-        setPressed(descriptionButton);
-        content.replaceChildren(descriptionText);
-    }
+    rawJsonDetails.appendChild(rawJsonSummary);
+    rawJsonDetails.appendChild(jsonBlock);
 
-    function showJson() {
-        setPressed(jsonButton);
-        content.replaceChildren(jsonBlock);
-    }
+    body.appendChild(profilePanel);
+    body.appendChild(rawJsonDetails);
+    cardDetails.appendChild(body);
 
-    function showEdit() {
-        setPressed(editButton);
-        details.open = true;
+    const profileGuard = {
+        hasDirtyChanges: hasDirtyFields,
+        requestLeave: requestProfileLeave
+    };
 
-        if (
-            window.PluralBridge &&
-            window.PluralBridge.members &&
-            typeof window.PluralBridge.members.createMemberEditForm === "function"
-        ) {
-            content.replaceChildren(window.PluralBridge.members.createMemberEditForm(member, {
-                cancelEdit: showDescription,
-                refreshMembers: refreshMembersFromApi
-            }));
+    cardDetails.addEventListener("toggle", function () {
+        window.PluralBridge = window.PluralBridge || {};
+
+        if (cardDetails.open) {
+            window.PluralBridge.memberProfileGuard = profileGuard;
             return;
         }
 
-        const unavailable = document.createElement("p");
-        unavailable.className = "member-description";
-        unavailable.textContent = "Member edit is not available in the current browser session.";
-        content.replaceChildren(unavailable);
-    }
+        if (window.PluralBridge.memberProfileGuard === profileGuard) {
+            window.PluralBridge.memberProfileGuard = null;
+        }
+    });
 
-    descriptionButton.addEventListener("click", showDescription);
-    jsonButton.addEventListener("click", showJson);
-    editButton.addEventListener("click", showEdit);
+    updateSaveButtonState();
 
-    toggleRow.appendChild(descriptionButton);
-    toggleRow.appendChild(jsonButton);
-    toggleRow.appendChild(editButton);
-
-    body.appendChild(toggleRow);
-    body.appendChild(content);
-    details.appendChild(body);
-
-    showDescription();
-
-    return details;
+    return cardDetails;
 }
 
 function renderMembers(payload) {
@@ -1617,6 +2164,22 @@ function setSessionButtonState(selectedAction) {
   });
 }
 
+async function allowMemberProfileLeave() {
+    const guard = window.PluralBridge && window.PluralBridge.memberProfileGuard
+        ? window.PluralBridge.memberProfileGuard
+        : null;
+
+    if (!guard || typeof guard.hasDirtyChanges !== "function" || !guard.hasDirtyChanges()) {
+        return true;
+    }
+
+    if (typeof guard.requestLeave !== "function") {
+        return false;
+    }
+
+    return await guard.requestLeave();
+}
+
 async function renderContract(key) {
   const endpointBuilder = endpointBuilders[key];
 
@@ -1722,10 +2285,18 @@ if (loginForm) {
     });
 }
 
-document.addEventListener("click", function (event) {
+document.addEventListener("click", async function (event) {
     const contractButton = event.target.closest("[data-contract]");
 
     if (contractButton) {
+        event.preventDefault();
+
+        const canLeave = await allowMemberProfileLeave();
+
+        if (!canLeave) {
+            return;
+        }
+
         renderContract(contractButton.dataset.contract);
         return;
     }
@@ -1733,6 +2304,14 @@ document.addEventListener("click", function (event) {
     const sessionButton = event.target.closest("[data-session-action]");
 
     if (sessionButton) {
+        event.preventDefault();
+
+        const canLeave = await allowMemberProfileLeave();
+
+        if (!canLeave) {
+            return;
+        }
+
         const action = sessionButton.dataset.sessionAction;
 
         if (action === "logout") {
