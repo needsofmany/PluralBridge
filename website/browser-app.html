@@ -2,142 +2,215 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>PluralBridge</title>
-    <meta name="description" content="PluralBridge lets preserved Simply Plural export data become readable, useful, and ready for future migration work.">
+    <title>What PluralBridge Is Building — PluralBridge</title>
+    <meta name="description" content="PluralBridge is building a browser-based path for preserved Simply Plural data: account setup, import preview before saving, and member profiles users can view, add, and update.">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <meta property="og:title" content="PluralBridge">
-    <meta property="og:description" content="A first look at viewing preserved Simply Plural export data in PluralBridge.">
+    <meta property="og:title" content="What PluralBridge Is Building — PluralBridge">
+    <meta property="og:description" content="PluralBridge is building a browser-based path for preserved Simply Plural data with account setup, import preview, and member profiles.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://thepluralbridge.org/browser-app.html">
     <meta property="og:image" content="https://thepluralbridge.org/images/background.jpg">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="PluralBridge">
-    <meta name="twitter:description" content="A first look at viewing preserved Simply Plural export data in PluralBridge.">
+    <meta name="twitter:title" content="What PluralBridge Is Building — PluralBridge">
+    <meta name="twitter:description" content="PluralBridge is building a browser-based path for preserved Simply Plural data with account setup, import preview, and member profiles.">
     <meta name="twitter:image" content="https://thepluralbridge.org/images/background.jpg">
 
     <link rel="stylesheet" href="style.css">
+    <link rel="canonical" href="https://thepluralbridge.org/browser-app.html">
 </head>
 <body>
-<header class="site-header">
-    <div class="header-inner">
-        <a class="brand" href="index.html">
-            <img class="brand-logo" src="assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
-            <span class="brand-text">
-                <span class="brand-title">PluralBridge</span>
-                <span class="brand-subtitle">Needs of the Many</span>
-            </span>
-        </a>
-        <nav class="nav" aria-label="Main navigation">
-            <a href="index.html">Home</a>
-            <a href="start-here.html">Start Here</a>
-            <a href="export-now.html">Export Now</a>
-            <details class="nav-menu">
-                <summary>Guides</summary>
-                <div class="nav-menu-panel">
-                    <a href="docs.html">Documentation Home</a>
-                    <a href="install.html">Install</a>
-                    <a href="run.html">Run</a>
-                    <a href="safety.html">Safety</a>
-                    <a href="developer-workflow.html">Contributing</a>
-                    <a href="simply-plural-shutdown.html">Shutdown Info</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary data-current="section">Projects</summary>
-                <div class="nav-menu-panel">
-                    <a href="browser-app.html" aria-current="page">PluralBridge Application</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>Community</summary>
-                <div class="nav-menu-panel">
-                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
-                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
-                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
-                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>About</summary>
-                <div class="nav-menu-panel">
-                    <a href="about.html">About PluralBridge</a>
-                    <a href="contact.html">Contact Us</a>
-                </div>
-            </details>
-            <a class="button demo-button" href="https://demo.thepluralbridge.org/app/">Demo</a>
-        </nav>
-    </div>
-</header>
-
-<div class="privacy-banner is-collapsed" role="note">
-    <div class="privacy-banner-text"><strong>Privacy reminder:</strong> Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data. Treat export files as private backups. Do not post them publicly or attach them to support requests.</div>
-    <button type="button" class="privacy-banner-toggle" aria-expanded="false">Show full reminder</button>
-</div>
-
-<main>
-    <section class="hero">
-        <p class="eyebrow">PluralBridge app preview</p>
-        <h1>PluralBridge Application</h1>
-        <p class="lede">
-            We want to demonstrate the direction of PluralBridge as a full application: a cloud-hosted database, 
-            REST API, and browser app working together with real anonymized Simply Plural export data. It is an early
-            public look at the foundation we are building for preservation, review, and future migration workflows.
-        </p>
-        <div class="actions">
-            <a class="button demo-button" href="https://demo.thepluralbridge.org/app/">Demo</a>
-            <a class="button" href="export-now.html">Start with Export Now</a>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="index.html">
+                <img class="brand-logo" src="assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+                <span class="brand-text">
+                    <span class="brand-title">PluralBridge</span>
+                    <span class="brand-subtitle">Needs of the Many</span>
+                </span>
+            </a>
+            <nav class="nav" aria-label="Main navigation">
+                <a href="index.html">Home</a>
+                <a href="start-here.html">Start Here</a>
+                <a href="export-now.html">Export Guidance</a>
+                <details class="nav-menu">
+                    <summary>Guides</summary>
+                    <div class="nav-menu-panel">
+                        <a href="docs.html">Documentation Home</a>
+                        <a href="safety.html">Safety</a>
+                        <a href="developer-workflow.html">Help Build</a>
+                        <a href="simply-plural-shutdown.html">Shutdown Info</a>
+                    </div>
+                </details>
+                <details class="nav-menu">
+                    <summary data-current="section">Projects</summary>
+                    <div class="nav-menu-panel">
+                        <a href="browser-app.html" aria-current="page">What PluralBridge Is Building</a>
+                    </div>
+                </details>
+                <details class="nav-menu">
+                    <summary>Community</summary>
+                    <div class="nav-menu-panel">
+                        <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                        <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                        <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                        <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                    </div>
+                </details>
+                <details class="nav-menu">
+                    <summary>About</summary>
+                    <div class="nav-menu-panel">
+                        <a href="about.html">About PluralBridge</a>
+                        <a href="contact.html">Contact Us</a>
+                    </div>
+                </details>
+                <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+            </nav>
         </div>
-    </section>
+    </header>
 
-    <section class="section screenshot-section">
-        <h2>Explore the PluralBridge demo</h2>
-        <p>
-            This demo shows PluralBridge becoming a full application: a cloud-hosted database, REST API, and browser
-            app working together with real anonymized Simply Plural export data. It gives visitors a first look at how
-            preserved data can become readable, useful, and ready for future migration work.
-        </p>
-        <img class="page-screenshot" src="assets/images/demo/PB_landing_page.png" alt="PluralBridge demo landing page showing read-only app sections.">
-    </section>
+    <div class="privacy-banner is-collapsed" role="note">
+        <div class="privacy-banner-text"><strong>Privacy reminder:</strong> Preserved Simply Plural data is private System data. Keep exports and backups somewhere safe and under your own control. Please do not send us tokens, passwords, export files, screenshots, or private System data.</div>
+        <button type="button" class="privacy-banner-toggle" aria-expanded="false">Show full reminder</button>
+    </div>
 
-    <section class="section">
-        <h2>What PluralBridge shows</h2>
-        <p>
-            The hosted demo uses anonymized imported Simply Plural data. It shows preserved information in a friendlier
-            browser view while keeping the current work focused on preservation, review, and future migration support.
-        </p>
-        <ul>
-            <li>Members</li>
-            <li>Front history</li>
-            <li>Privacy buckets</li>
-            <li>Custom fields</li>
-            <li>Source records</li>
-            <li>Import metadata</li>
-        </ul>
-    </section>
+    <main>
+        <section class="hero">
+            <p class="eyebrow">What PluralBridge is building</p>
+            <h1>A browser-based place for preserved Simply Plural data to land.</h1>
+            <p class="lede">
+                PluralBridge is moving from emergency preservation toward the first browser-based release. The current focus
+                is the release spine: account setup, Simply Plural import preview before saving, and member profiles that can
+                be viewed, added, and updated.
+            </p>
+            <p class="lede">
+                Once that spine is complete, the public Preview can open without sending users to an old proof-of-concept or
+                asking anyone to risk private System data.
+            </p>
+            <div class="actions">
+                <a class="button primary" href="developer-workflow.html">Help build PluralBridge</a>
+                <a class="button" href="safety.html">Read safety notes</a>
+                <a class="button" href="start-here.html">Start here</a>
+            </div>
+        </section>
 
-    <section class="section screenshot-section">
-        <h2>Readable member data</h2>
-        <p>
-            Member records can be opened and reviewed in the browser, giving Systems a practical first look at their
-            preserved data outside the original Simply Plural app.
-        </p>
-        <img class="page-screenshot" src="assets/images/demo/PB_members.png" alt="PluralBridge members view showing readable member records and descriptions.">
-    </section>
+        <section class="section notice">
+            <h2>Preview is intentionally gated.</h2>
+            <p>
+                The public Preview should open after the first release spine is ready: account setup, import review, and
+                editable member profiles.
+            </p>
+            <p>
+                Until then, PluralBridge is not asking users to upload exports, enter tokens, send screenshots, or move
+                private System data into the project.
+            </p>
+        </section>
 
-    <section class="section">
-        <h2>Where this goes next</h2>
-        <p>
-            PluralBridge is not a full Simply Plural replacement today. The next phase is expanding this foundation toward
-            usable app workflows, richer viewers, and future migration support.
-        </p>
-    </section>
-</main>
+        <section class="section">
+            <h2>The first release spine</h2>
+            <ul>
+                <li><strong>Account:</strong> establish who is using PluralBridge.</li>
+                <li><strong>System and membership:</strong> establish what System the account belongs to and what access it has.</li>
+                <li><strong>Import preview:</strong> let users review a preserved Simply Plural export before anything is saved.</li>
+                <li><strong>Member profiles:</strong> let users view, add, and update member profiles in the browser.</li>
+                <li><strong>Privacy boundary:</strong> keep private System data under clear user control.</li>
+            </ul>
+        </section>
 
-<footer>
-    <p>PluralBridge is an independent project by Needs of the Many.</p>
-</footer>
-<script src="privacy-banner.js"></script>
+        <section class="section">
+            <h2>Why this comes first</h2>
+            <p>
+                Account and import complete the project spine. After that, PluralBridge has the core shape of a real
+                replacement path: a user can sign in, connect to a System, review preserved data, and work with member
+                profiles.
+            </p>
+            <p>
+                Later features can build outward from that foundation instead of trying to compensate for a missing spine.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>What the first release should do</h2>
+            <ul>
+                <li>Run in a modern web browser.</li>
+                <li>Support account setup and sign-in.</li>
+                <li>Resolve account, System, and membership access.</li>
+                <li>Let users review a Simply Plural export before saving anything.</li>
+                <li>Show member profiles in a readable browser view.</li>
+                <li>Let users add and update member profiles.</li>
+                <li>Avoid exposing private System data through public examples, logs, screenshots, or support paths.</li>
+            </ul>
+        </section>
+
+        <section class="grid" aria-label="First release pieces">
+            <article class="card">
+                <h3>1. Account</h3>
+                <p>Give PluralBridge the account and membership foundation needed before private System data can be saved or edited.</p>
+            </article>
+
+            <article class="card">
+                <h3>2. Import preview</h3>
+                <p>Inspect preserved Simply Plural export data before importing it into PluralBridge.</p>
+            </article>
+
+            <article class="card">
+                <h3>3. Member profiles</h3>
+                <p>View, add, and update member profiles in the browser after data has somewhere to land.</p>
+            </article>
+        </section>
+
+        <section class="section">
+            <h2>Why browser-based</h2>
+            <p>
+                A browser-based release can run on Windows, Mac, Linux, phones, tablets, and anything else with a modern
+                browser. That matters because plural Systems should not need one specific device type or operating system to
+                reach preserved data.
+            </p>
+            <p>
+                Browser-based does not mean careless with privacy. The PluralBridge path still needs deliberate import,
+                explicit review, account boundaries, membership checks, and clear control over System data.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>What comes after the spine</h2>
+            <p>
+                Once account, import, and member profiles are coherent, later work can build outward: stronger privacy
+                controls, richer import coverage, groups, notes, avatars, fronting history, delete and retention behavior,
+                audit reporting, account lifecycle cleanup, and compatible interfaces where feasible.
+            </p>
+            <p>
+                That is why the current development priority is account and import.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>How to help</h2>
+            <p>
+                PluralBridge needs developers, reviewers, testers, documentation helpers, accessibility reviewers,
+                security-minded contributors, and privacy-minded contributors.
+            </p>
+            <p>
+                Use synthetic data for public project work. Do not send or publish real exports, tokens, screenshots, notes,
+                member records, avatars, fronting history, logs, database files, or private System data.
+            </p>
+            <div class="actions">
+                <a class="button primary" href="developer-workflow.html">Help build PluralBridge</a>
+                <a class="button" href="https://github.com/needsofmany/PluralBridge">Open GitHub</a>
+                <a class="button" href="https://github.com/needsofmany/PluralBridge/discussions">Open discussions</a>
+                <a class="button" href="contact.html">Contact safely</a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <p>PluralBridge is an independent project by Needs of the Many.</p>
+            <p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+        </div>
+    </footer>
+    <script src="privacy-banner.js"></script>
+    <script src="site-menu.js"></script>
 </body>
 </html>
