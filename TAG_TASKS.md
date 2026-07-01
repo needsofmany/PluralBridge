@@ -5,6 +5,79 @@ This file records the major work represented by each repository tag. It is inten
 Tags are listed in reverse chronological order so the latest project changes appear first.
 
 ---
+## v0.8.3 — Post-shutdown website messaging update
+
+### Major tasks completed
+
+* Updated the public website for the post-shutdown Simply Plural phase.
+* Reframed public messaging away from pre-shutdown export urgency.
+* Updated major public website pages:
+
+  * home page
+  * Start Here
+  * Shutdown Info
+  * Export Guidance
+  * Help Me Export
+  * Safety
+  * About
+  * Contact
+  * Help Build
+  * What PluralBridge Is Building
+* Removed stale hosted-demo routing from the public user path.
+* Changed the top navigation Demo entry into a disabled Preview gate.
+* Gated public Preview until the first release spine is ready:
+
+  * account setup / sign-in
+  * system and membership resolution
+  * Simply Plural import preview before saving
+  * member profile read/add/update
+  * privacy boundary for private System data
+* Removed Install and Run from promoted website navigation.
+* Reframed Export Guidance and Help Me Export as post-shutdown reference and safety guidance instead of current export workflow pages.
+* Strengthened privacy language around:
+
+  * Simply Plural exports
+  * old API tokens
+  * passwords
+  * screenshots
+  * support requests
+  * private notes
+  * member records
+  * avatars
+  * fronting history
+  * generated database files
+  * private System data
+* Clarified that PluralBridge is:
+
+  * independent
+  * free
+  * open-source
+  * privacy-centered
+  * not affiliated with Simply Plural or Apparyllis
+* Clarified that PluralBridge is not asking users for money.
+* Pointed contributor messaging toward the current development priorities:
+
+  * Account
+  * Import
+  * member profiles
+  * privacy
+  * testing
+  * documentation
+  * accessibility
+  * security
+  * review
+
+### Notes
+
+* This release is a website-only messaging and navigation update.
+* No app, API, database, account, import, or member-editing runtime behavior is released by this tag.
+* The old hosted read-only demo is no longer promoted as the public proof path.
+* Public Preview remains intentionally disabled until account setup, import review, and editable member profiles are coherent enough to show safely.
+* The current development priority remains completing Account and Import so the first release spine is complete.
+
+## v0.8.2 — PB-NEXT Chapter 3 access enforcement retrofit
+
+**Work in progress, not yet ready to be promoted to master**
 
 ## v0.8.2 — Post-shutdown website messaging update
 
