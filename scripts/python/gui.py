@@ -1,37 +1,55 @@
 #!/usr/bin/env python3
-"""PluralBridge GUI — self-contained tkinter exporter.
+"""PluralBridge GUI — standalone tkinter exporter.
 
-Uses pluralbridge modules directly (no subprocess) so it works both as a
-standalone script and when bundled into a single .exe via PyInstaller.
+Fully self-contained. No external dependencies beyond Python stdlib.
+Send this single file to anyone and they can run it directly.
 """
 
 from __future__ import annotations
 
 import io
 import json
+import os
 import sys
 import threading
 import tkinter as tk
 import urllib.request
+from datetime import datetime
 from tkinter import filedialog, messagebox, scrolledtext
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 
-# ── Resolve pluralbridge package ─────────────────────────────────
-# When running from source the package lives at ../../pluralbridge
-# relative to this file.  When frozen by PyInstaller it is in the
-# temp extraction dir, so we fall back to a direct import.
-_here = Path(__file__).resolve().parent
-_src_pkg = _here / "pluralbridge"
-if _src_pkg.is_dir() and str(_here) not in sys.path:
-    sys.path.insert(0, str(_here))
-
-from pluralbridge.api import get_json  # noqa: E402
-from pluralbridge.paths import ensure_dir, write_json  # noqa: E402
-
 DEFAULT_API_BASE = "https://api.apparyllis.com"
 REQUEST_DELAY = 0.15
+
+
+# ── Helpers (inlined so the file is standalone) ─────────────────
+
+def get_json(api_base: str, path: str, token: str) -> Any:
+    url = api_base.rstrip("/") + "/" + path.lstrip("/")
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": token, "Accept": "application/json",
+                 "User-Agent": "PluralBridge/0.1"},
+        method="GET",
+    )
+    with urllib.request.urlopen(request) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def ensure_dir(path: str | Path) -> Path:
+    target = Path(path)
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def write_json(path: str | Path, data: Any) -> None:
+    target = Path(path)
+    ensure_dir(target.parent)
+    with target.open("w", encoding="utf-8", newline="\n") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
 
 
 # ── Log capture ──────────────────────────────────────────────────
@@ -210,7 +228,7 @@ def export_avatars(members_json_path: Path, output_dir: Path, append) -> None:
         manifest_rows.append(f"{mid}\t{uid}\t{avatar_uuid}\t{url}\t{local.name}\t{local.as_posix()}")
         count += 1
 
-    manifest_path = output_dir.parent / "avatar_manifest.tsv"
+    manifest_path = output_dir / "avatar_manifest.tsv"
     with manifest_path.open("w", encoding="utf-8", newline="\n") as f:
         f.write("member_id\tsystem_uid\tavatar_uuid\tsource_url\tlocal_filename\tlocal_path\n")
         for r in manifest_rows:
@@ -230,8 +248,8 @@ class ExportGUI(tk.Tk):
         self.minsize(580, 500)
         self._running = False
 
-        root = Path(__file__).resolve().parents[2] if not getattr(sys, 'frozen', False) else Path(sys.executable).parent
-        self._default_output = str(root / "exports")
+        root = Path(os.path.expanduser("~")) if not getattr(sys, 'frozen', False) else Path(sys.executable).parent
+        self._default_output = str(root / "Documents" / f"PluralBridge Export {datetime.now():%Y-%m-%d}")
 
         self._build_ui()
         self._center(640, 540)
@@ -295,9 +313,10 @@ class ExportGUI(tk.Tk):
         self._token_entry.config(show="" if self._show_var.get() else "•")
 
     def _browse(self) -> None:
-        d = filedialog.askdirectory(initialdir=self._folder_var.get())
-        if d:
-            self._folder_var.set(d)
+        parent = filedialog.askdirectory(initialdir=self._folder_var.get())
+        if parent:
+            subfolder = f"PluralBridge Export {datetime.now():%Y-%m-%d %H%M}"
+            self._folder_var.set(str(Path(parent) / subfolder))
 
     def _append_log(self, text: str) -> None:
         self._log.config(state="normal")
@@ -332,7 +351,7 @@ class ExportGUI(tk.Tk):
     def _run(self, token: str) -> None:
         output_dir = Path(self._folder_var.get().strip())
         notes_dir = output_dir / "notes"
-        avatar_dir = output_dir.parent / "member_images"
+        avatar_dir = output_dir / "member_images"
         log = lambda t: self._after(lambda t=t: self._append_log(t))
 
         try:
