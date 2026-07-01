@@ -195,38 +195,51 @@ def export_avatars(members_json_path: Path, output_dir: Path, append) -> None:
         content = row.get("content", {}) or {}
         uid = content.get("uid", "")
         avatar_uuid = content.get("avatarUuid", "")
-        url = content.get("avatarUrl", "")
-        if not url and uid and avatar_uuid:
-            url = f"https://spaces.apparyllis.com/avatars/{uid}/{avatar_uuid}"
-        if not url:
+
+        # Build list of URLs to download (both if available)
+        urls: list[tuple[str, str]] = []  # (url, label)
+        primary = content.get("avatarUrl", "")
+        if primary:
+            urls.append((primary, ""))
+        if uid and avatar_uuid:
+            spaces_url = f"https://spaces.apparyllis.com/avatars/{uid}/{avatar_uuid}"
+            if spaces_url != primary:
+                urls.append((spaces_url, "_apparyllis"))
+        if not urls:
             continue
 
         append(f"Downloading avatar for {mid}\n")
-        try:
-            req = urllib.request.Request(url, headers={"Accept": "image/*",
-                                                        "User-Agent": "PluralBridge/0.1"})
-            with urllib.request.urlopen(req) as resp:
-                data = resp.read()
-                ct = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
-        except Exception as exc:
-            append(f"  Skipped avatar {mid}: {exc}\n")
+        downloaded = 0
+        for url, label in urls:
+            try:
+                req = urllib.request.Request(url, headers={"Accept": "image/*",
+                                                            "User-Agent": "PluralBridge/0.1"})
+                with urllib.request.urlopen(req) as resp:
+                    data = resp.read()
+                    ct = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            except Exception:
+                continue
+
+            ext = {".png": "image/png", ".jpg": "image/jpeg",
+                   ".gif": "image/gif", ".webp": "image/webp"}.get(ct, "")
+            if not ext:
+                for e, m in {".png": "png", ".jpg": "jpeg", ".gif": "gif", ".webp": "webp"}.items():
+                    if m in ct:
+                        ext = e
+                        break
+                else:
+                    ext = ".img"
+
+            local = output_dir / f"{mid}{label}{ext}"
+            local.write_bytes(data)
+            manifest_rows.append(f"{mid}\t{uid}\t{avatar_uuid}\t{url}\t{local.name}\t{local.as_posix()}")
+            downloaded += 1
+
+        if downloaded == 0:
+            append(f"  Skipped avatar {mid}: all URLs failed\n")
             skipped += 1
-            continue
-
-        ext = {".png": "image/png", ".jpg": "image/jpeg",
-               ".gif": "image/gif", ".webp": "image/webp"}.get(ct, "")
-        if not ext:
-            for e, m in {".png": "png", ".jpg": "jpeg", ".gif": "gif", ".webp": "webp"}.items():
-                if m in ct:
-                    ext = e
-                    break
-            else:
-                ext = ".img"
-
-        local = output_dir / f"{mid}{ext}"
-        local.write_bytes(data)
-        manifest_rows.append(f"{mid}\t{uid}\t{avatar_uuid}\t{url}\t{local.name}\t{local.as_posix()}")
-        count += 1
+        else:
+            count += 1
 
     manifest_path = output_dir / "avatar_manifest.tsv"
     with manifest_path.open("w", encoding="utf-8", newline="\n") as f:
