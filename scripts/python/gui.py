@@ -60,7 +60,7 @@ def export_json(token: str, output_dir: Path, notes_dir: Path,
     """Replicate export_json.py logic with GUI output."""
     import time
 
-    def _fetch(endpoint: str, *, required: bool) -> tuple[bool, Any, str]:
+    def _fetch(endpoint: str) -> tuple[bool, Any, str]:
         append(f"Fetching {endpoint}\n")
         try:
             data = get_json(DEFAULT_API_BASE, endpoint, token)
@@ -71,17 +71,15 @@ def export_json(token: str, output_dir: Path, notes_dir: Path,
             msg = f"URL error from {endpoint}: {exc.reason}"
         except Exception as exc:
             msg = f"{type(exc).__name__} from {endpoint}: {exc}"
-        if required:
-            raise RuntimeError(msg)
-        append(f"Warning: skipped {endpoint}: {msg}\n")
+        append(f"  Skipped: {msg}\n")
         return False, [], msg
 
-    def _export(filename: str, endpoint: str, required: bool,
+    def _export(filename: str, endpoint: str,
                 manifest: dict, data_dir: Path) -> Any:
-        ok, data, error = _fetch(endpoint, required=required)
-        write_json(data_dir / filename, data)
-        entry: dict[str, Any] = {"endpoint": endpoint, "filename": filename,
-                                 "required": required, "ok": ok}
+        ok, data, error = _fetch(endpoint)
+        if ok:
+            write_json(data_dir / filename, data)
+        entry: dict[str, Any] = {"endpoint": endpoint, "filename": filename, "ok": ok}
         if error:
             entry["error"] = error
             manifest["errors"].append(entry)
@@ -95,7 +93,9 @@ def export_json(token: str, output_dir: Path, notes_dir: Path,
 
     manifest: dict[str, Any] = {"base_url": DEFAULT_API_BASE, "files": [], "errors": []}
 
-    me = _export("me.json", "/v1/me", True, manifest, output_dir)
+    me = _export("me.json", "/v1/me", manifest, output_dir)
+    if not me:
+        raise RuntimeError("/v1/me returned no data — cannot continue without a user ID.")
     uid = (me.get("id") or me.get("uid") or me.get("_id")
            or (me.get("content", {}) or {}).get("id")
            or (me.get("content", {}) or {}).get("uid"))
@@ -104,27 +104,27 @@ def export_json(token: str, output_dir: Path, notes_dir: Path,
     uid = str(uid)
 
     specs = [
-        ("user.json",             f"/v1/user/{uid}",                                 False),
-        ("members.json",          f"/v1/members/{uid}",                              True),
-        ("groups.json",           f"/v1/groups/{uid}",                               False),
-        ("customFronts.json",     f"/v1/customFronts/{uid}",                         False),
-        ("frontHistory.json",     "/v1/frontHistory",                                False),
+        ("user.json",             f"/v1/user/{uid}"),
+        ("members.json",          f"/v1/members/{uid}"),
+        ("groups.json",           f"/v1/groups/{uid}"),
+        ("customFronts.json",     f"/v1/customFronts/{uid}"),
+        ("frontHistory.json",     "/v1/frontHistory"),
         ("fronthistory_starttime_and_endtime.json",
-                                  f"/v1/frontHistory/{uid}?startTime=0&endTime=9999999999999", True),
-        ("timers__automated.json",f"/v1/timers/automated/{uid}",                     False),
-        ("timers__repeated.json", f"/v1/timers/repeated/{uid}",                      False),
-        ("polls.json",            f"/v1/polls/{uid}",                                False),
-        ("customFields.json",     f"/v1/customFields/{uid}",                         True),
-        ("privacyBuckets.json",   "/v1/privacyBuckets",                              False),
-        ("filters.json",          "/v1/filters",                                     False),
-        ("categories.json",       "/v1/chat/categories",                             False),
-        ("channels.json",         "/v1/chat/channels",                               False),
-        ("friends.json",          "/v1/friends/",                                    False),
+                                  f"/v1/frontHistory/{uid}?startTime=0&endTime=9999999999999"),
+        ("timers__automated.json",f"/v1/timers/automated/{uid}"),
+        ("timers__repeated.json", f"/v1/timers/repeated/{uid}"),
+        ("polls.json",            f"/v1/polls/{uid}"),
+        ("customFields.json",     f"/v1/customFields/{uid}"),
+        ("privacyBuckets.json",   "/v1/privacyBuckets"),
+        ("filters.json",          "/v1/filters"),
+        ("categories.json",       "/v1/chat/categories"),
+        ("channels.json",         "/v1/chat/channels"),
+        ("friends.json",          "/v1/friends/"),
     ]
 
     exported: dict[str, Any] = {}
-    for filename, endpoint, required in specs:
-        exported[filename] = _export(filename, endpoint, required, manifest, output_dir)
+    for filename, endpoint in specs:
+        exported[filename] = _export(filename, endpoint, manifest, output_dir)
 
     if not skip_notes:
         members_json = exported.get("members.json")
@@ -144,10 +144,10 @@ def export_json(token: str, output_dir: Path, notes_dir: Path,
                 continue
             endpoint = f"/v1/notes/{uid}/{mid}"
             fname = f"{idx}.json"
-            ok, data, error = _fetch(endpoint, required=False)
-            write_json(notes_dir / fname, data)
-            entry = {"endpoint": endpoint, "filename": f"notes/{fname}",
-                     "required": False, "ok": ok}
+            ok, data, error = _fetch(endpoint)
+            if ok:
+                write_json(notes_dir / fname, data)
+            entry = {"endpoint": endpoint, "filename": f"notes/{fname}", "ok": ok}
             if error:
                 entry["error"] = error
                 manifest["errors"].append(entry)
@@ -169,6 +169,7 @@ def export_avatars(members_json_path: Path, output_dir: Path, append) -> None:
 
     manifest_rows: list[str] = []
     count = 0
+    skipped = 0
     for row in members:
         mid = row.get("id", "")
         if not mid:
@@ -183,11 +184,16 @@ def export_avatars(members_json_path: Path, output_dir: Path, append) -> None:
             continue
 
         append(f"Downloading avatar for {mid}\n")
-        req = urllib.request.Request(url, headers={"Accept": "image/*",
-                                                    "User-Agent": "PluralBridge/0.1"})
-        with urllib.request.urlopen(req) as resp:
-            data = resp.read()
-            ct = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "image/*",
+                                                        "User-Agent": "PluralBridge/0.1"})
+            with urllib.request.urlopen(req) as resp:
+                data = resp.read()
+                ct = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        except Exception as exc:
+            append(f"  Skipped avatar {mid}: {exc}\n")
+            skipped += 1
+            continue
 
         ext = {".png": "image/png", ".jpg": "image/jpeg",
                ".gif": "image/gif", ".webp": "image/webp"}.get(ct, "")
@@ -210,7 +216,7 @@ def export_avatars(members_json_path: Path, output_dir: Path, append) -> None:
         for r in manifest_rows:
             f.write(r + "\n")
 
-    append(f"\nAvatar export complete: {count} files -> {output_dir}\n")
+    append(f"\nAvatar export complete: {count} saved, {skipped} skipped -> {output_dir}\n")
     append(f"Manifest: {manifest_path}\n")
 
 
