@@ -120,6 +120,15 @@ Set your Simply Plural API token in Git Bash:
     echo
     export SP_TOKEN
 
+For macOS Terminal / zsh users, use these commands instead:
+
+    printf "Paste Simply Plural token: "
+    stty -echo
+    IFS= read -r SP_TOKEN
+    stty echo
+    printf "\n"
+    export SP_TOKEN
+
 Check that a token was captured without printing it:
 
     printf 'Token length: %s\n' "${#SP_TOKEN}"
