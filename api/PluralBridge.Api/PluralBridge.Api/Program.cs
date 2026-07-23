@@ -1,7 +1,8 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using PluralBridge.Api.Account;
 using Serilog;
 using Serilog.Events;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,6 +54,10 @@ builder.Services.AddCors(options =>
 		policy.AllowAnyMethod();
 	});
 });
+
+builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
+builder.Services.AddScoped<IAccountAuditWriter, SqlAccountAuditWriter>();
+builder.Services.AddScoped<IAccountService, AccountService>();
 
 var app = builder.Build();
 

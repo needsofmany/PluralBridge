@@ -944,15 +944,15 @@ public sealed class MembersController(
 		await using var command = new SqlCommand(sql, connection);
 		command.Parameters.AddWithValue("@SystemId", systemId);
 		command.Parameters.AddWithValue("@MemberId", memberId);
-		command.Parameters.AddWithValue("@DisplayName", request.DisplayName.Trim());
-		command.Parameters.AddWithValue("@Pronouns", string.IsNullOrWhiteSpace(request.Pronouns) ? DBNull.Value : request.Pronouns.Trim());
-		command.Parameters.AddWithValue("@Description", string.IsNullOrWhiteSpace(request.Description) ? DBNull.Value : request.Description.Trim());
-		command.Parameters.AddWithValue("@Color", string.IsNullOrWhiteSpace(request.Color) ? DBNull.Value : request.Color.Trim());
-		command.Parameters.AddWithValue("@IsPrivate", request.IsPrivate ?? false);
-		command.Parameters.AddWithValue("@PreventTrusted", request.PreventTrusted ?? false);
-		command.Parameters.AddWithValue("@PreventsFrontNotifications", request.PreventsFrontNotifications ?? false);
-		command.Parameters.AddWithValue("@ReceiveMessageBoardNotifications", request.ReceiveMessageBoardNotifications ?? false);
-		command.Parameters.AddWithValue("@SupportsDescriptionMarkdown", request.SupportsDescriptionMarkdown ?? false);
+		command.Parameters.AddWithValue("@DisplayName", request?.DisplayName.Trim());
+		command.Parameters.AddWithValue("@Pronouns", string.IsNullOrWhiteSpace(request?.Pronouns) ? DBNull.Value : request.Pronouns.Trim());
+		command.Parameters.AddWithValue("@Description", string.IsNullOrWhiteSpace(request?.Description) ? DBNull.Value : request.Description.Trim());
+		command.Parameters.AddWithValue("@Color", string.IsNullOrWhiteSpace(request?.Color) ? DBNull.Value : request.Color.Trim());
+		command.Parameters.AddWithValue("@IsPrivate", request?.IsPrivate ?? false);
+		command.Parameters.AddWithValue("@PreventTrusted", request?.PreventTrusted ?? false);
+		command.Parameters.AddWithValue("@PreventsFrontNotifications", request?.PreventsFrontNotifications ?? false);
+		command.Parameters.AddWithValue("@ReceiveMessageBoardNotifications", request?.ReceiveMessageBoardNotifications ?? false);
+		command.Parameters.AddWithValue("@SupportsDescriptionMarkdown", request?.SupportsDescriptionMarkdown ?? false);
 		command.Parameters.AddWithValue("@UpdatedAtUtc", nowUtc);
 
 		var rowsAffected = await command.ExecuteNonQueryAsync();
