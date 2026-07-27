@@ -430,4 +430,148 @@ internal static class AccountTestDatabase
 
 		await command.ExecuteNonQueryAsync();
 	}
+
+	internal static async Task<RuntimeCodeConsumptionState?> ReadLatestCodeConsumptionStateAsync(
+		Guid accountId,
+		string codePurpose,
+		string destinationType,
+		string destinationNormalized)
+	{
+		var connectionString = GetConnectionString();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+		                   SELECT TOP (1)
+		                   	AccountCodeId,
+		                   	AccountId,
+		                   	CodePurpose,
+		                   	DestinationType,
+		                   	DestinationNormalized,
+		                   	ConsumedAtUtc,
+		                   	AttemptCount,
+		                   	MaxAttempts
+		                   FROM dbo.pb_account_codes
+		                   WHERE AccountId = @AccountId
+		                   	AND CodePurpose = @CodePurpose
+		                   	AND DestinationType = @DestinationType
+		                   	AND DestinationNormalized = @DestinationNormalized
+		                   ORDER BY CreatedAtUtc DESC;
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue("@CodePurpose", codePurpose);
+		command.Parameters.AddWithValue("@DestinationType", destinationType);
+		command.Parameters.AddWithValue("@DestinationNormalized", destinationNormalized);
+
+		await using var reader = await command.ExecuteReaderAsync();
+
+		if (!await reader.ReadAsync())
+		{
+			return null;
+		}
+
+		return new RuntimeCodeConsumptionState(
+			reader.GetGuid(0),
+			reader.GetGuid(1),
+			reader.GetString(2),
+			reader.GetString(3),
+			reader.GetString(4),
+			reader.IsDBNull(5) ? null : reader.GetDateTime(5),
+			reader.GetInt32(6),
+			reader.GetInt32(7));
+	}
+
+	internal sealed record RuntimeCodeConsumptionState(
+		Guid AccountCodeId,
+		Guid AccountId,
+		string CodePurpose,
+		string DestinationType,
+		string DestinationNormalized,
+		DateTime? ConsumedAtUtc,
+		int AttemptCount,
+		int MaxAttempts);
+
+	internal static async Task ExpireLatestAccountCodeAsync(
+		Guid accountId,
+		string codePurpose,
+		string destinationType,
+		string destinationNormalized)
+	{
+		var connectionString = GetConnectionString();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+		                   WITH LatestCode AS
+		                   (
+		                   	SELECT TOP (1)
+		                   		AccountCodeId
+		                   	FROM dbo.pb_account_codes
+		                   	WHERE AccountId = @AccountId
+		                   		AND CodePurpose = @CodePurpose
+		                   		AND DestinationType = @DestinationType
+		                   		AND DestinationNormalized = @DestinationNormalized
+		                   	ORDER BY CreatedAtUtc DESC
+		                   )
+		                   UPDATE codes
+		                   SET ExpiresAtUtc = DATEADD(minute, -1, SYSUTCDATETIME())
+		                   FROM dbo.pb_account_codes codes
+		                   INNER JOIN LatestCode latestCode
+		                   	ON latestCode.AccountCodeId = codes.AccountCodeId;
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue("@CodePurpose", codePurpose);
+		command.Parameters.AddWithValue("@DestinationType", destinationType);
+		command.Parameters.AddWithValue("@DestinationNormalized", destinationNormalized);
+
+		await command.ExecuteNonQueryAsync();
+	}
+
+	internal static async Task MaxOutLatestAccountCodeAttemptsAsync(
+		Guid accountId,
+		string codePurpose,
+		string destinationType,
+		string destinationNormalized)
+	{
+		var connectionString = GetConnectionString();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+		                   WITH LatestCode AS
+		                   (
+		                   	SELECT TOP (1)
+		                   		AccountCodeId
+		                   	FROM dbo.pb_account_codes
+		                   	WHERE AccountId = @AccountId
+		                   		AND CodePurpose = @CodePurpose
+		                   		AND DestinationType = @DestinationType
+		                   		AND DestinationNormalized = @DestinationNormalized
+		                   	ORDER BY CreatedAtUtc DESC
+		                   )
+		                   UPDATE codes
+		                   SET AttemptCount = MaxAttempts
+		                   FROM dbo.pb_account_codes codes
+		                   INNER JOIN LatestCode latestCode
+		                   	ON latestCode.AccountCodeId = codes.AccountCodeId;
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue("@CodePurpose", codePurpose);
+		command.Parameters.AddWithValue("@DestinationType", destinationType);
+		command.Parameters.AddWithValue("@DestinationNormalized", destinationNormalized);
+
+		await command.ExecuteNonQueryAsync();
+	}
 }
