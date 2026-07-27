@@ -9,17 +9,21 @@ public sealed class AccountService : IAccountService
 	private readonly string _connectionString;
 	private readonly IPasswordHasher _passwordHasher;
 	private readonly IAccountAuditWriter _auditWriter;
+	private readonly IAccountCodeDelivery _codeDelivery;
 
+	// ReSharper disable once ConvertToPrimaryConstructor
 	public AccountService(
 		IConfiguration configuration,
 		IPasswordHasher passwordHasher,
-		IAccountAuditWriter auditWriter)
+		IAccountAuditWriter auditWriter,
+		IAccountCodeDelivery codeDelivery)
 	{
-		_connectionString = configuration.GetConnectionString("DefaultConnection")
-			?? throw new InvalidOperationException("DefaultConnection is not configured.");
+		_connectionString = configuration.GetConnectionString(AccountConfigurationKeys.ConnectionStringName)
+		                    ?? throw new InvalidOperationException($"{AccountConfigurationKeys.ConnectionStringName} is not configured.");
 
 		_passwordHasher = passwordHasher;
 		_auditWriter = auditWriter;
+		_codeDelivery = codeDelivery;
 	}
 
 	public async Task<AccountServiceResult<AccountOperationResponse>> RegisterAsync(
@@ -119,6 +123,16 @@ public sealed class AccountService : IAccountService
 
 			await transaction.CommitAsync(cancellationToken);
 
+			await _codeDelivery.DeliverAsync(
+				new AccountCodeDeliveryCommand(
+					accountId,
+					AccountCodePurposes.RegistrationVerification,
+					AccountDestinationTypes.Email,
+					normalizedEmail,
+					verificationCode,
+					correlationId),
+				cancellationToken);
+				
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 				AccountAuditEvents.RegistrationCreated,
 				AccountOutcomes.Succeeded,
@@ -563,6 +577,16 @@ public sealed class AccountService : IAccountService
 			correlationId,
 			cancellationToken);
 
+		await _codeDelivery.DeliverAsync(
+			new AccountCodeDeliveryCommand(
+				accountId.Value,
+				AccountCodePurposes.UsernameRecovery,
+				AccountDestinationTypes.Email,
+				normalizedEmail,
+				recoveryCode,
+				correlationId),
+			cancellationToken);
+
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 			AccountAuditEvents.UsernameRecoveryRequested,
 			AccountOutcomes.Succeeded,
@@ -665,6 +689,16 @@ public sealed class AccountService : IAccountService
 			normalizedIdentifier,
 			resetHash,
 			correlationId,
+			cancellationToken);
+
+		await _codeDelivery.DeliverAsync(
+			new AccountCodeDeliveryCommand(
+				accountId.Value,
+				AccountCodePurposes.PasswordReset,
+				AccountDestinationTypes.Email,
+				normalizedIdentifier,
+				resetCode,
+				correlationId),
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,

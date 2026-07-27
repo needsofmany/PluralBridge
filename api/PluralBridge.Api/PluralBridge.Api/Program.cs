@@ -57,6 +57,16 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IAccountAuditWriter, SqlAccountAuditWriter>();
+
+if (builder.Environment.IsDevelopment())
+{
+	builder.Services.AddScoped<IAccountCodeDelivery, DevelopmentAccountCodeDelivery>();
+}
+else
+{
+	builder.Services.AddScoped<IAccountCodeDelivery, DisabledAccountCodeDelivery>();
+}
+
 builder.Services.AddScoped<IAccountService, AccountService>();
 
 var app = builder.Build();

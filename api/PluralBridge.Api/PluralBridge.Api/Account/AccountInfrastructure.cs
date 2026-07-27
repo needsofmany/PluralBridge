@@ -121,10 +121,11 @@ public sealed class SqlAccountAuditWriter : IAccountAuditWriter
 {
 	private readonly string _connectionString;
 
+	// ReSharper disable once ConvertToPrimaryConstructor
 	public SqlAccountAuditWriter(IConfiguration configuration)
 	{
-		_connectionString = configuration.GetConnectionString("DefaultConnection")
-			?? throw new InvalidOperationException("DefaultConnection is not configured.");
+		_connectionString = configuration.GetConnectionString(AccountConfigurationKeys.ConnectionStringName)
+		                    ?? throw new InvalidOperationException($"{AccountConfigurationKeys.ConnectionStringName} is not configured.");
 	}
 
 	public async Task WriteAsync(AccountAuditCommand command, CancellationToken cancellationToken)

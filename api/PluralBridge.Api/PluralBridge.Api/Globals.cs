@@ -7,8 +7,8 @@ namespace PluralBridge.Api
 		/// <summary>
 		/// Application info
 		/// </summary>
-		internal const string connectionString = ("PluralBridgeProof");
-		internal const string projectPhase = "Phase 3";
+		internal const string connectionString = ("PluralBridgeChap2SafeSpine");
+		internal const string projectPhase = "Account Implementation";
 		internal const string roProof = "read-only proof";
 
 		/// <summary>
