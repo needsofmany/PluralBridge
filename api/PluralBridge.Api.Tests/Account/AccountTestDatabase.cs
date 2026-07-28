@@ -574,4 +574,28 @@ internal static class AccountTestDatabase
 
 		await command.ExecuteNonQueryAsync();
 	}
+
+	internal static async Task<DateTime?> ReadLastLoginAtUtcAsync(Guid accountId)
+	{
+		var connectionString = GetConnectionString();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+		                   SELECT LastLoginAtUtc
+		                   FROM dbo.pb_accounts
+		                   WHERE AccountId = @AccountId;
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+
+		var result = await command.ExecuteScalarAsync();
+
+		return result is DBNull or null
+			? null
+			: (DateTime)result;
+	}
 }
