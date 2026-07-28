@@ -598,4 +598,62 @@ internal static class AccountTestDatabase
 			? null
 			: (DateTime)result;
 	}
+
+	internal static async Task<int> CountAccountCodeRowsByPurposeAndDestinationAsync(
+		string codePurpose,
+		string destinationType,
+		string destinationNormalized)
+	{
+		var connectionString = GetConnectionString();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+	                   SELECT COUNT_BIG(1)
+	                   FROM dbo.pb_account_codes
+	                   WHERE CodePurpose = @CodePurpose
+	                   	AND DestinationType = @DestinationType
+	                   	AND DestinationNormalized = @DestinationNormalized;
+	                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@CodePurpose", codePurpose);
+		command.Parameters.AddWithValue("@DestinationType", destinationType);
+		command.Parameters.AddWithValue("@DestinationNormalized", destinationNormalized);
+
+		var result = await command.ExecuteScalarAsync();
+
+		return Convert.ToInt32(result);
+	}
+
+	internal static async Task<int> CountCodeDeliveryOutboxRowsByPurposeAndDestinationAsync(
+		string codePurpose,
+		string destinationType,
+		string destinationNormalized)
+	{
+		var connectionString = GetConnectionString();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+	                   SELECT COUNT_BIG(1)
+	                   FROM dbo.pb_account_code_delivery_outbox
+	                   WHERE CodePurpose = @CodePurpose
+	                   	AND DestinationType = @DestinationType
+	                   	AND DestinationNormalized = @DestinationNormalized;
+	                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@CodePurpose", codePurpose);
+		command.Parameters.AddWithValue("@DestinationType", destinationType);
+		command.Parameters.AddWithValue("@DestinationNormalized", destinationNormalized);
+
+		var result = await command.ExecuteScalarAsync();
+
+		return Convert.ToInt32(result);
+	}
 }
