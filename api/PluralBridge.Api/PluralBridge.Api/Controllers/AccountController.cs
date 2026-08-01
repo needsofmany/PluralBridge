@@ -1,18 +1,17 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using PluralBridge.Api.Account;
-using Microsoft.AspNetCore.Authorization;
 
 namespace PluralBridge.Api.Controllers;
 
-
 [ApiController]
-[Route("api/account")]
+[Route(Globals.accountRouteRoot)]
 public sealed class AccountController(IAccountService accountService) : ControllerBase
 {
 	[AllowAnonymous]
-	[HttpPost("register")]
+	[HttpPost(Globals.registerEndpointSegment)]
 	public async Task<ActionResult<AccountOperationResponse>> Register(
-			[FromBody] RegisterAccountRequest request,
+		[FromBody] RegisterAccountRequest request,
 		CancellationToken cancellationToken)
 	{
 		var result = await accountService.RegisterAsync(request, cancellationToken);
@@ -32,9 +31,9 @@ public sealed class AccountController(IAccountService accountService) : Controll
 	}
 
 	[AllowAnonymous]
-	[HttpPost("verify-registration")]
+	[HttpPost(Globals.verifyRegistrationEndpointSegment)]
 	public async Task<ActionResult<AccountOperationResponse>> VerifyRegistration(
-			[FromBody] VerifyRegistrationRequest request,
+		[FromBody] VerifyRegistrationRequest request,
 		CancellationToken cancellationToken)
 	{
 		var result = await accountService.VerifyRegistrationAsync(request, cancellationToken);
@@ -54,9 +53,9 @@ public sealed class AccountController(IAccountService accountService) : Controll
 	}
 
 	[AllowAnonymous]
-	[HttpPost("login")]
+	[HttpPost(Globals.loginEndpointSegment)]
 	public async Task<ActionResult<LoginResponse>> Login(
-			[FromBody] LoginRequest request,
+		[FromBody] LoginRequest request,
 		CancellationToken cancellationToken)
 	{
 		var result = await accountService.LoginAsync(request, cancellationToken);
@@ -77,7 +76,7 @@ public sealed class AccountController(IAccountService accountService) : Controll
 	}
 
 	[AllowAnonymous]
-	[HttpPost("forgot-username")]
+	[HttpPost(Globals.forgotUsernameEndpointSegment)]
 	public async Task<ActionResult<AccountOperationResponse>> ForgotUsername(
 		[FromBody] ForgotUsernameRequest request,
 		CancellationToken cancellationToken)
@@ -99,12 +98,34 @@ public sealed class AccountController(IAccountService accountService) : Controll
 	}
 
 	[AllowAnonymous]
-	[HttpPost("forgot-password")]
+	[HttpPost(Globals.forgotPasswordEndpointSegment)]
 	public async Task<ActionResult<AccountOperationResponse>> ForgotPassword(
-			[FromBody] ForgotPasswordRequest request,
+		[FromBody] ForgotPasswordRequest request,
 		CancellationToken cancellationToken)
 	{
 		var result = await accountService.ForgotPasswordAsync(request, cancellationToken);
+
+		if (result is { Succeeded: true, Value: not null })
+		{
+			return Ok(result.Value);
+		}
+
+		var response = new AccountOperationResponse(
+			false,
+			result.Outcome,
+			result.ReasonCode,
+			result.Message);
+
+		return BadRequest(response);
+	}
+
+	[AllowAnonymous]
+	[HttpPost(Globals.resetPasswordEndpointSegment)]
+	public async Task<ActionResult<AccountOperationResponse>> ResetPassword(
+		[FromBody] ResetPasswordRequest request,
+		CancellationToken cancellationToken)
+	{
+		var result = await accountService.ResetPasswordAsync(request, cancellationToken);
 
 		if (result is { Succeeded: true, Value: not null })
 		{

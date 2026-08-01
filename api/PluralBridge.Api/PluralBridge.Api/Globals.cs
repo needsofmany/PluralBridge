@@ -53,6 +53,13 @@ namespace PluralBridge.Api
 		internal const string sourceRecordsEndpointSegment = "source-records";
 		internal const string sourceSystemsEndpointSegment = "source-systems";
 		internal const string routeMemberId = "{memberId:guid}";
+		internal const string accountEndpointSegment = "account";
+		internal const string registerEndpointSegment = "register";
+		internal const string verifyRegistrationEndpointSegment = "verify-registration";
+		internal const string loginEndpointSegment = "login";
+		internal const string forgotUsernameEndpointSegment = "forgot-username";
+		internal const string forgotPasswordEndpointSegment = "forgot-password";
+		internal const string resetPasswordEndpointSegment = "reset-password";
 
 		/// <summary>
 		/// API routes
@@ -68,6 +75,7 @@ namespace PluralBridge.Api
 		internal const string sourceSystemsRoute = $"api/{sourceSystemsEndpointSegment}";
 		internal const string sourceSystemsEndpoint = $"/api/{sourceSystemsEndpointSegment}";
 		internal const string memberRoute = $"{membersRoute}/{routeMemberId}";
+		internal const string accountRouteRoot = $"api/{accountEndpointSegment}";
 	}
 
 	internal enum LogStageParts
