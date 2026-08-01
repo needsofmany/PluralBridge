@@ -124,33 +124,43 @@ internal static class AccountRepository
 			: null;
 	}
 
-	internal static async Task<Guid?> ReadAccountIdByNormalizedIdentifierForPasswordResetAsync(
+	internal static async Task<PasswordResetAccountRecord?> ReadPasswordResetAccountAsync(
 		SqlConnection connection,
 		string normalizedIdentifier,
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-        SELECT TOP (1)
-            AccountId
-        FROM dbo.pb_accounts
-        WHERE AccountStatusId = 1
-          AND IsEmailVerified = 1
-          AND
-          (
-              NormalizedUsername = @NormalizedIdentifier
-              OR NormalizedEmail = @NormalizedIdentifier
-          );
-        """;
+		                   SELECT TOP (1)
+		                       AccountId,
+		                       NormalizedEmail
+		                   FROM dbo.pb_accounts
+		                   WHERE AccountStatusId = 1
+		                     AND IsEmailVerified = 1
+		                     AND
+		                     (
+		                         NormalizedUsername = @NormalizedIdentifier
+		                         OR NormalizedEmail = @NormalizedIdentifier
+		                     );
+		                   """;
 
 		await using var command = new SqlCommand(sql, connection);
 		command.Parameters.AddWithValue("@NormalizedIdentifier", normalizedIdentifier);
 
-		var result = await command.ExecuteScalarAsync(cancellationToken);
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-		return result is Guid accountId
-			? accountId
-			: null;
+		if (!await reader.ReadAsync(cancellationToken))
+		{
+			return null;
+		}
+
+		return new PasswordResetAccountRecord(
+			reader.GetGuid(0),
+			reader.GetString(1));
 	}
+
+	internal sealed record PasswordResetAccountRecord(
+		Guid AccountId,
+		string NormalizedEmail);
 
 	internal static async Task<LoginAccountRecord?> ReadPasswordChangeAccountAsync(
 		SqlConnection connection,

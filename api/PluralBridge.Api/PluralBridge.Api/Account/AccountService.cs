@@ -625,7 +625,6 @@ public sealed class AccountService : IAccountService
 				"If the account can be found, recovery instructions will be sent."),
 				"If the account can be found, recovery instructions will be sent.");
 	}
-
 	public async Task<AccountServiceResult<AccountOperationResponse>> ForgotPasswordAsync(
 		ForgotPasswordRequest request,
 		CancellationToken cancellationToken)
@@ -654,12 +653,12 @@ public sealed class AccountService : IAccountService
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken);
 
-		var accountId = await AccountRepository.ReadAccountIdByNormalizedIdentifierForPasswordResetAsync(
+		var account = await AccountRepository.ReadPasswordResetAccountAsync(
 			connection,
 			normalizedIdentifier,
 			cancellationToken);
 
-		if (accountId is null)
+		if (account is null)
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 				AccountAuditEvents.PasswordResetRequested,
@@ -685,18 +684,18 @@ public sealed class AccountService : IAccountService
 
 		await AccountCodeService.InsertPasswordResetCodeAsync(
 			connection,
-			accountId.Value,
-			normalizedIdentifier,
+			account.AccountId,
+			account.NormalizedEmail,
 			resetHash,
 			correlationId,
 			cancellationToken);
 
 		await _codeDelivery.DeliverAsync(
 			new AccountCodeDeliveryCommand(
-				accountId.Value,
+				account.AccountId,
 				AccountCodePurposes.PasswordReset,
 				AccountDestinationTypes.Email,
-				normalizedIdentifier,
+				account.NormalizedEmail,
 				resetCode,
 				correlationId),
 			cancellationToken);
@@ -705,8 +704,8 @@ public sealed class AccountService : IAccountService
 			AccountAuditEvents.PasswordResetRequested,
 			AccountOutcomes.Succeeded,
 			AccountReasonCodes.None,
-			accountId.Value,
-			accountId.Value,
+			account.AccountId,
+			account.AccountId,
 			correlationId,
 			"password_reset",
 			cancellationToken);
@@ -715,8 +714,8 @@ public sealed class AccountService : IAccountService
 			AccountAuditEvents.PasswordResetIssued,
 			AccountOutcomes.Succeeded,
 			AccountReasonCodes.None,
-			accountId.Value,
-			accountId.Value,
+			account.AccountId,
+			account.AccountId,
 			correlationId,
 			"password_reset",
 			cancellationToken);
@@ -725,8 +724,8 @@ public sealed class AccountService : IAccountService
 			AccountAuditEvents.CodeIssued,
 			AccountOutcomes.Succeeded,
 			AccountReasonCodes.None,
-			accountId.Value,
-			accountId.Value,
+			account.AccountId,
+			account.AccountId,
 			correlationId,
 			"password_reset",
 			cancellationToken);
@@ -739,6 +738,7 @@ public sealed class AccountService : IAccountService
 				"If the account can be found, password reset instructions will be sent."),
 			"If the account can be found, password reset instructions will be sent.");
 	}
+
 	public async Task<AccountServiceResult<AccountOperationResponse>> ResetPasswordAsync(
 		ResetPasswordRequest request,
 		CancellationToken cancellationToken)
@@ -1115,5 +1115,4 @@ public sealed class AccountService : IAccountService
 			&& request.DisplayName.Trim().Length <= 200
 			&& request.Password.Length >= 12;
 	}
-
 }
