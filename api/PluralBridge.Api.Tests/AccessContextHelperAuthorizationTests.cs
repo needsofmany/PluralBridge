@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using PluralBridge.Api.Tests;
+using Xunit;
 
 // ReSharper disable once CheckNamespace
 namespace PluralBridge.Api.Controllers;
@@ -19,7 +20,7 @@ public sealed class AccessContextHelperAuthorizationTests
 					systemId,
 					systemMembershipId,
 					isActive: true,
-					statusName: "Active")
+					statusName: TestGlobals.AccessContextHelperAuthorization.ActiveStatusName)
 			]);
 
 		var isAuthorized = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
@@ -41,7 +42,7 @@ public sealed class AccessContextHelperAuthorizationTests
 					systemId,
 					systemMembershipId,
 					isActive: true,
-					statusName: "active")
+					statusName: TestGlobals.AccessContextHelperAuthorization.ActiveStatusNameLowercase)
 			]);
 
 		var isAuthorized = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
@@ -75,7 +76,7 @@ public sealed class AccessContextHelperAuthorizationTests
 					Guid.NewGuid(),
 					systemMembershipId,
 					isActive: true,
-					statusName: "Active")
+					statusName: TestGlobals.AccessContextHelperAuthorization.ActiveStatusName)
 			]);
 
 		var isAuthorized = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
@@ -96,7 +97,7 @@ public sealed class AccessContextHelperAuthorizationTests
 					systemId,
 					Guid.NewGuid(),
 					isActive: true,
-					statusName: "Active")
+					statusName: TestGlobals.AccessContextHelperAuthorization.ActiveStatusName)
 			]);
 
 		var isAuthorized = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
@@ -118,7 +119,7 @@ public sealed class AccessContextHelperAuthorizationTests
 					systemId,
 					systemMembershipId,
 					isActive: false,
-					statusName: "Active")
+					statusName: TestGlobals.AccessContextHelperAuthorization.ActiveStatusName)
 			]);
 
 		var isAuthorized = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
@@ -140,7 +141,7 @@ public sealed class AccessContextHelperAuthorizationTests
 					systemId,
 					systemMembershipId,
 					isActive: true,
-					statusName: "Inactive")
+					statusName: TestGlobals.AccessContextHelperAuthorization.InactiveStatusName)
 			]);
 
 		var isAuthorized = AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext);
@@ -155,21 +156,21 @@ public sealed class AccessContextHelperAuthorizationTests
 	{
 		var account = new AccessContextHelper.Account(
 			Guid.NewGuid(),
-			"demo@thepluralbridge.local",
-			"Demo Account",
-			1,
+			TestGlobals.AccessContextHelperAuthorization.AccountEmail,
+			TestGlobals.AccessContextHelperAuthorization.DemoAccountDisplayName,
+			TestGlobals.AccessContextHelperAuthorization.ActiveStatusId,
 			new AccessContextHelper.AccountStatus(
-				1,
-				"Active",
-				"Active",
-				1,
+				TestGlobals.AccessContextHelperAuthorization.ActiveStatusId,
+				TestGlobals.AccessContextHelperAuthorization.ActiveStatusName,
+				TestGlobals.AccessContextHelperAuthorization.ActiveStatusName,
+				TestGlobals.AccessContextHelperAuthorization.DisplayOrder,
 				true),
 			DateTime.UtcNow,
 			null);
 
 		var currentSystem = new AccessContextHelper.CurrentSystem(
 			currentSystemId,
-			"Current System",
+			TestGlobals.AccessContextHelperAuthorization.CurrentSystemName,
 			currentSystemMembershipId);
 
 		return new AccessContextHelper.AccessContext(
@@ -185,17 +186,17 @@ public sealed class AccessContextHelperAuthorizationTests
 		string statusName)
 	{
 		var membershipStatus = new AccessContextHelper.MembershipStatus(
-			1,
+			TestGlobals.AccessContextHelperAuthorization.ActiveStatusId,
 			statusName,
 			statusName,
-			1,
+			TestGlobals.AccessContextHelperAuthorization.DisplayOrder,
 			isActive);
 
 		return new AccessContextHelper.SystemMembership(
 			systemMembershipId,
 			Guid.NewGuid(),
 			systemId,
-			1,
+			TestGlobals.AccessContextHelperAuthorization.ActiveStatusId,
 			membershipStatus,
 			[],
 			DateTime.UtcNow,

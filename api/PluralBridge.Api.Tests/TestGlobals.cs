@@ -51,4 +51,18 @@ internal static class TestGlobals
 
 		public const string CurrentSystemName = "Test System";
 	}
+	internal static class AccessContextHelperAuthorization
+	{
+		public const int ActiveStatusId = 1;
+		public const int DisplayOrder = 1;
+
+		public const string ActiveStatusName = "Active";
+		public const string ActiveStatusNameLowercase = "active";
+		public const string InactiveStatusName = "Inactive";
+
+		public const string AccountEmail = "demo@thepluralbridge.local";
+		public const string DemoAccountDisplayName = "Demo Account";
+		public const string CurrentSystemName = "Current System";
+	}
+
 }
