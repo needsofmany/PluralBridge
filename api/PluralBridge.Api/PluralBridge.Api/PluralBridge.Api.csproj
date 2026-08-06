@@ -7,6 +7,10 @@
     <UserSecretsId>0c5e5be9-ad3c-4c2c-a7fb-5eef146bda38</UserSecretsId>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>$(DefineConstants);DEBUG_MODE</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />

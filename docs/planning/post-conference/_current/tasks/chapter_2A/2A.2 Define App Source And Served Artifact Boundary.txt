@@ -1,0 +1,82 @@
+Chapter 3 Task 2A.2
+Define App Source And Served Artifact Boundary
+
+Purpose
+
+This step defines where the browser app source lives and where the API-served static app artifact lives.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Source Boundary
+
+The browser app source of truth is:
+
+app/src
+
+New browser app source files should move toward app/src.
+The app source should use ordinary files and folders.
+The app source should remain easy to edit in Visual Studio 2022.
+The app source should not become owned by the ASP.NET compile path.
+
+Served Artifact Boundary
+
+The API-served static browser app artifact path is:
+
+api/PluralBridge.Api/PluralBridge.Api/wwwroot/app
+
+The ASP.NET API may serve static files from this path.
+The served artifact path remains the runtime location used by the protected browser app.
+The served artifact path is not the primary browser app source boundary.
+
+Ownership Rule
+
+app/src is source.
+wwwroot/app is served artifact.
+
+The API project may serve the app.
+The API project does not own the frontend architecture.
+The C# project does not compile browser source files.
+The browser source remains structurally independent from ASP.NET runtime code.
+
+Copy Or Build Path
+
+A later implementation step will define the exact copy or build command.
+
+The expected direction is simple and scriptable:
+
+source files are maintained under app/src
+served files are copied or built into wwwroot/app
+the served app remains available through the ASP.NET static file path
+
+This keeps deployment simple while avoiding long-term growth inside one app.js and one app.css.
+
+Visual Studio Boundary
+
+Visual Studio 2022 may show the app source files for editing.
+Visual Studio 2022 may show the served app files for inspection.
+
+Visual Studio solution visibility does not mean ASP.NET compile ownership.
+Visual Studio is the workbench.
+The app folder structure remains the frontend boundary.
+
+Runtime Boundary
+
+This step does not move files.
+This step does not create app/src.
+This step does not copy files into wwwroot/app.
+This step does not change static file serving.
+This step does not change any browser behavior.
+
+Done When
+
+App source folder is chosen.
+Served app folder is identified.
+app/src is named as the browser app source of truth.
+wwwroot/app is named as the served artifact path.
+API static serving remains supported.
+App source does not become owned by the ASP.NET compile path.

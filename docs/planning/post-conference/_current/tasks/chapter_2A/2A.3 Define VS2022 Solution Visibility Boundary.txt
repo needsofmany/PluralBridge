@@ -1,0 +1,85 @@
+Chapter 3 Task 2A.3
+Define VS2022 Solution Visibility Boundary
+
+Purpose
+
+This step defines how the browser app remains editable in Visual Studio 2022 without becoming a .NET frontend.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+VS2022 Editing Rule
+
+The browser app source should remain easy to edit in Visual Studio 2022.
+
+Visual Studio is allowed to show browser app source files.
+Visual Studio is allowed to show browser app served files.
+Visual Studio is the editor and workbench for this workflow.
+
+Solution Visibility Rule
+
+Browser source files may be visible in the Visual Studio solution.
+
+Solution visibility is for editing and navigation.
+Solution visibility does not mean the C# project owns the browser app.
+Solution visibility does not make the browser app a .NET frontend.
+
+ASP.NET Compile Boundary
+
+Browser source files are not compiled by the C# project.
+Browser source files are not part of the ASP.NET runtime compile path.
+The API project may serve copied or built browser artifacts.
+The API project does not define the browser app source architecture.
+
+Frontend Structure Rule
+
+The frontend architecture remains ordinary files and folders.
+
+The intended source layout remains:
+
+app/src
+
+The intended served artifact path remains:
+
+api/PluralBridge.Api/PluralBridge.Api/wwwroot/app
+
+No MS-Specific Frontend Framework Dependency
+
+Task 2A does not introduce a Microsoft-specific frontend framework dependency.
+Task 2A does not introduce Blazor.
+Task 2A does not introduce Razor Pages as the browser app model.
+Task 2A does not introduce MVC views as the browser app model.
+
+The browser app remains a static frontend unless a later task explicitly changes that decision.
+
+Practical Workflow
+
+The preferred workflow is:
+
+edit browser app source in VS2022
+keep browser source under app/src
+copy or build browser output into wwwroot/app
+let ASP.NET serve the static artifact
+
+This preserves the current VS2022 editing convenience while preventing app.js and app.css from continuing as long-term dumping grounds.
+
+Runtime Boundary
+
+This step does not modify the .sln file.
+This step does not modify any .csproj file.
+This step does not create app/src.
+This step does not move browser files.
+This step does not change browser behavior.
+
+Done When
+
+VS2022 editing is explicitly supported.
+Browser source files may be visible in the solution.
+Browser source files are not compiled by the C# project.
+Visual Studio is defined as editor/workbench only.
+Frontend architecture remains ordinary files and folders.
+No MS-specific frontend framework dependency is introduced.

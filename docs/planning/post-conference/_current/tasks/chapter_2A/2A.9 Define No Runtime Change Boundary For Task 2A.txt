@@ -1,0 +1,106 @@
+Chapter 3 Task 2A.9
+Define No Runtime Change Boundary For Task 2A
+
+Purpose
+
+This step records that Task 2A is structure planning only.
+
+Task 2A defines the protected browser app structure before member read, add, and edit browser work expands.
+
+Task 2A does not implement runtime behavior.
+
+Task 2A Boundary
+
+Task 2A defines the browser app structure plan for later implementation.
+
+The plan covers:
+
+app source and served artifact boundary
+VS2022 solution visibility boundary
+browser app module layout
+CSS structure
+member UI functional pattern
+Developer Tools panel boundary
+Chapter 3 browser refactor path
+
+No SQL Runtime Behavior
+
+Task 2A does not add SQL behavior.
+
+Task 2A does not create tables.
+Task 2A does not alter tables.
+Task 2A does not add stored procedures.
+Task 2A does not add triggers.
+Task 2A does not change member schema.
+Task 2A does not change audit schema.
+Task 2A does not change privacy bucket schema.
+
+No C# Runtime Behavior
+
+Task 2A does not add C# runtime behavior.
+
+Task 2A does not change controllers.
+Task 2A does not change AccessContextHelper.
+Task 2A does not change RequestTraceContext.
+Task 2A does not change Program.cs.
+Task 2A does not add request models.
+Task 2A does not add response models.
+Task 2A does not add validation code.
+Task 2A does not add audit code.
+
+No Browser Runtime Behavior
+
+Task 2A does not add browser runtime behavior.
+
+Task 2A does not create app/src.
+Task 2A does not move app.js.
+Task 2A does not move app.css.
+Task 2A does not add JavaScript modules.
+Task 2A does not add CSS files.
+Task 2A does not add dialogs.
+Task 2A does not add side panels.
+Task 2A does not move test buttons.
+Task 2A does not add a Developer Tools panel.
+
+No app.js Or app.css Behavior Change
+
+Task 2A does not change app.js behavior.
+Task 2A does not change app.css behavior.
+
+Task 2A names the future refactor direction.
+Task 2A does not perform the refactor.
+
+No /api/me Behavior Change
+
+Task 2A does not change /api/me behavior.
+
+The existing protected-session proof path remains unchanged.
+The existing current account behavior remains unchanged.
+The existing membershipAccess behavior remains unchanged.
+The existing currentSystem behavior remains unchanged.
+The existing canWrite behavior remains unchanged.
+
+Output Usability
+
+Task 2A output is usable by later Chapter 3 browser follow-through work.
+
+Task 5 can use Task 2A to refactor member read UI into the modular structure.
+Task 6 can use Task 2A to add member creation UI through a dialog or side panel.
+Task 7 can use Task 2A to add member edit UI through a dialog or side panel.
+Task 8 can use Task 2A to unify the protected member screen and separate Developer Tools from normal user UI.
+
+Task 2A Completion Boundary
+
+Task 2A is complete when all Task 2A planning notes are staged, committed, and pushed.
+
+Task 2A completion does not mean the browser app has been refactored.
+Task 2A completion means the protected browser app structure plan is defined.
+
+Done When
+
+No SQL behavior is added.
+No C# runtime behavior is added.
+No browser runtime behavior is added.
+No app.js/app.css behavior changes are made.
+No /api/me behavior changes are made.
+Task 2A output is usable by Task 5, Task 6, Task 7, and Task 8.

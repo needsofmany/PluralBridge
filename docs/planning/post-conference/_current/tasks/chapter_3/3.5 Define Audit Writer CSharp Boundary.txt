@@ -1,0 +1,146 @@
+Chapter 3 Task 3.5
+Define Audit Writer CSharp Boundary
+
+Purpose
+
+This step defines the C# helper boundary that later member add and member edit endpoints will use to write audit records.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Helper Name
+
+The minimal C# audit writer helper is named:
+
+MemberWriteAuditWriter
+
+The helper writes one minimal audit event for a successful member write.
+The helper does not define a full audit subsystem.
+The helper does not expose audit internals to the browser.
+
+Helper Responsibility
+
+MemberWriteAuditWriter owns inserting rows into:
+
+dbo.pb_member_write_audit
+
+The helper is used after a protected member write succeeds.
+
+The helper is intended for:
+
+member.add
+member.edit
+
+The helper is not intended for validation failures.
+The helper is not intended for failed authorization attempts in Chapter 3.
+The helper is not intended for audit search or reporting.
+
+Input Shape
+
+The helper input should include:
+
+AccessContext
+RequestTraceContext
+target MemberId
+operation
+
+The helper derives audit values from server-owned context.
+
+AccessContext-Derived Values
+
+The helper uses AccessContext to resolve:
+
+SystemId
+AccountId
+SystemMembershipId when available
+
+The browser does not provide these values as audit authority.
+
+RequestTraceContext-Derived Values
+
+The helper uses RequestTraceContext to resolve:
+
+RequestTraceId when available
+
+The browser does not provide authoritative audit trace identity.
+
+Target Member
+
+The helper requires target MemberId.
+
+For member add, MemberId is the created member id.
+For member edit, MemberId is the edited member id.
+
+Operation
+
+The helper requires operation.
+
+Allowed Chapter 3 operations are:
+
+member.add
+member.edit
+
+The helper should reject unsupported operation values before inserting an audit row.
+
+Browser-Owned Audit Input Rejection
+
+The helper does not accept browser-owned audit fields.
+
+The helper does not accept browser-supplied:
+
+SystemId
+AccountId
+SystemMembershipId
+CreatedAtUtc
+audit actor identity
+audit timestamp
+audit correlation authority
+
+Sensitive Content Boundary
+
+The helper does not duplicate sensitive member content.
+
+The helper does not write:
+
+member description body
+full member JSON
+before-value field dump
+after-value field dump
+privacy-sensitive member detail beyond the identifiers required for audit
+
+Browser Response Boundary
+
+The helper does not return audit internals to the browser.
+
+Member add and member edit responses may include the normal success response and trace id.
+They do not need to expose the audit row.
+
+Endpoint Wiring Boundary
+
+Task 3 defines and adds the audit writer.
+Task 3 does not wire it to member add or member edit endpoints yet.
+
+Member add wiring belongs with the member add endpoint task.
+Member edit wiring belongs with the member edit endpoint task.
+
+Runtime Boundary
+
+This step does not add the C# helper file.
+This step does not change controllers.
+This step does not insert audit rows.
+This step does not add endpoint behavior.
+This step does not add tests.
+
+Done When
+
+Helper name is chosen.
+Helper input shape is defined.
+Helper uses AccessContext-derived values.
+Helper uses RequestTraceContext-derived values.
+Helper does not accept browser-owned audit fields.
+Helper does not expose audit internals to the browser.
+Helper is not yet wired to member add/edit endpoints.
