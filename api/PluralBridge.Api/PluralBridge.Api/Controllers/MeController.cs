@@ -29,24 +29,24 @@ public sealed class MeController(
 	{
 		var requestTrace = RequestTraceContext.Create(
 			HttpContext.TraceIdentifier,
-			HttpContext.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId)
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
 				? correlationId.ToString()
 				: null);
 
 		try
 		{
 			// get info to connect to the database
-			var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
 			if (string.IsNullOrWhiteSpace(connectionString))
 			{
 				requestTrace.LogStage(
 					logger,
-					"error_path",
-					"reached");
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
 
 				return Problem(
-					title: "Missing connection string",
-					detail: "ConnectionStrings:PluralBridgeProof was not found.",
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
 					statusCode: StatusCodes.Status500InternalServerError);
 			}
 
@@ -65,12 +65,12 @@ public sealed class MeController(
 			{
 				requestTrace.LogStage(
 					logger,
-					"error_path",
-					"reached");
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
 
 				return Problem(
-					title: "Current access context not found",
-					detail: "The configured Chapter 2 current account could not be resolved.",
+					title: Globals.currContextNotFound,
+					detail: Globals.currConfiguredAccount,
 					statusCode: StatusCodes.Status500InternalServerError);
 			}
 
@@ -89,12 +89,12 @@ public sealed class MeController(
 			{
 				requestTrace.LogStage(
 					logger,
-					"error_path",
-					"reached");
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
 
 				return Problem(
-					title: "Not authorized for current system",
-					detail: "The current account does not have active membership access to the resolved current system.",
+					title: Globals.currentSystemNoAuth,
+					detail: Globals.noActiveMembershipAccess,
 					statusCode: StatusCodes.Status403Forbidden);
 			}
 
@@ -102,8 +102,8 @@ public sealed class MeController(
 
 			requestTrace.LogStage(
 				logger,
-				"data_access",
-				"started");
+				nameof(LogStageParts.data_access),
+				nameof(LogStageParts.started));
 
 			Dictionary<string, long> counts;
 			ProofSystem? proofSystem;
@@ -117,8 +117,8 @@ public sealed class MeController(
 
 				requestTrace.LogStage(
 					logger,
-					"data_access",
-					"completed",
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.completed),
 					dataAccessStopwatch.Elapsed);
 			}
 			catch
@@ -127,23 +127,23 @@ public sealed class MeController(
 
 				requestTrace.LogStage(
 					logger,
-					"data_access",
-					"failed",
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.failed),
 					dataAccessStopwatch.Elapsed);
 
 				requestTrace.LogStage(
 					logger,
-					"error_path",
-					"reached");
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
 
 				throw;
 			}
 
 			return Ok(new
 			{
-				api = "PluralBridge.Api",
-				phase = "Phase 2B",
-				mode = "read-only proof",
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				mode = Globals.roProof,
 				database = databaseName,
 				canWrite = false,
 				currentAccount,
@@ -157,12 +157,12 @@ public sealed class MeController(
 		{
 			requestTrace.LogStage(
 				logger,
-				"error_path",
-				"reached");
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
 
 			return Problem(
-				title: "Request failed",
-				detail: "The request failed while resolving the Chapter 2 access context.",
+				title: Globals.requestFailed,
+				detail: Globals.currConfiguredAccount,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 	}
@@ -189,15 +189,15 @@ public sealed class MeController(
 
 		string[] names =
 		[
-			"sourceSystems",
-			"importBatches",
-			"systems",
-			"members",
-			"privacyBuckets",
-			"customFields",
-			"frontHistory",
-			"sourceRecords",
-			"sourceIdMappings"
+			nameof(CountKeys.sourceSystems),
+			nameof(CountKeys.importBatches),
+			nameof(CountKeys.systems),
+			nameof(CountKeys.members),
+			nameof(CountKeys.privacyBuckets),
+			nameof(CountKeys.customFields),
+			nameof(CountKeys.frontHistory),
+			nameof(CountKeys.sourceRecords),
+			nameof(CountKeys.sourceIdMappings)
 		];
 
 		Dictionary<string, long> counts = new();

@@ -1,15 +1,18 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using System.Diagnostics;
 
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the read-only source systems endpoint for the Phase 2B proof surface.
+/// Provides the read-only source systems endpoint for the Phase 3 proof surface.
 /// Source systems identify the external application families represented in the import data.
 /// </summary>
 [ApiController]
-[Route("api/source-systems")]
-public sealed class SourceSystemsController(IConfiguration configuration) : ControllerBase
+[Route(Globals.sourceSystemsRoute)]
+public sealed class SourceSystemsController(
+	IConfiguration configuration,
+	ILogger<SourceSystemsController> logger) : ControllerBase
 {
 	/// <summary>
 	/// Returns all source systems present in the validated proof database.
@@ -21,30 +24,127 @@ public sealed class SourceSystemsController(IConfiguration configuration) : Cont
 	[HttpGet]
 	public async Task<IActionResult> Get()
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+				? correlationId.ToString()
+				: null);
 
-		if (string.IsNullOrWhiteSpace(connectionString))
+		try
 		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using var connection = new SqlConnection(connectionString);
+			await connection.OpenAsync();
+
+			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
+				connection,
+				requestTrace,
+				logger);
+
+			if (accessContext is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint = Globals.sourceSystemsEndpoint,
+					canWrite = false,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext))
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Forbid();
+			}
+
+			var dataAccessStopwatch = Stopwatch.StartNew();
+
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.data_access),
+				nameof(LogStageParts.started));
+
+			List<SourceSystem> sourceSystems;
+
+			try
+			{
+				sourceSystems = await ReadSourceSystemsAsync(connection);
+
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.completed),
+					dataAccessStopwatch.Elapsed);
+			}
+			catch
+			{
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.failed),
+					dataAccessStopwatch.Elapsed);
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				throw;
+			}
+
+			return Ok(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = Globals.sourceSystemsEndpoint,
+				canWrite = false,
+				systemId = accessContext.CurrentSystem.SystemId,
+				count = sourceSystems.Count,
+				sourceSystems
+			});
+
+		}
+		catch
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.requestFailed,
+				detail: Globals.currConfiguredAccount,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
-
-		await using var connection = new SqlConnection(connectionString);
-		await connection.OpenAsync();
-
-		var sourceSystems = await ReadSourceSystemsAsync(connection);
-
-		return Ok(new
-		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = "/api/source-systems",
-			canWrite = false,
-			count = sourceSystems.Count,
-			sourceSystems
-		});
 	}
 
 	/// <summary>

@@ -1,0 +1,131 @@
+Chapter 3 Task 2.5
+Define Server-Owned Member Fields
+
+Purpose
+
+This step defines which member fields are owned by the API/database rather than the browser request.
+
+This is a contract-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser behavior.
+It does not change /api/me behavior.
+
+Server-Owned Field Rule
+
+The browser may request user-editable member changes.
+The browser does not own enforcement fields.
+The browser does not own identity fields created by the API or database.
+The browser does not own audit, trace, or migration proof fields.
+
+SystemId
+
+SystemId is server-owned.
+
+The API resolves SystemId from AccessContext.
+The API uses the resolved SystemId to scope member reads.
+The API uses the resolved SystemId when adding a member.
+The API verifies the target member belongs to the resolved SystemId before editing.
+
+The browser cannot choose SystemId as authority.
+The browser cannot move a member between systems by sending SystemId.
+
+MemberId
+
+MemberId is server-owned for normal member add.
+
+The API or database creates MemberId for normal new member creation.
+The browser does not provide MemberId for normal add.
+
+For edit, MemberId identifies the target member.
+The edit request does not change MemberId.
+
+Future import or restore behavior may define explicit MemberId preservation, but that is outside the normal Chapter 3 add/edit contract.
+
+CreatedAtUtc
+
+CreatedAtUtc is server-owned.
+
+The API or database sets CreatedAtUtc when a member is created.
+The browser cannot set CreatedAtUtc.
+The browser cannot change CreatedAtUtc through normal member edit.
+
+UpdatedAtUtc
+
+UpdatedAtUtc is server-owned.
+
+The API or database sets UpdatedAtUtc when a member is created or edited.
+The browser cannot set UpdatedAtUtc.
+The browser cannot suppress UpdatedAtUtc changes for normal edit.
+
+Source And Import Identity Fields
+
+Source/import identity fields are protected.
+
+Normal member add does not accept source/import identity fields.
+Normal member edit does not overwrite source/import identity fields.
+
+Protected source/import fields may include:
+
+source system identity
+source record identity
+source id mapping identity
+import batch identity
+migration proof fields
+
+These fields preserve traceability from imported Simply Plural data or future import sources.
+
+Audit Fields
+
+Audit fields are server-owned.
+
+The browser cannot choose audit actor identity.
+The browser cannot choose audit timestamps.
+The browser cannot choose audit operation identity.
+The browser cannot choose audit correlation or trace identity.
+
+Audit values are derived from AccessContext, request trace context, API operation, and database behavior.
+
+Trace And Correlation Fields
+
+Trace and correlation fields are server-owned.
+
+The API creates or resolves request trace information.
+The browser may receive trace information in responses when useful.
+The browser does not create authoritative trace identity for enforcement or audit.
+
+Browser-Owned Input
+
+The browser may provide user-editable member fields only.
+
+Normal editable member fields may include:
+
+name or display/member name
+description
+privacy bucket value, when allowed by the Chapter 3 privacy bucket rule
+
+The browser input cannot set enforcement fields.
+The browser input cannot set protected identity fields.
+The browser input cannot set server-owned timestamp fields.
+The browser input cannot set audit fields.
+The browser input cannot set trace or correlation fields.
+
+Non-Runtime Boundary
+
+This step defines ownership rules only.
+
+It does not implement server-owned field enforcement.
+It does not add validation code.
+It does not add audit code.
+It does not add browser form behavior.
+
+Done When
+
+SystemId is server-owned.
+CreatedAtUtc is server-owned.
+UpdatedAtUtc is server-owned.
+Source/import identity fields are protected.
+Audit fields are server-owned.
+Trace/correlation fields are server-owned.
+Browser input cannot set enforcement fields.

@@ -1,0 +1,379 @@
+Simply Plural Groups — PluralBridge Notes
+Generated from the current chat.
+
+Scope
+-----
+This file captures the group-related information discussed in this chat:
+- What Simply Plural groups are.
+- Whether PluralBridge should support them on import.
+- API/export notes mentioned in the chat.
+- How the provided group JSON should map into database tables.
+- Modeling rules and cautions.
+
+1. What Simply Plural groups are
+--------------------------------
+In Simply Plural, a group is mainly an organizing container for members/alters/headmates.
+
+It is similar to a folder, category, collection, or organizational bucket inside one plural system.
+
+Examples of possible groups:
+- Subsystems
+- Frequent fronters
+- Littles
+- Protectors
+- Trauma holders
+- Hosts
+- Dormant members
+- Non-human members
+- Introjects
+- Family/relationship clusters
+- Custom organization buckets
+
+Important distinction:
+A Simply Plural group is not necessarily a separate system.
+
+A member being in a group does not automatically mean they have:
+- separate login rights
+- separate authorization
+- separate consent
+- a separate data boundary
+- a separate security boundary
+
+For PluralBridge terms:
+- Account = login/security principal
+- System = data container/security boundary
+- Membership = Account-to-System access grant
+- Group = system-internal organization of members
+
+A group should not replace System or Membership.
+
+Some Simply Plural users may use groups to represent subsystems. That is valid socially and organizationally, but PluralBridge should not assume that:
+SP group = PB System
+
+Safer rule:
+SP group imports as PB group.
+PB subsystem remains a separate future concept only if PluralBridge explicitly models system hierarchy.
+
+2. Should PluralBridge support groups on import?
+------------------------------------------------
+Yes, eventually, for data preservation.
+
+But:
+- Yes for data preservation.
+- No as a security boundary.
+- No as a blocker for the current Account/System/Membership work.
+
+Simply Plural groups should import as system-internal organization, not as:
+- Account
+- System
+- Membership
+- Role
+- security boundary
+
+Likely future model:
+- pb_groups
+- pb_group_members
+
+Minimum import support:
+- Preserve group source records and source IDs so no source data is lost.
+
+Full PluralBridge support later:
+- Create PB groups and member-group links so the UI can show/import/export them.
+
+Groups belong after the current Chapter 2 spine:
+- Account
+- System
+- Membership
+- Authorization
+- Tests
+
+Groups are likely part of the import/modeling lane, not the authorization lane.
+
+3. Simply Plural export path discussed
+--------------------------------------
+Normal export path described in chat:
+
+Settings
+-> Account Settings
+-> Export your data
+-> Request data export
+
+More detailed navigation described in chat:
+
+Open Simply Plural
+-> open the side menu
+-> click the gear on the right side of the side menu
+-> Account
+-> Export your Data
+-> Request data export
+
+The export should arrive by email and contain exported data, expected to include JSON.
+
+4. Simply Plural API endpoints discussed
+----------------------------------------
+Base production URL:
+https://api.apparyllis.com
+
+Pretesting/dev URL:
+https://devapi.apparyllis.com
+
+Authentication:
+Use the Authorization header with the Simply Plural API token.
+
+Do not paste the token into chat.
+
+Get current authed user ID / system ID for API use:
+GET https://api.apparyllis.com/v1/me
+
+Git Bash example:
+curl -s -H "Authorization: YOUR_TOKEN_HERE" "https://api.apparyllis.com/v1/me"
+
+Get all groups for a system:
+GET https://api.apparyllis.com/v1/groups/:systemId
+
+Git Bash example:
+curl -s -H "Authorization: YOUR_TOKEN_HERE" "https://api.apparyllis.com/v1/groups/YOUR_SYSTEM_ID_HERE"
+
+Get one specific group:
+GET https://api.apparyllis.com/v1/group/:systemId/:docId
+
+Where:
+- :systemId is the Simply Plural system/user ID used by the endpoint.
+- :docId is the group document ID.
+
+5. Example group JSON discussed
+-------------------------------
+The user provided redacted Simply Plural group JSON shaped like this:
+
+[
+  {
+    "exists": true,
+    "id": "<redacted>",
+    "content": {
+      "parent": "root",
+      "name": "Smokers",
+      "color": "#63d589",
+      "desc": "Slivers stuck on cigarrettes",
+      "emoji": "",
+      "supportDescMarkdown": true,
+      "members": [
+        "member 1",
+        "member 2"
+      ],
+      "uid": "<redacted>",
+      "lastOperationTime": 1782074325647,
+      "buckets": []
+    }
+  },
+  {
+    "exists": true,
+    "id": "<redacted>",
+    "content": {
+      "parent": "root",
+      "name": "Yellow Frogs",
+      "color": "#d5af63",
+      "desc": "All of my yellow frogs",
+      "emoji": "",
+      "supportDescMarkdown": true,
+      "members": [
+        "member 1",
+        "member 6",
+        "member 11"
+      ],
+      "uid": "<redacted>",
+      "lastOperationTime": 1782075147874,
+      "buckets": []
+    }
+  }
+]
+
+6. Proposed database model
+--------------------------
+Model this as groups plus a many-to-many member link table.
+
+Logical hierarchy:
+
+System
+  -> Members
+  -> Groups
+       -> Group-member links
+
+A Simply Plural group is not a new System. It is system-internal organization.
+
+Core tables:
+- pb_groups
+- pb_group_members
+
+Do not model group membership as a single GroupId column on pb_members, because a member can belong to multiple groups.
+
+7. Proposed table: pb_groups
+----------------------------
+One row per Simply Plural group.
+
+Suggested schema:
+
+CREATE TABLE dbo.pb_groups
+(
+    GroupId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    SystemId UNIQUEIDENTIFIER NOT NULL,
+
+    SourceGroupId NVARCHAR(200) NULL,
+    ParentGroupId UNIQUEIDENTIFIER NULL,
+    ParentSourceGroupId NVARCHAR(200) NULL,
+
+    GroupName NVARCHAR(200) NOT NULL,
+    GroupColor NVARCHAR(20) NULL,
+    GroupDesc NVARCHAR(MAX) NULL,
+    GroupEmoji NVARCHAR(50) NULL,
+    SupportsDescMarkdown BIT NOT NULL,
+
+    SourceExists BIT NOT NULL,
+    LastOperationTimeUnixMs BIGINT NULL,
+    LastOperationAtUtc DATETIME2 NULL,
+
+    CreatedAtUtc DATETIME2 NOT NULL,
+    UpdatedAtUtc DATETIME2 NULL
+);
+
+JSON mapping:
+
+exists -> SourceExists
+id -> SourceGroupId
+content.parent -> ParentSourceGroupId initially
+content.name -> GroupName
+content.color -> GroupColor
+content.desc -> GroupDesc
+content.emoji -> GroupEmoji
+content.supportDescMarkdown -> SupportsDescMarkdown
+content.lastOperationTime -> LastOperationTimeUnixMs
+content.members -> not in pb_groups; goes to pb_group_members
+content.buckets -> preserve in raw source records for later; do not ignore permanently
+
+For "parent": "root":
+- ParentGroupId = NULL
+- ParentSourceGroupId = "root"
+
+If Simply Plural later has nested groups, parent may point to another group ID. In that case, after import resolution:
+- ParentSourceGroupId = source parent id
+- ParentGroupId = resolved PB GroupId
+
+8. Proposed table: pb_group_members
+-----------------------------------
+One row per member assignment to a group.
+
+Suggested schema:
+
+CREATE TABLE dbo.pb_group_members
+(
+    GroupMemberId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    SystemId UNIQUEIDENTIFIER NOT NULL,
+    GroupId UNIQUEIDENTIFIER NOT NULL,
+    MemberId UNIQUEIDENTIFIER NOT NULL,
+
+    SourceGroupId NVARCHAR(200) NULL,
+    SourceMemberId NVARCHAR(200) NULL,
+
+    CreatedAtUtc DATETIME2 NOT NULL,
+
+    CONSTRAINT UQ_pb_group_members_System_Group_Member
+        UNIQUE (SystemId, GroupId, MemberId)
+);
+
+JSON mapping:
+
+content.members[0..n]
+-> one pb_group_members row per member id
+
+Example:
+Group "Smokers" with members:
+- member 1
+- member 2
+
+becomes:
+
+pb_groups:
+- Smokers
+
+pb_group_members:
+- Smokers -> member 1
+- Smokers -> member 2
+
+Group "Yellow Frogs" with members:
+- member 1
+- member 6
+- member 11
+
+becomes:
+
+pb_groups:
+- Yellow Frogs
+
+pb_group_members:
+- Yellow Frogs -> member 1
+- Yellow Frogs -> member 6
+- Yellow Frogs -> member 11
+
+member 1 appears in both groups. That proves group membership is many-to-many.
+
+9. Example logical rows
+-----------------------
+pb_groups:
+
+GroupId     SystemId     SourceGroupId  ParentSourceGroupId  GroupName      GroupColor  GroupDesc
+---------   ---------    -------------  -------------------  ------------   ----------  ----------------------------
+guid-a      system-1     sp-group-1     root                 Smokers        #63d589    Slivers stuck on cigarrettes
+guid-b      system-1     sp-group-2     root                 Yellow Frogs   #d5af63    All of my yellow frogs
+
+pb_group_members:
+
+GroupMemberId  SystemId   GroupId   MemberId    SourceGroupId  SourceMemberId
+-------------  --------   -------   --------    -------------  --------------
+guid-1         system-1   guid-a    member-1    sp-group-1     member 1
+guid-2         system-1   guid-a    member-2    sp-group-1     member 2
+guid-3         system-1   guid-b    member-1    sp-group-2     member 1
+guid-4         system-1   guid-b    member-6    sp-group-2     member 6
+guid-5         system-1   guid-b    member-11   sp-group-2     member 11
+
+In the real import, SourceMemberId should resolve through the existing source ID map to the PB MemberId.
+
+10. What not to do
+------------------
+Do not model each Simply Plural group as a PB System.
+
+Wrong:
+SP group = PB system
+
+That would incorrectly turn organizational folders into security boundaries.
+
+Do not put group membership directly on pb_members.
+
+Wrong:
+pb_members.GroupId
+
+A member can belong to multiple groups, so the correct shape is:
+
+pb_members
+pb_groups
+pb_group_members
+
+11. Buckets note
+----------------
+The provided JSON had:
+
+"buckets": []
+
+Do not design around buckets yet, but preserve them in raw source records.
+
+Later, if Simply Plural groups can be tied to privacy buckets, a future table might be:
+
+pb_group_privacy_buckets
+
+Do not add that until there is real non-empty buckets data.
+
+12. Bottom line
+---------------
+Groups are system-scoped organization.
+Group membership is many-to-many.
+Groups are import/data-preservation work.
+Groups are not Account/System/Membership/Role.
+Groups are not security boundaries unless PluralBridge explicitly models that later.

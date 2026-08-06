@@ -1,0 +1,181 @@
+Chapter 3 Task 2A.6
+Define Member UI Functional Pattern
+
+Purpose
+
+This step defines the member-management UI shape before member read, add, and edit browser work begins.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Design Target Rule
+
+PluralBridge does not intentionally follow the Simply Plural UI.
+
+Simply Plural remains a source-data compatibility reference.
+Simply Plural does not define the PluralBridge interaction model.
+PluralBridge should have a PluralBridge-native user experience.
+
+Azure-Style Dashboard Reference
+
+The functional reference is an Azure-style dashboard and dialog pattern.
+
+The target feel is:
+
+modern
+familiar
+calm
+structured
+dashboard-like
+clear about state
+clear about permissions
+clear about validation
+clear about save results
+
+Useful functional patterns include:
+
+resource-style lists
+expandable rows
+clear primary actions
+command areas
+dialogs
+side panels
+status indicators
+validation summaries
+message panels
+
+Member Management Principle
+
+Member management should be local, grouped, and progressive.
+
+Local means actions appear near the member they affect.
+Grouped means related fields appear together.
+Progressive means simple row first, expanded detail second, and dialog or side panel for focused edits.
+
+Primary Member Surface
+
+The member page should have one primary member surface.
+
+Common member actions should stay close to the member row.
+Details should expand in place when they help orientation.
+Dialogs or side panels should handle focused editing.
+Separate screens should be reserved for workflows with real independent context.
+
+Member List Surface
+
+The member list surface should include:
+
+compact member rows or cards
+member name
+short description preview when useful
+privacy indicator when useful
+group indicator later when groups become active in the UI
+chevron expansion
+edit action near the member it affects
+
+The member list should remain readable as the normal user surface.
+The member list should not become a debug console.
+The member list should not require multiple screens to understand ordinary member attributes.
+
+Expandable Member Row Behavior
+
+Expandable member row behavior is preserved.
+
+The chevron pattern remains a useful PluralBridge UI idea.
+The compact row gives orientation.
+The expanded row gives detail without leaving the member list.
+
+Expanded member detail may include:
+
+full description
+important member attributes
+privacy bucket summary
+group summary later
+safe source or proof details where appropriate
+
+Description Expansion
+
+Description expansion behavior is preserved.
+
+The compact row may show a short description preview.
+The expanded row may show the full description.
+The description should not force navigation to a separate screen.
+
+Expansion Boundary
+
+Expansion is for reading, orientation, and lightweight detail.
+
+Expansion should not carry full-form complexity.
+Expansion should not become the place where every editable field is crammed.
+Expansion should not turn the member row into a crowded management screen.
+
+Add Member Pattern
+
+Add member should use a dialog or side panel.
+
+The add member flow should include:
+
+clear title
+minimal required fields first
+optional fields grouped below
+privacy bucket field when available
+save action
+cancel action
+validation summary
+success result
+
+The add member flow should not require a seven-screen sequence.
+The add member flow should not be crammed into the member list row.
+
+Edit Member Pattern
+
+Edit member should use a dialog or side panel opened from the member row.
+
+The edit member flow should include:
+
+clear title
+current editable member values
+related fields grouped together
+save action
+cancel action
+validation summary
+success result
+
+The edit member flow should refresh the visible member row from the returned API result.
+The edit member flow should not require separate screens for ordinary member attributes.
+
+Seven-Screen Anti-Pattern
+
+Seven-screen member management is rejected.
+
+A user should not need to walk through a screen maze to add a member.
+A user should not need to walk through a screen maze to display ordinary member attributes.
+Ordinary member management should be intuitive, grouped, and close to the member list.
+
+The UI should be not crowded, but also not fragmented.
+
+Runtime Boundary
+
+This step does not create UI modules.
+This step does not change app.js.
+This step does not change app.css.
+This step does not add dialogs.
+This step does not add side panels.
+This step does not change browser behavior.
+
+Done When
+
+Simply Plural UI is rejected as intentional design target.
+Azure-style dashboard feel is named as the functional reference.
+Member list surface is defined.
+Expandable member row behavior is preserved.
+Description expansion behavior is preserved.
+Add member dialog or side panel is defined.
+Edit member dialog or side panel is defined.
+Expansion is for reading/orientation/lightweight detail.
+Dialogs or side panels are for editing.
+Seven-screen member management is rejected.

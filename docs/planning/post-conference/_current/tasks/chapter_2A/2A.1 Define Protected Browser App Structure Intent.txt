@@ -1,0 +1,119 @@
+Chapter 3 Task 2A.1
+Define Protected Browser App Structure Intent
+
+Purpose
+
+This step defines why Chapter 3 needs a protected browser app structure seam before the member read, add, and edit UI grows further.
+
+The current browser app has useful behavior, but app.js and app.css should not keep growing as dumping grounds.
+
+Task 2A exists to preserve the working UI ideas while moving the browser app toward a modular functional shape.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Browser App Direction
+
+The browser app should remain editable from Visual Studio 2022.
+The browser app should not become owned by the ASP.NET compile path.
+Visual Studio is a useful editor and workbench.
+Visual Studio should not define the browser app architecture.
+
+The app should use ordinary files and folders.
+The app should keep a simple, scriptable, Linux-like structure.
+The API project may serve the built or copied browser app artifact.
+
+Source And Served Artifact Boundary
+
+The intended source boundary is:
+
+app/src is the browser app source of truth.
+api/PluralBridge.Api/PluralBridge.Api/wwwroot/app is the served browser app artifact.
+
+New browser app work should move toward app/src.
+The served app path remains the API-hosted static app path.
+
+Refactor Rule
+
+Do not start over.
+
+The current app has useful product behavior that should be preserved.
+
+Preserve behavior.
+Replace structure.
+Defer polish.
+
+Useful existing behavior includes:
+
+member list behavior
+member row or card display
+chevron expansion
+description expansion
+proof or raw detail behind expansion
+protected-session behavior
+current API fetch and display rhythm
+
+Functional UI Direction
+
+PluralBridge does not intentionally follow the Simply Plural UI.
+Simply Plural is a source-data compatibility reference.
+PluralBridge should have a PluralBridge-native user experience.
+
+The target functional feel is closer to an Azure-style dashboard:
+
+resource-style lists
+expandable rows
+clear primary actions
+dialogs or side panels for focused edits
+status indicators
+validation summaries
+clear save results
+developer tools separated from the normal user surface
+
+Member Management Rule
+
+Member management should be local, grouped, and progressive.
+
+Local means actions appear near the member they affect.
+Grouped means related fields appear together.
+Progressive means simple row first, expanded detail second, and dialog or side panel for focused edits.
+
+Expansion is for reading, orientation, and lightweight detail.
+Dialog or side panel is for editing.
+A full page is for workflows, not ordinary member attributes.
+
+Developer Tools Direction
+
+Existing test buttons should move into a Developer Tools panel.
+
+The panel is hidden by default when developer tools are enabled.
+The panel can be opened with a chevron when developer tools are enabled.
+
+In production, the developer tools panel is not rendered.
+In production, the developer tools chevron is not rendered.
+Production should not hide developer tools with CSS alone.
+
+Task 2A Boundary
+
+Task 2A defines the protected browser app structure before member UI work expands.
+
+Task 2A does not implement the member read UI.
+Task 2A does not implement the member add UI.
+Task 2A does not implement the member edit UI.
+Task 2A does not visually polish the app.
+
+Done When
+
+The need for Task 2A is stated.
+The app.js and app.css growth problem is named.
+The VS2022 editing requirement is preserved.
+The ASP.NET compile ownership boundary is stated.
+The refactor-not-rewrite rule is stated.
+The Azure-style dashboard direction is stated.
+The local/grouped/progressive member management rule is stated.
+The developer tools panel direction is stated.
+Task 2A is planning-only.

@@ -1,0 +1,17 @@
+Task 1.3 Define enforcement boundary
+
+Member read, member add, and member edit are scoped to the resolved current SystemId.
+
+The current SystemId comes from the Chapter 2 AccessContext boundary.
+
+Caller-supplied SystemId cannot escape the resolved current SystemId.
+
+Active membership is required before member data access.
+
+Missing membership fails before data access.
+
+Inactive membership fails before data access.
+
+Roles remain attached through membership.
+
+Task 1.3 records the enforcement boundary only.

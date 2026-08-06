@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using System.Diagnostics;
 
 namespace PluralBridge.Api.Controllers;
 
@@ -8,8 +9,10 @@ namespace PluralBridge.Api.Controllers;
 /// Privacy buckets are returned for a specific imported PluralBridge system.
 /// </summary>
 [ApiController]
-[Route("api/systems/{systemId:guid}/privacy-buckets")]
-public sealed class PrivacyBucketsController(IConfiguration configuration) : ControllerBase
+[Route(Globals.privacyBucketsRoute)]
+public sealed class PrivacyBucketsController(
+	IConfiguration configuration,
+	ILogger<PrivacyBucketsController> logger) : ControllerBase
 {
 	/// <summary>
 	/// Returns all privacy buckets for the requested system from the validated proof database.
@@ -22,31 +25,129 @@ public sealed class PrivacyBucketsController(IConfiguration configuration) : Con
 	[HttpGet]
 	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+				? correlationId.ToString()
+				: null);
 
-		if (string.IsNullOrWhiteSpace(connectionString))
+		try
 		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using var connection = new SqlConnection(connectionString);
+			await connection.OpenAsync();
+
+			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
+				connection,
+				requestTrace,
+				logger);
+
+			if (accessContext is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.privacyBucketsEndpointSegment}",
+					canWrite = false,
+					systemId,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext) || accessContext.CurrentSystem.SystemId != systemId)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Forbid();
+			}
+
+			var dataAccessStopwatch = Stopwatch.StartNew();
+
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.data_access),
+				nameof(LogStageParts.started));
+
+			List<PrivacyBucket> privacyBuckets;
+
+			try
+			{
+				privacyBuckets = await ReadPrivacyBucketsAsync(
+					connection,
+					accessContext.CurrentSystem.SystemId);
+
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.completed),
+					dataAccessStopwatch.Elapsed);
+			}
+			catch
+			{
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.failed),
+					dataAccessStopwatch.Elapsed);
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				throw;
+			}
+
+			return Ok(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.privacyBucketsEndpointSegment}",
+				canWrite = false,
+				systemId = accessContext.CurrentSystem.SystemId,
+				count = privacyBuckets.Count,
+				privacyBuckets
+			});
+		}
+		catch
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.requestFailed,
+				detail: Globals.currConfiguredAccount,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
-
-		await using var connection = new SqlConnection(connectionString);
-		await connection.OpenAsync();
-
-		var privacyBuckets = await ReadPrivacyBucketsAsync(connection, systemId);
-
-		return Ok(new
-		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = $"/api/systems/{systemId}/privacy-buckets",
-			canWrite = false,
-			systemId,
-			count = privacyBuckets.Count,
-			privacyBuckets
-		});
 	}
 
 	/// <summary>

@@ -4,7 +4,7 @@ namespace PluralBridge.Api.Controllers
 {
 	internal sealed class RequestTraceContext
 	{
-		internal const string Level1TraceEvent = "PB_LEVEL1_TRACE";
+		internal const string Level1TraceEvent = Globals.traceLevel;
 
 		/// <summary>
 		/// Ctor
@@ -71,12 +71,12 @@ namespace PluralBridge.Api.Controllers
 
 			if (string.IsNullOrWhiteSpace(stageName))
 			{
-				throw new ArgumentException("Stage name is required.", nameof(stageName));
+				throw new ArgumentException(Globals.stageNameRequired, nameof(stageName));
 			}
 
 			if (string.IsNullOrWhiteSpace(outcome))
 			{
-				throw new ArgumentException("Outcome is required.", nameof(outcome));
+				throw new ArgumentException(Globals.outcomeRequired, nameof(outcome));
 			}
 
 			logger.LogInformation(

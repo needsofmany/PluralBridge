@@ -1,0 +1,473 @@
+from pathlib import Path
+
+content = """PluralBridge UI Direction Notes
+Captured: 2026-06-23
+
+Context
+
+Chapter 3 is paused briefly to capture UI direction before continuing the first editable member data path.
+
+Chapter 3 remains focused on the first editable member path:
+
+member read
+member add
+member edit
+minimal audit
+SystemId enforcement
+Membership enforcement
+privacy bucket awareness
+
+Chapter 3A will follow Chapter 3 and apply AccessContext enforcement to the remaining API endpoints that still need it.
+
+Core UI Rule
+
+The protected browser app should evolve alongside the API.
+
+API capabilities should lead.
+Browser UI should follow one task behind.
+No browser screen should get ahead of an enforced API boundary.
+No API capability should wait until Chapter 5 to receive a minimal browser surface.
+
+The UI should reflect the intended functional shape of the product.
+
+Visual polish is deferred.
+
+Functional layout, workflow order, field placement, action placement, validation behavior, save behavior, and protected-session behavior are not deferred.
+
+Visual polish includes:
+
+final colors
+spacing polish
+typography polish
+animations
+decorative styling
+final visual design
+
+These wait until a stopping point.
+
+Demo Release Planning Gate
+
+Between Chapter 5 and Chapter 6, pause and plan the next demo release.
+
+Minimum gate:
+
+review all functional UI added since v0.8.1
+confirm the protected browser app demonstrates the current operational path
+decide what must be polished before public/demo release
+decide the next version number
+update TAG_TASKS
+promote through feature -> dev -> master PRs
+sync local branches
+create and push the release tag
+
+App Structure Direction
+
+Do not keep growing a monolithic app.js and app.css.
+
+The browser app should move toward a modular static frontend shape.
+
+The app source should remain ordinary files and folders, with a Linux-like structure.
+
+The app should still be visible in the Visual Studio solution for editing.
+
+Visual Studio is a convenient editor/workbench.
+Visual Studio does not own the frontend architecture.
+The ASP.NET project does not own the frontend source model.
+
+Recommended ownership rule:
+
+app/src is the browser app source of truth.
+api/PluralBridge.Api/PluralBridge.Api/wwwroot/app is the served app artifact.
+
+The API project may serve the app.
+The app source remains structurally independent from the ASP.NET compile path.
+
+Possible repo shape:
+
+app/
+  README.md
+  package.json
+  src/
+    index.html
+    main.js
+    config.js
+    api/
+      apiClient.js
+      membersApi.js
+      privacyBucketsApi.js
+      sessionApi.js
+    state/
+      sessionState.js
+      memberState.js
+    views/
+      shellView.js
+      membersView.js
+      memberFormView.js
+      diagnosticsView.js
+    components/
+      button.js
+      field.js
+      messagePanel.js
+      cardList.js
+    styles/
+      base.css
+      layout.css
+      components.css
+      members.css
+
+Served artifact path:
+
+api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/
+
+Solution rule:
+
+Add app source files to the Visual Studio solution for editing.
+Do not make app/src part of the ASP.NET .csproj compile path.
+Use a simple copy/build path to move browser app output into wwwroot/app.
+
+Refactor Strategy
+
+Refactor the existing browser app.
+Do not start over.
+
+The current app has useful product decisions:
+
+member list/card behavior
+chevron expansion
+description expansion
+raw/proof details behind expansion
+protected-session behavior
+readable demo output
+current fetch/display rhythm
+
+Recommended rule:
+
+Preserve behavior.
+Replace structure.
+Defer polish.
+
+Migration path:
+
+old app.js/app.css stay working
+new app modules are introduced
+member list moves first
+add/edit comes after API support
+old monolith shrinks
+served app keeps functioning
+
+Only rewrite code when the existing shape blocks the new boundary.
+
+Developer Tools Panel
+
+Move existing test buttons into a Developer Tools panel.
+
+Normal user surface is the default.
+
+Developer/debug controls live in a collapsible developer tools panel.
+
+The panel is hidden by default when developer tools are enabled.
+The panel can be opened with a chevron when developer tools are enabled.
+
+In production:
+
+the developer tools panel is not rendered
+the developer tools chevron is not rendered
+debug/test buttons are not rendered
+
+Do not hide production developer tools with CSS alone.
+Production should not render the developer tools DOM at all.
+
+Developer tools may contain:
+
+old test buttons
+endpoint probes
+auth/session checks
+trace checks
+manual refresh buttons
+temporary proof actions
+
+Three UI Layers
+
+User UI
+
+The real product surface:
+
+member list
+member detail expansion
+member add
+member edit
+validation messages
+save results
+session state
+
+Proof/detail UI
+
+Expandable rows/cards:
+
+source-shaped details
+raw JSON where useful
+diagnostic facts where safe
+
+Developer tools UI
+
+Hidden collapsible panel:
+
+old test buttons
+endpoint probes
+auth/session checks
+trace checks
+manual refresh buttons
+temporary proof actions
+
+UI Design Direction
+
+Do not intentionally follow the Simply Plural UI.
+
+Simply Plural is a source-data compatibility reference.
+PluralBridge should have a PluralBridge-native user experience.
+
+Target look and feel:
+
+modern
+familiar
+calm
+structured
+dashboard-like
+clear about state
+clear about permissions
+clear about save results
+clear about validation errors
+comfortable for technical and non-technical users
+
+Azure Dashboard Influence
+
+The Azure dashboard/dialog style is a good functional reference.
+
+Useful patterns:
+
+navigation
+resource-style lists
+detail panels
+expandable rows
+command bars
+clear primary actions
+side panels
+dialogs
+status chips
+validation summaries
+activity/audit panels
+diagnostic panels hidden from normal users
+
+PluralBridge translation:
+
+Members page:
+
+main list
+member rows/cards
+chevron expansion for details
+status/privacy indicators
+edit action
+group indicators later
+
+Add/edit:
+
+right-side panel or modal dialog
+clear fields
+save/cancel actions
+validation area
+success result
+
+Developer tools:
+
+collapsible panel when enabled
+absent from production
+
+Proof/details:
+
+available behind expansion
+separate from the ordinary user path
+
+Member Management Experience
+
+Avoid the seven-screen member management model.
+
+A user should not need to walk through a screen maze to add a member or view ordinary member attributes.
+
+A user experience should be:
+
+intuitive
+not crowded
+not fragmented across many screens
+not crammed into one row
+
+Core member UI rule:
+
+One primary member surface.
+Common actions stay close to the member row.
+Details expand in place when they help orientation.
+Dialogs or side panels handle focused editing.
+Separate screens are reserved for workflows with real independent context.
+
+Anti-patterns:
+
+Do not make users walk through a screen maze to manage one member.
+Do not split one member's ordinary attributes across many screens.
+Do not cram every editable field into the row.
+Do not make the row expansion carry full-form complexity.
+
+Recommended member page shape:
+
+Top area:
+
+search
+filters later
+Add member button
+optional status/message strip
+
+Member list:
+
+compact member rows
+name
+short description preview
+privacy/group indicators where useful
+chevron expansion
+edit action
+
+Expanded member row:
+
+description
+important attributes
+privacy bucket summary
+group summary later
+source/proof details where appropriate
+raw/debug details only behind dev/proof affordance
+
+Add member:
+
+dialog or side panel
+minimal required fields first
+optional fields grouped below
+save/cancel
+validation summary
+success message
+
+Edit member:
+
+dialog or side panel opened from the row
+same field grouping as add
+save/cancel
+validation summary
+success message
+
+Key distinction:
+
+Expansion is for reading, orientation, and lightweight detail.
+Dialog or side panel is for editing.
+A full page is for workflows, not ordinary member attributes.
+
+UI Principle Name
+
+Member management should be local, grouped, and progressive.
+
+Local:
+
+actions appear near the member they affect
+
+Grouped:
+
+related fields appear together
+
+Progressive:
+
+simple row first
+expanded detail second
+dialog or side panel for focused edits
+
+Chapter 3 Task Impact
+
+Add a browser structure planning task before browser add/edit implementation.
+
+Proposed task:
+
+Task 2A — Define protected browser app structure
+
+What it builds:
+
+A functional browser app structure that prevents app.js and app.css from becoming dumping grounds while keeping the files editable in VS2022.
+
+Done when:
+
+app source folder is chosen
+served app folder is identified
+VS solution visibility is defined
+app source remains outside ASP.NET compile ownership
+copy/build path is defined
+JavaScript module layout is defined
+CSS split is defined
+API client boundary is defined
+member view boundary is defined
+member form boundary is defined
+developer tools panel boundary is defined
+developer tools are collapsible when enabled
+developer tools are not rendered in production
+existing test buttons move into developer tools
+normal user UI remains the default surface
+visual polish remains deferred
+
+Chapter 3 UI Follow-Through
+
+Task 2A:
+
+Define protected browser app structure and UI functional rules.
+
+Task 5:
+
+Refactor member read into a dashboard-style list with expandable rows.
+Move existing member list behavior into the new structure.
+Keep chevron expansion.
+Keep readable rows/cards.
+Keep raw/proof detail behind expansion.
+Do not add member editing yet.
+
+Task 6:
+
+Add member creation through a dialog or side panel.
+Use the same message/error panel.
+Refresh the member list after successful add.
+
+Task 7:
+
+Add edit behavior from the expanded member row or card.
+Use a dialog or side panel opened from the row.
+Keep the row expansion pattern.
+Show successful save and validation errors in the same UI language.
+
+Task 8:
+
+Wire the functional protected member screen.
+Unify the protected browser member read/add/edit flow.
+Keep developer tools separate from the user surface.
+Keep production debug tools unrendered.
+
+Chapter 3A UI Follow-Through
+
+Chapter 3A applies AccessContext enforcement to remaining API endpoints.
+
+UI impact:
+
+As each read endpoint gets AccessContext enforcement, the demo app keeps using it through the protected session.
+
+No major redesign.
+No new operational console.
+No bulk UI rebuild.
+
+Standing Rule For Future Chapters
+
+Every API/runtime task that changes user-visible behavior gets a matching browser follow-through step before the task is closed.
+
+The protected browser app stays modest, functional, and honest as the backend grows.
+"""
+
+path = Path("/mnt/data/pluralbridge_ui_direction_notes.txt")
+path.write_text(content, encoding="utf-8")
+print(str(path))

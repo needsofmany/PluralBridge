@@ -1,0 +1,95 @@
+Chapter 3 Task 3.1
+Define Member Write Audit Intent
+
+Purpose
+
+This step defines the minimal audit intent for Chapter 3 member write behavior.
+
+Task 3 prepares audit support for member add and member edit.
+
+The audit support is intentionally minimal.
+It exists to record that a protected member write occurred.
+It does not attempt to build a complete operational audit console.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Audit Scope
+
+Chapter 3 audit support covers member writes only.
+
+In scope:
+
+member add
+member edit
+current SystemId
+current AccountId
+current MembershipId when available
+target MemberId
+operation name
+request trace id when available
+created audit timestamp
+
+Out of scope:
+
+full audit console
+audit search UI
+field-by-field diff viewer
+rollback behavior
+cross-domain audit for every endpoint
+production reporting
+
+Audit Boundary
+
+Audit data is server-owned.
+
+The browser does not choose audit actor identity.
+The browser does not choose audit timestamp.
+The browser does not choose audit operation identity.
+The browser does not choose audit SystemId.
+The browser does not choose audit trace identity.
+
+Audit values are derived from:
+
+AccessContext
+RequestTraceContext
+the API operation being performed
+the target member being written
+database timestamp behavior
+
+Write Operation Rule
+
+A successful member add should create one audit record.
+A successful member edit should create one audit record.
+
+Failed validation does not create a member-write audit record.
+Failed authorization does not create a member-write audit record in Chapter 3 minimal audit scope.
+
+A later chapter may add broader security/event logging.
+
+Privacy Boundary
+
+The minimal audit record should avoid storing unnecessary sensitive member content.
+
+The audit record should identify the operation and target.
+The audit record should not become a duplicate member data store.
+
+Task 3 Output
+
+Task 3 should produce enough audit support for Task 6 and Task 7 to record member add and member edit operations.
+
+Task 3 should not delay member add/edit behind a large audit subsystem.
+
+Done When
+
+Minimal member-write audit purpose is defined.
+Member add audit scope is defined.
+Member edit audit scope is defined.
+Server-owned audit boundary is defined.
+Browser-owned audit input is rejected.
+Sensitive-content duplication is rejected.
+Task 3 is kept minimal.

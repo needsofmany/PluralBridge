@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using System.Diagnostics;
 
 namespace PluralBridge.Api.Controllers;
 
@@ -8,8 +9,12 @@ namespace PluralBridge.Api.Controllers;
 /// Import batches describe when source data was imported and which source system produced it.
 /// </summary>
 [ApiController]
-[Route("api/import-batches")]
-public sealed class ImportBatchesController(IConfiguration configuration) : ControllerBase
+// ReSharper disable once RouteTemplates.ControllerRouteParameterIsNotPassedToMethods
+[Route(Globals.importBatchesRoute)]
+public sealed class ImportBatchesController(
+	IConfiguration configuration,
+	ILogger<ImportBatchesController> logger) : ControllerBase
+
 {
 	/// <summary>
 	/// Returns all import batches present in the validated proof database.
@@ -19,32 +24,130 @@ public sealed class ImportBatchesController(IConfiguration configuration) : Cont
 	/// HTTP 200 with import batch rows, total count, and read-only capability metadata.
 	/// </returns>
 	[HttpGet]
-	public async Task<IActionResult> Get()
+	public async Task<IActionResult> Get(Guid systemId)
 	{
-		var connectionString = configuration.GetConnectionString("PluralBridgeProof");
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+				? correlationId.ToString()
+				: null);
 
-		if (string.IsNullOrWhiteSpace(connectionString))
+		try
 		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using var connection = new SqlConnection(connectionString);
+			await connection.OpenAsync();
+
+			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
+				connection,
+				requestTrace,
+				logger);
+
+			if (accessContext is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importBatchesEndpointSegment}",
+					canWrite = false,
+					systemId,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext) || accessContext.CurrentSystem.SystemId != systemId)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Forbid();
+			}
+
+			var dataAccessStopwatch = Stopwatch.StartNew();
+
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.data_access),
+				nameof(LogStageParts.started));
+
+			List<ImportBatch> importBatches;
+
+			try
+			{
+				importBatches = await ReadImportBatchesAsync(connection);
+
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.completed),
+					dataAccessStopwatch.Elapsed);
+			}
+			catch
+			{
+				dataAccessStopwatch.Stop();
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.data_access),
+					nameof(LogStageParts.failed),
+					dataAccessStopwatch.Elapsed);
+
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				throw;
+			}
+
+			return Ok(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importBatchesEndpointSegment}",
+				canWrite = false,
+				systemId = accessContext.CurrentSystem.SystemId,
+				count = importBatches.Count,
+				importBatches
+			});
+		}
+		catch
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
 			return Problem(
-				title: "Missing connection string",
-				detail: "ConnectionStrings:PluralBridgeProof was not found.",
+				title: Globals.requestFailed,
+				detail: Globals.currConfiguredAccount,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
-		await using var connection = new SqlConnection(connectionString);
-		await connection.OpenAsync();
-
-		var importBatches = await ReadImportBatchesAsync(connection);
-
-		return Ok(new
-		{
-			api = "PluralBridge.Api",
-			phase = "Phase 2B",
-			endpoint = "/api/import-batches",
-			canWrite = false,
-			count = importBatches.Count,
-			importBatches
-		});
 	}
 
 	/// <summary>

@@ -1,0 +1,117 @@
+Chapter 3 Task 2A.7
+Define Developer Tools Panel Boundary
+
+Purpose
+
+This step defines where existing test and debug buttons go and how production hides them.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Developer Tools Panel Rule
+
+Existing test and debug buttons should move into a Developer Tools panel.
+
+The normal user surface remains the default surface.
+Developer and debug controls should not be mixed into the ordinary member-management UI.
+The browser app should still have a safe place for temporary proof controls during development.
+
+Panel Name
+
+The panel is named:
+
+Developer Tools
+
+The panel contains development-only controls, endpoint probes, and proof helpers.
+
+Existing Test Button Rule
+
+Existing test buttons move into the Developer Tools panel.
+
+This preserves useful test machinery without allowing it to contaminate the normal user experience.
+
+Developer Tools may contain:
+
+old test buttons
+endpoint probes
+auth/session checks
+trace checks
+manual refresh buttons
+temporary proof actions
+safe diagnostic output
+
+Development And Demo Behavior
+
+When developer tools are enabled, the panel is hidden by default.
+When developer tools are enabled, a chevron can open the panel.
+When developer tools are enabled, the panel can collapse again.
+
+The chevron exists only when developer tools are enabled.
+
+Production Behavior
+
+In production, the Developer Tools panel is not rendered.
+In production, the Developer Tools chevron is not rendered.
+In production, debug and test buttons are not rendered.
+
+Production must not rely on CSS alone to hide developer tools.
+Production should not render the Developer Tools DOM.
+
+Configuration Boundary
+
+A later implementation step may define a browser configuration value such as:
+
+developerToolsEnabled
+
+When developerToolsEnabled is true, the panel and chevron may render.
+When developerToolsEnabled is false, the panel and chevron do not render.
+
+This browser configuration does not authorize API operations.
+Server-side AccessContext remains authoritative.
+
+User UI Boundary
+
+Normal user UI remains the product surface.
+
+Normal user UI includes:
+
+member list
+member row expansion
+member add
+member edit
+validation messages
+save results
+session state display where useful
+
+Developer controls do not define normal member-management workflow.
+
+Proof And Detail Boundary
+
+Expandable member rows may show safe proof or detail information where appropriate.
+
+Developer-only controls belong in the Developer Tools panel.
+Raw diagnostic actions belong in the Developer Tools panel.
+Production-hidden debug controls belong in the Developer Tools panel.
+
+Runtime Boundary
+
+This step does not create a Developer Tools component.
+This step does not move existing test buttons.
+This step does not change app.js.
+This step does not change app.css.
+This step does not change browser behavior.
+
+Done When
+
+Developer Tools panel is named.
+Existing test buttons move into the panel.
+Panel is hidden by default when enabled.
+Panel can open by chevron when enabled.
+Production does not render the panel.
+Production does not render the chevron.
+Production does not hide developer tools with CSS alone.
+Normal user UI remains the default surface.

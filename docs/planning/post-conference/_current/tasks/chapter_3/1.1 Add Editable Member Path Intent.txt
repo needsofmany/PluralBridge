@@ -1,0 +1,23 @@
+Task 1.1 Add editable member path intent
+
+Chapter 3 builds the first editable PluralBridge member data path.
+
+The editable member path includes:
+
+member read
+member add
+member edit
+minimal audit
+SystemId enforcement
+Membership enforcement
+privacy bucket awareness
+
+Member read is the baseline path.
+Member add is the first controlled create path.
+Member edit is the first controlled update path.
+
+Task 1.1 records intent only.
+Task 1.1 does not change API behavior.
+Task 1.1 does not change browser behavior.
+Task 1.1 does not change database schema.
+Task 1.1 does not change /api/me behavior.
