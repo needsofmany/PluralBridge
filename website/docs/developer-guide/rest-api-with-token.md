@@ -34,6 +34,26 @@ In Git Bash, enter the token without displaying it on screen:
 read -s -p "Paste Simply Plural token: " SP_TOKEN
 echo
 export SP_TOKEN
+```
+
+In Git Bash, the `-s` option keeps the token from being displayed while you paste it.
+
+For macOS Terminal / zsh users, use these commands instead:
+
+```sh
+printf "Paste Simply Plural token: "
+stty -echo
+IFS= read -r SP_TOKEN
+stty echo
+printf "\n"
+export SP_TOKEN
+```
+
+Run the appropriate block in the same terminal window where you will continue the export guide.
+
+Check that a token value was stored without printing the token itself:
+
+```bash
 printf 'Token length: %s\n' "${#SP_TOKEN}"
 ```
 

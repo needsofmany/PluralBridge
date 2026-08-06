@@ -31,16 +31,39 @@ A Simply Plural API token with Read permission.
 
 In Simply Plural, create a token from Settings -> Account -> Tokens. Enable Read permission. In Chrome, press and hold the token value to copy it. If the token begins with a prefix such as TBD///, keep the full value exactly as copied.
 
-Enter the token into Bash without displaying it on screen:
+In Git Bash, enter the token without displaying it on screen:
 
 ```bash
-set +H
-export SP_API='https://api.apparyllis.com'
-
-read -s -p "Paste NEW Simply Plural token: " SP_TOKEN
+read -s -p "Paste Simply Plural token: " SP_TOKEN
 echo
 export SP_TOKEN
+```
+
+In Git Bash, the `-s` option keeps the token from being displayed while you paste it.
+
+For macOS Terminal / zsh users, use these commands instead:
+
+```sh
+printf "Paste Simply Plural token: "
+stty -echo
+IFS= read -r SP_TOKEN
+stty echo
+printf "\n"
+export SP_TOKEN
+```
+
+Run the appropriate block in the same terminal window where you will continue the export guide.
+
+Check that a token value was stored without printing the token itself:
+
+```bash
 printf 'Token length: %s\n' "${#SP_TOKEN}"
+```
+
+Expected result:
+
+```text
+Token length: <number>
 ```
 
 ## Test API authorization
