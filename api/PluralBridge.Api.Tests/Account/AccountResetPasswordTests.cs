@@ -1,6 +1,6 @@
-﻿using PluralBridge.Api.Account;
-using System.Linq;
+﻿using System.Linq;
 using System.Net.Http.Json;
+using PluralBridge.Api.Account;
 
 namespace PluralBridge.Api.Tests.Account;
 

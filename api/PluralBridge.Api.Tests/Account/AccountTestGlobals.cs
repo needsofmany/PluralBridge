@@ -18,6 +18,7 @@ internal static class AccountTestGlobals
 		public const string ForgotUsername = "/api/account/forgot-username";
 		public const string ForgotPassword = "/api/account/forgot-password";
 		public const string ResetPassword = "/api/account/reset-password";
+		public const string ChangePassword = "/api/account/change-password";
 	}
 
 	internal static class TestAccounts
@@ -43,6 +44,20 @@ internal static class AccountTestGlobals
 		public const string ResetPasswordOldPasswordDisplayName = DisplayNamePrefix + "Reset Password Old Password";
 		public const string ResetPasswordAuditRowsUsernameSegment = "reset_password_audit_rows_";
 		public const string ResetPasswordAuditRowsDisplayName = DisplayNamePrefix + "Reset Password Audit Rows";
+		public const string ChangePasswordValidUsernameSegment = "change_password_valid_";
+		public const string ChangePasswordValidDisplayName = DisplayNamePrefix + "Change Password Valid";
+		public const string ChangePasswordWrongCurrentUsernameSegment = "change_password_wrong_current_";
+		public const string ChangePasswordWrongCurrentDisplayName = DisplayNamePrefix + "Change Password Wrong Current";
+		public const string WrongPassword = "RuntimeTestWrongPassword001!";
+		public const string ChangePasswordOldPasswordUsernameSegment = "change_password_old_password_";
+		public const string ChangePasswordOldPasswordDisplayName = DisplayNamePrefix + "Change Password Old Password";
+		public const string ChangePasswordShortPasswordUsernameSegment = "change_password_short_password_";
+		public const string ChangePasswordShortPasswordDisplayName = DisplayNamePrefix + "Change Password Short Password";
+		public const string TooShortPassword = "Short1!";
+		public const string ChangePasswordAuditRowsUsernameSegment = "change_password_audit_rows_";
+		public const string ChangePasswordAuditRowsDisplayName = DisplayNamePrefix + "Change Password Audit Rows";
+		public const string ChangePasswordUnavailableUsernameSegment = "change_password_unavailable_";
+		public const string ChangePasswordUnavailableDisplayName = DisplayNamePrefix + "Change Password Unavailable";
 	}
 
 	internal static class Database
@@ -70,5 +85,6 @@ internal static class AccountTestGlobals
 		public const string PasswordResetCodeDeliveryWasNotFound = "Password-reset code delivery was not found.";
 		public const string PasswordResetResponseBodyWasNotReturned = "Password-reset response body was not returned.";
 		public const string LoginResponseBodyWasNotReturned = "Login response body was not returned.";
+		public const string ChangePasswordResponseBodyWasNotReturned = "Change-password response body was not returned.";
 	}
 }

@@ -1,6 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PluralBridge.Api.Account;
+using System.Security.Claims;
 
 namespace PluralBridge.Api.Controllers;
 
@@ -60,9 +63,33 @@ public sealed class AccountController(IAccountService accountService) : Controll
 	{
 		var result = await accountService.LoginAsync(request, cancellationToken);
 
-		if (result is { Succeeded: true, Value: not null })
+		if (result is
+			{
+				Succeeded: true,
+				Value: { Account: not null } loginResponse
+			})
 		{
-			return Ok(result.Value);
+			var claims = new List<Claim>
+			{
+				new(
+					ClaimTypes.NameIdentifier,
+					loginResponse.Account.AccountId.ToString()),
+				new(
+					ClaimTypes.Name,
+					loginResponse.Account.Username)
+			};
+
+			var identity = new ClaimsIdentity(
+				claims,
+				CookieAuthenticationDefaults.AuthenticationScheme);
+
+			var principal = new ClaimsPrincipal(identity);
+
+			await HttpContext.SignInAsync(
+				CookieAuthenticationDefaults.AuthenticationScheme,
+				principal);
+
+			return Ok(loginResponse);
 		}
 
 		var response = new LoginResponse(
@@ -126,6 +153,44 @@ public sealed class AccountController(IAccountService accountService) : Controll
 		CancellationToken cancellationToken)
 	{
 		var result = await accountService.ResetPasswordAsync(request, cancellationToken);
+
+		if (result is { Succeeded: true, Value: not null })
+		{
+			return Ok(result.Value);
+		}
+
+		var response = new AccountOperationResponse(
+			false,
+			result.Outcome,
+			result.ReasonCode,
+			result.Message);
+
+		return BadRequest(response);
+	}
+
+	[Authorize]
+	[HttpPost(Globals.changePasswordEndpointSegment)]
+	public async Task<ActionResult<AccountOperationResponse>> ChangePassword(
+		[FromBody] ChangePasswordRequest request,
+		CancellationToken cancellationToken)
+	{
+		var accountIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+		if (!Guid.TryParse(accountIdValue, out var actorAccountId))
+		{
+			var unauthorizedResponse = new AccountOperationResponse(
+				false,
+				AccountOutcomes.Denied,
+				AccountReasonCodes.SessionRequired,
+				Globals.authenticationRequired);
+
+			return Unauthorized(unauthorizedResponse);
+		}
+
+		var result = await accountService.ChangePasswordAsync(
+			actorAccountId,
+			request,
+			cancellationToken);
 
 		if (result is { Succeeded: true, Value: not null })
 		{

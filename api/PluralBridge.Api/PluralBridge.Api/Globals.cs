@@ -22,6 +22,7 @@ namespace PluralBridge.Api
 		internal const string requestFailed = "Request failed";
 		internal const string currentSystemNoAuth = "Not authorized for current system";
 		internal const string noActiveMembershipAccess = "The current account does not have active membership access to the resolved current system.";
+		internal const string authenticationRequired = "Authentication is required.";
 
 		/// <summary>
 		/// Logger support
@@ -60,6 +61,7 @@ namespace PluralBridge.Api
 		internal const string forgotUsernameEndpointSegment = "forgot-username";
 		internal const string forgotPasswordEndpointSegment = "forgot-password";
 		internal const string resetPasswordEndpointSegment = "reset-password";
+		internal const string changePasswordEndpointSegment = "change-password";
 
 		/// <summary>
 		/// API routes

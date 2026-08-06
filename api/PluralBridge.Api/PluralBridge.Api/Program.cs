@@ -38,6 +38,19 @@ builder.Services
 		options.LoginPath = "/login";
 		options.LogoutPath = "/logout";
 		options.AccessDeniedPath = "/login";
+		options.Events.OnRedirectToLogin = context =>
+		{
+			if (context.Request.Path.StartsWithSegments("/api"))
+			{
+				context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+				return Task.CompletedTask;
+			}
+
+			context.Response.Redirect(context.RedirectUri);
+
+			return Task.CompletedTask;
+		};
 	});
 
 builder.Services.AddAuthorization();

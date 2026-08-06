@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Tests.Account;
 
@@ -655,5 +655,30 @@ internal static class AccountTestDatabase
 		var result = await command.ExecuteScalarAsync();
 
 		return Convert.ToInt32(result);
+	}
+
+	internal static async Task DisableRuntimeTestAccountAsync(Guid accountId)
+	{
+		var connectionString = GetConnectionString();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+		                   UPDATE accounts
+		                   SET
+		                   	accounts.AccountStatusId = statuses.AccountStatusId,
+		                   	accounts.UpdatedAtUtc = SYSUTCDATETIME()
+		                   FROM dbo.pb_accounts AS accounts
+		                   INNER JOIN dbo.pb_account_statuses AS statuses
+		                   	ON statuses.StatusName = 'Disabled'
+		                   WHERE accounts.AccountId = @AccountId;
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+
+		await command.ExecuteNonQueryAsync();
 	}
 }
