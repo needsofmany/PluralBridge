@@ -12,13 +12,11 @@ PluralBridge is independent and has no affiliation with Simply Plural, Apparylli
 
 ## User guides
 
-- [Create a Simply Plural API token](user-guide/create-simply-plural-api-token.md)
-- [Preserve your Simply Plural data](user-guide/preserve-your-data.md)
-- [Export Simply Plural member avatars](user-guide/export-avatars.md)
+User guides will be published with the PluralBridge Alpha release. Please check back when the Alpha release becomes available.
+
 
 ## Developer guides
 
-- [Use the Simply Plural REST API with a token](developer-guide/rest-api-with-token.md)
 - [PluralBridge service design working model](developer-guide/service-design-working-model.md)
 - [SQL Server database build and load guide](developer-guide/sql-server-database-build-and-load.md)
 
