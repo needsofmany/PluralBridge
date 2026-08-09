@@ -56,6 +56,58 @@ internal static class AccountCodeService
 			reader.GetInt32(8));
 	}
 
+	internal static async Task<AccountCodeRecord?> ReadLatestContactVerificationCodeAsync(
+		SqlConnection connection,
+		Guid accountId,
+		string normalizedEmail,
+		CancellationToken cancellationToken)
+	{
+		const string sql = """
+		                   SELECT TOP (1)
+		                       AccountCodeId,
+		                       AccountId,
+		                       CodeHash,
+		                       CodeHashAlgorithm,
+		                       CodeHashVersion,
+		                       ExpiresAtUtc,
+		                       ConsumedAtUtc,
+		                       AttemptCount,
+		                       MaxAttempts
+		                   FROM dbo.pb_account_codes
+		                   WHERE AccountId = @AccountId
+		                     AND CodePurpose = N'contact_verification'
+		                     AND DestinationType = N'email'
+		                     AND DestinationNormalized = @DestinationNormalized
+		                   ORDER BY CreatedAtUtc DESC;
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue(
+			"@DestinationNormalized",
+			normalizedEmail);
+
+		await using var reader =
+			await command.ExecuteReaderAsync(cancellationToken);
+
+		if (!await reader.ReadAsync(cancellationToken))
+		{
+			return null;
+		}
+
+		return new AccountCodeRecord(
+			reader.GetGuid(0),
+			reader.GetGuid(1),
+			(byte[])reader["CodeHash"],
+			reader.GetString(3),
+			reader.GetInt32(4),
+			reader.GetDateTime(5),
+			reader.IsDBNull(6) ? null : reader.GetDateTime(6),
+			reader.GetInt32(7),
+			reader.GetInt32(8));
+	}
+
 	internal static async Task IncrementCodeAttemptAsync(
 		SqlConnection connection,
 		Guid accountCodeId,
@@ -184,6 +236,66 @@ internal static class AccountCodeService
 		command.Parameters.AddWithValue("@CodeHashAlgorithm", recoveryHash.Algorithm);
 		command.Parameters.AddWithValue("@CodeHashVersion", recoveryHash.Version);
 		command.Parameters.AddWithValue("@CorrelationId", correlationId);
+
+		await command.ExecuteNonQueryAsync(cancellationToken);
+	}
+
+	internal static async Task InsertEmailChangeVerificationCodeAsync(
+		SqlConnection connection,
+		Guid accountId,
+		string destinationNormalized,
+		PasswordHashResult verificationHash,
+		string correlationId,
+		CancellationToken cancellationToken)
+	{
+		const string sql = """
+		                   INSERT INTO dbo.pb_account_codes
+		                   (
+		                   	AccountId,
+		                   	CodePurpose,
+		                   	DestinationType,
+		                   	DestinationNormalized,
+		                   	CodeHash,
+		                   	CodeHashAlgorithm,
+		                   	CodeHashVersion,
+		                   	ExpiresAtUtc,
+		                   	CorrelationId
+		                   )
+		                   VALUES
+		                   (
+		                   	@AccountId,
+		                   	@CodePurpose,
+		                   	N'email',
+		                   	@DestinationNormalized,
+		                   	@CodeHash,
+		                   	@CodeHashAlgorithm,
+		                   	@CodeHashVersion,
+		                   	DATEADD(MINUTE, 30, SYSUTCDATETIME()),
+		                   	@CorrelationId
+		                   );
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue(
+			"@CodePurpose",
+			AccountCodePurposes.ContactVerification);
+		command.Parameters.AddWithValue(
+			"@DestinationNormalized",
+			destinationNormalized);
+		command.Parameters.AddWithValue(
+			"@CodeHash",
+			verificationHash.PasswordHash);
+		command.Parameters.AddWithValue(
+			"@CodeHashAlgorithm",
+			verificationHash.Algorithm);
+		command.Parameters.AddWithValue(
+			"@CodeHashVersion",
+			verificationHash.Version);
+		command.Parameters.AddWithValue(
+			"@CorrelationId",
+			correlationId);
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}

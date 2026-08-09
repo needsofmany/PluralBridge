@@ -7,6 +7,7 @@ public static class AccountCodePurposes
 	public const string RegistrationVerification = "registration_verification";
 	public const string UsernameRecovery = "username_recovery";
 	public const string PasswordReset = "password_reset";
+	public const string ContactVerification = "contact_verification";
 }
 
 public static class AccountDestinationTypes

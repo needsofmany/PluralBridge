@@ -205,4 +205,122 @@ public sealed class AccountController(IAccountService accountService) : Controll
 
 		return BadRequest(response);
 	}
+
+	[Authorize]
+	[HttpPut(Globals.profileEndpointSegment)]
+	public async Task<ActionResult<AccountResponse>> UpdateProfile(
+		[FromBody] UpdateAccountProfileRequest request,
+		CancellationToken cancellationToken)
+	{
+		var accountIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+		if (!Guid.TryParse(accountIdValue, out var actorAccountId))
+		{
+			var unauthorizedResponse = new AccountOperationResponse(
+				false,
+				AccountOutcomes.Denied,
+				AccountReasonCodes.SessionRequired,
+				Globals.authenticationRequired);
+
+			return Unauthorized(unauthorizedResponse);
+		}
+
+		var result = await accountService.UpdateProfileAsync(
+			actorAccountId,
+			request,
+			cancellationToken);
+
+		if (result is { Succeeded: true, Value: not null })
+		{
+			return Ok(result.Value);
+		}
+
+		var response = new AccountOperationResponse(
+			false,
+			result.Outcome,
+			result.ReasonCode,
+			result.Message);
+
+		return BadRequest(response);
+	}
+
+	[Authorize]
+	[HttpPut(Globals.contactEndpointSegment)]
+	public async Task<ActionResult<AccountOperationResponse>> UpdateContact(
+		[FromBody] UpdateAccountContactRequest request,
+		CancellationToken cancellationToken)
+	{
+		var accountIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+		if (!Guid.TryParse(accountIdValue, out var actorAccountId))
+		{
+			var unauthorizedResponse = new AccountOperationResponse(
+				false,
+				AccountOutcomes.Denied,
+				AccountReasonCodes.SessionRequired,
+				Globals.authenticationRequired);
+
+			return Unauthorized(unauthorizedResponse);
+		}
+
+		var result = await accountService.UpdateContactAsync(
+			actorAccountId,
+			request,
+			cancellationToken);
+
+		if (result is { Succeeded: true, Value: not null })
+		{
+			return Ok(result.Value);
+		}
+
+		var response = new AccountOperationResponse(
+			false,
+			result.Outcome,
+			result.ReasonCode,
+			result.Message);
+
+		return BadRequest(response);
+	}
+
+	[Authorize]
+	[HttpPost(Globals.verifyContactEndpointSegment)]
+	public async Task<ActionResult<AccountOperationResponse>> VerifyContact(
+		[FromBody] VerifyAccountContactRequest request,
+		CancellationToken cancellationToken)
+	{
+		var accountIdValue =
+			User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+		if (!Guid.TryParse(
+			    accountIdValue,
+			    out var actorAccountId))
+		{
+			var unauthorizedResponse =
+				new AccountOperationResponse(
+					false,
+					AccountOutcomes.Denied,
+					AccountReasonCodes.SessionRequired,
+					Globals.authenticationRequired);
+
+			return Unauthorized(unauthorizedResponse);
+		}
+
+		var result = await accountService.VerifyContactAsync(
+			actorAccountId,
+			request,
+			cancellationToken);
+
+		if (result is { Succeeded: true, Value: not null })
+		{
+			return Ok(result.Value);
+		}
+
+		var response = new AccountOperationResponse(
+			false,
+			result.Outcome,
+			result.ReasonCode,
+			result.Message);
+
+		return BadRequest(response);
+	}
 }
