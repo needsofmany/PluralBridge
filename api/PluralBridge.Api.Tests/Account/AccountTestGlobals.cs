@@ -19,6 +19,9 @@ internal static class AccountTestGlobals
 		public const string ForgotPassword = "/api/account/forgot-password";
 		public const string ResetPassword = "/api/account/reset-password";
 		public const string ChangePassword = "/api/account/change-password";
+		public const string Profile = "/api/account/profile";
+		public const string Contact = "/api/account/contact";
+		public const string VerifyContact = "/api/account/verify-contact";
 	}
 
 	internal static class TestAccounts
@@ -58,6 +61,17 @@ internal static class AccountTestGlobals
 		public const string ChangePasswordAuditRowsDisplayName = DisplayNamePrefix + "Change Password Audit Rows";
 		public const string ChangePasswordUnavailableUsernameSegment = "change_password_unavailable_";
 		public const string ChangePasswordUnavailableDisplayName = DisplayNamePrefix + "Change Password Unavailable";
+		public const string ProfileUpdateUsernameSegment = "profile_update_";
+		public const string ProfileUpdateDisplayName = DisplayNamePrefix + "Profile Update";
+		public const string UpdatedDisplayName = "Updated Runtime Test Profile";
+		public const string ProfileInvalidUsernameSegment = "profile_invalid_";
+		public const string ProfileInvalidDisplayName = DisplayNamePrefix + "Profile Invalid";
+		public const string ProfileUnavailableUsernameSegment = "profile_unavailable_";
+		public const string ProfileUnavailableDisplayName = DisplayNamePrefix + "Profile Unavailable";
+		public const string ProfileAuditUsernameSegment = "profile_audit_";
+		public const string ProfileAuditDisplayName = DisplayNamePrefix + "Profile Audit";
+		public const string ContactUpdateUsernameSegment = "contact_update_";
+		public const string ContactUpdateDisplayName = DisplayNamePrefix + "Contact Update";
 	}
 
 	internal static class Database
@@ -82,9 +96,12 @@ internal static class AccountTestGlobals
 
 	internal static class Diagnostics
 	{
+		public const string ResponseBodyWasNotReturned = " response body was not returned.";
 		public const string PasswordResetCodeDeliveryWasNotFound = "Password-reset code delivery was not found.";
-		public const string PasswordResetResponseBodyWasNotReturned = "Password-reset response body was not returned.";
-		public const string LoginResponseBodyWasNotReturned = "Login response body was not returned.";
-		public const string ChangePasswordResponseBodyWasNotReturned = "Change-password response body was not returned.";
+		public const string PasswordResetResponseBodyWasNotReturned = "Password-reset" + ResponseBodyWasNotReturned;
+		public const string LoginResponseBodyWasNotReturned = "Login" + ResponseBodyWasNotReturned;
+		public const string ChangePasswordResponseBodyWasNotReturned = "Change-password" + ResponseBodyWasNotReturned;
+		public const string ProfileResponseBodyWasNotReturned = "Profile" + ResponseBodyWasNotReturned;
+		public const string ContactResponseBodyWasNotReturned = "Contact" + ResponseBodyWasNotReturned;
 	}
 }

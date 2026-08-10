@@ -27,7 +27,17 @@ internal sealed record LoginAccountRecord(
 	string PasswordHashAlgorithm,
 	int PasswordHashVersion);
 
-
+internal sealed record AccountProfileRecord(
+	Guid AccountId,
+	string Username,
+	string Email,
+	string DisplayName,
+	int AccountStatusId,
+	string AccountStatusName,
+	bool IsEmailVerified,
+	DateTime CreatedAtUtc,
+	DateTime? UpdatedAtUtc,
+	DateTime? LastLoginAtUtc);
 
 public sealed record RegisterAccountRequest(
 	string Username,
@@ -63,6 +73,10 @@ public sealed record UpdateAccountProfileRequest(
 
 public sealed record UpdateAccountContactRequest(
 	string Email);
+
+public sealed record VerifyAccountContactRequest(
+	string Email,
+	string Code);
 
 public sealed record AccountResponse(
 	Guid AccountId,
@@ -282,8 +296,13 @@ public interface IAccountService
 		UpdateAccountProfileRequest request,
 		CancellationToken cancellationToken);
 
-	Task<AccountServiceResult<AccountResponse>> UpdateContactAsync(
+	Task<AccountServiceResult<AccountOperationResponse>> UpdateContactAsync(
 		Guid actorAccountId,
 		UpdateAccountContactRequest request,
+		CancellationToken cancellationToken);
+
+	Task<AccountServiceResult<AccountOperationResponse>> VerifyContactAsync(
+		Guid actorAccountId,
+		VerifyAccountContactRequest request,
 		CancellationToken cancellationToken);
 }
