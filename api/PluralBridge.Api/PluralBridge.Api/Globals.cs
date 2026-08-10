@@ -62,6 +62,9 @@ namespace PluralBridge.Api
 		internal const string forgotPasswordEndpointSegment = "forgot-password";
 		internal const string resetPasswordEndpointSegment = "reset-password";
 		internal const string changePasswordEndpointSegment = "change-password";
+		internal const string profileEndpointSegment = "profile";
+		internal const string contactEndpointSegment = "contact";
+		internal const string verifyContactEndpointSegment = "verify-contact";
 
 		/// <summary>
 		/// API routes

@@ -2,5 +2,5 @@
 
 public static class AccountConfigurationKeys
 {
-	public const string ConnectionStringName = "PluralBridgeProof";
+	public const string ConnectionStringName = "PluralBridgeChap2SafeSpine";
 }

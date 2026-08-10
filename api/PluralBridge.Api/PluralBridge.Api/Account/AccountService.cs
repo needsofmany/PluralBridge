@@ -32,16 +32,6 @@ public sealed class AccountService : IAccountService
 	{
 		var correlationId = Guid.NewGuid().ToString("N");
 
-		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-			AccountAuditEvents.RegistrationRequested,
-			AccountOutcomes.Succeeded,
-			AccountReasonCodes.None,
-			null,
-			null,
-			correlationId,
-			"registration",
-			cancellationToken);
-
 		if (!IsValidRegistrationRequest(request))
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -1088,20 +1078,590 @@ public sealed class AccountService : IAccountService
 			"Password change completed.");
 	}
 
-	public Task<AccountServiceResult<AccountResponse>> UpdateProfileAsync(
+	public async Task<AccountServiceResult<AccountResponse>> UpdateProfileAsync(
 		Guid actorAccountId,
 		UpdateAccountProfileRequest request,
 		CancellationToken cancellationToken)
 	{
-		throw new NotImplementedException("Later Account step will implement profile update.");
-	}
+		var correlationId = Guid.NewGuid().ToString("N");
 
-	public Task<AccountServiceResult<AccountResponse>> UpdateContactAsync(
+		if (actorAccountId == Guid.Empty
+			|| !AccountText.HasText(request.DisplayName)
+			|| request.DisplayName.Trim().Length > 200)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ProfileRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.ValidationFailed,
+				actorAccountId == Guid.Empty ? null : actorAccountId,
+				actorAccountId == Guid.Empty ? null : actorAccountId,
+				correlationId,
+				"profile",
+				cancellationToken);
+
+			return AccountServiceResult<AccountResponse>.Rejected(
+				AccountReasonCodes.ValidationFailed,
+				"Profile update could not be completed.");
+		}
+
+		await using var connection = new SqlConnection(_connectionString);
+		await connection.OpenAsync(cancellationToken);
+
+		var account = await AccountRepository.ReadAccountProfileAsync(
+			connection,
+			actorAccountId,
+			cancellationToken);
+
+		if (account is null
+			|| account.AccountStatusId != 1
+			|| !account.IsEmailVerified)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ProfileRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.AccountUnavailable,
+				actorAccountId,
+				actorAccountId,
+				correlationId,
+				"profile",
+				cancellationToken);
+
+			return AccountServiceResult<AccountResponse>.Rejected(
+				AccountReasonCodes.AccountUnavailable,
+				"Profile update could not be completed.");
+		}
+
+		try
+		{
+			await AccountRepository.UpdateAccountProfileAsync(
+				connection,
+				account.AccountId,
+				request.DisplayName.Trim(),
+				cancellationToken);
+		}
+		catch
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ProfileRejected,
+				AccountOutcomes.Failed,
+				AccountReasonCodes.StorageFailed,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"profile",
+				cancellationToken);
+
+			return AccountServiceResult<AccountResponse>.Failed(
+				AccountReasonCodes.StorageFailed,
+				"Profile update could not be completed.");
+		}
+
+		var updatedAccount = await AccountRepository.ReadAccountProfileAsync(
+			connection,
+			account.AccountId,
+			cancellationToken);
+
+		if (updatedAccount is null)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ProfileRejected,
+				AccountOutcomes.Failed,
+				AccountReasonCodes.StorageFailed,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"profile",
+				cancellationToken);
+
+			return AccountServiceResult<AccountResponse>.Failed(
+				AccountReasonCodes.StorageFailed,
+				"Profile update could not be completed.");
+		}
+
+		await AccountInfrastructure.WriteAuditAsync(
+			_auditWriter,
+			AccountAuditEvents.ProfileUpdated,
+			AccountOutcomes.Succeeded,
+			AccountReasonCodes.None,
+			updatedAccount.AccountId,
+			updatedAccount.AccountId,
+			correlationId,
+			"profile",
+			cancellationToken);
+
+		return AccountServiceResult<AccountResponse>.Success(
+			new AccountResponse(
+				updatedAccount.AccountId,
+				updatedAccount.Username,
+				updatedAccount.Email,
+				updatedAccount.DisplayName,
+				updatedAccount.IsEmailVerified,
+				updatedAccount.AccountStatusName,
+				updatedAccount.CreatedAtUtc,
+				updatedAccount.UpdatedAtUtc,
+				updatedAccount.LastLoginAtUtc),
+			"Profile update completed.");
+	}
+	public async Task<AccountServiceResult<AccountOperationResponse>> UpdateContactAsync(
 		Guid actorAccountId,
 		UpdateAccountContactRequest request,
 		CancellationToken cancellationToken)
 	{
-		throw new NotImplementedException("Later Account step will implement contact update.");
+		var correlationId = Guid.NewGuid().ToString("N");
+
+		if (actorAccountId == Guid.Empty
+			|| !AccountText.HasText(request.Email)
+			|| request.Email.Trim().Length > 320)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.ValidationFailed,
+				actorAccountId == Guid.Empty ? null : actorAccountId,
+				actorAccountId == Guid.Empty ? null : actorAccountId,
+				correlationId,
+				"contact",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.ValidationFailed,
+				"Contact update could not be completed.");
+		}
+
+		var normalizedEmail = AccountText.NormalizeEmail(request.Email);
+
+		await using var connection = new SqlConnection(_connectionString);
+		await connection.OpenAsync(cancellationToken);
+
+		var account = await AccountRepository.ReadAccountProfileAsync(
+			connection,
+			actorAccountId,
+			cancellationToken);
+
+		if (account is null
+			|| account.AccountStatusId != 1
+			|| !account.IsEmailVerified)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.AccountUnavailable,
+				actorAccountId,
+				actorAccountId,
+				correlationId,
+				"contact",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.AccountUnavailable,
+				"Contact update could not be completed.");
+		}
+
+		if (string.Equals(
+				AccountText.NormalizeEmail(account.Email),
+				normalizedEmail,
+				StringComparison.Ordinal))
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.InvalidRequest,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.InvalidRequest,
+				"Contact update could not be completed.");
+		}
+
+		if (await AccountRepository.AccountEmailExistsForOtherAccountAsync(
+				connection,
+				account.AccountId,
+				normalizedEmail,
+				cancellationToken))
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.DuplicateAccountIdentifier,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.DuplicateAccountIdentifier,
+				"Contact update could not be completed.");
+		}
+
+		var verificationCode = AccountCodeService.CreateNumericCode();
+		var verificationHash = _passwordHasher.HashPassword(verificationCode);
+
+		try
+		{
+			await AccountCodeService.InsertEmailChangeVerificationCodeAsync(
+				connection,
+				account.AccountId,
+				normalizedEmail,
+				verificationHash,
+				correlationId,
+				cancellationToken);
+		}
+		catch
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Failed,
+				AccountReasonCodes.StorageFailed,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Failed(
+				AccountReasonCodes.StorageFailed,
+				"Contact update could not be completed.");
+		}
+
+		try
+		{
+			await _codeDelivery.DeliverAsync(
+				new AccountCodeDeliveryCommand(
+					account.AccountId,
+					AccountCodePurposes.ContactVerification,
+					AccountDestinationTypes.Email,
+					normalizedEmail,
+					verificationCode,
+					correlationId),
+				cancellationToken);
+		}
+		catch
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Failed,
+				AccountReasonCodes.DeliveryFailed,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Failed(
+				AccountReasonCodes.DeliveryFailed,
+				"Contact update could not be completed.");
+		}
+
+		await AccountInfrastructure.WriteAuditAsync(
+			_auditWriter,
+			AccountAuditEvents.CodeIssued,
+			AccountOutcomes.Succeeded,
+			AccountReasonCodes.None,
+			account.AccountId,
+			account.AccountId,
+			correlationId,
+			"contact_verification",
+			cancellationToken);
+
+		return AccountServiceResult<AccountOperationResponse>.Success(
+			new AccountOperationResponse(
+				true,
+				AccountOutcomes.Succeeded,
+				AccountReasonCodes.None,
+				"Contact update verification is required."),
+			"Contact update verification is required.");
+	}
+
+	public async Task<AccountServiceResult<AccountOperationResponse>> VerifyContactAsync(
+	Guid actorAccountId,
+	VerifyAccountContactRequest request,
+	CancellationToken cancellationToken)
+	{
+		var correlationId = Guid.NewGuid().ToString("N");
+
+		if (actorAccountId == Guid.Empty
+			|| !AccountText.HasText(request.Email)
+			|| !AccountText.HasText(request.Code))
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.ValidationFailed,
+				actorAccountId == Guid.Empty ? null : actorAccountId,
+				actorAccountId == Guid.Empty ? null : actorAccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.ValidationFailed,
+				"Contact verification could not be completed.");
+		}
+
+		var normalizedEmail =
+			AccountText.NormalizeEmail(request.Email);
+
+		await using var connection =
+			new SqlConnection(_connectionString);
+
+		await connection.OpenAsync(cancellationToken);
+
+		var account = await AccountRepository.ReadAccountProfileAsync(
+			connection,
+			actorAccountId,
+			cancellationToken);
+
+		if (account is null
+			|| account.AccountStatusId != 1
+			|| !account.IsEmailVerified)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.AccountUnavailable,
+				actorAccountId,
+				actorAccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.AccountUnavailable,
+				"Contact verification could not be completed.");
+		}
+
+		var codeRecord =
+			await AccountCodeService.ReadLatestContactVerificationCodeAsync(
+				connection,
+				account.AccountId,
+				normalizedEmail,
+				cancellationToken);
+
+		if (codeRecord is null)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.InvalidCode,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.InvalidCode,
+				"Contact verification could not be completed.");
+		}
+
+		if (codeRecord.ConsumedAtUtc is not null)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.CodeRejected,
+				AccountOutcomes.Consumed,
+				AccountReasonCodes.ConsumedCode,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.ConsumedCode,
+				"Contact verification could not be completed.");
+		}
+
+		if (codeRecord.ExpiresAtUtc <= DateTime.UtcNow)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.CodeRejected,
+				AccountOutcomes.Expired,
+				AccountReasonCodes.ExpiredCode,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.ExpiredCode,
+				"Contact verification could not be completed.");
+		}
+
+		if (codeRecord.AttemptCount >= codeRecord.MaxAttempts)
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.CodeRejected,
+				AccountOutcomes.Blocked,
+				AccountReasonCodes.RateLimited,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.RateLimited,
+				"Contact verification could not be completed.");
+		}
+
+		var codeAccepted = _passwordHasher.VerifyPassword(
+			request.Code.Trim(),
+			codeRecord.CodeHash,
+			codeRecord.CodeHashAlgorithm,
+			codeRecord.CodeHashVersion);
+
+		if (!codeAccepted)
+		{
+			await AccountCodeService.IncrementCodeAttemptAsync(
+				connection,
+				codeRecord.AccountCodeId,
+				cancellationToken);
+
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.CodeRejected,
+				AccountOutcomes.Rejected,
+				AccountReasonCodes.InvalidCode,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Rejected(
+				AccountReasonCodes.InvalidCode,
+				"Contact verification could not be completed.");
+		}
+
+		await using var transaction =
+			(SqlTransaction)await connection.BeginTransactionAsync(
+				cancellationToken);
+
+		try
+		{
+			if (await AccountRepository.AccountEmailExistsForOtherAccountAsync(
+					connection,
+					transaction,
+					account.AccountId,
+					normalizedEmail,
+					cancellationToken))
+			{
+				await transaction.RollbackAsync(cancellationToken);
+
+				await AccountInfrastructure.WriteAuditAsync(
+					_auditWriter,
+					AccountAuditEvents.ContactRejected,
+					AccountOutcomes.Rejected,
+					AccountReasonCodes.DuplicateAccountIdentifier,
+					account.AccountId,
+					account.AccountId,
+					correlationId,
+					"contact_verification",
+					cancellationToken);
+
+				return AccountServiceResult<AccountOperationResponse>.Rejected(
+					AccountReasonCodes.DuplicateAccountIdentifier,
+					"Contact verification could not be completed.");
+			}
+
+			await AccountCodeService.ConsumeCodeAsync(
+				connection,
+				transaction,
+				codeRecord.AccountCodeId,
+				cancellationToken);
+
+			await AccountRepository.UpdateAccountContactAsync(
+				connection,
+				transaction,
+				account.AccountId,
+				request.Email.Trim(),
+				normalizedEmail,
+				cancellationToken);
+
+			await transaction.CommitAsync(cancellationToken);
+		}
+		catch
+		{
+			await transaction.RollbackAsync(cancellationToken);
+
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				AccountAuditEvents.ContactRejected,
+				AccountOutcomes.Failed,
+				AccountReasonCodes.StorageFailed,
+				account.AccountId,
+				account.AccountId,
+				correlationId,
+				"contact_verification",
+				cancellationToken);
+
+			return AccountServiceResult<AccountOperationResponse>.Failed(
+				AccountReasonCodes.StorageFailed,
+				"Contact verification could not be completed.");
+		}
+
+		await AccountInfrastructure.WriteAuditAsync(
+			_auditWriter,
+			AccountAuditEvents.CodeAccepted,
+			AccountOutcomes.Succeeded,
+			AccountReasonCodes.None,
+			account.AccountId,
+			account.AccountId,
+			correlationId,
+			"contact_verification",
+			cancellationToken);
+
+		await AccountInfrastructure.WriteAuditAsync(
+			_auditWriter,
+			AccountAuditEvents.CodeConsumed,
+			AccountOutcomes.Consumed,
+			AccountReasonCodes.None,
+			account.AccountId,
+			account.AccountId,
+			correlationId,
+			"contact_verification",
+			cancellationToken);
+
+		await AccountInfrastructure.WriteAuditAsync(
+			_auditWriter,
+			AccountAuditEvents.ContactUpdated,
+			AccountOutcomes.Succeeded,
+			AccountReasonCodes.None,
+			account.AccountId,
+			account.AccountId,
+			correlationId,
+			"contact",
+			cancellationToken);
+
+		return AccountServiceResult<AccountOperationResponse>.Success(
+			new AccountOperationResponse(
+				true,
+				AccountOutcomes.Succeeded,
+				AccountReasonCodes.None,
+				"Contact verification completed."),
+			"Contact verification completed.");
 	}
 
 	private static bool IsValidRegistrationRequest(RegisterAccountRequest request)

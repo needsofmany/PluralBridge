@@ -5,6 +5,63 @@ This file records the major work represented by each repository tag. It is inten
 Tags are listed in reverse chronological order so the latest project changes appear first.
 
 ---
+
+## v0.8.4 — PB-NEXT Task.Account implementation complete
+
+### Major tasks completed
+
+* Completed the PB-NEXT Task.Account implementation and verification path.
+* Added account test infrastructure covering the complete Account workflow.
+* Added account registration with:
+  * username
+  * email
+  * display name
+  * password credential creation
+  * pending email-verification state
+* Added development verification-code delivery through the account code-delivery outbox.
+* Added registration email verification and account activation.
+* Added durable account login using the account’s immutable `AccountId` as the authenticated identity.
+* Added account recovery flows:
+  * forgot username
+  * forgot password
+  * password reset
+* Added authenticated password change.
+* Added account profile maintenance for display-name updates.
+* Added verified contact/email maintenance:
+  * authenticated contact-change requests
+  * preservation of the existing verified email until the replacement address is verified
+  * verification-code delivery to the proposed replacement email
+  * rejection of blank, unchanged, duplicate, and unavailable-account requests
+  * invalid and expired verification-code handling
+  * transactional replacement of the verified account email after successful verification
+  * verification-code consumption after successful contact verification
+* Added account audit coverage for:
+  * registration
+  * verification codes
+  * login
+  * username recovery
+  * password reset
+  * password change
+  * profile maintenance
+  * contact maintenance
+* Added cross-cutting authentication safety tests confirming that unauthenticated requests cannot:
+  * update an account profile
+  * initiate an account contact change
+  * verify an account contact change
+* Standardized Account test/runtime database configuration on:
+  * `PluralBridgeChap2SafeSpine`
+* Confirmed the complete `PluralBridge.Api.Tests.Account` test suite passes.
+
+### Notes
+
+* This release completes Task.Account through sections 2.0–2.10.
+* Account identity is now based on the immutable account identifier carried by the authenticated session rather than resolving the acting account from a mutable username.
+* Changing an account email is intentionally a two-step verified operation; the existing email remains active until the replacement address successfully completes verification.
+* Verification-code state remains server-side and auditable.
+* Development code delivery continues to use the test/development outbox rather than production email delivery.
+* This release does not complete the public application shell or Simply Plural import workflow.
+* Task.UIShell is the next implementation task.
+
 ## v0.8.3 — Post-shutdown website messaging update
 
 ### Major tasks completed

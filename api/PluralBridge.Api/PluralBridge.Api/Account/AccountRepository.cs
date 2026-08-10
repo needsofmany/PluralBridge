@@ -216,6 +216,96 @@ internal static class AccountRepository
 			reader.GetInt32(12));
 	}
 
+	internal static async Task<bool> AccountEmailExistsForOtherAccountAsync(
+		SqlConnection connection,
+		Guid accountId,
+		string normalizedEmail,
+		CancellationToken cancellationToken)
+	{
+		const string sql = """
+		                   SELECT TOP (1) 1
+		                   FROM dbo.pb_accounts
+		                   WHERE NormalizedEmail = @NormalizedEmail
+		                     AND AccountId <> @AccountId;
+		                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue("@NormalizedEmail", normalizedEmail);
+
+		var result = await command.ExecuteScalarAsync(cancellationToken);
+
+		return result is not null;
+	}
+
+	internal static async Task<AccountProfileRecord?> ReadAccountProfileAsync(
+	SqlConnection connection,
+	Guid accountId,
+	CancellationToken cancellationToken)
+	{
+		const string sql = """
+	                   SELECT TOP (1)
+	                       a.AccountId,
+	                       a.Username,
+	                       a.Email,
+	                       a.DisplayName,
+	                       a.AccountStatusId,
+	                       s.StatusName,
+	                       a.IsEmailVerified,
+	                       a.CreatedAtUtc,
+	                       a.UpdatedAtUtc,
+	                       a.LastLoginAtUtc
+	                   FROM dbo.pb_accounts AS a
+	                   INNER JOIN dbo.pb_account_statuses AS s
+	                       ON s.AccountStatusId = a.AccountStatusId
+	                   WHERE a.AccountId = @AccountId;
+	                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+		command.Parameters.AddWithValue("@AccountId", accountId);
+
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+		if (!await reader.ReadAsync(cancellationToken))
+		{
+			return null;
+		}
+
+		return new AccountProfileRecord(
+			reader.GetGuid(0),
+			reader.GetString(1),
+			reader.GetString(2),
+			reader.GetString(3),
+			reader.GetInt32(4),
+			reader.GetString(5),
+			reader.GetBoolean(6),
+			reader.GetDateTime(7),
+			reader.IsDBNull(8) ? null : reader.GetDateTime(8),
+			reader.IsDBNull(9) ? null : reader.GetDateTime(9));
+	}
+
+	internal static async Task UpdateAccountProfileAsync(
+		SqlConnection connection,
+		Guid accountId,
+		string displayName,
+		CancellationToken cancellationToken)
+	{
+		const string sql = """
+	                   UPDATE dbo.pb_accounts
+	                   SET
+	                       DisplayName = @DisplayName,
+	                       UpdatedAtUtc = SYSUTCDATETIME()
+	                   WHERE AccountId = @AccountId;
+	                   """;
+
+		await using var command = new SqlCommand(sql, connection);
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue("@DisplayName", displayName);
+
+		await command.ExecuteNonQueryAsync(cancellationToken);
+	}
+
 	internal static async Task InsertAccountAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
@@ -343,6 +433,64 @@ internal static class AccountRepository
 
 		await using var command = new SqlCommand(sql, connection, transaction);
 		command.Parameters.AddWithValue("@AccountId", accountId);
+
+		await command.ExecuteNonQueryAsync(cancellationToken);
+	}
+
+	internal static async Task<bool> AccountEmailExistsForOtherAccountAsync(
+		SqlConnection connection,
+		SqlTransaction transaction,
+		Guid accountId,
+		string normalizedEmail,
+		CancellationToken cancellationToken)
+	{
+		const string sql = """
+		                   SELECT TOP (1) 1
+		                   FROM dbo.pb_accounts
+		                   WHERE NormalizedEmail = @NormalizedEmail
+		                     AND AccountId <> @AccountId;
+		                   """;
+
+		await using var command =
+			new SqlCommand(sql, connection, transaction);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue(
+			"@NormalizedEmail",
+			normalizedEmail);
+
+		var result =
+			await command.ExecuteScalarAsync(cancellationToken);
+
+		return result is not null;
+	}
+
+	internal static async Task UpdateAccountContactAsync(
+		SqlConnection connection,
+		SqlTransaction transaction,
+		Guid accountId,
+		string email,
+		string normalizedEmail,
+		CancellationToken cancellationToken)
+	{
+		const string sql = """
+		                   UPDATE dbo.pb_accounts
+		                   SET
+		                   	Email = @Email,
+		                   	NormalizedEmail = @NormalizedEmail,
+		                   	IsEmailVerified = 1,
+		                   	UpdatedAtUtc = SYSUTCDATETIME()
+		                   WHERE AccountId = @AccountId;
+		                   """;
+
+		await using var command =
+			new SqlCommand(sql, connection, transaction);
+
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue("@Email", email);
+		command.Parameters.AddWithValue(
+			"@NormalizedEmail",
+			normalizedEmail);
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
