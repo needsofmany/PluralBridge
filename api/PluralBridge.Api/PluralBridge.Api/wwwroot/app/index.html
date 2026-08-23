@@ -3,72 +3,219 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PluralBridge App Proof</title>
+    <title>PluralBridge</title>
     <link rel="stylesheet" href="./app.css">
+    <link rel="stylesheet" href="./css/members-mobile.css" media="(max-width: 720px)">
 </head>
 <body>
-    <main class="app-shell" aria-labelledby="app-title">
-        <section class="app-card">
-            <p class="eyebrow">PluralBridge application proof</p>
-            <h1 id="app-title">Explore this PluralBridge demo</h1>
+    <div class="app-shell">
 
-            <details class="demo-explainer">
-                <summary class="demo-explainer-summary">What this demo shows</summary>
-                <p>
-                    This demo shows the protected member-management path in PluralBridge.
-                    While signed in, you can view members, add a new member, and edit member details.
-                </p>
-                <p>
-                    The developer tools below are available for checking the protected API responses during development.
-                </p>
-            </details>
+        <nav class="application-navigation"
+             aria-label="Application navigation">
 
-            <div class="demo-action-row" aria-label="Demo actions">
-                <div class="demo-action-primary">
-                    <button type="button" data-contract="me">
-                        <svg class="demo-action-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-                            <path fill="currentColor" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z" />
-                        </svg>
-                        <span>session</span>
-                    </button>
+            <section class="application-nav-section"
+                     aria-labelledby="nav-main-heading">
 
-                    <button type="button" data-contract="members">
-                        <svg class="demo-action-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-                            <path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm7.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM9 13c-4.4 0-7 2.2-7 5v1h14v-1c0-2.8-2.6-5-7-5zm7.5 1c-.8 0-1.5.1-2.2.3 1.5 1 2.4 2.3 2.7 3.7h5v-1c0-1.8-2.1-3-5.5-3z" />
-                        </svg>
-                        <span>members</span>
-                    </button>
+                <h2 id="nav-main-heading"
+                    class="application-nav-heading">
+                    MAIN
+                </h2>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-main
+                        data-contract="members">
+                    Members
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-contract="me">
+                    Session
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="fronting">
+                    Fronting
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="groups">
+                    Groups
+                </button>
+
+            </section>
+
+
+            <section class="application-nav-section"
+                     aria-labelledby="nav-data-heading">
+
+                <h2 id="nav-data-heading"
+                    class="application-nav-heading">
+                    DATA
+                </h2>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="import">
+                    Import
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="manage-fields">
+                    Manage Fields
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="history">
+                    History
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="saved-views">
+                    Saved Views
+                </button>
+
+            </section>
+
+
+            <section class="application-nav-section"
+                     aria-labelledby="nav-account-heading">
+
+                <h2 id="nav-account-heading"
+                    class="application-nav-heading">
+                    ACCOUNT
+                </h2>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="profile">
+                    Profile
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="security">
+                    Security
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="systems">
+                    System(s)
+                </button>
+
+            </section>
+
+
+            <section class="application-nav-section"
+                     aria-labelledby="nav-administration-heading">
+
+                <h2 id="nav-administration-heading"
+                    class="application-nav-heading">
+                    ADMINISTRATION
+                </h2>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-shell-placeholder="audit">
+                    Audit
+                </button>
+
+            </section>
+
+
+            <section class="application-nav-section"
+                     aria-labelledby="nav-developer-heading">
+
+                <h2 id="nav-developer-heading"
+                    class="application-nav-heading">
+                    DEVELOPER
+                </h2>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-contract="sourceSystems">
+                    Source systems
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-contract="privacyBuckets">
+                    Privacy buckets
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-contract="sourceRecords">
+                    Source records
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-contract="sourceIdMappings">
+                    Source ID mappings
+                </button>
+
+                <button type="button"
+                        class="application-nav-item"
+                        data-contract="importMetadata">
+                    Import metadata
+                </button>
+
+            </section>
+
+
+            <button type="button"
+                    class="application-nav-item application-nav-signout"
+                    data-session-action="logout">
+                Sign out
+            </button>
+
+        </nav>
+
+        <div class="application-navigation-backdrop"
+             data-shell-menu-backdrop
+             aria-hidden="true">
+        </div>
+
+        <main class="application-main">
+
+            <header class="mobile-application-header">
+
+                <button type="button"
+                        class="mobile-navigation-toggle"
+                        data-shell-menu-toggle
+                        aria-expanded="false"
+                        aria-label="Open application navigation">
+
+                    <span aria-hidden="true">⚙</span>
+                </button>
+
+                <span class="mobile-application-title">
+                    PluralBridge
+                </span>
+
+            </header>
+
+            <div class="application-content">
+
+                <div id="appOutput"
+                     class="output-box"
+                     aria-live="polite">
+                    { }
                 </div>
 
-                <div class="demo-action-session">
-                    <button type="button" data-session-action="logout">
-                        <svg class="demo-action-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-                            <path fill="currentColor" d="M5 3h8v2H5v14h8v2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm11 4 5 5-5 5v-3H9v-4h7V7z" />
-                        </svg>
-                        <span>logout</span>
-                    </button>
-                </div>
             </div>
 
-            <details class="developer-tools-panel">
-                <summary class="developer-tools-summary">Developer tools</summary>
-                <p class="output-note">Inspection endpoints for validating the protected API surface during development.</p>
-                <div class="button-row developer-tools-actions" aria-label="Developer database inspection actions">
-                    <button type="button" data-contract="sourceSystems">source systems</button>
-                    <button type="button" data-contract="importBatches">import batches</button>
-                    <button type="button" data-contract="systems">systems</button>
-                    <button type="button" data-contract="privacyBuckets">privacy buckets</button>
-                    <button type="button" data-contract="customFields">custom fields</button>
-                    <button type="button" data-contract="frontHistory">front history</button>
-                    <button type="button" data-contract="sourceRecords">source records</button>
-                    <button type="button" data-contract="sourceIdMappings">source ID mappings</button>
-                    <button type="button" data-contract="importMetadata">import metadata</button>
-                </div>
-            </details>
+        </main>
 
-            <div id="appOutput" class="output-box" aria-live="polite">{ }</div>
-        </section>
-    </main>
+    </div>
 
     <script src="./app.js"></script>
 </body>

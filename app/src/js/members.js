@@ -1,440 +1,595 @@
-window.PluralBridge = window.PluralBridge || {};
-
-window.PluralBridge.members = (function () {
-    function createStatusMessage() {
-        const status = document.createElement("p");
-        status.className = "member-form-status";
-        status.setAttribute("aria-live", "polite");
-        status.textContent = "";
-        return status;
-    }
-
-    function createTextField(id, labelText, required) {
-        const row = document.createElement("div");
-        row.className = "field-row";
-
-        const label = document.createElement("label");
-        label.setAttribute("for", id);
-        label.textContent = labelText;
-
-        const input = document.createElement("input");
-        input.id = id;
-        input.name = id;
-        input.type = "text";
-        input.autocomplete = "off";
-
-        if (required) {
-            input.required = true;
-        }
-
-        row.appendChild(label);
-        row.appendChild(input);
-
-        return {
-            row: row,
-            input: input
-        };
-    }
-
-    function createDescriptionField(id, labelText) {
-        const row = document.createElement("div");
-        row.className = "field-row";
-
-        const label = document.createElement("label");
-        label.setAttribute("for", id);
-        label.textContent = labelText;
-
-        const textarea = document.createElement("textarea");
-        textarea.id = id;
-        textarea.name = id;
-        textarea.rows = 6;
-
-        row.appendChild(label);
-        row.appendChild(textarea);
-
-        return {
-            row: row,
-            input: textarea
-        };
-    }
-
-    function setFormBusy(form, isBusy) {
-        const controls = form.querySelectorAll("input, textarea, button");
-
-        controls.forEach(function (control) {
-            control.disabled = isBusy;
-        });
-    }
-
-    function getMemberId(member) {
-        return member && member.memberId ? member.memberId : "";
-    }
-
-    function buildMemberRequest(displayNameInput, pronounsInput, descriptionInput) {
-        const request = {
-            displayName: displayNameInput.value.trim()
-        };
-
-        const pronouns = pronounsInput.value.trim();
-        const description = descriptionInput.value.trim();
-
-        if (pronouns) {
-            request.pronouns = pronouns;
-        }
-
-        if (description) {
-            request.description = description;
-        }
-
-        return request;
-    }
-
-    function createToolbarIcon(iconName) {
-        const svgNamespace = "http://www.w3.org/2000/svg";
-
-        const svg = document.createElementNS(svgNamespace, "svg");
-        svg.setAttribute("class", "member-toolbar-icon");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "18");
-        svg.setAttribute("height", "18");
-        svg.setAttribute("aria-hidden", "true");
-        svg.setAttribute("focusable", "false");
-
-        const path = document.createElementNS(svgNamespace, "path");
-        path.setAttribute("fill", "currentColor");
-
-        if (iconName === "groups") {
-            path.setAttribute("d", "M4 5h6l2 2h8v12H4V5zm2 4v8h12V9H6z");
-        } else if (iconName === "addGroup") {
-            path.setAttribute("d", "M4 5h6l2 2h8v5h-2V9H6v8h6v2H4V5zm13 8h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3z");
-        } else if (iconName === "addMember") {
-            path.setAttribute("d", "M9 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0 2c-4 0-7 2-7 5v1h10.5a5.5 5.5 0 0 1 .6-6H9zm8 0h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3z");
-        } else if (iconName === "expanded") {
-            path.setAttribute("d", "M4 5h16v4H4V5zm0 5.5h16v4H4v-4zM4 16h16v3H4v-3z");
-        } else if (iconName === "compact") {
-            path.setAttribute("d", "M5 6h14v2H5V6zm0 5h14v2H5v-2zm0 5h14v2H5v-2z");
-        } else {
-            path.setAttribute("d", "M11 10h2v8h-2v-8zm0-4h2v2h-2V6zm1-4a10 10 0 1 0 0 20 10 10 0 0 0 0-20z");
-        }
-
-        svg.appendChild(path);
-        return svg;
-    }
-
-    function createToolbarButton(iconName, labelText, options) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "member-toolbar-button";
-
-        if (options && options.disabled) {
-            button.disabled = true;
-            button.title = options.title || labelText + " planned";
-        }
-
-        if (options && options.pressed !== undefined) {
-            button.setAttribute("aria-pressed", String(options.pressed));
-        }
-
-        button.appendChild(createToolbarIcon(iconName));
-
-        const label = document.createElement("span");
-        label.className = "member-toolbar-label";
-        label.textContent = labelText;
-
-        button.appendChild(label);
-
-        if (options && typeof options.onClick === "function") {
-            button.addEventListener("click", options.onClick);
-        }
-
-        return button;
-    }
-
-    function createMemberToolbar(options) {
-        const toolbar = document.createElement("div");
-        toolbar.className = "member-toolbar";
-        toolbar.setAttribute("aria-label", "Member toolbar");
-
-        const primaryGroup = document.createElement("div");
-        primaryGroup.className = "member-toolbar-group";
-
-        const viewGroup = document.createElement("div");
-        viewGroup.className = "member-toolbar-group member-toolbar-view-group";
-
-        primaryGroup.appendChild(createToolbarButton("groups", "Groups", {
-            disabled: true,
-            title: "Groups view planned"
-        }));
-
-        primaryGroup.appendChild(createToolbarButton("addGroup", "Add group", {
-            disabled: true,
-            title: "Add group planned"
-        }));
-
-        primaryGroup.appendChild(createToolbarButton("addMember", "Add member", {
-            onClick: function () {
-                if (options && typeof options.toggleAddMember === "function") {
-                    options.toggleAddMember();
-                }
-            }
-        }));
-
-        viewGroup.appendChild(createToolbarButton("expanded", "Expanded", {
-            disabled: true,
-            title: "Expanded member view planned"
-        }));
-
-        viewGroup.appendChild(createToolbarButton("compact", "Compact", {
-            disabled: true,
-            title: "Compact member view planned"
-        }));
-
-        viewGroup.appendChild(createToolbarButton("details", "Details", {
-            disabled: true,
-            title: "Member details view planned"
-        }));
-
-        toolbar.appendChild(primaryGroup);
-        toolbar.appendChild(viewGroup);
-
-        return toolbar;
-    }
-
-    function createFormActionIcon(iconName) {
-        const svgNamespace = "http://www.w3.org/2000/svg";
-
-        const svg = document.createElementNS(svgNamespace, "svg");
-        svg.setAttribute("class", "member-form-action-icon");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "16");
-        svg.setAttribute("height", "16");
-        svg.setAttribute("aria-hidden", "true");
-        svg.setAttribute("focusable", "false");
-
-        const path = document.createElementNS(svgNamespace, "path");
-        path.setAttribute("fill", "currentColor");
-
-        if (iconName === "save") {
-            path.setAttribute("d", "M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zM7 5h8v5H7V5zm10 14H7v-6h10v6z");
-        } else if (iconName === "add") {
-            path.setAttribute("d", "M9 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0 2c-4 0-7 2-7 5v1h10.5a5.5 5.5 0 0 1 .6-6H9zm8 0h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3z");
-        } else {
-            path.setAttribute("d", "M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z");
-        }
-
-        svg.appendChild(path);
-        return svg;
-    }
-
-    function createFormActionButton(iconName, labelText, buttonType) {
-        const button = document.createElement("button");
-        button.type = buttonType;
-        button.className = "member-form-action-button";
-
-        button.appendChild(createFormActionIcon(iconName));
-
-        const label = document.createElement("span");
-        label.textContent = labelText;
-
-        button.appendChild(label);
-
-        return button;
-    }
-
-    function createMemberAddForm(options) {
-        const section = document.createElement("section");
-        section.className = "member-add-panel";
-        section.setAttribute("aria-labelledby", "member-add-heading");
-
-        const heading = document.createElement("h3");
-        heading.id = "member-add-heading";
-        heading.className = "me-section-heading";
-        heading.textContent = "Add member";
-
-        const form = document.createElement("form");
-        form.className = "member-add-form";
-
-        const displayNameField = createTextField("member-add-display-name", "Display name", true);
-        const pronounsField = createTextField("member-add-pronouns", "Pronouns", false);
-        const descriptionField = createDescriptionField("member-add-description", "Description");
-
-        const buttonRow = document.createElement("div");
-        buttonRow.className = "button-row member-form-button-row";
-
-        const submitButton = createFormActionButton("add", "Add member", "submit");
-        const cancelButton = createFormActionButton("cancel", "Cancel", "button");
-
-        const status = createStatusMessage();
-
-        buttonRow.appendChild(submitButton);
-        buttonRow.appendChild(cancelButton);
-
-        form.appendChild(displayNameField.row);
-        form.appendChild(pronounsField.row);
-        form.appendChild(descriptionField.row);
-        form.appendChild(buttonRow);
-        form.appendChild(status);
-
-        cancelButton.addEventListener("click", function () {
-            form.reset();
-            status.textContent = "";
-
-            if (options && typeof options.cancelAddMember === "function") {
-                options.cancelAddMember();
-            }
-        });
-
-        form.addEventListener("submit", async function (event) {
-            event.preventDefault();
-
-            const apiClient = window.PluralBridge && window.PluralBridge.apiClient
-                ? window.PluralBridge.apiClient
-                : null;
-
-            if (!apiClient || typeof apiClient.addMember !== "function") {
-                status.textContent = "Member add is not available in the current browser session.";
-                return;
-            }
-
-            const request = buildMemberRequest(displayNameField.input, pronounsField.input, descriptionField.input);
-
-            if (!request.displayName) {
-                status.textContent = "Display name is required.";
-                return;
-            }
-
-            setFormBusy(form, true);
-            status.textContent = "Adding member.";
-
-            let addSucceeded = false;
-
-            try {
-                await apiClient.addMember(request);
-                addSucceeded = true;
-                form.reset();
-                status.textContent = "Member added. Refreshing members.";
-
-                if (options && typeof options.refreshMembers === "function") {
-                    await options.refreshMembers();
-                }
-            } catch (error) {
-                if (addSucceeded) {
-                    status.textContent = "Member was added, but the member list could not refresh. Click members to reload.";
-                } else {
-                    status.textContent = "Member could not be added. Confirm the API is running and try again.";
-                }
-            } finally {
-                setFormBusy(form, false);
-            }
-        });
-
-        section.appendChild(heading);
-        section.appendChild(form);
-
-        return section;
-    }
-
-    function createMemberEditForm(member, options) {
-        const section = document.createElement("section");
-        section.className = "member-edit-panel";
-
-        const memberId = getMemberId(member);
-
-        const heading = document.createElement("h3");
-        heading.className = "me-section-heading";
-        heading.textContent = "Edit member";
-
-        const form = document.createElement("form");
-        form.className = "member-edit-form";
-
-        const displayNameField = createTextField("member-edit-display-name-" + memberId, "Display name", true);
-        const pronounsField = createTextField("member-edit-pronouns-" + memberId, "Pronouns", false);
-        const descriptionField = createDescriptionField("member-edit-description-" + memberId, "Description");
-
-        displayNameField.input.value = member && member.displayName ? member.displayName : "";
-        pronounsField.input.value = member && member.pronouns ? member.pronouns : "";
-        descriptionField.input.value = member && member.description ? member.description : "";
-
-        const buttonRow = document.createElement("div");
-        buttonRow.className = "button-row member-form-button-row";
-
-        const saveButton = createFormActionButton("save", "Save", "submit");
-        const cancelButton = createFormActionButton("cancel", "Cancel", "button");
-
-        const status = createStatusMessage();
-
-        buttonRow.appendChild(saveButton);
-        buttonRow.appendChild(cancelButton);
-
-        form.appendChild(displayNameField.row);
-        form.appendChild(pronounsField.row);
-        form.appendChild(descriptionField.row);
-        form.appendChild(buttonRow);
-        form.appendChild(status);
-
-        cancelButton.addEventListener("click", function () {
-            if (options && typeof options.cancelEdit === "function") {
-                options.cancelEdit();
-            }
-        });
-
-        form.addEventListener("submit", async function (event) {
-            event.preventDefault();
-
-            const apiClient = window.PluralBridge && window.PluralBridge.apiClient
-                ? window.PluralBridge.apiClient
-                : null;
-
-            if (!memberId) {
-                status.textContent = "Member edit is not available because this member has no member ID.";
-                return;
-            }
-
-            if (!apiClient || typeof apiClient.editMember !== "function") {
-                status.textContent = "Member edit is not available in the current browser session.";
-                return;
-            }
-
-            const request = buildMemberRequest(displayNameField.input, pronounsField.input, descriptionField.input);
-
-            if (!request.displayName) {
-                status.textContent = "Display name is required.";
-                return;
-            }
-
-            setFormBusy(form, true);
-            status.textContent = "Saving member.";
-
-            let editSucceeded = false;
-
-            try {
-                await apiClient.editMember(memberId, request);
-                editSucceeded = true;
-                status.textContent = "Member saved. Refreshing members.";
-
-                if (options && typeof options.refreshMembers === "function") {
-                    await options.refreshMembers();
-                }
-            } catch (error) {
-                if (editSucceeded) {
-                    status.textContent = "Member was saved, but the member list could not refresh. Click members to reload.";
-                } else {
-                    status.textContent = "Member could not be saved. Confirm the API is running and try again.";
-                }
-            } finally {
-                setFormBusy(form, false);
-            }
-        });
-
-        section.appendChild(heading);
-        section.appendChild(form);
-
-        return section;
-    }
-
-    return {
-        createMemberToolbar: createMemberToolbar,
-        createMemberAddForm: createMemberAddForm,
-        createMemberEditForm: createMemberEditForm
-    };
-})();
+/* Member browser app styles.
+   Consolidated Task 6 member management styles. */
+
+/* App/header compression for member-management view */
+
+.app - card {
+	padding: 1.05rem 1.2rem 1rem;
+}
+
+	.app - card.eyebrow {
+	margin: 0 0 0.32rem;
+	font - size: 0.72rem;
+	letter - spacing: 0.12em;
+}
+
+	.app - card h1 {
+	margin: 0 0 0.62rem;
+	font - size: clamp(2.1rem, 4.3vw, 3rem);
+	line - height: 1;
+}
+
+.demo - explainer {
+	margin: 0 0 0.5rem;
+}
+
+.demo - explainer - summary {
+	line - height: 1.15;
+}
+
+.demo - action - row {
+	align - items: center;
+	margin: 0 0 0.65rem;
+}
+
+.demo - action - primary,
+.demo - action - session {
+	gap: 0.4rem;
+}
+
+.demo - action - row button {
+	min - height: 0;
+	border - radius: 0.65rem;
+	padding: 0.38rem 0.6rem;
+	font - size: 0.84rem;
+	line - height: 1.05;
+}
+
+.demo - action - icon {
+	width: 0.95rem;
+	height: 0.95rem;
+}
+
+.developer - tools - panel {
+	margin: 0 0 0.55rem;
+	padding: 0.34rem 0.55rem;
+}
+
+.developer - tools - summary {
+	line - height: 1.05;
+}
+
+/* Member output shell */
+
+.output - box {
+	max - height: none;
+	overflow: visible;
+	padding: 0.72rem 0.85rem 0.95rem;
+}
+
+#appOutput.output - box: has(.member - list) {
+	max - height: none;
+	overflow: visible;
+}
+
+.member - list {
+	display: flex;
+	flex - direction: column;
+	min - height: 0;
+	max - height: none;
+	overflow: visible;
+}
+
+	.member - list > .output - heading {
+	flex: 0 0 auto;
+	margin: 0 0 0.15rem;
+	font - size: 1.35rem;
+	line - height: 1.1;
+}
+
+	.member - list > .output - note {
+	flex: 0 0 auto;
+	margin: 0 0 0.3rem;
+	line - height: 1.2;
+}
+
+/* Member toolbar */
+
+.member - toolbar {
+	display: flex;
+	flex: 0 0 auto;
+	flex - wrap: wrap;
+	align - items: center;
+	justify - content: space - between;
+	gap: 0.35rem;
+	margin: 0 0 0.35rem;
+	padding: 0.35rem 0.45rem;
+	border: 1px solid rgba(168, 199, 255, 0.22);
+	border - radius: 0.75rem;
+	background: rgba(7, 10, 13, 0.32);
+}
+
+.member - toolbar - group {
+	display: flex;
+	flex - wrap: wrap;
+	align - items: center;
+	gap: 0.35rem;
+}
+
+.member - toolbar - button {
+	display: inline - flex;
+	align - items: center;
+	gap: 0.32rem;
+	min - height: 0;
+	padding: 0.32rem 0.55rem;
+	border - radius: 0.55rem;
+	font - size: 0.82rem;
+	line - height: 1.05;
+}
+
+	.member - toolbar - button:disabled {
+	opacity: 0.45;
+	cursor: not - allowed;
+}
+
+		.member - toolbar - button: disabled: hover,
+		.member - toolbar - button: disabled: focus - visible {
+	background: #a8c7ff;
+	outline: none;
+}
+
+.member - toolbar - icon {
+	display: inline - grid;
+	width: 0.9rem;
+	height: 0.9rem;
+	min - width: 0.9rem;
+	place - items: center;
+	font - weight: 900;
+}
+
+.member - toolbar - label {
+	font - size: 0.78rem;
+}
+
+/* Add/edit form panels */
+
+.member - add - container[hidden] {
+	display: none;
+}
+
+.member - add - panel,
+.member - edit - panel {
+	padding: 0.85rem 1rem 0.65rem;
+	border: 1px solid rgba(168, 199, 255, 0.22);
+	border - radius: 0.85rem;
+	background: rgba(7, 10, 13, 0.32);
+}
+
+.member - add - panel {
+	margin - bottom: 0.65rem;
+}
+
+	.member - add - panel.me - section - heading,
+	.member - edit - panel.me - section - heading {
+	margin: 0 0 0.65rem;
+}
+
+.member - add - form,
+.member - edit - form {
+	display: grid;
+	gap: 0.55rem;
+}
+
+	.member - add - form.field - row,
+	.member - edit - form.field - row {
+	display: grid;
+	gap: 0.35rem;
+	margin - bottom: 0;
+}
+
+	.member - add - form label,
+	.member - edit - form label,
+	.member - add - form input,
+	.member - edit - form input,
+	.member - add - form textarea,
+	.member - edit - form textarea {
+	margin: 0;
+}
+
+	.member - add - form textarea,
+	.member - edit - form textarea {
+	width: min(100 %, 44rem);
+	min - height: 6.5rem;
+	padding: 0.65rem 0.75rem;
+	border: 1px solid rgba(148, 163, 184, 0.55);
+	border - radius: 0.5rem;
+	color: #e5e7eb;
+	background: rgba(15, 23, 42, 0.72);
+	font: inherit;
+	resize: vertical;
+}
+
+.member - form - button - row {
+	display: flex;
+	margin: 0.45rem 0 0;
+	padding: 0;
+}
+
+.member - form - action - button {
+	display: inline - flex;
+	align - items: center;
+	justify - content: center;
+	gap: 0.35rem;
+}
+
+.member - form - action - icon {
+	flex: 0 0 auto;
+}
+
+.member - form - status {
+	margin: 0;
+	color: #cbd5e1;
+	font - weight: 700;
+}
+
+	.member - form - status:empty {
+	display: none;
+}
+
+	.member - form - status.is - error {
+	color: #fecaca;
+}
+
+	.member - form - status.is - success {
+	color: #bbf7d0;
+}
+
+/* Member list/card spacing */
+
+.member - scroll - list {
+	display: block;
+	height: 42rem;
+	max - height: none;
+	overflow - y: auto;
+	overflow - x: hidden;
+	padding - right: 0.25rem;
+	padding - bottom: 0.75rem;
+	box - sizing: border - box;
+	overscroll - behavior: contain;
+}
+
+	.member - scroll - list.member - card {
+	margin - top: 0.28rem;
+}
+
+		.member - scroll - list.member - card: first - child {
+	margin - top: 0;
+}
+
+		.member - scroll - list.member - card.member - body {
+	padding - top: 0.45rem;
+	padding - bottom: 0.55rem;
+}
+
+.member - summary {
+	min - height: 0;
+	gap: 0.55rem;
+	padding - top: 0.34rem;
+	padding - bottom: 0.34rem;
+}
+
+	.member - summary:focus {
+	outline: none;
+}
+
+	.member - summary: focus - visible {
+	outline: 2px solid rgba(168, 199, 255, 0.65);
+	outline - offset: 2px;
+	border - radius: 0.75rem;
+}
+
+.member - summary - main {
+	display: inline - flex;
+	flex: 1 1 auto;
+	align - items: center;
+	gap: 0.55rem;
+	min - width: 0;
+}
+
+	.member - summary - main.member - identity {
+	align - items: flex - start;
+	text - align: left;
+}
+
+.member - summary > .member - chevron {
+	flex: 0 0 auto;
+	margin - left: auto;
+	line - height: 1;
+}
+
+.member - avatar - placeholder {
+	display: inline - block;
+	flex: 0 0 auto;
+	width: 2.35rem;
+	height: 2.35rem;
+	border: 1px solid rgba(196, 181, 253, 0.55);
+	border - radius: 0.65rem;
+	background: rgba(196, 181, 253, 0.22);
+	box - shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.member - identity {
+	flex: 1 1 auto;
+	gap: 0.12rem;
+	min - width: 0;
+}
+
+.member - name,
+.member - pronouns {
+	line - height: 1.15;
+}
+
+/* Icons used by member profile actions */
+
+.member - toggle - icon {
+	flex: 0 0 auto;
+}
+
+/* Field-local member profile editing */
+
+.member - profile - panel {
+	display: grid;
+	gap: 0.15rem;
+	padding: 0.2rem 0 0.15rem;
+}
+
+	.member - profile - panel.me - section - heading {
+	margin: 0 0 0.15rem;
+}
+
+.member - profile - fields {
+	display: grid;
+	gap: 0;
+}
+
+.member - profile - field - row {
+	display: grid;
+	grid - template - columns: minmax(5.5rem, 9rem) minmax(0, 1fr) 1.45rem;
+	align - items: center;
+	gap: 0.45rem;
+	min - height: 0;
+	padding: 0.08rem 0.35rem;
+	border - radius: 0.55rem;
+	transition: background - color 120ms ease;
+}
+
+	.member - profile - field - row: hover,
+	.member - profile - field - row: focus - within {
+	background: rgba(168, 199, 255, 0.08);
+}
+
+	.member - profile - field - row.is - active {
+	background: rgba(168, 199, 255, 0.13);
+}
+
+		.member - profile - field - row.is - active.member - profile - field - label {
+	color: #dbeafe;
+}
+
+.member - profile - field - label {
+	color: #cbd5e1;
+	font - size: 0.82rem;
+	font - weight: 800;
+	line - height: 1.15;
+}
+
+.member - profile - field - value {
+	min - width: 0;
+	color: #e5e7eb;
+	line - height: 1.15;
+	overflow - wrap: anywhere;
+}
+
+.member - profile - field - value - long {
+	line - height: 1.22;
+	white - space: pre - wrap;
+}
+
+.member - profile - field - edit - button {
+	display: inline - flex;
+	align - items: center;
+	justify - content: center;
+	width: 1.45rem;
+	min - width: 1.45rem;
+	height: 1.45rem;
+	padding: 0;
+	border - radius: 999px;
+	opacity: 0;
+	pointer - events: none;
+	transition: opacity 120ms ease, background - color 120ms ease, transform 120ms ease;
+}
+
+	.member - profile - field - row: hover.member - profile - field - edit - button,
+	.member - profile - field - row: focus - within.member - profile - field - edit - button,
+	.member - profile - field - row.is - active.member - profile - field - edit - button,
+	.member - profile - field - edit - button: focus,
+	.member - profile - field - edit - button: focus - visible {
+	opacity: 1;
+	pointer - events: auto;
+}
+
+	.member - profile - field - edit - button: not(: disabled): hover,
+	.member - profile - field - edit - button: not(: disabled): focus - visible {
+	background: rgba(168, 199, 255, 0.22);
+	transform: scale(1.03);
+}
+
+	.member - profile - field - edit - button:focus {
+	outline: none;
+}
+
+	.member - profile - field - edit - button: focus - visible {
+	outline: 2px solid rgba(168, 199, 255, 0.7);
+	outline - offset: 2px;
+}
+
+	.member - profile - field - edit - button:disabled {
+	opacity: 0.45;
+	cursor: not - allowed;
+	transform: none;
+}
+
+.member - profile - field - editor {
+	width: 100 %;
+	min - width: 0;
+	padding: 0.45rem 0.55rem;
+	border: 1px solid rgba(168, 199, 255, 0.55);
+	border - radius: 0.45rem;
+	color: #e5e7eb;
+	background: rgba(15, 23, 42, 0.88);
+	font: inherit;
+	line - height: 1.45;
+}
+
+.member - profile - field - input {
+	height: 2.15rem;
+}
+
+.member - profile - field - textarea {
+	min - height: 8rem;
+	resize: vertical;
+}
+
+.member - profile - field - editor:focus {
+	outline: none;
+}
+
+.member - profile - field - editor: focus - visible {
+	outline: 2px solid rgba(168, 199, 255, 0.7);
+	outline - offset: 2px;
+}
+
+.member - profile - action - row {
+	display: flex;
+	justify - content: flex - end;
+	margin - top: -0.25rem;
+}
+
+.member - profile - save - button {
+	display: inline - flex;
+	align - items: center;
+	justify - content: center;
+	gap: 0.35rem;
+	padding: 0.38rem 0.65rem;
+	line - height: 1.1;
+}
+
+	.member - profile - save - button: not(: disabled) {
+	cursor: pointer;
+}
+
+	.member - profile - save - button:disabled {
+	opacity: 0.45;
+	cursor: not - allowed;
+}
+
+.member - profile - json - details {
+	margin - top: 0;
+}
+
+	.member - profile - json - details summary {
+	cursor: pointer;
+	color: #cbd5e1;
+	font - weight: 800;
+	line - height: 1.05;
+	padding: 0.02rem 0;
+}
+
+/* Unsaved-change modal */
+
+.member - profile - unsaved - dialog {
+	width: min(92vw, 26rem);
+	margin: auto;
+	padding: 1rem;
+	border: 1px solid rgba(252, 211, 77, 0.65);
+	border - radius: 0.8rem;
+	background: #111827;
+	color: #e5e7eb;
+	box - shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.55);
+}
+
+	.member - profile - unsaved - dialog::backdrop {
+	background: rgba(0, 0, 0, 0.58);
+}
+
+	.member - profile - unsaved - dialog[hidden] {
+	display: none;
+}
+
+.member - profile - unsaved - message {
+	margin: 0 0 0.75rem;
+	color: #fef3c7;
+	font - weight: 800;
+	line - height: 1.35;
+}
+
+.member - profile - unsaved - actions {
+	display: flex;
+	flex - wrap: wrap;
+	justify - content: flex - end;
+	gap: 0.4rem;
+}
+
+.member - profile - unsaved - button {
+	display: inline - flex;
+	align - items: center;
+	justify - content: center;
+	min - height: 2rem;
+	border - radius: 0.5rem;
+	padding: 0.32rem 0.55rem;
+	font - size: 0.84rem;
+	line - height: 1.1;
+}
+
+	.member - profile - unsaved - button:disabled {
+	opacity: 0.45;
+	cursor: not - allowed;
+}
+
+.member - profile - unsaved - status {
+	margin: 0.65rem 0 0;
+}
+
+/*
+ * Phone presentation for the Members toolbar.
+ *
+ * Desktop keeps the existing flexible toolbar.
+ * Phone uses two balanced rows of three controls.
+ */
+@media(max - width: 720px) {
+
+    .member - toolbar {
+		display: grid;
+		grid - template - columns: 1fr;
+		gap: 0.4rem;
+		padding: 0.45rem;
+	}
+
+    .member - toolbar - group {
+		display: grid;
+		grid - template - columns: repeat(3, minmax(0, 1fr));
+		width: 100 %;
+		gap: 0.35rem;
+	}
+
+    .member - toolbar - button {
+		width: 100 %;
+		justify - content: center;
+		padding: 0.45rem 0.3rem;
+		white - space: nowrap;
+	}
+
+    .member - toolbar - label {
+		font - size: 0.76rem;
+	}
+}

@@ -46,7 +46,7 @@ const endpointBuilders = {
 
 function updateSessionStatus() {
     if (sessionStatus) {
-        sessionStatus.textContent = "You are signed in to the read-only PluralBridge demo.";
+        sessionStatus.textContent = "You are signed in to PluralBridge.";
     }
 }
 
@@ -154,7 +154,7 @@ function renderSourceSystems(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = sourceSystems.length + " source systems returned from the read-only demo API.";
+    note.textContent = sourceSystems.length + " source systems returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -268,7 +268,7 @@ function renderSystems(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = systems.length + " systems returned from the read-only demo API.";
+    note.textContent = systems.length + " systems returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -332,11 +332,11 @@ function renderMe(payload) {
 
     const heading = document.createElement("h2");
     heading.className = "output-heading";
-    heading.textContent = "Demo session";
+    heading.textContent = "Session";
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = "Read-only PluralBridge proof context for the protected demo session.";
+    note.textContent = "PluralBridge proof context for this session.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -514,7 +514,7 @@ function renderPrivacyBuckets(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = privacyBuckets.length + " privacy buckets returned from the read-only demo API.";
+    note.textContent = privacyBuckets.length + " privacy buckets returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -627,7 +627,7 @@ function renderCustomFields(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = customFields.length + " custom fields returned from the read-only demo API.";
+    note.textContent = customFields.length + " custom fields returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -770,7 +770,7 @@ function renderImportBatches(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = importBatches.length + " import batches returned from the read-only demo API.";
+    note.textContent = importBatches.length + " import batches returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -901,7 +901,7 @@ function renderSourceRecords(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = sourceRecords.length + " source records returned from the read-only demo API.";
+    note.textContent = sourceRecords.length + " source records returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -1036,7 +1036,7 @@ function renderSourceIdMappings(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = sourceIdMappings.length + " source ID mappings returned from the read-only demo API.";
+    note.textContent = sourceIdMappings.length + " source ID mappings returned from the read-only  API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -1070,7 +1070,7 @@ function renderImportMetadata(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = "Read-only import health and lineage summary for this demo system.";
+    note.textContent = "Import health and lineage summary for this system.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -2095,7 +2095,7 @@ function renderFrontHistory(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = records.length + " front history records returned from the read-only demo API.";
+    note.textContent = records.length + " front history records returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);

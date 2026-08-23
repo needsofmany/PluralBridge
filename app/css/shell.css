@@ -1,0 +1,250 @@
+.app-shell {
+	min-height: 100vh;
+	display: grid;
+	grid-template-columns: 15rem minmax(0, 1fr);
+	place-items: stretch;
+	padding: 0;
+}
+
+
+.application-navigation {
+	position: sticky;
+	top: 0;
+	height: 100vh;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+	padding: 1.5rem 1rem;
+	border-right: 1px solid rgba(255, 255, 255, 0.14);
+	background: rgba(7, 10, 13, 0.94);
+}
+
+
+.application-nav-section {
+	display: grid;
+	gap: 0.25rem;
+}
+
+
+.application-nav-heading {
+	margin: 0 0 0.35rem;
+	padding: 0 0.75rem;
+	color: #a8c7ff;
+	font-size: 0.75rem;
+	font-weight: 800;
+	letter-spacing: 0.12em;
+}
+
+
+.application-nav-item {
+	width: 100%;
+	display: block;
+	padding: 0.55rem 0.75rem;
+	border: 0;
+	border-radius: 0.5rem;
+	color: #d8e1ed;
+	background: transparent;
+	text-align: left;
+	font-weight: 600;
+	opacity: 0.62;
+}
+
+
+	.application-nav-item:hover:not(:disabled),
+	.application-nav-item:focus-visible,
+	.application-nav-item[aria-pressed="true"] {
+		color: #101418;
+		background: #a8c7ff;
+		opacity: 1;
+		outline: none;
+	}
+
+
+.application-nav-signout {
+	margin-top: 0.5rem;
+}
+
+
+.application-main {
+	min-width: 0;
+	padding: 2rem;
+}
+
+
+.application-content {
+	width: min(1100px, 100%);
+	margin: 0 auto;
+}
+
+
+.application-main .output-box {
+	min-height: calc(100vh - 4rem);
+	max-height: none;
+	overflow: visible;
+}
+
+
+.application-main .developer-tools-panel {
+	margin-top: 1.5rem;
+}
+
+
+/*
+ * Desktop-only member profile presentation.
+ */
+@media (min-width: 721px) {
+
+	/*
+	 * Recessed presentation for long member profile values.
+	 *
+	 * The panel extends left by the same amount as its internal horizontal
+	 * padding. This keeps the text itself aligned with the ordinary profile
+	 * values above it while allowing the recessed box to surround the text.
+	 */
+	.member-profile-field-value-long {
+		width: calc(100% + 0.65rem);
+		margin-left: -0.65rem;
+		padding: 0.55rem 0.65rem;
+		border: 1px solid rgba(168, 199, 255, 0.18);
+		border-radius: 0.55rem;
+		background: rgba(7, 10, 13, 0.42);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), inset 0 0 0 1px rgba(0, 0, 0, 0.22);
+	}
+
+
+	/*
+	 * Give the Save row a visible gutter below the recessed Description well.
+	 */
+	.member-profile-action-row {
+		margin-top: 0.6rem;
+	}
+}
+
+
+/*
+ * Phone-shell elements do not participate in the desktop layout.
+ */
+.mobile-application-header {
+	display: none;
+}
+
+.application-navigation-backdrop {
+	display: none;
+}
+
+
+/*
+ * PHONE SHELL
+ */
+@media (max-width: 720px) {
+
+	/*
+	 * Desktop's two-column grid becomes one content column.
+	 */
+	.app-shell {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+
+	/*
+	 * The SAME navigation used on desktop becomes an off-screen drawer.
+	 */
+	.application-navigation {
+		position: fixed;
+		top: 0;
+		left: 0;
+		z-index: 1001;
+		width: min(18rem, 85vw);
+		height: 100vh;
+		transform: translateX(-100%);
+		transition: transform 180ms ease;
+		box-shadow: 0 0 2rem rgba(0, 0, 0, 0.45);
+	}
+
+
+	body.shell-menu-open .application-navigation {
+		transform: translateX(0);
+	}
+
+
+	/*
+	 * Overlay behind the open drawer.
+	 */
+	.application-navigation-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		display: block;
+		background: rgba(0, 0, 0, 0.55);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 180ms ease;
+	}
+
+
+	body.shell-menu-open .application-navigation-backdrop {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+
+	/*
+	 * Compact phone header.
+	 */
+	.mobile-application-header {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		min-height: 3.75rem;
+		padding: 0.5rem 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+		background: rgba(7, 10, 13, 0.96);
+	}
+
+
+	/*
+	 * Explicitly override the application's generic button styling.
+	 */
+	.mobile-navigation-toggle {
+		display: grid;
+		place-items: center;
+		width: 2.75rem;
+		min-width: 2.75rem;
+		height: 2.75rem;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		border-radius: 0.5rem;
+		color: #101418;
+		background: #a8c7ff;
+		font-size: 1.25rem;
+		line-height: 1;
+	}
+
+
+	.mobile-application-title {
+		font-size: 1rem;
+		font-weight: 800;
+	}
+
+
+	/*
+	 * Phone content uses the full screen width.
+	 */
+	.application-main {
+		padding: 0;
+	}
+
+
+	.application-content {
+		width: 100%;
+		padding: 1rem;
+		box-sizing: border-box;
+	}
+
+
+	.application-main .output-box {
+		min-height: 0;
+	}
+}
