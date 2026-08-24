@@ -6,6 +6,38 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.8.5 — Task.Account 2.11 security cleanup
+
+### Major tasks completed
+
+* Replaced the hardcoded demo-account access path with authenticated account resolution.
+* Added account lookup using the immutable `AccountId` carried by the authenticated `NameIdentifier` claim.
+* Rejected access-context resolution when the authenticated account identifier is missing or malformed.
+* Applied authorization enforcement across the protected API controllers.
+* Passed the authenticated principal through each protected access-context path.
+* Added direct API handling for:
+  * `401 Unauthorized`
+  * `403 Forbidden`
+* Preserved browser redirect behavior outside the API.
+* Attached the verified Needs of the Many account to the existing System through an active Owner membership.
+* Added account-boundary tests confirming that:
+  * each authenticated account resolves its own account, membership, and System
+  * each account can read members from its own System
+  * cross-System member access returns `403 Forbidden`
+  * missing and malformed `NameIdentifier` claims do not resolve an access context
+* Extended runtime test setup and cleanup for Systems, memberships, roles, and members.
+* Added SPDX license headers to the C# source files.
+* Confirmed the complete API test suite passes.
+
+### Notes
+
+* This release completes Task.Account section 2.11.
+* Protected API access now derives the acting account from the authenticated session rather than a fixed proof account.
+* Account access remains constrained by active System membership.
+* Existing privacy-bucket boundaries and member-write audit seams remain in place.
+* No database schema changes or new tables were required.
+* Task.UIShell remains the next implementation task.
+
 ## v0.8.4 — PB-NEXT Task.Account implementation complete
 
 ### Major tasks completed
