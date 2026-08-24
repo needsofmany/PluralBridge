@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc.Testing;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace PluralBridge.Api.Tests.Account;
 

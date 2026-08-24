@@ -1,6 +1,8 @@
-﻿using Microsoft.Data.SqlClient;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.Data.SqlClient;
 using PluralBridge.Api.Controllers;
-using Xunit;
 
 // ReSharper disable once CheckNamespace
 namespace PluralBridge.Api.Tests.Controllers;

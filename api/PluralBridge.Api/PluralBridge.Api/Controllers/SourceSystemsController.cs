@@ -1,4 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 
@@ -9,6 +13,7 @@ namespace PluralBridge.Api.Controllers;
 /// Source systems identify the external application families represented in the import data.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route(Globals.sourceSystemsRoute)]
 public sealed class SourceSystemsController(
 	IConfiguration configuration,
@@ -52,6 +57,7 @@ public sealed class SourceSystemsController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 

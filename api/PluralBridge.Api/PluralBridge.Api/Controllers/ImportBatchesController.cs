@@ -1,4 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 
@@ -9,6 +13,7 @@ namespace PluralBridge.Api.Controllers;
 /// Import batches describe when source data was imported and which source system produced it.
 /// </summary>
 [ApiController]
+[Authorize]
 // ReSharper disable once RouteTemplates.ControllerRouteParameterIsNotPassedToMethods
 [Route(Globals.importBatchesRoute)]
 public sealed class ImportBatchesController(
@@ -54,6 +59,7 @@ public sealed class ImportBatchesController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 

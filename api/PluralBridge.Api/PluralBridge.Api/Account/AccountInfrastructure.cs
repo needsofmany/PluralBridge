@@ -1,4 +1,7 @@
-﻿using System.Security.Cryptography;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.SqlClient;
 

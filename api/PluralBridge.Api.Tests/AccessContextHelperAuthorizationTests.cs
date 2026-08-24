@@ -1,5 +1,7 @@
-﻿using PluralBridge.Api.Tests;
-using Xunit;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using PluralBridge.Api.Tests;
 
 // ReSharper disable once CheckNamespace
 namespace PluralBridge.Api.Controllers;

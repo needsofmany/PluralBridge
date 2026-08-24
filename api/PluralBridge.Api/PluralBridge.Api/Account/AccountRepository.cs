@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Account;

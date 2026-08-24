@@ -1,4 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 
@@ -9,6 +13,7 @@ namespace PluralBridge.Api.Controllers;
 /// Source records are returned as inventory metadata for a specific protected system route.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route(Globals.sourceRecordsRoute)]
 public sealed class SourceRecordsController(
 	IConfiguration configuration,
@@ -53,6 +58,7 @@ public sealed class SourceRecordsController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 

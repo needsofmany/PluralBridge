@@ -1,6 +1,9 @@
-﻿using Microsoft.Data.SqlClient;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.Data.SqlClient;
 using System.Diagnostics;
-using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace PluralBridge.Api.Controllers
 {
@@ -37,6 +40,61 @@ namespace PluralBridge.Api.Controllers
 
 			await using SqlCommand command = new(sql, connection);
 			command.Parameters.AddWithValue("@Email", email);
+
+			await using var reader = await command.ExecuteReaderAsync();
+
+			if (!await reader.ReadAsync())
+			{
+				return null;
+			}
+
+			var accountStatus = new AccountStatus(
+				reader.GetInt32(3),
+				reader.GetString(4),
+				reader.GetString(5),
+				reader.GetInt32(6),
+				reader.GetBoolean(7));
+
+			return new Account(
+				reader.GetGuid(0),
+				reader.GetString(1),
+				reader.GetString(2),
+				reader.GetInt32(3),
+				accountStatus,
+				reader.GetDateTime(8),
+				reader.IsDBNull(9) ? null : reader.GetDateTime(9));
+		}
+
+		/// <summary>
+		/// Returns an account record by account identifier.
+		/// </summary>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="accountId">The account identifier.</param>
+		/// <returns>The matching account record, or null when no account is found.</returns>
+		internal static async Task<Account?> ReadAccountByIdAsync(
+			SqlConnection connection,
+			Guid accountId)
+		{
+			const string sql = """
+			                   SELECT TOP (1)
+			                       a.AccountId,
+			                       a.Email,
+			                       a.DisplayName,
+			                       a.AccountStatusId,
+			                       s.StatusName,
+			                       s.StatusDesc,
+			                       s.DisplayOrder,
+			                       s.IsActive,
+			                       a.CreatedAtUtc,
+			                       a.UpdatedAtUtc
+			                   FROM dbo.pb_accounts AS a
+			                   INNER JOIN dbo.pb_account_statuses AS s
+			                       ON s.AccountStatusId = a.AccountStatusId
+			                   WHERE a.AccountId = @AccountId;
+			                   """;
+
+			await using SqlCommand command = new(sql, connection);
+			command.Parameters.AddWithValue("@AccountId", accountId);
 
 			await using var reader = await command.ExecuteReaderAsync();
 
@@ -194,6 +252,7 @@ namespace PluralBridge.Api.Controllers
 		/// <returns>The resolved access context, or null when the current account or current system cannot be resolved.</returns>
 		internal static async Task<AccessContext?> ResolveCurrentAccessAsync(
 			SqlConnection connection,
+			ClaimsPrincipal user,
 			RequestTraceContext? requestTrace = null,
 			ILogger? logger = null)
 		{
@@ -204,7 +263,7 @@ namespace PluralBridge.Api.Controllers
 				"account_resolution",
 				"started");
 
-			var currentAccount = await ResolveCurrentAccountAsync(connection);
+			var currentAccount = await ResolveCurrentAccountAsync(connection, user);
 
 			accountStopwatch.Stop();
 
@@ -334,19 +393,23 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Resolves the current working account for the Chapter 2 safe-spine path.
+		/// Resolves the authenticated account for the Chapter 2 safe-spine path.
 		/// </summary>
 		/// <param name="connection">The current database connection.</param>
-		/// <returns>The configured current account, or null when no account is found.</returns>
-		internal static async Task<Account?> ResolveCurrentAccountAsync(SqlConnection connection)
+		/// <param name="user">The authenticated principal for the current request.</param>
+		/// <returns>The authenticated account, or null when the account identifier is absent, malformed, or unknown.</returns>
+		internal static async Task<Account?> ResolveCurrentAccountAsync(
+			SqlConnection connection,
+			ClaimsPrincipal user)
 		{
-			const string currentAccountEmail = "demo@thepluralbridge.local";
+			var accountIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
 
-			var account = await ReadAccountByEmailAsync(
-				connection,
-				currentAccountEmail);
+			if (!Guid.TryParse(accountIdValue, out var accountId))
+			{
+				return null;
+			}
 
-			return account;
+			return await ReadAccountByIdAsync(connection, accountId);
 		}
 
 		/// <summary>
