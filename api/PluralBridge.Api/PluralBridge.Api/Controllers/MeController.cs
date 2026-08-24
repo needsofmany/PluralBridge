@@ -1,4 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 
@@ -10,6 +14,7 @@ namespace PluralBridge.Api.Controllers;
 /// and returns the current access context, resolved system, authorization-gated proof data, and table counts.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class MeController(
 	IConfiguration configuration,
@@ -58,6 +63,7 @@ public sealed class MeController(
 			// should contain the account and it's available System memberships
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 

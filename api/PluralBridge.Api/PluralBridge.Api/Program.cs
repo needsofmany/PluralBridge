@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using PluralBridge.Api.Account;
@@ -43,6 +46,19 @@ builder.Services
 			if (context.Request.Path.StartsWithSegments("/api"))
 			{
 				context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+				return Task.CompletedTask;
+			}
+
+			context.Response.Redirect(context.RedirectUri);
+
+			return Task.CompletedTask;
+		};
+		options.Events.OnRedirectToAccessDenied = context =>
+		{
+			if (context.Request.Path.StartsWithSegments("/api"))
+			{
+				context.Response.StatusCode = StatusCodes.Status403Forbidden;
 
 				return Task.CompletedTask;
 			}

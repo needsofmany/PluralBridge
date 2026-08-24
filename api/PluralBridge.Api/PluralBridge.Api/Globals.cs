@@ -1,4 +1,7 @@
-﻿// ReSharper disable InconsistentNaming
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// ReSharper disable InconsistentNaming
 
 namespace PluralBridge.Api
 {

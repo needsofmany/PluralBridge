@@ -1,4 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 
@@ -9,6 +13,7 @@ namespace PluralBridge.Api.Controllers;
 /// Members are returned for a specific imported PluralBridge system.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route(Globals.membersRoute)]
 public sealed class MembersController(
 	IConfiguration configuration,
@@ -53,6 +58,7 @@ public sealed class MembersController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 
@@ -198,6 +204,7 @@ public sealed class MembersController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 
@@ -368,6 +375,7 @@ public sealed class MembersController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 
@@ -604,6 +612,7 @@ public sealed class MembersController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 

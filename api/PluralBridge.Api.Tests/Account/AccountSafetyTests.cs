@@ -1,4 +1,7 @@
-﻿using System.Net;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using System.Net;
 using System.Net.Http.Json;
 using PluralBridge.Api.Account;
 
