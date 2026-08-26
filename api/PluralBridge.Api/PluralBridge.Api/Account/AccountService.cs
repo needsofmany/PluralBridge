@@ -1,10 +1,14 @@
-﻿// Copyright (c) 2026 Needs of the Many
+// Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 using Microsoft.Data.SqlClient;
+using PluralBridge.Api;
+using System.Text.Json;
 
 namespace PluralBridge.Api.Account;
 
+// Coordinates the account workflows and keeps the controllers thin.
+// Persistence, hashing, auditing, and code delivery stay behind narrow helper interfaces.
 public sealed class AccountService : IAccountService
 {
 	private const int PendingEmailVerificationStatusId = 2;
@@ -22,7 +26,7 @@ public sealed class AccountService : IAccountService
 		IAccountCodeDelivery codeDelivery)
 	{
 		_connectionString = configuration.GetConnectionString(AccountConfigurationKeys.ConnectionStringName)
-		                    ?? throw new InvalidOperationException($"{AccountConfigurationKeys.ConnectionStringName} is not configured.");
+		                    ?? throw new InvalidOperationException(Globals.missingConnStringDetail);
 
 		_passwordHasher = passwordHasher;
 		_auditWriter = auditWriter;
@@ -33,8 +37,12 @@ public sealed class AccountService : IAccountService
 		RegisterAccountRequest request,
 		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		// Every externally visible account operation gets its own correlation id.
+		// This is the bridge between Swagger/API results, logs, audit rows, and email delivery telemetry.
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Keep the API response generic while audit records the decision category.
+		// Field-specific validation detail can be added to SafeDetailJson without changing the public contract.
 		if (!IsValidRegistrationRequest(request))
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -44,12 +52,12 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"registration",
+				Globals.accountOperationRegistration,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"Registration could not be completed.");
+				Globals.accountRegistrationCouldNotBeCompleted);
 		}
 
 		var normalizedUsername = AccountText.NormalizeUsername(request.Username);
@@ -58,7 +66,12 @@ public sealed class AccountService : IAccountService
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken);
 
+		// Registration creates three durable facts together: account, credential, and verification code.
+		// Email delivery happens after this transaction commits, so provider failure cannot leave
+		// an open database transaction behind.
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+		var transactionCommitted = false;
 
 		try
 		{
@@ -73,12 +86,12 @@ public sealed class AccountService : IAccountService
 					null,
 					null,
 					correlationId,
-					"registration",
+					Globals.accountOperationRegistration,
 					cancellationToken);
 
 				return AccountServiceResult<AccountOperationResponse>.Rejected(
 					AccountReasonCodes.DuplicateAccountIdentifier,
-					"Registration could not be completed.");
+					Globals.accountRegistrationCouldNotBeCompleted);
 			}
 
 			var accountId = Guid.NewGuid();
@@ -86,6 +99,8 @@ public sealed class AccountService : IAccountService
 			var verificationCode = AccountCodeService.CreateNumericCode();
 			var verificationHash = _passwordHasher.HashPassword(verificationCode);
 
+			// Store only the hash of the verification code. The plaintext value exists only long enough
+			// to deliver the email through the configured account-code delivery provider.
 			await AccountRepository.InsertAccountAsync(
 				connection,
 				transaction,
@@ -115,8 +130,11 @@ public sealed class AccountService : IAccountService
 				cancellationToken);
 
 			await transaction.CommitAsync(cancellationToken);
+			transactionCommitted = true;
 
-			await _codeDelivery.DeliverAsync(
+			// Delivery failures are converted into account-service results by TryDeliverCodeAsync.
+			// This prevents provider/configuration exceptions from escaping through the API request.
+			var registrationCodeDelivered = await TryDeliverCodeAsync(
 				new AccountCodeDeliveryCommand(
 					accountId,
 					AccountCodePurposes.RegistrationVerification,
@@ -124,8 +142,19 @@ public sealed class AccountService : IAccountService
 					normalizedEmail,
 					verificationCode,
 					correlationId),
+				AccountAuditEvents.RegistrationRejected,
+				Globals.accountOperationRegistration,
+				accountId,
+				correlationId,
 				cancellationToken);
-				
+
+			if (!registrationCodeDelivered)
+			{
+				return AccountServiceResult<AccountOperationResponse>.Failed(
+					AccountReasonCodes.DeliveryFailed,
+					Globals.accountRegistrationCouldNotBeCompleted);
+			}
+
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 				AccountAuditEvents.RegistrationCreated,
 				AccountOutcomes.Succeeded,
@@ -133,7 +162,7 @@ public sealed class AccountService : IAccountService
 				accountId,
 				accountId,
 				correlationId,
-				"registration",
+				Globals.accountOperationRegistration,
 				cancellationToken);
 
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -143,7 +172,7 @@ public sealed class AccountService : IAccountService
 				accountId,
 				accountId,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Success(
@@ -151,12 +180,17 @@ public sealed class AccountService : IAccountService
 					true,
 					AccountOutcomes.Succeeded,
 					AccountReasonCodes.None,
-					"Registration was accepted. Verification is required before login."),
-				"Registration was accepted.");
+					Globals.accountRegistrationAcceptedVerificationRequired),
+				Globals.accountRegistrationAccepted);
 		}
 		catch
 		{
-			await transaction.RollbackAsync(cancellationToken);
+			// A delivery failure after commit is handled above. This catch is for storage failures
+			// while the registration transaction is still open.
+			if (!transactionCommitted)
+			{
+				await transaction.RollbackAsync(cancellationToken);
+			}
 
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 				AccountAuditEvents.RegistrationRejected,
@@ -165,21 +199,25 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"registration",
+				Globals.accountOperationRegistration,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"Registration could not be completed.");
+				Globals.accountRegistrationCouldNotBeCompleted);
 		}
 	}
 
 	public async Task<AccountServiceResult<AccountOperationResponse>> VerifyRegistrationAsync(
-			VerifyRegistrationRequest request,
-			CancellationToken cancellationToken)
+		VerifyRegistrationRequest request,
+		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		// Verification gets a new correlation id because it is a separate request from registration.
+		// The account/code row links the verification back to the issued code.
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Do not disclose whether the email is known or whether a code exists.
+		// SafeDetailJson records which required fields were present.
 		if (!AccountText.HasText(request.Email) || !AccountText.HasText(request.Code))
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -189,16 +227,23 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
+				JsonSerializer.Serialize(new
+				{
+					emailProvided = AccountText.HasText(request.Email),
+					codeProvided = AccountText.HasText(request.Code)
+				}),
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"The code could not be accepted.");
+				Globals.accountCodeCouldNotBeAccepted);
 		}
 
 		var normalizedEmail = AccountText.NormalizeEmail(request.Email);
 
+		// The submitted email is the lookup key. A different plus-tagged address selects a different
+		// account/code row, which is exactly what happened during the manual Swagger test.
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken);
 
@@ -207,6 +252,10 @@ public sealed class AccountService : IAccountService
 			normalizedEmail,
 			cancellationToken);
 
+		var nowUtc = DateTime.UtcNow;
+
+		// Null means no registration code exists for this normalized email. We still audit the
+		// submitted lookup key, but never the submitted plaintext code.
 		if (codeRecord is null)
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -216,14 +265,25 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
+				CreateRegistrationVerificationAuditDetailJson(
+					normalizedEmail,
+					null,
+					nowUtc),
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidCode,
-				"The code could not be accepted.");
+				Globals.accountCodeCouldNotBeAccepted);
 		}
 
+		var safeDetailJson = CreateRegistrationVerificationAuditDetailJson(
+			normalizedEmail,
+			codeRecord,
+			nowUtc);
+
+		// The checks below run before hash verification. That means an expired/consumed/rate-limited
+		// row can be rejected without revealing whether the submitted code text was correct.
 		if (codeRecord.ConsumedAtUtc is not null)
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -233,15 +293,16 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
+				safeDetailJson,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ConsumedCode,
-				"The code could not be accepted.");
+				Globals.accountCodeCouldNotBeAccepted);
 		}
 
-		if (codeRecord.ExpiresAtUtc <= DateTime.UtcNow)
+		if (codeRecord.ExpiresAtUtc <= nowUtc)
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 				AccountAuditEvents.CodeRejected,
@@ -250,12 +311,13 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
+				safeDetailJson,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ExpiredCode,
-				"The code expired or could not be accepted.");
+				Globals.accountCodeExpiredOrCouldNotBeAccepted);
 		}
 
 		if (codeRecord.AttemptCount >= codeRecord.MaxAttempts)
@@ -267,14 +329,17 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
+				safeDetailJson,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.RateLimited,
-				"The code could not be accepted.");
+				Globals.accountCodeCouldNotBeAccepted);
 		}
 
+		// Verification uses the same password hasher interface because account codes are stored as
+		// salted hashes, not plaintext. Invalid attempts increment the stored attempt counter.
 		var codeAccepted = _passwordHasher.VerifyPassword(
 			request.Code.Trim(),
 			codeRecord.CodeHash,
@@ -295,14 +360,17 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
+				safeDetailJson,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidCode,
-				"The code could not be accepted.");
+				Globals.accountCodeCouldNotBeAccepted);
 		}
 
+		// Once the code is accepted, consuming the code and activating the account must be atomic.
+		// A committed transaction means the code cannot be reused and the account is active together.
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
 		try
@@ -323,6 +391,8 @@ public sealed class AccountService : IAccountService
 		}
 		catch
 		{
+			// Storage failure after a correct code keeps the public response generic while preserving
+			// selected code/account detail for operations.
 			await transaction.RollbackAsync(cancellationToken);
 
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -332,14 +402,17 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"registration_verification",
+				Globals.accountOperationRegistrationVerification,
+				safeDetailJson,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"The request could not be completed.");
+				Globals.accountRequestCouldNotBeCompleted);
 		}
 
+		// These three audit events intentionally describe the same successful transition from
+		// different operational angles: code accepted, code consumed, registration verified.
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 			AccountAuditEvents.CodeAccepted,
 			AccountOutcomes.Succeeded,
@@ -347,7 +420,8 @@ public sealed class AccountService : IAccountService
 			codeRecord.AccountId,
 			codeRecord.AccountId,
 			correlationId,
-			"registration_verification",
+			Globals.accountOperationRegistrationVerification,
+			safeDetailJson,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -357,7 +431,8 @@ public sealed class AccountService : IAccountService
 			codeRecord.AccountId,
 			codeRecord.AccountId,
 			correlationId,
-			"registration_verification",
+			Globals.accountOperationRegistrationVerification,
+			safeDetailJson,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -367,7 +442,8 @@ public sealed class AccountService : IAccountService
 			codeRecord.AccountId,
 			codeRecord.AccountId,
 			correlationId,
-			"registration",
+			Globals.accountOperationRegistration,
+			safeDetailJson,
 			cancellationToken);
 
 		return AccountServiceResult<AccountOperationResponse>.Success(
@@ -375,16 +451,18 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"Registration verification completed."),
-			"Registration verification completed.");
+				Globals.accountRegistrationVerificationCompleted),
+			Globals.accountRegistrationVerificationCompleted);
 	}
 
 	public async Task<AccountServiceResult<LoginResponse>> LoginAsync(
 		LoginRequest request,
 		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Login failures intentionally collapse to generic invalid/unavailable responses.
+		// The audit path is where operations can distinguish validation, status, and hash failures.
 		if (!AccountText.HasText(request.UsernameOrEmail) || !AccountText.HasText(request.Password))
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -394,16 +472,17 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"login",
+				Globals.accountOperationLogin,
 				cancellationToken);
 
 			return AccountServiceResult<LoginResponse>.Rejected(
 				AccountReasonCodes.InvalidCredentials,
-				"Login could not be completed.");
+				Globals.accountLoginCouldNotBeCompleted);
 		}
 
 		var normalizedIdentifier = AccountText.NormalizeEmail(request.UsernameOrEmail);
 
+		// The repository handles either username or email lookup using the normalized identifier.
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken);
 
@@ -421,12 +500,12 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"login",
+				Globals.accountOperationLogin,
 				cancellationToken);
 
 			return AccountServiceResult<LoginResponse>.Rejected(
 				AccountReasonCodes.InvalidCredentials,
-				"Login could not be completed.");
+				Globals.accountLoginCouldNotBeCompleted);
 		}
 
 		if (account.AccountStatusId != 1 || !account.IsEmailVerified)
@@ -438,14 +517,15 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"login",
+				Globals.accountOperationLogin,
 				cancellationToken);
 
 			return AccountServiceResult<LoginResponse>.Rejected(
 				AccountReasonCodes.AccountUnavailable,
-				"Login could not be completed.");
+				Globals.accountLoginCouldNotBeCompleted);
 		}
 
+		// Password comparison stays inside the hasher so algorithm/version checks remain centralized.
 		var passwordAccepted = _passwordHasher.VerifyPassword(
 			request.Password,
 			account.PasswordHash,
@@ -461,12 +541,12 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"login",
+				Globals.accountOperationLogin,
 				cancellationToken);
 
 			return AccountServiceResult<LoginResponse>.Rejected(
 				AccountReasonCodes.InvalidCredentials,
-				"Login could not be completed.");
+				Globals.accountLoginCouldNotBeCompleted);
 		}
 
 		await AccountRepository.UpdateLastLoginAsync(
@@ -492,7 +572,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"login",
+			Globals.accountOperationLogin,
 			cancellationToken);
 
 		return AccountServiceResult<LoginResponse>.Success(
@@ -500,17 +580,19 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"Login completed.",
+				Globals.accountLoginCompleted,
 				accountResponse),
-			"Login completed.");
+			Globals.accountLoginCompleted);
 	}
 
 	public async Task<AccountServiceResult<AccountOperationResponse>> ForgotUsernameAsync(
 			ForgotUsernameRequest request,
 			CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Username recovery is account-enumeration resistant. Unknown email addresses receive the
+		// same public success message as known addresses.
 		if (!AccountText.HasText(request.Email))
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -520,12 +602,12 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"username_recovery",
+				Globals.accountOperationUsernameRecovery,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"If the account can be found, recovery instructions will be sent.");
+				Globals.accountUsernameRecoveryInstructionsSent);
 		}
 
 		var normalizedEmail = AccountText.NormalizeEmail(request.Email);
@@ -547,7 +629,7 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"username_recovery",
+				Globals.accountOperationUsernameRecovery,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Success(
@@ -555,13 +637,14 @@ public sealed class AccountService : IAccountService
 					true,
 					AccountOutcomes.Succeeded,
 					AccountReasonCodes.None,
-					"If the account can be found, recovery instructions will be sent."),
-				"If the account can be found, recovery instructions will be sent.");
+					Globals.accountUsernameRecoveryInstructionsSent),
+				Globals.accountUsernameRecoveryInstructionsSent);
 		}
 
 		var recoveryCode = AccountCodeService.CreateNumericCode();
 		var recoveryHash = _passwordHasher.HashPassword(recoveryCode);
 
+		// Store the recovery code hash first, then deliver the plaintext code through the provider.
 		await AccountCodeService.InsertUsernameRecoveryCodeAsync(
 			connection,
 			accountId.Value,
@@ -570,7 +653,7 @@ public sealed class AccountService : IAccountService
 			correlationId,
 			cancellationToken);
 
-		await _codeDelivery.DeliverAsync(
+		var usernameRecoveryCodeDelivered = await TryDeliverCodeAsync(
 			new AccountCodeDeliveryCommand(
 				accountId.Value,
 				AccountCodePurposes.UsernameRecovery,
@@ -578,7 +661,18 @@ public sealed class AccountService : IAccountService
 				normalizedEmail,
 				recoveryCode,
 				correlationId),
+			AccountAuditEvents.UsernameRecoveryRejected,
+			Globals.accountOperationUsernameRecovery,
+			accountId.Value,
+			correlationId,
 			cancellationToken);
+
+		if (!usernameRecoveryCodeDelivered)
+		{
+			return AccountServiceResult<AccountOperationResponse>.Failed(
+				AccountReasonCodes.DeliveryFailed,
+				Globals.accountUsernameRecoveryInstructionsSent);
+		}
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 			AccountAuditEvents.UsernameRecoveryRequested,
@@ -587,7 +681,7 @@ public sealed class AccountService : IAccountService
 			accountId.Value,
 			accountId.Value,
 			correlationId,
-			"username_recovery",
+			Globals.accountOperationUsernameRecovery,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -597,7 +691,7 @@ public sealed class AccountService : IAccountService
 			accountId.Value,
 			accountId.Value,
 			correlationId,
-			"username_recovery",
+			Globals.accountOperationUsernameRecovery,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -607,7 +701,7 @@ public sealed class AccountService : IAccountService
 			accountId.Value,
 			accountId.Value,
 			correlationId,
-			"username_recovery",
+			Globals.accountOperationUsernameRecovery,
 			cancellationToken);
 
 		return AccountServiceResult<AccountOperationResponse>.Success(
@@ -615,15 +709,16 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"If the account can be found, recovery instructions will be sent."),
-				"If the account can be found, recovery instructions will be sent.");
+				Globals.accountUsernameRecoveryInstructionsSent),
+				Globals.accountUsernameRecoveryInstructionsSent);
 	}
 	public async Task<AccountServiceResult<AccountOperationResponse>> ForgotPasswordAsync(
 		ForgotPasswordRequest request,
 		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Password reset uses the same enumeration-resistant public response as username recovery.
 		if (!AccountText.HasText(request.UsernameOrEmail))
 		{
 			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -633,12 +728,12 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"If the account can be found, password reset instructions will be sent.");
+				Globals.accountPasswordResetInstructionsSent);
 		}
 
 		var normalizedIdentifier = AccountText.NormalizeEmail(request.UsernameOrEmail);
@@ -660,7 +755,7 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Success(
@@ -668,13 +763,14 @@ public sealed class AccountService : IAccountService
 					true,
 					AccountOutcomes.Succeeded,
 					AccountReasonCodes.None,
-					"If the account can be found, password reset instructions will be sent."),
-				"If the account can be found, password reset instructions will be sent.");
+					Globals.accountPasswordResetInstructionsSent),
+				Globals.accountPasswordResetInstructionsSent);
 		}
 
 		var resetCode = AccountCodeService.CreateNumericCode();
 		var resetHash = _passwordHasher.HashPassword(resetCode);
 
+		// The reset code is scoped to the account's verified normalized email, not arbitrary request text.
 		await AccountCodeService.InsertPasswordResetCodeAsync(
 			connection,
 			account.AccountId,
@@ -683,7 +779,7 @@ public sealed class AccountService : IAccountService
 			correlationId,
 			cancellationToken);
 
-		await _codeDelivery.DeliverAsync(
+		var passwordResetCodeDelivered = await TryDeliverCodeAsync(
 			new AccountCodeDeliveryCommand(
 				account.AccountId,
 				AccountCodePurposes.PasswordReset,
@@ -691,7 +787,18 @@ public sealed class AccountService : IAccountService
 				account.NormalizedEmail,
 				resetCode,
 				correlationId),
+			AccountAuditEvents.PasswordResetRejected,
+			Globals.accountOperationPasswordReset,
+			account.AccountId,
+			correlationId,
 			cancellationToken);
+
+		if (!passwordResetCodeDelivered)
+		{
+			return AccountServiceResult<AccountOperationResponse>.Failed(
+				AccountReasonCodes.DeliveryFailed,
+				Globals.accountPasswordResetInstructionsSent);
+		}
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 			AccountAuditEvents.PasswordResetRequested,
@@ -700,7 +807,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"password_reset",
+			Globals.accountOperationPasswordReset,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -710,7 +817,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"password_reset",
+			Globals.accountOperationPasswordReset,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -720,7 +827,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"password_reset",
+			Globals.accountOperationPasswordReset,
 			cancellationToken);
 
 		return AccountServiceResult<AccountOperationResponse>.Success(
@@ -728,16 +835,17 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"If the account can be found, password reset instructions will be sent."),
-			"If the account can be found, password reset instructions will be sent.");
+				Globals.accountPasswordResetInstructionsSent),
+			Globals.accountPasswordResetInstructionsSent);
 	}
 
 	public async Task<AccountServiceResult<AccountOperationResponse>> ResetPasswordAsync(
 		ResetPasswordRequest request,
 		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Validate shape before any account/code lookup. Public errors remain generic.
 		if (!AccountText.HasText(request.UsernameOrEmail)
 			|| !AccountText.HasText(request.Code)
 			|| !AccountText.HasText(request.NewPassword)
@@ -750,16 +858,18 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"Password reset could not be completed.");
+				Globals.accountPasswordResetCouldNotBeCompleted);
 		}
 
 		var normalizedIdentifier = AccountText.NormalizeEmail(request.UsernameOrEmail);
 
+		// Reset verification mirrors registration verification: select latest code, reject stale
+		// states first, then hash-check the submitted plaintext code.
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken);
 
@@ -777,12 +887,12 @@ public sealed class AccountService : IAccountService
 				null,
 				null,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidCode,
-				"Password reset could not be completed.");
+				Globals.accountPasswordResetCouldNotBeCompleted);
 		}
 
 		if (codeRecord.ConsumedAtUtc is not null)
@@ -794,12 +904,12 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ConsumedCode,
-				"Password reset could not be completed.");
+				Globals.accountPasswordResetCouldNotBeCompleted);
 		}
 
 		if (codeRecord.ExpiresAtUtc <= DateTime.UtcNow)
@@ -811,12 +921,12 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ExpiredCode,
-				"Password reset could not be completed.");
+				Globals.accountPasswordResetCouldNotBeCompleted);
 		}
 
 		if (codeRecord.AttemptCount >= codeRecord.MaxAttempts)
@@ -828,12 +938,12 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.RateLimited,
-				"Password reset could not be completed.");
+				Globals.accountPasswordResetCouldNotBeCompleted);
 		}
 
 		var codeAccepted = _passwordHasher.VerifyPassword(
@@ -856,16 +966,17 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidCode,
-				"Password reset could not be completed.");
+				Globals.accountPasswordResetCouldNotBeCompleted);
 		}
 
 		var newPasswordHash = _passwordHasher.HashPassword(request.NewPassword);
 
+		// Password update and code consumption must commit together.
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
 		try
@@ -896,12 +1007,12 @@ public sealed class AccountService : IAccountService
 				codeRecord.AccountId,
 				codeRecord.AccountId,
 				correlationId,
-				"password_reset",
+				Globals.accountOperationPasswordReset,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"Password reset could not be completed.");
+				Globals.accountPasswordResetCouldNotBeCompleted);
 		}
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -911,7 +1022,7 @@ public sealed class AccountService : IAccountService
 			codeRecord.AccountId,
 			codeRecord.AccountId,
 			correlationId,
-			"password_reset",
+			Globals.accountOperationPasswordReset,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -921,7 +1032,7 @@ public sealed class AccountService : IAccountService
 			codeRecord.AccountId,
 			codeRecord.AccountId,
 			correlationId,
-			"password_reset",
+			Globals.accountOperationPasswordReset,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -931,7 +1042,7 @@ public sealed class AccountService : IAccountService
 			codeRecord.AccountId,
 			codeRecord.AccountId,
 			correlationId,
-			"password_reset",
+			Globals.accountOperationPasswordReset,
 			cancellationToken);
 
 		return AccountServiceResult<AccountOperationResponse>.Success(
@@ -939,8 +1050,8 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"Password reset completed."),
-			"Password reset completed.");
+				Globals.accountPasswordResetCompleted),
+			Globals.accountPasswordResetCompleted);
 	}
 
 	public async Task<AccountServiceResult<AccountOperationResponse>> ChangePasswordAsync(
@@ -948,8 +1059,10 @@ public sealed class AccountService : IAccountService
 		ChangePasswordRequest request,
 		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Authenticated account changes start with a requested event so abandoned/rejected attempts
+		// are visible in audit.
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
 			AccountAuditEvents.PasswordChangeRequested,
 			AccountOutcomes.Succeeded,
@@ -957,9 +1070,10 @@ public sealed class AccountService : IAccountService
 			actorAccountId == Guid.Empty ? null : actorAccountId,
 			actorAccountId == Guid.Empty ? null : actorAccountId,
 			correlationId,
-			"password_change",
+			Globals.accountOperationPasswordChange,
 			cancellationToken);
 
+		// Empty actor id means the caller never resolved to an authenticated account.
 		if (actorAccountId == Guid.Empty
 			|| !AccountText.HasText(request.CurrentPassword)
 			|| !AccountText.HasText(request.NewPassword)
@@ -972,12 +1086,12 @@ public sealed class AccountService : IAccountService
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				correlationId,
-				"password_change",
+				Globals.accountOperationPasswordChange,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"Password change could not be completed.");
+				Globals.accountPasswordChangeCouldNotBeCompleted);
 		}
 
 		await using var connection = new SqlConnection(_connectionString);
@@ -997,14 +1111,15 @@ public sealed class AccountService : IAccountService
 				actorAccountId,
 				actorAccountId,
 				correlationId,
-				"password_change",
+				Globals.accountOperationPasswordChange,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.AccountUnavailable,
-				"Password change could not be completed.");
+				Globals.accountPasswordChangeCouldNotBeCompleted);
 		}
 
+		// Current password verification protects the change even when the session is valid.
 		var currentPasswordAccepted = _passwordHasher.VerifyPassword(
 			request.CurrentPassword,
 			account.PasswordHash,
@@ -1020,16 +1135,17 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"password_change",
+				Globals.accountOperationPasswordChange,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidCredentials,
-				"Password change could not be completed.");
+				Globals.accountPasswordChangeCouldNotBeCompleted);
 		}
 
 		var newPasswordHash = _passwordHasher.HashPassword(request.NewPassword);
 
+		// Only the credential update is transactional here; there is no account-code row involved.
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
 		try
@@ -1054,12 +1170,12 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"password_change",
+				Globals.accountOperationPasswordChange,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"Password change could not be completed.");
+				Globals.accountPasswordChangeCouldNotBeCompleted);
 		}
 
 		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
@@ -1069,7 +1185,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"password_change",
+			Globals.accountOperationPasswordChange,
 			cancellationToken);
 
 		return AccountServiceResult<AccountOperationResponse>.Success(
@@ -1077,8 +1193,8 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"Password change completed."),
-			"Password change completed.");
+				Globals.accountPasswordChangeCompleted),
+			Globals.accountPasswordChangeCompleted);
 	}
 
 	public async Task<AccountServiceResult<AccountResponse>> UpdateProfileAsync(
@@ -1086,8 +1202,9 @@ public sealed class AccountService : IAccountService
 		UpdateAccountProfileRequest request,
 		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Profile update is limited to display-name changes in this workflow.
 		if (actorAccountId == Guid.Empty
 			|| !AccountText.HasText(request.DisplayName)
 			|| request.DisplayName.Trim().Length > 200)
@@ -1100,12 +1217,12 @@ public sealed class AccountService : IAccountService
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				correlationId,
-				"profile",
+				Globals.accountOperationProfile,
 				cancellationToken);
 
 			return AccountServiceResult<AccountResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"Profile update could not be completed.");
+				Globals.accountProfileUpdateCouldNotBeCompleted);
 		}
 
 		await using var connection = new SqlConnection(_connectionString);
@@ -1128,12 +1245,12 @@ public sealed class AccountService : IAccountService
 				actorAccountId,
 				actorAccountId,
 				correlationId,
-				"profile",
+				Globals.accountOperationProfile,
 				cancellationToken);
 
 			return AccountServiceResult<AccountResponse>.Rejected(
 				AccountReasonCodes.AccountUnavailable,
-				"Profile update could not be completed.");
+				Globals.accountProfileUpdateCouldNotBeCompleted);
 		}
 
 		try
@@ -1154,14 +1271,15 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"profile",
+				Globals.accountOperationProfile,
 				cancellationToken);
 
 			return AccountServiceResult<AccountResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"Profile update could not be completed.");
+				Globals.accountProfileUpdateCouldNotBeCompleted);
 		}
 
+		// Re-read after update so the response reflects database state, including timestamps.
 		var updatedAccount = await AccountRepository.ReadAccountProfileAsync(
 			connection,
 			account.AccountId,
@@ -1177,12 +1295,12 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"profile",
+				Globals.accountOperationProfile,
 				cancellationToken);
 
 			return AccountServiceResult<AccountResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"Profile update could not be completed.");
+				Globals.accountProfileUpdateCouldNotBeCompleted);
 		}
 
 		await AccountInfrastructure.WriteAuditAsync(
@@ -1193,7 +1311,7 @@ public sealed class AccountService : IAccountService
 			updatedAccount.AccountId,
 			updatedAccount.AccountId,
 			correlationId,
-			"profile",
+			Globals.accountOperationProfile,
 			cancellationToken);
 
 		return AccountServiceResult<AccountResponse>.Success(
@@ -1207,15 +1325,17 @@ public sealed class AccountService : IAccountService
 				updatedAccount.CreatedAtUtc,
 				updatedAccount.UpdatedAtUtc,
 				updatedAccount.LastLoginAtUtc),
-			"Profile update completed.");
+			Globals.accountProfileUpdateCompleted);
 	}
 	public async Task<AccountServiceResult<AccountOperationResponse>> UpdateContactAsync(
 		Guid actorAccountId,
 		UpdateAccountContactRequest request,
 		CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Contact changes are two-step: issue a verification code here, apply the email later
+		// in VerifyContactAsync after the code is accepted.
 		if (actorAccountId == Guid.Empty
 			|| !AccountText.HasText(request.Email)
 			|| request.Email.Trim().Length > 320)
@@ -1228,12 +1348,12 @@ public sealed class AccountService : IAccountService
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				correlationId,
-				"contact",
+				Globals.accountOperationContact,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"Contact update could not be completed.");
+				Globals.accountContactUpdateCouldNotBeCompleted);
 		}
 
 		var normalizedEmail = AccountText.NormalizeEmail(request.Email);
@@ -1258,14 +1378,15 @@ public sealed class AccountService : IAccountService
 				actorAccountId,
 				actorAccountId,
 				correlationId,
-				"contact",
+				Globals.accountOperationContact,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.AccountUnavailable,
-				"Contact update could not be completed.");
+				Globals.accountContactUpdateCouldNotBeCompleted);
 		}
 
+		// No-op contact changes are rejected so the audit trail records intent rather than a fake update.
 		if (string.Equals(
 				AccountText.NormalizeEmail(account.Email),
 				normalizedEmail,
@@ -1279,14 +1400,15 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact",
+				Globals.accountOperationContact,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidRequest,
-				"Contact update could not be completed.");
+				Globals.accountContactUpdateCouldNotBeCompleted);
 		}
 
+		// Prevent moving an email address onto an account when another account already owns it.
 		if (await AccountRepository.AccountEmailExistsForOtherAccountAsync(
 				connection,
 				account.AccountId,
@@ -1301,17 +1423,19 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact",
+				Globals.accountOperationContact,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.DuplicateAccountIdentifier,
-				"Contact update could not be completed.");
+				Globals.accountContactUpdateCouldNotBeCompleted);
 		}
 
 		var verificationCode = AccountCodeService.CreateNumericCode();
 		var verificationHash = _passwordHasher.HashPassword(verificationCode);
 
+		// The new email is not written to the account yet. It is stored as the destination on
+		// a contact-verification code row until the user proves mailbox control.
 		try
 		{
 			await AccountCodeService.InsertEmailChangeVerificationCodeAsync(
@@ -1332,42 +1456,33 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact",
+				Globals.accountOperationContact,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"Contact update could not be completed.");
+				Globals.accountContactUpdateCouldNotBeCompleted);
 		}
 
-		try
-		{
-			await _codeDelivery.DeliverAsync(
-				new AccountCodeDeliveryCommand(
-					account.AccountId,
-					AccountCodePurposes.ContactVerification,
-					AccountDestinationTypes.Email,
-					normalizedEmail,
-					verificationCode,
-					correlationId),
-				cancellationToken);
-		}
-		catch
-		{
-			await AccountInfrastructure.WriteAuditAsync(
-				_auditWriter,
-				AccountAuditEvents.ContactRejected,
-				AccountOutcomes.Failed,
-				AccountReasonCodes.DeliveryFailed,
+		var contactVerificationCodeDelivered = await TryDeliverCodeAsync(
+			new AccountCodeDeliveryCommand(
 				account.AccountId,
-				account.AccountId,
-				correlationId,
-				"contact",
-				cancellationToken);
+				AccountCodePurposes.ContactVerification,
+				AccountDestinationTypes.Email,
+				normalizedEmail,
+				verificationCode,
+				correlationId),
+			AccountAuditEvents.ContactRejected,
+			Globals.accountOperationContact,
+			account.AccountId,
+			correlationId,
+			cancellationToken);
 
+		if (!contactVerificationCodeDelivered)
+		{
 			return AccountServiceResult<AccountOperationResponse>.Failed(
 				AccountReasonCodes.DeliveryFailed,
-				"Contact update could not be completed.");
+				Globals.accountContactUpdateCouldNotBeCompleted);
 		}
 
 		await AccountInfrastructure.WriteAuditAsync(
@@ -1378,7 +1493,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"contact_verification",
+			Globals.accountOperationContactVerification,
 			cancellationToken);
 
 		return AccountServiceResult<AccountOperationResponse>.Success(
@@ -1386,8 +1501,8 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"Contact update verification is required."),
-			"Contact update verification is required.");
+				Globals.accountContactUpdateVerificationRequired),
+			Globals.accountContactUpdateVerificationRequired);
 	}
 
 	public async Task<AccountServiceResult<AccountOperationResponse>> VerifyContactAsync(
@@ -1395,8 +1510,9 @@ public sealed class AccountService : IAccountService
 	VerifyAccountContactRequest request,
 	CancellationToken cancellationToken)
 	{
-		var correlationId = Guid.NewGuid().ToString("N");
+		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
 
+		// Contact verification requires both an authenticated account and the pending email/code pair.
 		if (actorAccountId == Guid.Empty
 			|| !AccountText.HasText(request.Email)
 			|| !AccountText.HasText(request.Code))
@@ -1409,17 +1525,19 @@ public sealed class AccountService : IAccountService
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				actorAccountId == Guid.Empty ? null : actorAccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ValidationFailed,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
 		var normalizedEmail =
 			AccountText.NormalizeEmail(request.Email);
 
+		// Contact verification is account-scoped. The same destination on another account must not
+		// satisfy this account's pending contact change.
 		await using var connection =
 			new SqlConnection(_connectionString);
 
@@ -1442,12 +1560,12 @@ public sealed class AccountService : IAccountService
 				actorAccountId,
 				actorAccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.AccountUnavailable,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
 		var codeRecord =
@@ -1467,14 +1585,15 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidCode,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
+		// The selected contact code is checked for stale states before the submitted code is hashed.
 		if (codeRecord.ConsumedAtUtc is not null)
 		{
 			await AccountInfrastructure.WriteAuditAsync(
@@ -1485,12 +1604,12 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ConsumedCode,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
 		if (codeRecord.ExpiresAtUtc <= DateTime.UtcNow)
@@ -1503,12 +1622,12 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.ExpiredCode,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
 		if (codeRecord.AttemptCount >= codeRecord.MaxAttempts)
@@ -1521,12 +1640,12 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.RateLimited,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
 		var codeAccepted = _passwordHasher.VerifyPassword(
@@ -1550,14 +1669,15 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Rejected(
 				AccountReasonCodes.InvalidCode,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
+		// Re-check duplicate ownership inside the transaction, immediately before applying the change.
 		await using var transaction =
 			(SqlTransaction)await connection.BeginTransactionAsync(
 				cancellationToken);
@@ -1581,12 +1701,12 @@ public sealed class AccountService : IAccountService
 					account.AccountId,
 					account.AccountId,
 					correlationId,
-					"contact_verification",
+					Globals.accountOperationContactVerification,
 					cancellationToken);
 
 				return AccountServiceResult<AccountOperationResponse>.Rejected(
 					AccountReasonCodes.DuplicateAccountIdentifier,
-					"Contact verification could not be completed.");
+					Globals.accountContactVerificationCouldNotBeCompleted);
 			}
 
 			await AccountCodeService.ConsumeCodeAsync(
@@ -1617,12 +1737,12 @@ public sealed class AccountService : IAccountService
 				account.AccountId,
 				account.AccountId,
 				correlationId,
-				"contact_verification",
+				Globals.accountOperationContactVerification,
 				cancellationToken);
 
 			return AccountServiceResult<AccountOperationResponse>.Failed(
 				AccountReasonCodes.StorageFailed,
-				"Contact verification could not be completed.");
+				Globals.accountContactVerificationCouldNotBeCompleted);
 		}
 
 		await AccountInfrastructure.WriteAuditAsync(
@@ -1633,7 +1753,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"contact_verification",
+			Globals.accountOperationContactVerification,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(
@@ -1644,7 +1764,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"contact_verification",
+			Globals.accountOperationContactVerification,
 			cancellationToken);
 
 		await AccountInfrastructure.WriteAuditAsync(
@@ -1655,7 +1775,7 @@ public sealed class AccountService : IAccountService
 			account.AccountId,
 			account.AccountId,
 			correlationId,
-			"contact",
+			Globals.accountOperationContact,
 			cancellationToken);
 
 		return AccountServiceResult<AccountOperationResponse>.Success(
@@ -1663,12 +1783,14 @@ public sealed class AccountService : IAccountService
 				true,
 				AccountOutcomes.Succeeded,
 				AccountReasonCodes.None,
-				"Contact verification completed."),
-			"Contact verification completed.");
+				Globals.accountContactVerificationCompleted),
+			Globals.accountContactVerificationCompleted);
 	}
 
 	private static bool IsValidRegistrationRequest(RegisterAccountRequest request)
 	{
+		// Registration validation is intentionally local and cheap. Detailed diagnostics belong in
+		// SafeDetailJson, while the public response stays stable and non-enumerating.
 		return AccountText.HasText(request.Username)
 			&& AccountText.HasText(request.Email)
 			&& AccountText.HasText(request.DisplayName)
@@ -1677,5 +1799,60 @@ public sealed class AccountService : IAccountService
 			&& request.Email.Trim().Length <= 320
 			&& request.DisplayName.Trim().Length <= 200
 			&& request.Password.Length >= 12;
+	}
+
+	private static string CreateRegistrationVerificationAuditDetailJson(
+		string submittedEmailNormalized,
+		AccountCodeRecord? codeRecord,
+		DateTime nowUtc)
+	{
+		// This is safe operational detail: lookup key, selected row, and timing state.
+		// It deliberately excludes the plaintext verification code and request body.
+		return JsonSerializer.Serialize(new
+		{
+			submittedEmailNormalized,
+			codePurpose = AccountCodePurposes.RegistrationVerification,
+			destinationType = AccountDestinationTypes.Email,
+			selectedAccountCodeId = codeRecord?.AccountCodeId,
+			selectedAccountId = codeRecord?.AccountId,
+			expiresAtUtc = codeRecord?.ExpiresAtUtc,
+			consumedAtUtc = codeRecord?.ConsumedAtUtc,
+			attemptCount = codeRecord?.AttemptCount,
+			maxAttempts = codeRecord?.MaxAttempts,
+			nowUtc
+		});
+	}
+
+	private async Task<bool> TryDeliverCodeAsync(
+		AccountCodeDeliveryCommand command,
+		string failureAuditEventName,
+		string operationName,
+		Guid accountId,
+		string correlationId,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			// Provider-specific delivery exceptions are contained here so workflows can return a
+			// controlled service result and still write a failure audit row.
+			await _codeDelivery.DeliverAsync(command, cancellationToken);
+
+			return true;
+		}
+		catch
+		{
+			await AccountInfrastructure.WriteAuditAsync(
+				_auditWriter,
+				failureAuditEventName,
+				AccountOutcomes.Failed,
+				AccountReasonCodes.DeliveryFailed,
+				accountId,
+				accountId,
+				correlationId,
+				operationName,
+				cancellationToken);
+
+			return false;
+		}
 	}
 }
