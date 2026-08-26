@@ -88,7 +88,13 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IAccountAuditWriter, SqlAccountAuditWriter>();
 
-if (builder.Environment.IsDevelopment())
+var accountCodeDeliveryProvider = builder.Configuration["AccountCodeDelivery:Provider"];
+
+if (StringComparer.OrdinalIgnoreCase.Equals(accountCodeDeliveryProvider, "AzureCommunicationServices"))
+{
+	builder.Services.AddScoped<IAccountCodeDelivery, AzureAccountCodeDelivery>();
+}
+else if (builder.Environment.IsDevelopment())
 {
 	builder.Services.AddScoped<IAccountCodeDelivery, DevelopmentAccountCodeDelivery>();
 }
