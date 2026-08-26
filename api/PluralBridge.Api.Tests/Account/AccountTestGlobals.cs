@@ -25,6 +25,15 @@ internal static class AccountTestGlobals
 		public const string Profile = "/api/account/profile";
 		public const string Contact = "/api/account/contact";
 		public const string VerifyContact = "/api/account/verify-contact";
+		public const string HtmlLogin = "/login";
+		public const string App = "/app/";
+		public const string Me = "/api/me";
+	}
+
+	internal static class FormFields
+	{
+		public const string UserName = "userName";
+		public const string Password = "password";
 	}
 
 	internal static class TestAccounts
@@ -75,6 +84,10 @@ internal static class AccountTestGlobals
 		public const string ProfileAuditDisplayName = DisplayNamePrefix + "Profile Audit";
 		public const string ContactUpdateUsernameSegment = "contact_update_";
 		public const string ContactUpdateDisplayName = DisplayNamePrefix + "Contact Update";
+		public const string HtmlLoginUsernameSegment = "html_login_";
+		public const string HtmlLoginDisplayName = DisplayNamePrefix + "HTML Login";
+		public const string HtmlLoginSystemNamePrefix = "RUNTIME_TEST_SYSTEM_HTML_LOGIN_";
+		public const string HtmlLoginMemberDisplayNamePrefix = "Runtime Test HTML Login Member ";
 	}
 
 	internal static class Database

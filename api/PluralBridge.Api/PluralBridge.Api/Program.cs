@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using PluralBridge.Api;
 using PluralBridge.Api.Account;
 using Serilog;
 using Serilog.Events;
@@ -38,9 +39,9 @@ builder.Services
 		options.Cookie.HttpOnly = true;
 		options.Cookie.SameSite = SameSiteMode.Lax;
 		options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-		options.LoginPath = "/login";
-		options.LogoutPath = "/logout";
-		options.AccessDeniedPath = "/login";
+		options.LoginPath = Globals.browserLoginRoute;
+		options.LogoutPath = Globals.browserLogoutRoute;
+		options.AccessDeniedPath = Globals.browserLoginRoute;
 		options.Events.OnRedirectToLogin = context =>
 		{
 			if (context.Request.Path.StartsWithSegments("/api"))
@@ -123,7 +124,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // add static app redirects
-app.MapGet("/", () => Results.Redirect("/app/"));
+app.MapGet("/", () => Results.Redirect(Globals.browserAppRoute));
 
 var allowedBrowserCssFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
@@ -144,7 +145,7 @@ var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase
 };
 
 // require login for the browser button app files
-app.MapGet("/app/", () =>
+app.MapGet(Globals.browserAppRoute, () =>
 {
 	var path = Path.Combine(app.Environment.WebRootPath!, "app", "index.html");
 
@@ -197,7 +198,7 @@ app.MapGet("/app/js/{fileName}", (string fileName) =>
 }).RequireAuthorization();
 
 // add login page endpoint
-app.MapGet("/login", () =>
+app.MapGet(Globals.browserLoginRoute, () =>
 {
 	const string loginPage =
 		"<!doctype html>" +
@@ -211,11 +212,11 @@ app.MapGet("/login", () =>
 		"<main>" +
 		"<h1>PluralBridge Demo Login</h1>" +
 		"<p>Private Phase 2B engineering proof.</p>" +
-		"<form method=\"post\" action=\"/login\">" +
-		"<label for=\"userName\">Username</label><br>" +
-		"<input id=\"userName\" name=\"userName\" autocomplete=\"username\" required><br><br>" +
-		"<label for=\"password\">Password</label><br>" +
-		"<input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" required><br><br>" +
+		$"<form method=\"post\" action=\"{Globals.browserLoginRoute}\">" +
+		$"<label for=\"{Globals.browserLoginUserNameField}\">Username</label><br>" +
+		$"<input id=\"{Globals.browserLoginUserNameField}\" name=\"{Globals.browserLoginUserNameField}\" autocomplete=\"username\" required><br><br>" +
+		$"<label for=\"{Globals.browserLoginPasswordField}\">Password</label><br>" +
+		$"<input id=\"{Globals.browserLoginPasswordField}\" name=\"{Globals.browserLoginPasswordField}\" type=\"password\" autocomplete=\"current-password\" required><br><br>" +
 		"<button type=\"submit\">Sign in</button>" +
 		"</form>" +
 		"</main>" +
@@ -226,43 +227,60 @@ app.MapGet("/login", () =>
 });
 
 // add login form post endpoint
-app.MapPost("/login", async (HttpContext context, IConfiguration configuration) =>
+app.MapPost(Globals.browserLoginRoute, async (
+	HttpContext context,
+	IAccountService accountService,
+	CancellationToken cancellationToken) =>
 {
-	var form = await context.Request.ReadFormAsync();
+	var form = await context.Request.ReadFormAsync(cancellationToken);
 
-	var userName = form["userName"].FirstOrDefault() ?? string.Empty;
-	var password = form["password"].FirstOrDefault() ?? string.Empty;
+	var usernameOrEmail = form[Globals.browserLoginUserNameField].FirstOrDefault() ?? string.Empty;
+	var password = form[Globals.browserLoginPasswordField].FirstOrDefault() ?? string.Empty;
 
-	var configuredUserName = configuration["ProtectedDemo:UserName"] ?? string.Empty;
-	var configuredPassword = configuration["ProtectedDemo:Password"] ?? string.Empty;
+	var result = await accountService.LoginAsync(
+		new LoginRequest(
+			usernameOrEmail,
+			password),
+		cancellationToken);
 
-	if (string.IsNullOrWhiteSpace(configuredUserName) ||
-	    string.IsNullOrWhiteSpace(configuredPassword) ||
-	    !string.Equals(userName, configuredUserName, StringComparison.Ordinal) ||
-	    !string.Equals(password, configuredPassword, StringComparison.Ordinal))
+	if (result is not
+		{
+			Succeeded: true,
+			Value: { Account: not null } loginResponse
+		})
 	{
-		return Results.Redirect("/login");
+		return Results.Redirect(Globals.browserLoginRoute);
 	}
 
 	var claims = new List<Claim>
 	{
-		new(ClaimTypes.Name, configuredUserName)
+		new(
+			ClaimTypes.NameIdentifier,
+			loginResponse.Account.AccountId.ToString()),
+		new(
+			ClaimTypes.Name,
+			loginResponse.Account.Username)
 	};
 
-	var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+	var identity = new ClaimsIdentity(
+		claims,
+		CookieAuthenticationDefaults.AuthenticationScheme);
+
 	var principal = new ClaimsPrincipal(identity);
 
-	await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+	await context.SignInAsync(
+		CookieAuthenticationDefaults.AuthenticationScheme,
+		principal);
 
-	return Results.Redirect("/app/");
+	return Results.Redirect(Globals.browserAppRoute);
 });
 
 // add logout endpoint
-app.MapPost("/logout", async (HttpContext context) =>
+app.MapPost(Globals.browserLogoutRoute, async (HttpContext context) =>
 {
 	await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-	return Results.Redirect("/login");
+	return Results.Redirect(Globals.browserLoginRoute);
 }).RequireAuthorization();
 
 #if DEBUG_MODE

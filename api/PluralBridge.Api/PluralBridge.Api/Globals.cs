@@ -70,6 +70,19 @@ namespace PluralBridge.Api
 		internal const string verifyContactEndpointSegment = "verify-contact";
 
 		/// <summary>
+		/// Browser authentication routes
+		/// </summary>
+		internal const string browserLoginRoute = $"/{loginEndpointSegment}";
+		internal const string browserLogoutRoute = "/logout";
+		internal const string browserAppRoute = "/app/";
+
+		/// <summary>
+		/// Browser login form field names
+		/// </summary>
+		internal const string browserLoginUserNameField = "userName";
+		internal const string browserLoginPasswordField = "password";
+
+		/// <summary>
 		/// API routes
 		/// </summary>
 		internal const string customFieldsRoute = $"{systemsRouteRoot}/{routeSystemId}/{customFieldsEndpointSegment}";
