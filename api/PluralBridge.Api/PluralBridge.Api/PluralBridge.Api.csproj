@@ -19,4 +19,8 @@
 	<PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Account\Service\" />
+  </ItemGroup>
+
 </Project>

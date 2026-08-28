@@ -120,4 +120,9 @@ internal static class AccountTestGlobals
 		public const string ProfileResponseBodyWasNotReturned = "Profile" + ResponseBodyWasNotReturned;
 		public const string ContactResponseBodyWasNotReturned = "Contact" + ResponseBodyWasNotReturned;
 	}
+
+	internal static class RunModes
+	{
+		public const string ModeDevelopment = "Development";
+	}
 }
