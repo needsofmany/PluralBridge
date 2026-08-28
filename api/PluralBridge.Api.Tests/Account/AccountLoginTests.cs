@@ -1,7 +1,10 @@
 ﻿// Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using PluralBridge.Api.Account;
 
 namespace PluralBridge.Api.Tests.Account;
@@ -334,4 +337,102 @@ public sealed class AccountLoginTests
 			await AccountTestDatabase.CleanupRuntimeTestAccountsAsync();
 		}
 	}
+
+	[Fact]
+	public async Task HtmlLogin_ValidCredentials_ResolvesAccountThroughApiMe()
+	{
+		var testId = Guid.NewGuid().ToString(AccountTestGlobals.Formats.CompactGuid);
+		var username = $"{AccountTestGlobals.TestAccounts.UsernamePrefix}{AccountTestGlobals.TestAccounts.HtmlLoginUsernameSegment}{testId}";
+		var email = $"{username}@{AccountTestGlobals.TestAccounts.EmailDomain}";
+		var systemName = $"{AccountTestGlobals.TestAccounts.HtmlLoginSystemNamePrefix}{testId}";
+		var memberDisplayName = $"{AccountTestGlobals.TestAccounts.HtmlLoginMemberDisplayNamePrefix}{testId}";
+
+		await AccountTestDatabase.CleanupRuntimeTestAccountsAsync();
+
+		try
+		{
+			await using var factory = AccountTestHost.CreateFactory();
+
+			using var client = factory.CreateClient(
+				new WebApplicationFactoryClientOptions
+				{
+					AllowAutoRedirect = false
+				});
+
+			var registerRequest = new RegisterAccountRequest(
+				username,
+				email,
+				AccountTestGlobals.TestAccounts.HtmlLoginDisplayName,
+				AccountTestGlobals.TestAccounts.DefaultPassword);
+
+			var registerResponse = await client.PostAsJsonAsync(
+				AccountTestGlobals.Routes.Register,
+				registerRequest);
+
+			Assert.True(
+				registerResponse.IsSuccessStatusCode,
+				await registerResponse.Content.ReadAsStringAsync());
+
+			var accountState =
+				await AccountTestDatabase.ReadAccountStateAsync(username)
+				?? throw new InvalidOperationException(
+					TestGlobals.Diagnostics.RuntimeTestAccountWasNotCreated);
+
+			await AccountTestDatabase.ActivateRuntimeTestAccountAsync(
+				accountState.AccountId);
+
+			await AccountTestDatabase.CreateRuntimeAccessFixtureAsync(
+				accountState.AccountId,
+				systemName,
+				memberDisplayName);
+
+			using var loginForm = new FormUrlEncodedContent(
+				new Dictionary<string, string>
+				{
+					[AccountTestGlobals.FormFields.UserName] = username,
+					[AccountTestGlobals.FormFields.Password] = AccountTestGlobals.TestAccounts.DefaultPassword
+				});
+
+			var loginResponse = await client.PostAsync(
+				AccountTestGlobals.Routes.HtmlLogin,
+				loginForm);
+
+			Assert.Equal(
+				HttpStatusCode.Redirect,
+				loginResponse.StatusCode);
+
+			Assert.Equal(
+				AccountTestGlobals.Routes.App,
+				loginResponse.Headers.Location?.OriginalString);
+
+			var meResponse = await client.GetAsync(
+				AccountTestGlobals.Routes.Me);
+
+			var meResponseText = await meResponse.Content.ReadAsStringAsync();
+
+			Assert.True(
+				meResponse.IsSuccessStatusCode,
+				meResponseText);
+
+			var meResponseBody = JsonSerializer.Deserialize<MeResponse>(
+				meResponseText,
+				new JsonSerializerOptions(JsonSerializerDefaults.Web))
+				?? throw new InvalidOperationException(
+					AccountTestGlobals.Diagnostics.ResponseBodyWasNotReturned);
+
+			Assert.Equal(
+				accountState.AccountId,
+				meResponseBody.CurrentAccount.AccountId);
+		}
+		finally
+		{
+			await AccountTestDatabase.CleanupRuntimeTestAccountsAsync();
+		}
+	}
+
+	private sealed record MeResponse(
+		MeAccount CurrentAccount);
+
+	private sealed record MeAccount(
+		Guid AccountId);
 }

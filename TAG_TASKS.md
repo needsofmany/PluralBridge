@@ -6,6 +6,49 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.8.6 — Account code email delivery and audit diagnostics
+
+### Major tasks completed
+
+* Added Azure Communication Services account-code email delivery for account workflows.
+* Preserved the development account-code delivery outbox for local and integration-test workflows.
+* Added provider selection for account-code delivery so local development can use the outbox while configured environments can use Azure email delivery.
+* Added controlled delivery-failure handling so missing or failing email configuration returns a safe account-service failure instead of surfacing as an unhandled API exception.
+* Confirmed missing Azure `FromAddress` configuration returns a controlled `delivery_failed` registration response.
+* Confirmed real Azure registration-code email delivery from `donotreply@thepluralbridge.org`.
+* Confirmed registration email verification succeeds after receiving the Azure-delivered code.
+* Improved account-code audit diagnostics with safe JSON detail for:
+
+  * registration validation rejection
+  * registration creation
+  * code issuance
+  * registration verification validation rejection
+  * registration verification rejection when no matching code is selected
+  * expired selected registration-verification codes
+  * accepted registration-verification codes
+  * consumed registration-verification codes
+  * completed registration verification
+  * account-code delivery failure
+
+* Kept public API failure messages generic while adding internal safe diagnostic detail to audit rows.
+* Split the large `AccountService` implementation into smaller partial-class workflow files under `Account/Service/`.
+* Added and updated account integration tests for account-code audit `SafeDetailJson` coverage.
+* Updated account test hosting so integration tests use the development delivery outbox instead of local Azure user-secret configuration.
+* Confirmed:
+
+  * `AccountCodeAuditTests` passes
+  * `PluralBridge.Api.Tests.Account` passes
+  * the full `PluralBridge.Api.Tests` suite passes
+
+### Notes
+
+* This release completes Task.Account 2.a Azure account-code email delivery.
+* Account-code values remain server-side; emails contain the user-facing code while audit details record safe operational context only.
+* The API still intentionally returns generic validation and verification messages to avoid exposing account-discovery or validation-oracle details.
+* Azure delivery is configuration-driven and can be disabled locally by selecting the development provider.
+* The development outbox remains the integration-test proof path for deterministic code retrieval.
+* Follow-up audit work should continue adding safe detail to other account rejection paths as those paths are touched.
+
 ## v0.8.5 — Task.Account 2.11 security cleanup
 
 ### Major tasks completed
