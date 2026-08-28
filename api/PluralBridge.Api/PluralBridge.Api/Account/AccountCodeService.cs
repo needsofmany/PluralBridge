@@ -3,15 +3,25 @@
 
 using System.Security.Cryptography;
 using Microsoft.Data.SqlClient;
+using PluralBridge.Api;
 
 namespace PluralBridge.Api.Account;
 
+// Small return object for insert paths that need to audit the exact code row created.
+// The plaintext code stays out of this shape.
+internal sealed record AccountCodeIssueRecord(
+	Guid AccountCodeId,
+	DateTime ExpiresAtUtc);
+
+// Database helper for account one-time codes. This class owns code rows only:
+// creating code text, storing code hashes, selecting code rows, and mutating attempt/consume state.
 internal static class AccountCodeService
 {
 	internal static string CreateNumericCode()
 	{
 		var value = RandomNumberGenerator.GetInt32(0, 1_000_000);
-		return value.ToString("D6");
+
+		return value.ToString(Globals.accountCodeNumericFormat);
 	}
 
 	internal static async Task<AccountCodeRecord?> ReadLatestRegistrationCodeAsync(
@@ -20,43 +30,32 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-        SELECT TOP (1)
-            AccountCodeId,
-            AccountId,
-            CodeHash,
-            CodeHashAlgorithm,
-            CodeHashVersion,
-            ExpiresAtUtc,
-            ConsumedAtUtc,
-            AttemptCount,
-            MaxAttempts
-        FROM dbo.pb_account_codes
-        WHERE CodePurpose = N'registration_verification'
-          AND DestinationType = N'email'
-          AND DestinationNormalized = @DestinationNormalized
-        ORDER BY CreatedAtUtc DESC;
-        """;
+			SELECT TOP (1)
+				AccountCodeId,
+				AccountId,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion,
+				ExpiresAtUtc,
+				ConsumedAtUtc,
+				AttemptCount,
+				MaxAttempts
+			FROM dbo.pb_account_codes
+			WHERE CodePurpose = @CodePurpose
+			  AND DestinationType = @DestinationType
+			  AND DestinationNormalized = @DestinationNormalized
+			ORDER BY CreatedAtUtc DESC;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
-		command.Parameters.AddWithValue("@DestinationNormalized", normalizedEmail);
+
+		AddCodePurposeParameter(command, AccountCodePurposes.RegistrationVerification);
+		AddDestinationTypeParameter(command);
+		command.Parameters.AddWithValue(Globals.sqlParameterDestinationNormalized, normalizedEmail);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-		if (!await reader.ReadAsync(cancellationToken))
-		{
-			return null;
-		}
-
-		return new AccountCodeRecord(
-			reader.GetGuid(0),
-			reader.GetGuid(1),
-			(byte[])reader["CodeHash"],
-			reader.GetString(3),
-			reader.GetInt32(4),
-			reader.GetDateTime(5),
-			reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-			reader.GetInt32(7),
-			reader.GetInt32(8));
+		return await ReadCodeRecordAsync(reader, cancellationToken);
 	}
 
 	internal static async Task<AccountCodeRecord?> ReadLatestContactVerificationCodeAsync(
@@ -66,49 +65,34 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-		                   SELECT TOP (1)
-		                       AccountCodeId,
-		                       AccountId,
-		                       CodeHash,
-		                       CodeHashAlgorithm,
-		                       CodeHashVersion,
-		                       ExpiresAtUtc,
-		                       ConsumedAtUtc,
-		                       AttemptCount,
-		                       MaxAttempts
-		                   FROM dbo.pb_account_codes
-		                   WHERE AccountId = @AccountId
-		                     AND CodePurpose = N'contact_verification'
-		                     AND DestinationType = N'email'
-		                     AND DestinationNormalized = @DestinationNormalized
-		                   ORDER BY CreatedAtUtc DESC;
-		                   """;
+			SELECT TOP (1)
+				AccountCodeId,
+				AccountId,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion,
+				ExpiresAtUtc,
+				ConsumedAtUtc,
+				AttemptCount,
+				MaxAttempts
+			FROM dbo.pb_account_codes
+			WHERE AccountId = @AccountId
+			  AND CodePurpose = @CodePurpose
+			  AND DestinationType = @DestinationType
+			  AND DestinationNormalized = @DestinationNormalized
+			ORDER BY CreatedAtUtc DESC;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
-		command.Parameters.AddWithValue("@AccountId", accountId);
-		command.Parameters.AddWithValue(
-			"@DestinationNormalized",
-			normalizedEmail);
+		command.Parameters.AddWithValue(Globals.sqlParameterAccountId, accountId);
+		AddCodePurposeParameter(command, AccountCodePurposes.ContactVerification);
+		AddDestinationTypeParameter(command);
+		command.Parameters.AddWithValue(Globals.sqlParameterDestinationNormalized, normalizedEmail);
 
-		await using var reader =
-			await command.ExecuteReaderAsync(cancellationToken);
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-		if (!await reader.ReadAsync(cancellationToken))
-		{
-			return null;
-		}
-
-		return new AccountCodeRecord(
-			reader.GetGuid(0),
-			reader.GetGuid(1),
-			(byte[])reader["CodeHash"],
-			reader.GetString(3),
-			reader.GetInt32(4),
-			reader.GetDateTime(5),
-			reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-			reader.GetInt32(7),
-			reader.GetInt32(8));
+		return await ReadCodeRecordAsync(reader, cancellationToken);
 	}
 
 	internal static async Task IncrementCodeAttemptAsync(
@@ -117,15 +101,16 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-        UPDATE dbo.pb_account_codes
-        SET
-            AttemptCount = AttemptCount + 1,
-            LastAttemptAtUtc = SYSUTCDATETIME()
-        WHERE AccountCodeId = @AccountCodeId;
-        """;
+			UPDATE dbo.pb_account_codes
+			SET
+				AttemptCount = AttemptCount + 1,
+				LastAttemptAtUtc = SYSUTCDATETIME()
+			WHERE AccountCodeId = @AccountCodeId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
-		command.Parameters.AddWithValue("@AccountCodeId", accountCodeId);
+
+		command.Parameters.AddWithValue(Globals.sqlParameterAccountCodeId, accountCodeId);
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
@@ -137,16 +122,17 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-        UPDATE dbo.pb_account_codes
-        SET
-            ConsumedAtUtc = SYSUTCDATETIME(),
-            LastAttemptAtUtc = SYSUTCDATETIME()
-        WHERE AccountCodeId = @AccountCodeId
-          AND ConsumedAtUtc IS NULL;
-        """;
+			UPDATE dbo.pb_account_codes
+			SET
+				ConsumedAtUtc = SYSUTCDATETIME(),
+				LastAttemptAtUtc = SYSUTCDATETIME()
+			WHERE AccountCodeId = @AccountCodeId
+			  AND ConsumedAtUtc IS NULL;
+			""";
 
 		await using var command = new SqlCommand(sql, connection, transaction);
-		command.Parameters.AddWithValue("@AccountCodeId", accountCodeId);
+
+		command.Parameters.AddWithValue(Globals.sqlParameterAccountCodeId, accountCodeId);
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
@@ -160,39 +146,41 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-        INSERT INTO dbo.pb_account_codes
-        (
-            AccountId,
-            CodePurpose,
-            DestinationType,
-            DestinationNormalized,
-            CodeHash,
-            CodeHashAlgorithm,
-            CodeHashVersion,
-            ExpiresAtUtc,
-            CorrelationId
-        )
-        VALUES
-        (
-            @AccountId,
-            N'password_reset',
-            N'email',
-            @DestinationNormalized,
-            @CodeHash,
-            @CodeHashAlgorithm,
-            @CodeHashVersion,
-            DATEADD(MINUTE, 15, SYSUTCDATETIME()),
-            @CorrelationId
-        );
-        """;
+			INSERT INTO dbo.pb_account_codes
+			(
+				AccountId,
+				CodePurpose,
+				DestinationType,
+				DestinationNormalized,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion,
+				ExpiresAtUtc,
+				CorrelationId
+			)
+			VALUES
+			(
+				@AccountId,
+				@CodePurpose,
+				@DestinationType,
+				@DestinationNormalized,
+				@CodeHash,
+				@CodeHashAlgorithm,
+				@CodeHashVersion,
+				DATEADD(MINUTE, @ExpirationMinutes, SYSUTCDATETIME()),
+				@CorrelationId
+			);
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
-		command.Parameters.AddWithValue("@AccountId", accountId);
-		command.Parameters.AddWithValue("@DestinationNormalized", destinationNormalized);
-		command.Parameters.AddWithValue("@CodeHash", resetHash.PasswordHash);
-		command.Parameters.AddWithValue("@CodeHashAlgorithm", resetHash.Algorithm);
-		command.Parameters.AddWithValue("@CodeHashVersion", resetHash.Version);
-		command.Parameters.AddWithValue("@CorrelationId", correlationId);
+
+		AddCodeInsertParameters(
+			command,
+			accountId,
+			AccountCodePurposes.PasswordReset,
+			destinationNormalized,
+			resetHash,
+			correlationId);
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
@@ -206,39 +194,41 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-        INSERT INTO dbo.pb_account_codes
-        (
-            AccountId,
-            CodePurpose,
-            DestinationType,
-            DestinationNormalized,
-            CodeHash,
-            CodeHashAlgorithm,
-            CodeHashVersion,
-            ExpiresAtUtc,
-            CorrelationId
-        )
-        VALUES
-        (
-            @AccountId,
-            N'username_recovery',
-            N'email',
-            @DestinationNormalized,
-            @CodeHash,
-            @CodeHashAlgorithm,
-            @CodeHashVersion,
-            DATEADD(MINUTE, 15, SYSUTCDATETIME()),
-            @CorrelationId
-        );
-        """;
+			INSERT INTO dbo.pb_account_codes
+			(
+				AccountId,
+				CodePurpose,
+				DestinationType,
+				DestinationNormalized,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion,
+				ExpiresAtUtc,
+				CorrelationId
+			)
+			VALUES
+			(
+				@AccountId,
+				@CodePurpose,
+				@DestinationType,
+				@DestinationNormalized,
+				@CodeHash,
+				@CodeHashAlgorithm,
+				@CodeHashVersion,
+				DATEADD(MINUTE, @ExpirationMinutes, SYSUTCDATETIME()),
+				@CorrelationId
+			);
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
-		command.Parameters.AddWithValue("@AccountId", accountId);
-		command.Parameters.AddWithValue("@DestinationNormalized", normalizedEmail);
-		command.Parameters.AddWithValue("@CodeHash", recoveryHash.PasswordHash);
-		command.Parameters.AddWithValue("@CodeHashAlgorithm", recoveryHash.Algorithm);
-		command.Parameters.AddWithValue("@CodeHashVersion", recoveryHash.Version);
-		command.Parameters.AddWithValue("@CorrelationId", correlationId);
+
+		AddCodeInsertParameters(
+			command,
+			accountId,
+			AccountCodePurposes.UsernameRecovery,
+			normalizedEmail,
+			recoveryHash,
+			correlationId);
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
@@ -252,58 +242,46 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-		                   INSERT INTO dbo.pb_account_codes
-		                   (
-		                   	AccountId,
-		                   	CodePurpose,
-		                   	DestinationType,
-		                   	DestinationNormalized,
-		                   	CodeHash,
-		                   	CodeHashAlgorithm,
-		                   	CodeHashVersion,
-		                   	ExpiresAtUtc,
-		                   	CorrelationId
-		                   )
-		                   VALUES
-		                   (
-		                   	@AccountId,
-		                   	@CodePurpose,
-		                   	N'email',
-		                   	@DestinationNormalized,
-		                   	@CodeHash,
-		                   	@CodeHashAlgorithm,
-		                   	@CodeHashVersion,
-		                   	DATEADD(MINUTE, 30, SYSUTCDATETIME()),
-		                   	@CorrelationId
-		                   );
-		                   """;
+			INSERT INTO dbo.pb_account_codes
+			(
+				AccountId,
+				CodePurpose,
+				DestinationType,
+				DestinationNormalized,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion,
+				ExpiresAtUtc,
+				CorrelationId
+			)
+			VALUES
+			(
+				@AccountId,
+				@CodePurpose,
+				@DestinationType,
+				@DestinationNormalized,
+				@CodeHash,
+				@CodeHashAlgorithm,
+				@CodeHashVersion,
+				DATEADD(MINUTE, @ExpirationMinutes, SYSUTCDATETIME()),
+				@CorrelationId
+			);
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
-		command.Parameters.AddWithValue("@AccountId", accountId);
-		command.Parameters.AddWithValue(
-			"@CodePurpose",
-			AccountCodePurposes.ContactVerification);
-		command.Parameters.AddWithValue(
-			"@DestinationNormalized",
-			destinationNormalized);
-		command.Parameters.AddWithValue(
-			"@CodeHash",
-			verificationHash.PasswordHash);
-		command.Parameters.AddWithValue(
-			"@CodeHashAlgorithm",
-			verificationHash.Algorithm);
-		command.Parameters.AddWithValue(
-			"@CodeHashVersion",
-			verificationHash.Version);
-		command.Parameters.AddWithValue(
-			"@CorrelationId",
+		AddCodeInsertParameters(
+			command,
+			accountId,
+			AccountCodePurposes.ContactVerification,
+			destinationNormalized,
+			verificationHash,
 			correlationId);
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
 
-	internal static async Task InsertVerificationCodeAsync(
+	internal static async Task<AccountCodeIssueRecord> InsertVerificationCodeAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
 		Guid accountId,
@@ -313,41 +291,57 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-            INSERT INTO dbo.pb_account_codes
-            (
-                AccountId,
-                CodePurpose,
-                DestinationType,
-                DestinationNormalized,
-                CodeHash,
-                CodeHashAlgorithm,
-                CodeHashVersion,
-                ExpiresAtUtc,
-                CorrelationId
-            )
-            VALUES
-            (
-                @AccountId,
-                N'registration_verification',
-                N'email',
-                @DestinationNormalized,
-                @CodeHash,
-                @CodeHashAlgorithm,
-                @CodeHashVersion,
-                DATEADD(MINUTE, 30, SYSUTCDATETIME()),
-                @CorrelationId
-            );
-            """;
+			INSERT INTO dbo.pb_account_codes
+			(
+				AccountId,
+				CodePurpose,
+				DestinationType,
+				DestinationNormalized,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion,
+				ExpiresAtUtc,
+				CorrelationId
+			)
+			OUTPUT
+				INSERTED.AccountCodeId,
+				INSERTED.ExpiresAtUtc
+			VALUES
+			(
+				@AccountId,
+				@CodePurpose,
+				@DestinationType,
+				@DestinationNormalized,
+				@CodeHash,
+				@CodeHashAlgorithm,
+				@CodeHashVersion,
+				DATEADD(MINUTE, @ExpirationMinutes, SYSUTCDATETIME()),
+				@CorrelationId
+			);
+			""";
 
 		await using var command = new SqlCommand(sql, connection, transaction);
-		command.Parameters.AddWithValue("@AccountId", accountId);
-		command.Parameters.AddWithValue("@DestinationNormalized", normalizedEmail);
-		command.Parameters.AddWithValue("@CodeHash", verificationHash.PasswordHash);
-		command.Parameters.AddWithValue("@CodeHashAlgorithm", verificationHash.Algorithm);
-		command.Parameters.AddWithValue("@CodeHashVersion", verificationHash.Version);
-		command.Parameters.AddWithValue("@CorrelationId", correlationId);
 
-		await command.ExecuteNonQueryAsync(cancellationToken);
+		AddCodeInsertParameters(
+			command,
+			accountId,
+			AccountCodePurposes.RegistrationVerification,
+			normalizedEmail,
+			verificationHash,
+			correlationId);
+
+		// The registration path needs the inserted id and expiry for SafeDetailJson.
+		// OUTPUT gives us the database-assigned values without a second lookup.
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+		if (!await reader.ReadAsync(cancellationToken))
+		{
+			throw new InvalidOperationException(Globals.accountCodeInsertReturnedNoRows);
+		}
+
+		return new AccountCodeIssueRecord(
+			reader.GetGuid(0),
+			reader.GetDateTime(1));
 	}
 
 	internal static async Task<AccountCodeRecord?> ReadLatestPasswordResetCodeAsync(
@@ -356,28 +350,71 @@ internal static class AccountCodeService
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-		                   SELECT TOP (1)
-		                       AccountCodeId,
-		                       AccountId,
-		                       CodeHash,
-		                       CodeHashAlgorithm,
-		                       CodeHashVersion,
-		                       ExpiresAtUtc,
-		                       ConsumedAtUtc,
-		                       AttemptCount,
-		                       MaxAttempts
-		                   FROM dbo.pb_account_codes
-		                   WHERE CodePurpose = N'password_reset'
-		                     AND DestinationType = N'email'
-		                     AND DestinationNormalized = @DestinationNormalized
-		                   ORDER BY CreatedAtUtc DESC;
-		                   """;
+			SELECT TOP (1)
+				AccountCodeId,
+				AccountId,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion,
+				ExpiresAtUtc,
+				ConsumedAtUtc,
+				AttemptCount,
+				MaxAttempts
+			FROM dbo.pb_account_codes
+			WHERE CodePurpose = @CodePurpose
+			  AND DestinationType = @DestinationType
+			  AND DestinationNormalized = @DestinationNormalized
+			ORDER BY CreatedAtUtc DESC;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
-		command.Parameters.AddWithValue("@DestinationNormalized", destinationNormalized);
+
+		AddCodePurposeParameter(command, AccountCodePurposes.PasswordReset);
+		AddDestinationTypeParameter(command);
+		command.Parameters.AddWithValue(Globals.sqlParameterDestinationNormalized, destinationNormalized);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
+		return await ReadCodeRecordAsync(reader, cancellationToken);
+	}
+
+	private static void AddCodeInsertParameters(
+		SqlCommand command,
+		Guid accountId,
+		string codePurpose,
+		string destinationNormalized,
+		PasswordHashResult codeHash,
+		string correlationId)
+	{
+		// All code insert paths share the same destination type and expiry policy.
+		// The purpose decides which workflow will later be allowed to consume the row.
+		command.Parameters.AddWithValue(Globals.sqlParameterAccountId, accountId);
+		AddCodePurposeParameter(command, codePurpose);
+		AddDestinationTypeParameter(command);
+		command.Parameters.AddWithValue(Globals.sqlParameterDestinationNormalized, destinationNormalized);
+		command.Parameters.AddWithValue(Globals.sqlParameterCodeHash, codeHash.PasswordHash);
+		command.Parameters.AddWithValue(Globals.sqlParameterCodeHashAlgorithm, codeHash.Algorithm);
+		command.Parameters.AddWithValue(Globals.sqlParameterCodeHashVersion, codeHash.Version);
+		command.Parameters.AddWithValue(Globals.sqlParameterExpirationMinutes, Globals.accountCodeExpirationMinutes);
+		command.Parameters.AddWithValue(Globals.sqlParameterCorrelationId, correlationId);
+	}
+
+	private static void AddCodePurposeParameter(SqlCommand command, string codePurpose)
+	{
+		command.Parameters.AddWithValue(Globals.sqlParameterCodePurpose, codePurpose);
+	}
+
+	private static void AddDestinationTypeParameter(SqlCommand command)
+	{
+		command.Parameters.AddWithValue(Globals.sqlParameterDestinationType, AccountDestinationTypes.Email);
+	}
+
+	private static async Task<AccountCodeRecord?> ReadCodeRecordAsync(
+		SqlDataReader reader,
+		CancellationToken cancellationToken)
+	{
+		// A missing row is a normal verification outcome; the caller decides which generic
+		// public response and which audit event fit the workflow.
 		if (!await reader.ReadAsync(cancellationToken))
 		{
 			return null;
@@ -386,7 +423,7 @@ internal static class AccountCodeService
 		return new AccountCodeRecord(
 			reader.GetGuid(0),
 			reader.GetGuid(1),
-			(byte[])reader["CodeHash"],
+			(byte[])reader[Globals.accountCodeHashFieldName],
 			reader.GetString(3),
 			reader.GetInt32(4),
 			reader.GetDateTime(5),
