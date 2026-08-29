@@ -23,4 +23,40 @@
     <Folder Include="Account\Service\" />
   </ItemGroup>
 
+<PropertyGroup>
+  <FrontendSyncScriptBash>$(MSBuildProjectDirectory)/../../../app/scripts/sync-browser-app.sh</FrontendSyncScriptBash>
+  <FrontendSyncScriptPowerShell>$(MSBuildProjectDirectory)/../../../app/scripts/sync-browser-app.ps1</FrontendSyncScriptPowerShell>
+</PropertyGroup>
+
+<Target Name="SyncBrowserApp" BeforeTargets="Build;Publish">
+  <Message Importance="high" Text="Running frontend sync (Windows): $(FrontendSyncScriptPowerShell)" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+  <Message Importance="high" Text="Running frontend sync (Unix): $(FrontendSyncScriptBash)" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+
+  <Exec Command='powershell -NoProfile -ExecutionPolicy Bypass -File "$(FrontendSyncScriptPowerShell)"'
+        Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+
+  <Exec Command='bash "$(FrontendSyncScriptBash)"'
+        Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+</Target>
+
+
+
+  <PropertyGroup>
+    <FrontendSyncCheckScriptBash>$(MSBuildProjectDirectory)/../../../app/scripts/check-browser-sync.sh</FrontendSyncCheckScriptBash>
+  </PropertyGroup>
+
+  <Target Name="VerifyBrowserAppSync" BeforeTargets="Build;Publish" DependsOnTargets="SyncBrowserApp">
+    <Message Importance="high" Text="Verifying frontend sync: $(FrontendSyncCheckScriptBash)" />
+    <Exec Command='bash "$(FrontendSyncCheckScriptBash)"' />
+  </Target>
+
+  <PropertyGroup>
+    <FrontendAllowlistCheckScriptBash>$(MSBuildProjectDirectory)/../../../app/scripts/check-browser-allowlists.sh</FrontendAllowlistCheckScriptBash>
+  </PropertyGroup>
+
+  <Target Name="VerifyBrowserAllowlists" BeforeTargets="Build;Publish" DependsOnTargets="VerifyBrowserAppSync">
+    <Message Importance="high" Text="Verifying frontend allowlists: $(FrontendAllowlistCheckScriptBash)" />
+    <Exec Command='bash "$(FrontendAllowlistCheckScriptBash)"' />
+  </Target>
+
 </Project>
