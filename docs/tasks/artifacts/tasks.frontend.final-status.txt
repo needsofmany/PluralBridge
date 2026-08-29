@@ -1,0 +1,23 @@
+ M README.md
+ M api/PluralBridge.Api/PluralBridge.Api/PluralBridge.Api.csproj
+ D api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/js/app.js
+ D app/app.css
+ D app/app.js
+ D app/css/base.css
+ D app/css/developer-tools.css
+ D app/css/layout.css
+ D app/css/legacy-app.css
+ D app/css/members.css
+ D app/index.html
+ D app/js/api-client.js
+ D app/js/bootstrap.js
+ D app/js/developer-tools.js
+ D app/js/legacy-app.js
+ D app/js/members.js
+ M app/scripts/sync-browser-app.sh
+?? api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/DO_NOT_EDIT_GENERATED.md
+?? app/DO_NOT_EDIT_RUNTIME_FILES.md
+?? app/scripts/check-browser-allowlists.sh
+?? app/scripts/check-browser-sync.sh
+?? app/scripts/sync-browser-app.ps1
+?? docs/tasks/

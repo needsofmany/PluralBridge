@@ -6,6 +6,23 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## v0.8.7 — Tasks.FrontEnd single-source frontend and build sync enforcement
+
+### Major tasks completed
+
+* Made `app/src/` the canonical frontend source tree.
+* Removed legacy runtime mirror files under `app/` to prevent source drift.
+* Added automated frontend sync in API build/publish.
+* Added sync drift validation that fails build on mismatch.
+* Added allowlist validation that fails build when Program.cs allowlists drift from source modules.
+* Added guardrail docs for generated/runtime paths.
+
+### Notes
+
+* Build now enforces frontend consistency via sync + validation checks.
+* Runtime frontend output remains served from `api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/`.
+* This release reduces manual asset-sync and stale-file regression risk.
+
 ## v0.8.6 — Account code email delivery and audit diagnostics
 
 ### Major tasks completed
