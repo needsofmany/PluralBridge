@@ -88,7 +88,8 @@ These materials may still help developers understand the preserved data format a
 ## Repository Layout
 
     api/                  PluralBridge API and service code
-    app/                  Browser application
+    app/src/              Canonical browser application source (edit here)
+    app/                  Legacy browser mirror/scripts (runtime files migrating; avoid editing)
     database/             Database schema and migration work
     docs/                 Project and developer documentation
     examples/             Synthetic and redacted examples
