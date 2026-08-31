@@ -6,6 +6,19 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## Unreleased — Tasks.UseRoles member write role enforcement
+
+### Major tasks completed
+
+* Added role-based member write authorization for member `POST` and `PUT`.
+* Defined the temporary member write role gate as `Owner` only.
+* Added reusable member-write authorization helper support in the AccessContext boundary.
+* Enforced role-aware authorization in `MembersController` write endpoints while keeping read behavior unchanged.
+* Added tests for:
+  * allowed write role success
+  * active membership with insufficient role forbidden behavior
+  * cross-system write forbidden behavior
+
 ## v0.8.7 — Tasks.FrontEnd single-source frontend and build sync enforcement
 
 ### Major tasks completed

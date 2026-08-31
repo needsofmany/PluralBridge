@@ -180,7 +180,8 @@ internal static class AccountTestDatabase
 	internal static async Task<RuntimeAccessFixture> CreateRuntimeAccessFixtureAsync(
 		Guid accountId,
 		string systemName,
-		string memberDisplayName)
+		string memberDisplayName,
+		string membershipRoleName = "Owner")
 	{
 		var connectionString = GetConnectionString();
 		var systemId = Guid.NewGuid();
@@ -199,19 +200,19 @@ internal static class AccountTestDatabase
 					AND IsActive = 1
 			);
 
-			DECLARE @OwnerRoleId int =
+			DECLARE @MembershipRoleId int =
 			(
 				SELECT TOP (1) RoleId
 				FROM dbo.pb_roles
-				WHERE RoleName = 'Owner'
+				WHERE RoleName = @MembershipRoleName
 					AND IsActive = 1
 			);
 
 			IF @ActiveMembershipStatusId IS NULL
 				THROW 50001, 'Active membership status was not found.', 1;
 
-			IF @OwnerRoleId IS NULL
-				THROW 50002, 'Owner role was not found.', 1;
+			IF @MembershipRoleId IS NULL
+				THROW 50002, 'Membership role was not found.', 1;
 
 			INSERT INTO dbo.pb_systems
 			(
@@ -247,7 +248,7 @@ internal static class AccountTestDatabase
 			VALUES
 			(
 				@SystemMembershipId,
-				@OwnerRoleId
+				@MembershipRoleId
 			);
 
 			INSERT INTO dbo.pb_members
@@ -271,6 +272,7 @@ internal static class AccountTestDatabase
 		command.Parameters.AddWithValue("@MemberId", memberId);
 		command.Parameters.AddWithValue("@SystemName", systemName);
 		command.Parameters.AddWithValue("@MemberDisplayName", memberDisplayName);
+		command.Parameters.AddWithValue("@MembershipRoleName", membershipRoleName);
 
 		await command.ExecuteNonQueryAsync();
 

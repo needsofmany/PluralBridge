@@ -167,6 +167,67 @@ public sealed class AccessContextAuthorizationTests
 		Assert.True(isAuthorized);
 	}
 
+	[Fact]
+	public void IsAuthorizedForMemberWrite_ReturnsTrue_ForOwnerRole()
+	{
+		var systemId = TestGlobals.AccessContextAuthorization.SystemId;
+		var systemMembershipId = TestGlobals.AccessContextAuthorization.SystemMembershipId;
+
+		var accessContext = new AccessContextHelper.AccessContext(
+			CreateAccount(),
+			[
+				CreateMembership(
+					systemId,
+					systemMembershipId,
+					isActive: true,
+					statusName: TestGlobals.AccessContextAuthorization.ActiveStatusName,
+					roles:
+					[
+						CreateRole(TestGlobals.AccessContextAuthorization.OwnerRoleName)
+					])
+			],
+			new AccessContextHelper.CurrentSystem(
+				systemId,
+				null,
+				systemMembershipId));
+
+		var isAuthorized = AccessContextHelper.IsAuthorizedForMemberWrite(accessContext);
+
+		Assert.True(isAuthorized);
+	}
+
+	[Theory]
+	[InlineData("Viewer")]
+	[InlineData("Admin")]
+	[InlineData("Editor")]
+	public void IsAuthorizedForMemberWrite_ReturnsFalse_ForActiveMembershipWithNonOwnerRole(string roleName)
+	{
+		var systemId = TestGlobals.AccessContextAuthorization.SystemId;
+		var systemMembershipId = TestGlobals.AccessContextAuthorization.SystemMembershipId;
+
+		var accessContext = new AccessContextHelper.AccessContext(
+			CreateAccount(),
+			[
+				CreateMembership(
+					systemId,
+					systemMembershipId,
+					isActive: true,
+					statusName: TestGlobals.AccessContextAuthorization.ActiveStatusName,
+					roles:
+					[
+						CreateRole(roleName)
+					])
+			],
+			new AccessContextHelper.CurrentSystem(
+				systemId,
+				null,
+				systemMembershipId));
+
+		var isAuthorized = AccessContextHelper.IsAuthorizedForMemberWrite(accessContext);
+
+		Assert.False(isAuthorized);
+	}
+
 	private static AccessContextHelper.Account CreateAccount(
 		Guid? accountId = null,
 		string? displayName = null)
@@ -191,7 +252,8 @@ public sealed class AccessContextAuthorizationTests
 		Guid systemMembershipId,
 		bool isActive,
 		string statusName,
-		Guid? accountId = null)
+		Guid? accountId = null,
+		IReadOnlyList<AccessContextHelper.Role>? roles = null)
 	{
 		return new AccessContextHelper.SystemMembership(
 			systemMembershipId,
@@ -204,15 +266,18 @@ public sealed class AccessContextAuthorizationTests
 				TestGlobals.AccessContextAuthorization.MembershipStatusDescription,
 				TestGlobals.AccessContextAuthorization.DisplayOrder,
 				isActive),
-			[
-				new AccessContextHelper.Role(
-					TestGlobals.AccessContextAuthorization.ActiveStatusId,
-					TestGlobals.AccessContextAuthorization.OwnerRoleName,
-					TestGlobals.AccessContextAuthorization.OwnerRoleDescription,
-					TestGlobals.AccessContextAuthorization.DisplayOrder,
-					true)
-			],
+			roles ?? [CreateRole(TestGlobals.AccessContextAuthorization.OwnerRoleName)],
 			DateTime.UtcNow,
 			null);
+	}
+
+	private static AccessContextHelper.Role CreateRole(string roleName)
+	{
+		return new AccessContextHelper.Role(
+			TestGlobals.AccessContextAuthorization.ActiveStatusId,
+			roleName,
+			TestGlobals.AccessContextAuthorization.OwnerRoleDescription,
+			TestGlobals.AccessContextAuthorization.DisplayOrder,
+			true);
 	}
 }

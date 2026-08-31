@@ -43,20 +43,30 @@
 
   <PropertyGroup>
     <FrontendSyncCheckScriptBash>$(MSBuildProjectDirectory)/../../../app/scripts/check-browser-sync.sh</FrontendSyncCheckScriptBash>
+    <FrontendSyncCheckScriptPowerShell>$(MSBuildProjectDirectory)/../../../app/scripts/check-browser-sync.ps1</FrontendSyncCheckScriptPowerShell>
   </PropertyGroup>
 
   <Target Name="VerifyBrowserAppSync" BeforeTargets="Build;Publish" DependsOnTargets="SyncBrowserApp">
-    <Message Importance="high" Text="Verifying frontend sync: $(FrontendSyncCheckScriptBash)" />
-    <Exec Command='bash "$(FrontendSyncCheckScriptBash)"' />
+    <Message Importance="high" Text="Verifying frontend sync (Windows): $(FrontendSyncCheckScriptPowerShell)" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Message Importance="high" Text="Verifying frontend sync (Unix): $(FrontendSyncCheckScriptBash)" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command='powershell -NoProfile -ExecutionPolicy Bypass -File "$(FrontendSyncCheckScriptPowerShell)"'
+          Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command='bash "$(FrontendSyncCheckScriptBash)"'
+          Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
   </Target>
 
   <PropertyGroup>
     <FrontendAllowlistCheckScriptBash>$(MSBuildProjectDirectory)/../../../app/scripts/check-browser-allowlists.sh</FrontendAllowlistCheckScriptBash>
+    <FrontendAllowlistCheckScriptPowerShell>$(MSBuildProjectDirectory)/../../../app/scripts/check-browser-allowlists.ps1</FrontendAllowlistCheckScriptPowerShell>
   </PropertyGroup>
 
   <Target Name="VerifyBrowserAllowlists" BeforeTargets="Build;Publish" DependsOnTargets="VerifyBrowserAppSync">
-    <Message Importance="high" Text="Verifying frontend allowlists: $(FrontendAllowlistCheckScriptBash)" />
-    <Exec Command='bash "$(FrontendAllowlistCheckScriptBash)"' />
+    <Message Importance="high" Text="Verifying frontend allowlists (Windows): $(FrontendAllowlistCheckScriptPowerShell)" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Message Importance="high" Text="Verifying frontend allowlists (Unix): $(FrontendAllowlistCheckScriptBash)" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command='powershell -NoProfile -ExecutionPolicy Bypass -File "$(FrontendAllowlistCheckScriptPowerShell)"'
+          Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command='bash "$(FrontendAllowlistCheckScriptBash)"'
+          Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
   </Target>
 
 </Project>
