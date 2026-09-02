@@ -9,6 +9,8 @@ namespace PluralBridge.Api.Controllers
 {
 	internal static class AccessContextHelper
 	{
+		private const string MemberWriteOwnerRoleName = "Owner";
+
 		/// <summary>
 		/// Returns an account record by email address.
 		/// </summary>
@@ -386,6 +388,51 @@ namespace PluralBridge.Api.Controllers
 			requestTrace?.LogStage(
 				logger!,
 				"authorization_check",
+				isAuthorized ? "allowed" : "denied",
+				authorizationStopwatch.Elapsed);
+
+			return isAuthorized;
+		}
+
+		/// <summary>
+		/// Checks whether the current account can write members in the current system.
+		/// </summary>
+		/// <param name="accessContext">The resolved access context for the current request.</param>
+		/// <param name="requestTrace">The optional Level 1 diagnostic trace context for the current request spine.</param>
+		/// <param name="logger">The optional logger used to emit safe Level 1 diagnostic trace facts.</param>
+		/// <returns>True when the current account has active current-system membership with a write role; otherwise, false.</returns>
+		internal static bool IsAuthorizedForMemberWrite(
+			AccessContext accessContext,
+			RequestTraceContext? requestTrace = null,
+			ILogger? logger = null)
+		{
+			var authorizationStopwatch = Stopwatch.StartNew();
+
+			requestTrace?.LogStage(
+				logger!,
+				"member_write_authorization_check",
+				"started");
+
+			var isAuthorized = accessContext.MembershipAccess.Any(membership =>
+				membership.SystemId == accessContext.CurrentSystem.SystemId
+				&& membership.SystemMembershipId == accessContext.CurrentSystem.SystemMembershipId
+				&& membership.MembershipStatus.IsActive
+				&& string.Equals(
+					membership.MembershipStatus.StatusName,
+					"Active",
+					StringComparison.OrdinalIgnoreCase)
+				&& membership.Roles.Any(role =>
+					role.IsActive
+					&& string.Equals(
+						role.RoleName,
+						MemberWriteOwnerRoleName,
+						StringComparison.OrdinalIgnoreCase)));
+
+			authorizationStopwatch.Stop();
+
+			requestTrace?.LogStage(
+				logger!,
+				"member_write_authorization_check",
 				isAuthorized ? "allowed" : "denied",
 				authorizationStopwatch.Elapsed);
 

@@ -397,7 +397,7 @@ public sealed class MembersController(
 				});
 			}
 
-			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(
+			if (!AccessContextHelper.IsAuthorizedForMemberWrite(
 					accessContext,
 					requestTrace,
 					logger)
@@ -635,7 +635,7 @@ public sealed class MembersController(
 				});
 			}
 
-			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(
+			if (!AccessContextHelper.IsAuthorizedForMemberWrite(
 					accessContext,
 					requestTrace,
 					logger)
