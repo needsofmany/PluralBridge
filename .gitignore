@@ -40,3 +40,6 @@ database/targeting/prop_candidate/cloud/**/*.jsonl
 
 # PluralBridge local runtime logs
 api/PluralBridge.Api/PluralBridge.Api/logs/
+
+# Generated schema HTML (from website/docs/schema/*.md)
+/website/docs/schema/*.html
