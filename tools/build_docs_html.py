@@ -62,20 +62,32 @@ def slugify(text):
     text = re.sub(r"[^a-z0-9]+", "-", text)
     return text.strip("-") or "section"
 
+def should_preserve_md_link(href):
+    normalized = href.split("?", 1)[0].split("#", 1)[0].lstrip("./")
+    return normalized.startswith("schema/") or normalized.startswith("docs/schema/")
+
 def inline_markup(text):
     text = html.escape(text, quote=False)
 
     def image_repl(match):
         alt = html.escape(match.group(1), quote=True)
         src = match.group(2)
-        if src.endswith(".md") and not re.match(r"^[a-z]+://", src, re.IGNORECASE):
+        if (
+            src.endswith(".md")
+            and not re.match(r"^[a-z]+://", src, re.IGNORECASE)
+            and not should_preserve_md_link(src)
+        ):
             src = src[:-3] + ".html"
         return f'<img src="{html.escape(src, quote=True)}" alt="{alt}">'
 
     def link_repl(match):
         label = match.group(1)
         href = match.group(2)
-        if href.endswith(".md") and not re.match(r"^[a-z]+://", href, re.IGNORECASE):
+        if (
+            href.endswith(".md")
+            and not re.match(r"^[a-z]+://", href, re.IGNORECASE)
+            and not should_preserve_md_link(href)
+        ):
             href = href[:-3] + ".html"
         return f'<a href="{html.escape(href, quote=True)}">{label}</a>'
 
@@ -282,7 +294,7 @@ def update_docs_index():
         href = match.group(1)
         if re.match(r"^[a-z]+://", href, re.IGNORECASE):
             return f'href="{href}"'
-        if href.endswith(".md"):
+        if href.endswith(".md") and not should_preserve_md_link(href):
             href = href[:-3] + ".html"
         return f'href="{href}"'
 
