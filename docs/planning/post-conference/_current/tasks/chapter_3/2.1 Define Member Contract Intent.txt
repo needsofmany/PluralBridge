@@ -1,0 +1,21 @@
+Task 2.1 Define member contract intent
+
+Task 2 defines the editable member contract before SQL, C#, or browser behavior changes are made.
+
+The editable member contract is the agreement between the browser, API, validation, enforcement, and later SQL/C# implementation.
+
+Task 2 defines:
+
+member read contract
+member add contract
+member edit contract
+request shape
+response shape
+validation shape
+
+Task 2 is contract-only.
+
+Task 2 does not add SQL behavior.
+Task 2 does not add C# runtime behavior.
+Task 2 does not add browser behavior.
+Task 2 does not change /api/me behavior.

@@ -1,0 +1,27 @@
+Task 24 is Define expanded diagnostic trace mode.
+
+Purpose:
+  Define Expanded Diagnostic Trace as the optional Level 2 diagnostic mode for future troubleshooting.
+
+Intent:
+  Level 1 trace remains always-on.
+  Expanded Diagnostic Trace is Level 2 trace.
+  Level 2 trace is optional.
+  Level 2 trace is controlled by a future flag.
+  Level 2 trace may add safe diagnostic detail after the flag exists.
+  This task does not activate Level 2 runtime behavior.
+  This task does not change /api/me behavior.
+  This task does not change authorization behavior.
+  This task does not add new runtime trace output.
+
+Trace relationship:
+  Level 1 trace remains the stable request-spine trace.
+  Level 2 trace extends Level 1 only when explicitly enabled by a future flag.
+  Level 2 trace uses the same TraceId and CorrelationId spine.
+
+Done when:
+  Expanded Diagnostic Trace is named
+  Level 2 trace is described as optional
+  Level 2 trace is described as flag-controlled
+  Level 1 trace remains always-on
+  no Level 2 runtime behavior is activated

@@ -1,0 +1,126 @@
+Chapter 3 Task 2.7
+Define Success Response Shapes
+
+Purpose
+
+This step defines the success response shape for member read, member add, and member edit.
+
+This is a contract-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser behavior.
+It does not change /api/me behavior.
+
+Success Response Rule
+
+Successful editable member responses should be predictable for the browser.
+
+They should return the resulting member shape when a member is read, added, or edited.
+They should include trace information when appropriate.
+They should avoid exposing private enforcement internals.
+
+Common Success Envelope
+
+Successful member responses may include:
+
+api
+phase
+mode
+success true
+traceId or requestTraceId, when available
+currentSystem, when useful for proof
+
+The response should not expose raw membership internals.
+The response should not expose private authorization decisions beyond the successful result.
+The response should not expose SQL details.
+
+Resulting Member Shape
+
+The resulting member shape should include:
+
+MemberId
+SystemId, when useful for proof or diagnostics
+Name or display/member name
+Description, when present
+Privacy bucket value, when present
+Source/import fields, when present and useful as read-only proof
+CreatedAtUtc, when present
+UpdatedAtUtc, when present
+
+Server-owned fields are returned as read-only result values.
+Returning server-owned fields does not make them browser-owned input fields.
+
+Member Read Success Response
+
+A successful member read response should include:
+
+common success envelope
+members array
+
+The members array contains member shapes for members in the current SystemId resolved from AccessContext.
+
+The browser can render the members array as the main protected member list.
+
+Member Add Success Response
+
+A successful member add response should include:
+
+common success envelope
+created member shape
+safe success message, when useful
+
+The created member shape is the server/database result after insert.
+
+The browser should use the returned member shape rather than assuming that submitted input exactly matches stored output.
+
+Member Edit Success Response
+
+A successful member edit response should include:
+
+common success envelope
+updated member shape
+safe success message, when useful
+
+The updated member shape is the server/database result after update.
+
+The browser should use the returned member shape to refresh the row, expanded detail, and any visible save result.
+
+Trace And Correlation
+
+Success responses may include traceId or requestTraceId when available.
+
+Trace information helps connect browser-visible behavior to API diagnostics.
+Trace information does not authorize the operation.
+Trace information does not expose private enforcement internals.
+
+Browser Behavior Implication
+
+The browser should treat successful responses as authoritative.
+
+After member read, the browser renders the returned member list.
+After member add, the browser renders or inserts the returned created member.
+After member edit, the browser refreshes the visible member row from the returned updated member.
+
+This step does not implement browser behavior.
+It only defines what later browser behavior can rely on.
+
+Non-Runtime Boundary
+
+This step defines success response shapes only.
+
+It does not implement member read.
+It does not implement member add.
+It does not implement member edit.
+It does not add validation code.
+It does not add audit code.
+It does not add browser form behavior.
+
+Done When
+
+Member read success response is defined.
+Member add success response is defined.
+Member edit success response is defined.
+Response includes the resulting member shape.
+Response includes trace or correlation id where appropriate.
+Response does not expose private enforcement internals.

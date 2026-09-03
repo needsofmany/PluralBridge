@@ -1,0 +1,97 @@
+Chapter 3 Task 2.8
+Define No Runtime Change Boundary For Task 2
+
+Purpose
+
+This step records that Task 2 is contract-only.
+
+Task 2 defines the editable member read, add, edit, validation, server-owned field, and response contracts.
+
+Task 2 does not implement runtime behavior.
+
+Task 2 Boundary
+
+Task 2 defines the contract for later SQL, C#, and browser implementation.
+
+The contract is the agreement between:
+
+browser request shape
+API request model
+AccessContext enforcement
+validation behavior
+audit behavior
+member read response
+member add response
+member edit response
+later SQL implementation
+later C# implementation
+
+No SQL Runtime Behavior
+
+Task 2 does not add SQL runtime behavior.
+
+Task 2 does not create member write stored procedures.
+Task 2 does not create audit tables.
+Task 2 does not create audit triggers.
+Task 2 does not change member table schema.
+Task 2 does not change privacy bucket schema.
+Task 2 does not change existing source/import schema.
+
+No C# Runtime Behavior
+
+Task 2 does not add C# runtime behavior.
+
+Task 2 does not add member read endpoints.
+Task 2 does not add member add endpoints.
+Task 2 does not add member edit endpoints.
+Task 2 does not add request models.
+Task 2 does not add response models.
+Task 2 does not add validation code.
+Task 2 does not add audit code.
+Task 2 does not change AccessContextHelper behavior.
+Task 2 does not change Program.cs behavior.
+
+No Browser Runtime Behavior
+
+Task 2 does not add browser behavior.
+
+Task 2 does not add member read UI behavior.
+Task 2 does not add member add UI behavior.
+Task 2 does not add member edit UI behavior.
+Task 2 does not add validation display behavior.
+Task 2 does not add save behavior.
+Task 2 does not change app.js.
+Task 2 does not change app.css.
+
+No /api/me Behavior Change
+
+Task 2 does not change /api/me behavior.
+
+The Chapter 2 /api/me owner path remains the current protected-session proof path.
+Task 2 does not change current account resolution.
+Task 2 does not change membershipAccess output.
+Task 2 does not change currentSystem output.
+Task 2 does not change canWrite behavior.
+
+Output Usability
+
+Task 2 output is usable by Task 3 and Task 4.
+
+Task 3 can use this contract to define minimal audit support for member writes.
+Task 4 can use this contract to enforce editable member access boundaries.
+Later member read/add/edit implementation tasks can use this contract as the expected request and response shape.
+
+Task 2 Completion Boundary
+
+Task 2 is complete when all Task 2 contract notes are staged, committed, and pushed.
+
+Task 2 completion does not mean editable member behavior exists.
+Task 2 completion means the editable member contract is defined.
+
+Done When
+
+No SQL behavior is added.
+No C# runtime behavior is added.
+No browser behavior is added.
+No /api/me behavior changes are made.
+Task 2 output is usable by Task 3 and Task 4.

@@ -1,0 +1,48 @@
+22.1  Define audit seam intent
+      Add the Task 22 note that names the audit seam as a future evidence boundary.
+      Done when:
+        audit seam is named
+        audit is described as future evidence support
+        full audit implementation is deferred
+        no runtime audit behavior is activated
+
+22.2  Add audit seam design record
+      Add a design file that defines where the audit seam sits in the request spine.
+      Done when it states:
+        audit seam follows account resolution
+        audit seam follows membership resolution
+        audit seam follows current system resolution
+        audit seam follows authorization decision
+        audit seam can later record evidence without changing current behavior
+
+22.3  Add audit seam verification script
+      Add a SQL script under:
+        scripts/sqlserver/chap2_safe_spine/scripts
+      Done when the script verifies:
+        current Chapter 2 spine tables exist
+        no pb_audit_events table exists yet
+        no audit FK dependencies exist yet
+        no audit trigger exists yet
+        audit remains design-only
+
+22.4  Run audit seam verification script
+      Run the saved script in SSMS against PluralBridgeChap2SafeSpine.
+      Done when:
+        TASK22_SPINE_TABLES_EXIST=1
+        TASK22_AUDIT_TABLE_EXISTS=0
+        TASK22_AUDIT_FK_COUNT=0
+        TASK22_AUDIT_TRIGGER_COUNT=0
+        TASK22_AUDIT_SEAM_DESIGN_ONLY=1
+        TASK22_OK
+
+22.5  Commit Task 22
+      Commit the bounded audit seam design and verification files.
+      Done when the branch contains a commit named:
+        Define audit seam
+        no remaining Task 22 files in git status
+
+22.6  Push Task 22
+      Push feature/pb-next-account-model-010 to origin.
+      Done when:
+        remote branch has Define audit seam
+        no remaining Task 22 files in git status

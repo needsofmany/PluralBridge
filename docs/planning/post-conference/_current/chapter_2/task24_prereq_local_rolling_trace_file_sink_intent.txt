@@ -1,0 +1,42 @@
+Task 24-Prereq is Add local rolling trace file sink.
+
+Purpose:
+  Add a durable local developer-readable log file for the existing Level 1 request-spine trace entries.
+
+Intent:
+  The existing PB_LEVEL1_TRACE entries should be written to a local rolling log file during development.
+  The local file sink exists so trace output can be reviewed after the Visual Studio Output window scrolls away or the API stops.
+  This task does not add new trace facts.
+  This task does not change /api/me behavior.
+  This task does not change authorization behavior.
+  This task does not add Azure logging behavior.
+  This task does not add expanded Level 2 diagnostic tracing.
+
+Trace source:
+  Existing ILogger calls remain the trace source.
+  Existing RequestTraceContext remains the trace boundary.
+  Existing PB_LEVEL1_TRACE remains the search token.
+
+Required trace fields:
+  TraceId
+  CorrelationId
+  Stage
+  Outcome
+  ElapsedMs
+
+Sensitive content boundary:
+  Email addresses remain forbidden.
+  Display names remain forbidden.
+  Member names remain forbidden.
+  Note text remains forbidden.
+  Custom field values remain forbidden.
+  Avatar data remains forbidden.
+  Imported raw payloads remain forbidden.
+  Exception detail containing user data remains forbidden.
+
+Done when:
+  this intent file exists
+  existing PB_LEVEL1_TRACE entries are named as the source events
+  local file logging is described as developer diagnostics
+  no new trace facts are added
+  no /api/me behavior is changed

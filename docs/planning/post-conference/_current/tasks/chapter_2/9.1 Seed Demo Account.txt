@@ -1,0 +1,55 @@
+Task 9 should be split like this:
+
+9.1  Identify the existing demo system
+     Query pb_systems and choose the existing demo SystemId.
+     Done when we have exactly one target SystemId.
+
+9.2  Verify prerequisites
+     Confirm:
+       demo pb_accounts row exists
+       Active membership status exists
+       Owner role exists
+       target pb_systems row exists
+       no membership already exists for demo AccountId + target SystemId
+
+9.3  Insert the demo system membership
+     Insert one row into pb_system_memberships:
+       SystemMembershipId = stable explicit GUID
+       AccountId = 8f3f8e4b-0d64-4b4a-9f6e-8db13d2d0001
+       SystemId = existing demo SystemId
+       MembershipStatusId = Active
+       CreatedAtUtc = current UTC
+       UpdatedAtUtc = NULL
+
+9.4  Insert the Owner role assignment
+     Insert one row into pb_system_membership_roles:
+       SystemMembershipId = the seeded membership ID
+       RoleId = Owner
+
+9.5  Verify the complete membership path
+     Confirm the joined path resolves:
+       Account -> Membership -> System -> MembershipStatus -> Role
+     Expected:
+       demo account
+       existing demo system
+       Active membership
+       Owner role
+
+9.6  Save Task 9 scripts into the repo
+     Add scripts such as:
+       verify_demo_membership_prereqs.sql
+       insert_demo_system_membership.sql
+       insert_demo_owner_membership_role.sql
+       verify_demo_membership_path.sql
+       seed_demo_membership.sql
+
+9.7  Stage and commit Task 9 scripts locally
+     Commit only Task 9 membership seed scripts.
+
+9.8  Push the feature branch again
+     Push to:
+       origin/feature/pb-next-safe-spine-001
+
+9.9  Stop
+     No merge to dev.
+     No PR unless explicitly requested.

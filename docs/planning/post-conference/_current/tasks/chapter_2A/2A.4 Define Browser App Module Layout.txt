@@ -1,0 +1,168 @@
+Chapter 3 Task 2A.4
+Define Browser App Module Layout
+
+Purpose
+
+This step defines the JavaScript folder and module layout that replaces future dumping into app.js.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Module Layout Rule
+
+The protected browser app should move toward small modules with clear responsibilities.
+
+The current app.js behavior should be refactored into modules over time.
+The current app should not be rewritten from scratch.
+Existing working behavior remains the reference implementation.
+
+Proposed Source Layout
+
+The intended browser source layout is:
+
+app/src
+app/src/index.html
+app/src/main.js
+app/src/config.js
+app/src/api
+app/src/state
+app/src/views
+app/src/components
+app/src/styles
+
+Main Entry Module
+
+main.js is the browser app entry module.
+
+main.js owns startup wiring.
+main.js loads configuration.
+main.js initializes session state.
+main.js mounts the shell view.
+main.js should not become the new dumping ground.
+
+Config Module
+
+config.js owns browser-side app configuration.
+
+Config may include:
+
+API base path
+developer tools enabled flag
+production/demo mode flags where appropriate
+
+Config does not authorize operations.
+Server-side AccessContext remains authoritative.
+
+API Client Boundary
+
+The api folder owns browser calls to API endpoints.
+
+Proposed API modules:
+
+apiClient.js
+sessionApi.js
+membersApi.js
+privacyBucketsApi.js
+
+apiClient.js owns shared fetch behavior.
+sessionApi.js owns protected-session and /api/me calls.
+membersApi.js owns member read/add/edit calls.
+privacyBucketsApi.js owns privacy bucket lookup calls when needed.
+
+Views should call API modules rather than building fetch calls inline.
+
+Session State Boundary
+
+The state folder owns browser-side state.
+
+sessionState.js owns current protected-session facts returned by the API.
+
+Session state may include:
+
+current account display facts
+current system display facts
+canWrite display facts
+trace or diagnostic display facts where safe
+
+Session state does not replace server authorization.
+
+Member State Boundary
+
+memberState.js owns browser-side member list state.
+
+Member state may include:
+
+loaded members
+selected or expanded member id
+current add/edit form mode
+last member save result
+last validation result
+
+Member state does not own server-side truth.
+Successful API responses are authoritative.
+
+View Boundary
+
+The views folder owns larger screen or panel rendering.
+
+Proposed view modules:
+
+shellView.js
+membersView.js
+memberFormView.js
+diagnosticsView.js
+
+shellView.js owns the main protected app shell.
+membersView.js owns the member list surface.
+memberFormView.js owns add/edit dialog or side panel rendering.
+diagnosticsView.js owns proof or diagnostic display when enabled.
+
+Reusable Component Boundary
+
+The components folder owns reusable UI pieces.
+
+Proposed component modules:
+
+button.js
+field.js
+messagePanel.js
+cardList.js
+expandableRow.js
+developerToolsPanel.js
+
+Components should stay small.
+Components should not own API endpoint rules.
+Components should not own AccessContext logic.
+
+Diagnostics And Proof Boundary
+
+Diagnostics and proof display should be separated from normal user UI.
+
+Normal users see the product surface first.
+Expandable rows may show safe details.
+Developer-only controls belong in the Developer Tools panel.
+Production does not render developer tools.
+
+Runtime Boundary
+
+This step does not create app/src.
+This step does not move app.js.
+This step does not move app.css.
+This step does not create JavaScript modules.
+This step does not change browser behavior.
+
+Done When
+
+Main entry module is named.
+Config module is named.
+API client boundary is named.
+Session state boundary is named.
+Member state boundary is named.
+Member list view boundary is named.
+Member form view boundary is named.
+Reusable component boundary is named.
+Diagnostics/proof view boundary is named.

@@ -1,0 +1,163 @@
+Chapter 3 Task 2A.5
+Define CSS Structure
+
+Purpose
+
+This step defines the CSS split that replaces future dumping into app.css.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+CSS Structure Rule
+
+The protected browser app should move toward small CSS files with clear responsibilities.
+
+The current app.css behavior should be refactored into CSS boundaries over time.
+The current app should not be visually redesigned during this planning task.
+Functional layout decisions are part of the product shape.
+Visual polish remains deferred.
+
+Proposed CSS Layout
+
+The intended browser CSS layout is:
+
+app/src/styles/base.css
+app/src/styles/layout.css
+app/src/styles/components.css
+app/src/styles/members.css
+app/src/styles/developer-tools.css
+
+Base CSS Boundary
+
+base.css owns broad browser app defaults.
+
+base.css may include:
+
+box sizing
+body defaults
+font stack
+basic color variables
+basic spacing variables
+link defaults
+form element defaults
+
+base.css should stay small.
+base.css should not contain member-screen-specific rules.
+base.css should not become the new app.css dumping ground.
+
+Layout CSS Boundary
+
+layout.css owns page-level and shell-level layout.
+
+layout.css may include:
+
+app shell
+page header
+content area
+toolbar or command area
+panel layout
+dialog or side-panel positioning
+responsive layout rules
+
+layout.css should define functional layout.
+layout.css should not own member-specific field styling.
+
+Component CSS Boundary
+
+components.css owns reusable UI pieces.
+
+components.css may include:
+
+buttons
+fields
+message panels
+cards
+expandable rows
+status chips
+validation summaries
+
+components.css should support the Azure-style dashboard direction.
+components.css should stay functional and restrained until the polish checkpoint.
+
+Member CSS Boundary
+
+members.css owns member-specific display and member-management layout.
+
+members.css may include:
+
+member list layout
+member row layout
+member expanded detail layout
+member description preview
+member privacy bucket display
+member add/edit form layout
+member validation display
+
+members.css should support local, grouped, and progressive member management.
+members.css should not carry developer tools styling.
+
+Developer Tools CSS Boundary
+
+developer-tools.css owns Developer Tools panel styling when developer tools are enabled.
+
+developer-tools.css may include:
+
+developer tools panel layout
+developer tools chevron styling
+debug button grouping
+endpoint probe output styling
+diagnostic output styling
+
+Production should not render Developer Tools DOM.
+Production should not rely on CSS alone to hide developer tools.
+
+Functional Layout Is Not Deferred
+
+Functional layout is part of the product design.
+
+Functional layout includes:
+
+where primary actions appear
+where validation appears
+where save results appear
+how rows expand
+how dialogs or side panels are reached
+how developer tools are separated from normal UI
+
+These choices should be made while building the functional UI.
+
+Visual Polish Is Deferred
+
+Visual polish waits until a stopping point.
+
+Visual polish includes:
+
+final colors
+spacing polish
+typography polish
+animations
+decorative styling
+final visual design
+
+The Chapter 5 to Chapter 6 demo release checkpoint is the planned place to review and polish the visible demo surface.
+
+Runtime Boundary
+
+This step does not create CSS files.
+This step does not move app.css.
+This step does not change browser behavior.
+This step does not change the visual appearance of the app.
+
+Done When
+
+Base CSS file is named.
+Layout CSS file is named.
+Component CSS file is named.
+Member-specific CSS file is named.
+Developer tools CSS boundary is named.
+Visual polish remains deferred.
+Functional layout is not deferred.

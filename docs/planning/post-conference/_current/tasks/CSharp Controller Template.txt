@@ -1,0 +1,145 @@
+2026-06-07 2:11 PM PT
+Step 29: In VS2022, create a new controller file:
+
+In Solution Explorer, right-click:
+Controllers
+Choose:
+Add → Controller...	
+Select:
+API Controller - Empty
+Name it:
+MeController.cs
+
+Reply done when the empty controller file is open.
+
+
+2026-06-07 2:20 PM PT
+
+Step 30: Replace the entire contents of MeController.cs with this, then save.
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+
+namespace PluralBridge.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public sealed class MeController : ControllerBase
+{
+    private readonly IConfiguration _configuration;
+
+    public MeController(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Get()
+    {
+        string? connectionString = _configuration.GetConnectionString("PluralBridgeProof");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return Problem(
+                title: "Missing connection string",
+                detail: "ConnectionStrings:PluralBridgeProof was not found.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+
+        await using SqlConnection connection = new(connectionString);
+        await connection.OpenAsync();
+
+        Dictionary<string, long> counts = await ReadCountsAsync(connection);
+        ProofSystem? proofSystem = await ReadProofSystemAsync(connection);
+
+        return Ok(new
+        {
+            api = "PluralBridge.Api",
+            phase = "Phase 2B",
+            mode = "read-only proof",
+            database = "PluralBridgeCloudProof001",
+            canWrite = false,
+            proofSystem,
+            counts
+        });
+    }
+
+    private static async Task<Dictionary<string, long>> ReadCountsAsync(SqlConnection connection)
+    {
+        string sql = """
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_systems;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_import_batches;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_systems;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_members;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_privacy_buckets;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_custom_fields;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_front_history;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_records;
+            SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_id_map;
+            """;
+
+        string[] names =
+        [
+            "sourceSystems",
+            "importBatches",
+            "systems",
+            "members",
+            "privacyBuckets",
+            "customFields",
+            "frontHistory",
+            "sourceRecords",
+            "sourceIdMappings"
+        ];
+
+        Dictionary<string, long> counts = new();
+
+        await using SqlCommand command = new(sql, connection);
+        await using SqlDataReader reader = await command.ExecuteReaderAsync();
+
+        for (int index = 0; index < names.Length; index++)
+        {
+            if (await reader.ReadAsync())
+            {
+                counts[names[index]] = reader.GetInt64(0);
+            }
+
+            if (index < names.Length - 1)
+            {
+                await reader.NextResultAsync();
+            }
+        }
+
+        return counts;
+    }
+
+    private static async Task<ProofSystem?> ReadProofSystemAsync(SqlConnection connection)
+    {
+        string sql = """
+            SELECT TOP (1)
+                SystemId,
+                SystemName
+            FROM dbo.pb_systems
+            ORDER BY CreatedAtUtc, SystemId;
+            """;
+
+        await using SqlCommand command = new(sql, connection);
+        await using SqlDataReader reader = await command.ExecuteReaderAsync();
+
+        if (!await reader.ReadAsync())
+        {
+            return null;
+        }
+
+        return new ProofSystem(
+            reader.GetGuid(0),
+            reader.IsDBNull(1) ? null : reader.GetString(1));
+    }
+
+    private sealed record ProofSystem(Guid SystemId, string? SystemName);
+}
+
+Then build:
+
+Build → Build Solution
+
+Reply with success or paste the first error.

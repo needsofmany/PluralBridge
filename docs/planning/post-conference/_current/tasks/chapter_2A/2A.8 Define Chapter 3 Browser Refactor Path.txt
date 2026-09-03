@@ -1,0 +1,143 @@
+Chapter 3 Task 2A.8
+Define Chapter 3 Browser Refactor Path
+
+Purpose
+
+This step defines how the existing protected browser app behavior moves into the new structure during Chapter 3.
+
+This is a planning-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser runtime behavior.
+It does not change /api/me behavior.
+
+Refactor Rule
+
+Refactor the existing browser app.
+Do not start over.
+
+The current app is the behavior baseline.
+The current app has useful product decisions that should be preserved.
+
+Preserve behavior.
+Replace structure.
+Defer polish.
+
+Existing Behavior To Preserve
+
+The following existing browser behaviors should remain the reference implementation unless a later implementation step explicitly changes them:
+
+protected-session behavior
+current /api/me proof path behavior
+member list or member card display
+chevron expansion behavior
+description expansion behavior
+proof or raw detail behind expansion where useful
+current API fetch and display rhythm
+clear visible result output during development
+
+Refactor Sequence
+
+The browser app should move into the new structure gradually.
+
+The old app.js and app.css remain functional while replacement modules are introduced.
+The old app.js and app.css shrink over time.
+The served app remains functional after each browser change.
+
+Task 5 Browser Follow-Through
+
+Task 5 implements the system-scoped member read path.
+
+The browser follow-through for Task 5 is:
+
+move member read UI behavior into the modular structure
+preserve the existing member list behavior
+preserve chevron expansion
+preserve readable rows or cards
+preserve safe proof detail behind expansion where useful
+do not add member editing yet
+
+Task 6 Browser Follow-Through
+
+Task 6 implements the member add endpoint.
+
+The browser follow-through for Task 6 is:
+
+add member creation UI after the POST member endpoint exists
+use a dialog or side panel
+show required fields first
+group optional fields below
+show validation results in the shared message or validation panel
+show save success result
+refresh or update the member list from the returned API result
+
+Task 7 Browser Follow-Through
+
+Task 7 implements the member edit endpoint.
+
+The browser follow-through for Task 7 is:
+
+add member edit UI after the edit endpoint exists
+open edit from the member row
+use a dialog or side panel
+group related fields together
+show validation results in the shared message or validation panel
+show save success result
+refresh the visible member row from the returned API result
+
+Task 8 Browser Follow-Through
+
+Task 8 unifies the protected browser member add/edit path.
+
+The browser follow-through for Task 8 is:
+
+make the protected member screen coherent
+keep member read, add, and edit in one functional surface
+keep developer tools separate from normal user UI
+ensure production does not render debug controls
+confirm the UI demonstrates the Chapter 3 editable member path
+
+Served App Continuity
+
+The protected browser app should remain usable after each browser refactor step.
+
+A refactor step should not leave the app in a half-migrated broken state.
+If an implementation step must temporarily bridge old and new files, the bridge should be small and explicit.
+
+Rewrite Boundary
+
+Code may be rewritten when the existing shape blocks the new boundary.
+
+Examples of valid rewrite reasons:
+
+inline fetch logic needs to move behind API modules
+member rendering needs to move into a member view module
+test buttons need to move into Developer Tools
+CSS rules need to move into named CSS boundaries
+
+Examples of invalid rewrite reasons:
+
+visual polish preference
+framework enthusiasm
+starting over because the prototype is rough
+copying the Simply Plural UI
+
+Runtime Boundary
+
+This step does not create app/src.
+This step does not move app.js.
+This step does not move app.css.
+This step does not add JavaScript modules.
+This step does not add CSS files.
+This step does not change browser behavior.
+
+Done When
+
+Refactor-not-rewrite is confirmed.
+Existing app behavior remains the baseline.
+Member read UI moves first.
+Member add UI follows the add endpoint.
+Member edit UI follows the edit endpoint.
+Old app.js/app.css shrink over time.
+Served app remains functional after each browser change.

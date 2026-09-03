@@ -1,0 +1,230 @@
+Chapter 3 — First editable member data path
+
+Purpose:
+
+Build the first real editable PluralBridge data path:
+
+member read
+member add
+member edit
+minimal audit
+SystemId enforcement
+Membership enforcement
+privacy bucket awareness
+
+This chapter turns the protected read-only proof into the first controlled write-capable application path.
+
+Task 1 — Define editable member path boundary
+
+What it builds:
+
+A Chapter 3 design boundary for the first editable path.
+
+Done when:
+
+member read is named as the baseline read path
+member add is named as the first create path
+member edit is named as the first update path
+delete is explicitly out of scope
+bulk import behavior is explicitly out of scope
+member writes are system-scoped
+member writes require active membership
+member writes produce minimal audit evidence
+member writes are privacy-bucket aware
+
+
+Task 2 — Define member write contract
+
+What it builds:
+
+The API contract for adding and editing members before runtime code changes.
+
+Done when:
+
+member add request shape is defined
+member edit request shape is defined
+required fields are defined
+optional fields are defined
+server-owned fields are excluded from client input
+SystemId handling is defined
+privacy bucket handling is defined
+validation failures are defined
+write success response shape is defined
+
+Task 2A — Define protected browser app structure and UI functional rules.
+
+What it builds:
+
+A functional browser app structure that prevents app.js and app.css from becoming dumping grounds while keeping the files editable in VS2022.
+
+Done when:
+
+app source folder is chosen
+served app folder is identified
+VS solution visibility is defined
+app source remains outside ASP.NET compile ownership
+copy/build path is defined
+JavaScript module layout is defined
+CSS split is defined
+API client boundary is defined
+member view boundary is defined
+member form boundary is defined
+developer tools panel boundary is defined
+developer tools are collapsible when enabled
+developer tools are not rendered in production
+existing test buttons move into developer tools
+normal user UI remains the default surface
+visual polish remains deferred
+
+Task 3 — Add minimal audit support for member writes
+
+What it builds:
+
+A minimal audit table and helper shape for member add/edit evidence.
+
+Done when:
+
+audit table exists
+audit records include AccountId
+audit records include SystemId
+audit records include MembershipId
+audit records include action name
+audit records include entity type
+audit records include entity id
+audit records include trace id or correlation id
+audit records include CreatedAtUtc
+member add can be audited
+member edit can be audited
+audit is evidence-only
+audit does not drive authorization
+
+Chapter 3A UI Follow-Through
+
+Chapter 3A applies AccessContext enforcement to remaining API endpoints.
+
+UI impact:
+
+As each read endpoint gets AccessContext enforcement, the demo app keeps using it through the protected session.
+
+No major redesign.
+No new operational console.
+No bulk UI rebuild.
+
+Standing Rule For Future Chapters
+
+Every API/runtime task that changes user-visible behavior gets a matching browser follow-through step before the task is closed.
+
+The protected browser app stays modest, functional, and honest as the backend grows.
+
+Task 4 — Enforce editable member access boundary
+
+What it builds:
+
+A reusable write access boundary for member add/edit.
+
+Done when:
+
+active account is required
+active membership is required
+current SystemId is resolved through AccessContext
+member writes are scoped to current SystemId
+caller-supplied SystemId cannot escape current SystemId
+missing membership fails before data access
+inactive membership fails before data access
+write authorization failure has a predictable response
+
+
+Task 5 — Implement system-scoped member read path
+
+What it builds:
+
+A Chapter 3 member read path that proves the editable path starts from the same enforced SystemId boundary.
+
+Done when:
+
+member read uses AccessContext
+member read filters by current SystemId
+member read does not leak members from another SystemId
+member read includes privacy bucket awareness
+member read returns the expected existing 49 members
+/api/me behavior remains unchanged
+
+
+Task 6 — Implement member add endpoint
+
+What it builds:
+
+The first controlled create path for members.
+
+Done when:
+
+POST member endpoint exists
+request validation exists
+new member receives current SystemId
+new member cannot choose another SystemId
+privacy bucket input is handled
+minimal audit record is written
+diagnostic trace includes the write path
+new member can be read back through the system-scoped read path
+/api/me behavior remains unchanged
+
+
+Task 7 — Implement member edit endpoint
+
+What it builds:
+
+The first controlled update path for members.
+
+Done when:
+
+member edit endpoint exists
+request validation exists
+target member must belong to current SystemId
+member from another SystemId cannot be edited
+privacy bucket change is handled
+minimal audit record is written
+diagnostic trace includes the edit path
+edited member can be read back through the system-scoped read path
+/api/me behavior remains unchanged
+
+
+Task 8 — Add protected browser member add/edit path
+
+What it builds:
+
+The first user-visible editable browser path.
+
+Done when:
+
+protected browser can read members
+protected browser can add a member
+protected browser can edit a member
+browser path uses authenticated API calls
+browser path shows validation errors
+browser path shows successful save result
+browser path does not expose raw unsafe write behavior
+/api/me owner path remains unchanged
+
+
+Task 9 — Final Chapter 3 verification
+
+What it builds:
+
+The Chapter 3 closeout gate.
+
+Done when:
+
+API solution builds
+tests pass
+protected login works
+/api/me requires login when logged out
+/api/me succeeds when logged in
+member read returns expected scoped data
+member add works
+member edit works
+minimal audit records exist for add/edit
+SystemId enforcement is verified
+Membership enforcement is verified
+privacy bucket awareness is verified
+diagnostic trace records read/add/edit path
+Chapter 3 release tail is ready
