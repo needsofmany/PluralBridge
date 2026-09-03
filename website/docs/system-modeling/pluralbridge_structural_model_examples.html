@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge Structural Model Examples — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge Structural Model Examples. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-structural-model-examples">PluralBridge Structural Model Examples</h1>
+<p>This note captures standalone example structures that help express and test design ideas in progress. It is meant to pressure-test assumptions about focus, relationships, and access without forcing one hierarchy. It stands on its own as examples, not as a final model contract.</p>
+<h2 id="start-here">Start Here</h2>
+<ul>
+<li>This note is an example catalog you can use while designing APIs, DB constraints, and UI context flows.</li>
+<li>Each model is intentionally descriptive, not prescriptive.</li>
+<li>The check to apply in every example: does structure stay separate from access authority?</li>
+</ul>
+<h2 id="how-to-read-the-examples">How To Read The Examples</h2>
+<ul>
+<li>Read each section as "one valid shape that the model should tolerate."</li>
+<li>Assume examples are independent; no single example is the official topology.</li>
+<li>Test focus switching, permission checks, and query scoping against several shapes, not just the simple case.</li>
+</ul>
+<h2 id="quick-concept-key">Quick Concept Key</h2>
+<ul>
+<li>🌲 **Tree model** = parent/child-style structure.</li>
+<li>🕸️ **Graph model** = cross-linked relationships that are not a single hierarchy.</li>
+<li>🧭 **Focus** = active System context.</li>
+<li>🔐 **Access** = explicit membership/consent/policy, never inferred from relationship shape.</li>
+</ul>
+<h2 id="what-this-note-is-not">What This Note Is Not</h2>
+<ul>
+<li>Not a canonical production data model.</li>
+<li>Not a list of required user configurations.</li>
+<li>Not a final ruleset for relationship labels.</li>
+</ul>
+<h2 id="purpose">Purpose</h2>
+<p>These examples show the kinds of user-authored structural models PluralBridge should be able to support.</p>
+<p>The central idea is that PluralBridge should not force every plural System into one official hierarchy. It should allow people and Systems to describe their own structure safely, while keeping access, privacy, consent, and authority separate from hierarchy.</p>
+<h2 id="1-simple-single-system-model">1. Simple Single-System Model</h2>
+<p>A person signs in and has one System.</p>
+<p>Account</p>
+<p>└── System: The Harbor</p>
+<p>    ├── Member: A</p>
+<p>    ├── Member: B</p>
+<p>    ├── Member: C</p>
+<p>    ├── Groups</p>
+<p>    ├── Notes</p>
+<p>    └── Front history</p>
+<p>This is the default model: one account, one System, members inside it, and one focused System context.</p>
+<h2 id="2-multiple-top-level-systems-model">2. Multiple Top-Level Systems Model</h2>
+<p>A person has more than one root-level System. Neither root owns the other.</p>
+<p>Account</p>
+<p>├── System: The Harbor</p>
+<p>│   ├── Members</p>
+<p>│   └── Front history</p>
+<p>│</p>
+<p>└── System: The Observatory</p>
+<p>    ├── Members</p>
+<p>    └── Notes</p>
+<p>This supports a user who experiences two distinct top-level structures. The app treats both as root Systems because neither has a parent relationship.</p>
+<h2 id="3-parent-child-system-model">3. Parent / Child System Model</h2>
+<p>One System contains or relates to a smaller child System.</p>
+<p>Account</p>
+<p>└── System: Main House</p>
+<p>    ├── Member: Rowan</p>
+<p>    ├── Member: Tess</p>
+<p>    │</p>
+<p>    └── Child System: The Workshop</p>
+<p>        ├── Member: Kit</p>
+<p>        └── Member: Lark</p>
+<p>The parent / child relationship describes structure. Access and privacy remain governed by membership, consent, and policy.</p>
+<h2 id="4-sibling-systems-model">4. Sibling Systems Model</h2>
+<p>Two Systems share a common relationship, but neither controls the other.</p>
+<p>Account</p>
+<p>├── System: Day Team</p>
+<p>└── System: Night Team</p>
+<p>This is useful for Systems that see themselves as parallel, cooperative, or operationally separate.</p>
+<h2 id="5-related-systems-model">5. Related Systems Model</h2>
+<p>Two Systems are associated without a parent / child shape.</p>
+<p>Account</p>
+<p>├── System: The Harbor</p>
+<p>│</p>
+<p>└── System: The Archive</p>
+<p>    relationship to The Harbor: "related"</p>
+<p>This could represent shared history, partial overlap, a past structure, or a loosely connected internal organization.</p>
+<h2 id="6-subsystem-model">6. Subsystem Model</h2>
+<p>A member, group, or internal cluster may have its own structure.</p>
+<p>System: The Harbor</p>
+<p>├── Member: Alex</p>
+<p>├── Member: Morgan</p>
+<p>│   └── Subsystem: Morgan's Room</p>
+<p>│       ├── Member: M1</p>
+<p>│       └── Member: M2</p>
+<p>└── Member: Rae</p>
+<p>This is one of the models where a strict flat member list starts to run out of descriptive power.</p>
+<h2 id="7-evolving-uncertain-relationship-model">7. Evolving / Uncertain Relationship Model</h2>
+<p>The user knows two structures are connected, and the exact relationship is still forming.</p>
+<p>Account</p>
+<p>├── System: The Harbor</p>
+<p>└── System: North Wing</p>
+<p>    relationship to The Harbor: "unknown" or "evolving"</p>
+<p>This gives the user a way to preserve reality-in-progress without prematurely naming it.</p>
+<h2 id="8-archived-system-model">8. Archived System Model</h2>
+<p>A System or structure still matters historically, but is no longer active.</p>
+<p>Account</p>
+<p>├── System: Current System</p>
+<p>└── System: Old Map</p>
+<p>    status: archived</p>
+<p>This helps preserve migration meaning, old fronting records, old notes, and past organization.</p>
+<h2 id="9-non-tree-graph-model">9. Non-Tree / Graph Model</h2>
+<p>Some Systems may have overlapping or cross-linked relationships.</p>
+<p>Account</p>
+<p>├── System: A</p>
+<p>├── System: B</p>
+<p>└── System: C</p>
+<p>Relationships:</p>
+<p>A related to B</p>
+<p>B sibling of C</p>
+<p>C associated with A</p>
+<p>This breaks the ordinary tree assumption. The structure becomes a graph of relationships instead of a single trunk with branches.</p>
+<h2 id="10-focus-based-working-model">10. Focus-Based Working Model</h2>
+<p>The account has access to multiple Systems, but one System is active at a time.</p>
+<p>Account has access to:</p>
+<ul>
+<li>The Harbor</li>
+<li>The Observatory</li>
+<li>The Archive</li>
+</ul>
+<p>Current focus:</p>
+<p>The Observatory</p>
+<p>Inside the focused System, fronting can still be separate.</p>
+<p>Focused System: The Observatory</p>
+<p>Current front state:</p>
+<ul>
+<li>Mira fronting</li>
+<li>Sol co-fronting</li>
+</ul>
+<p>This keeps System focus and fronting as separate concepts.</p>
+<p>Focus answers:</p>
+<p>Which System context is active?</p>
+<p>Fronting answers:</p>
+<p>Who or what is active inside that context?</p>
+<h2 id="design-notes">Design Notes</h2>
+<p>These examples imply several important PluralBridge design rules:</p>
+<ol>
+<li>A root System means a System with no parent relationship.</li>
+<li>There can be more than one root System.</li>
+<li>Parent / child, sibling, related, subsystem, archived, and unknown relationships describe structure.</li>
+<li>Structural relationships should not automatically grant access, authority, or visibility.</li>
+<li>Access should come from explicit membership, consent, permission, or policy.</li>
+<li>The active working context should be handled through focus.</li>
+<li>Fronting should be modeled inside the focused System context.</li>
+<li>The default user experience can remain simple while the underlying model stays flexible.</li>
+<li>Therapist-facing views should be user-controlled and privacy-aware.</li>
+<li>Professional input can improve safety without overriding lived experience.</li>
+</ol>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>
