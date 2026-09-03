@@ -30,6 +30,16 @@ PluralBridge is independent and has no affiliation with Simply Plural, Apparylli
 - [Samsung Smart Switch SP recovery notes (sanitized)](schema/samsung-smart-switch-sp-recovery.md)
 - [Updated export format notes](schema/simply-plural-export-format-updated-from-pluralkit.md)
 
+
+## System modeling notes
+
+- [System modeling overview](system-modeling/README.md)
+- [Focused System Context spine note](system-modeling/pluralbridge_focused_system_context_spine_note.md)
+- [Structural model examples](system-modeling/pluralbridge_structural_model_examples.md)
+- [Privilege contribution grant note](system-modeling/pluralbridge_privilege_contribution_grant_note.md)
+- [Therapist concept note](system-modeling/pluralbridge_therapist_concept_note.md)
+- [Reference model direction note](system-modeling/pluralbridge_reference_model_direction_note.md)
+
 ## Project
 
 - [Roadmap and post-release task list](project/roadmap.md)
