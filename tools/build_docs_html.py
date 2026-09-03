@@ -66,14 +66,14 @@ def inline_markup(text):
     def image_repl(match):
         alt = html.escape(match.group(1), quote=True)
         src = match.group(2)
-        if src.endswith(".md"):
+        if src.endswith(".md") and not re.match(r"^[a-z]+://", src, re.IGNORECASE):
             src = src[:-3] + ".html"
         return f'<img src="{html.escape(src, quote=True)}" alt="{alt}">'
 
     def link_repl(match):
         label = match.group(1)
         href = match.group(2)
-        if href.endswith(".md"):
+        if href.endswith(".md") and not re.match(r"^[a-z]+://", href, re.IGNORECASE):
             href = href[:-3] + ".html"
         return f'<a href="{html.escape(href, quote=True)}">{label}</a>'
 
@@ -275,7 +275,16 @@ if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {{
 def update_docs_index():
     path = WEBSITE / "docs.html"
     text = path.read_text(encoding="utf-8")
-    text = text.replace('.md"', '.html"')
+
+    def repl(match):
+        href = match.group(1)
+        if re.match(r"^[a-z]+://", href, re.IGNORECASE):
+            return f'href="{href}"'
+        if href.endswith(".md"):
+            href = href[:-3] + ".html"
+        return f'href="{href}"'
+
+    text = re.sub(r'href="([^"]+)"', repl, text)
     path.write_text(text, encoding="utf-8")
     print("updated website/docs.html links")
 

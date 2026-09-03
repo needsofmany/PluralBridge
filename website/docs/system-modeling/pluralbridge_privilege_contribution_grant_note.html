@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge Privilege Contribution Grant Note — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge Privilege Contribution Grant Note. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-privilege-contribution-grant-note">PluralBridge Privilege Contribution Grant Note</h1>
+<h2 id="attributed-member-contributions-using-an-roi-shaped-permission-model">Attributed Member Contributions Using an ROI-Shaped Permission Model</h2>
+<p>This note captures one standalone design idea for member-to-member description contributions without silent overwrites. It proposes attributed append behavior plus explicit grant metadata for audience, scope, and duration. It is a working concept note to express and test permission behavior, not a final specification.</p>
+<h2 id="start-here">Start Here</h2>
+<ul>
+<li>This note explores one permission pattern: attributed contribution instead of direct overwrite.</li>
+<li>Use it when designing collaborative member-description workflows with auditability and consent controls.</li>
+<li>The guiding rule is simple: append with attribution under explicit grant; never silently rewrite someone else's canonical text.</li>
+</ul>
+<h2 id="quick-concept-key">Quick Concept Key</h2>
+<ul>
+<li>✍️ **DescriptionContribution** = attributed text addition with metadata.</li>
+<li>🧾 **ContributionGrant** = explicit permission envelope (who, what, audience, duration).</li>
+<li>👁️ **Audience scope** = visibility boundary for each contribution.</li>
+<li>⏱️ **Grant lifecycle** = starts, expires, or is revoked, while audit history remains.</li>
+<li>📝 **Working note** = design concept in progress, not final implementation spec.</li>
+</ul>
+<h2 id="what-this-note-is-not">What This Note Is Not</h2>
+<ul>
+<li>Not a legal ROI document.</li>
+<li>Not a blanket edit permission model.</li>
+<li>Not a replacement for account/system authorization checks.</li>
+</ul>
+<p>One DID therapist we talked to asked about how it would work if member A of System Alpha wanted to add text to member B's description. In our System, we allow that in the form of (Member) date-stamp: added text. We were thinking about using something similar to medical ROIs... you specify the audience, what can be accessed and the time for which this request lives</p>
+<p>For PluralBridge, we want to model this as attributed contribution, not ordinary editing.</p>
+<p>The difference matters. Member A should not silently overwrite Member B’s description. Member A may be allowed to add a dated, attributed contribution to B’s description when consent or System policy allows it.</p>
+<p>Example display:</p>
+<p>Member B description</p>
+<p>B’s own description text here.</p>
+<p>Contributions:</p>
+<p>(Member A) 2026-07-03: Added context about how B prefers to be addressed during high-stress mornings.</p>
+<p>(Member C) 2026-07-05: Added note that B dislikes being described as “protector.”</p>
+<p>The core object is something like:</p>
+<p>DescriptionContribution</p>
+<ul>
+<li>targetSystemId: System Alpha</li>
+<li>targetMemberId: Member B</li>
+<li>authorMemberId: Member A</li>
+<li>actingAccountId: the signed-in account that performed the action</li>
+<li>createdAt</li>
+<li>contributionText</li>
+<li>visibilityScope</li>
+<li>source: manual / import / therapist-facing summary / migration</li>
+<li>status: active / hidden / withdrawn / superseded</li>
+</ul>
+<p>Then the permission model sits beside it:</p>
+<p>ContributionGrant</p>
+<ul>
+<li>grantor: Member B, System Alpha policy, or authorized System role</li>
+<li>grantee: Member A</li>
+<li>target: Member B description</li>
+<li>allowedAction: append_contribution</li>
+<li>audience: private, System members, therapist-facing export, selected members, etc.</li>
+<li>startsAt</li>
+<li>expiresAt</li>
+<li>revokedAt</li>
+<li>purpose: optional plain-language reason</li>
+</ul>
+<p>The ROI analogy is the right shape, used as a design metaphor rather than a legal claim. The user specifies:</p>
+<p>Who may act:</p>
+<p>Member A</p>
+<p>What they may access:</p>
+<p>Member B’s description</p>
+<p>What they may do:</p>
+<p>Append attributed text, not overwrite</p>
+<p>Who may see it:</p>
+<p>Selected audience</p>
+<p>How long the permission lasts:</p>
+<p>Until a date, until revoked, or for one session/event</p>
+<p>What happens later:</p>
+<p>The grant can expire or be revoked, while the historical audit remains</p>
+<p>This lines up neatly with the existing PluralBridge principle that structure and access stay separate: a parent, sibling, related, or focused System relationship should not automatically grant visibility or editing power. Access should come from explicit permission, membership, consent, or policy.</p>
+<p>To answer the DID therapist’s concrete question:</p>
+<p>System Alpha</p>
+<p>Member A wants to add text to Member B’s description.</p>
+<p>PluralBridge could support several System-defined modes:</p>
+<p>Mode 1: Closed</p>
+<p>Only B can edit or annotate B’s description.</p>
+<p>Mode 2: Append with consent</p>
+<p>A can add attributed notes only if B grants permission.</p>
+<p>Mode 3: Append by role</p>
+<p>A can add attributed notes because A has a System role, such as caretaker, historian, archivist, or admin.</p>
+<p>Mode 4: Append pending approval</p>
+<p>A writes the note, but B or an authorized member approves it before it appears.</p>
+<p>Mode 5: Private contribution</p>
+<p>A’s note exists, but only A, B, or a defined audience can see it.</p>
+<p>Mode 6: Therapist-facing contribution</p>
+<p>A’s note can appear in a user-controlled therapist export, bounded by explicit sharing rules.</p>
+<p>We want to avoid making this a raw shared edit field.</p>
+<p>A safer rule is:</p>
+<ul>
+<li>Canonical description belongs to the described member or System-defined authority.</li>
+<li>Other members may contribute attributed, dated additions when allowed.</li>
+<li>Every contribution has visibility, consent, and audit metadata.</li>
+</ul>
+<p>That gives PluralBridge a clean safety boundary. It preserves meaning, allows collaborative self-description, supports a System’s existing convention, and avoids the dangerous software behavior where one member’s description can be rewritten by another without trace.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

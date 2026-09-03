@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge Direction Note — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge Direction Note. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-direction-note">PluralBridge Direction Note</h1>
+<h2 id="reference-model-for-plural-data-portability-and-system-self-modeling">Reference Model for Plural Data Portability and System Self-Modeling</h2>
+<p>**Created: 2026-07-01 02:07 PM PT**</p>
+<p>This note captures one strategic design idea in progress: PluralBridge as a reference model for user-defined structure, consent boundaries, and source fidelity. It is a standalone direction note intended to preserve thinking while design work is active. It is not a final driver, commitment, or roadmap.</p>
+<h2 id="start-here">Start Here</h2>
+<ul>
+<li>This note is for strategic framing: why PluralBridge should preserve meaning, not just store records.</li>
+<li>Read it as directional intent that informs decisions over time.</li>
+<li>Use it to sanity-check whether implementation choices protect user-authored structure and consent boundaries.</li>
+</ul>
+<h2 id="quick-concept-key">Quick Concept Key</h2>
+<ul>
+<li>🌱 **Reference model** = reusable design primitives others can adopt.</li>
+<li>🧬 **User ontology** = how a System defines itself, on its own terms.</li>
+<li>🛡️ **Safety primitives** = consent, privacy, audit, and source-fidelity boundaries.</li>
+<li>📝 **Working note** = strategic idea capture, not a launch roadmap.</li>
+</ul>
+<h2 id="what-this-note-is-not">What This Note Is Not</h2>
+<ul>
+<li>Not a public claim that PluralBridge is already a standard.</li>
+<li>Not a feature comparison matrix.</li>
+<li>Not a final product commitment list.</li>
+</ul>
+<h2 id="purpose">Purpose</h2>
+<p>This note captures the larger design implication that emerged from the Focused System Context discussion.</p>
+<p>This is separate from the technical spine note. The purpose here is to preserve the strategic and philosophical direction while it is fresh.</p>
+<p>The idea is that PluralBridge may be doing something more important than creating another replacement app. If we get the spine right, PluralBridge can establish a reference model for how plural apps should preserve, model, protect, and move System data.</p>
+<h2 id="radical-shift">Radical Shift</h2>
+<p>The direction is changing from:</p>
+<p>An app that stores members, fronts, notes, groups, and avatars.</p>
+<p>To:</p>
+<p>A user-authored System modeling platform with privacy, consent, focus, import fidelity, and relationship semantics built into the spine.</p>
+<p>That is a radically different target.</p>
+<p>It means PluralBridge is not simply trying to recreate Simply Plural features. It is trying to define safer primitives for plural data portability and System self-modeling.</p>
+<h2 id="why-this-matters">Why This Matters</h2>
+<p>Current and past apps appear to focus mostly on surface objects:</p>
+<ul>
+<li>members</li>
+<li>fronts</li>
+<li>groups</li>
+<li>notes</li>
+<li>avatars</li>
+<li>custom fields</li>
+</ul>
+<p>PluralBridge is beginning to model the deeper layer underneath those objects:</p>
+<ul>
+<li>Who owns this data?</li>
+<li>Which System context is active?</li>
+<li>What relationship is being described?</li>
+<li>Who has access?</li>
+<li>What consent or policy allows the operation?</li>
+<li>What source meaning must be preserved?</li>
+<li>What should not be inferred?</li>
+<li>What should remain user-authored rather than app-defined?</li>
+</ul>
+<p>That deeper layer is where a standard can emerge.</p>
+<h2 id="the-standard-is-not-an-ontology">The Standard Is Not an Ontology</h2>
+<p>PluralBridge should not claim authority over what Systems are.</p>
+<p>The standard is not:</p>
+<p>PluralBridge defines what a System must be.</p>
+<p>The standard is:</p>
+<p>PluralBridge preserves the user's ontology.</p>
+<p>PluralBridge should provide a model flexible enough for Systems to define themselves.</p>
+<p>The app should not force Systems into a rigid hierarchy, single-root worldview, clinical framework, or one official model of plurality.</p>
+<h2 id="core-standard-setting-principles">Core Standard-Setting Principles</h2>
+<p>Preserve the user's ontology.</p>
+<p>Keep access separate from structure.</p>
+<p>Keep focus separate from fronting.</p>
+<p>Keep relationships descriptive unless policy explicitly says otherwise.</p>
+<p>Protect import fidelity before feature convenience.</p>
+<p>Support multiple root Systems.</p>
+<p>Support user-authored System relationships.</p>
+<p>Treat System focus as the active context.</p>
+<p>Treat fronting as activity within that context.</p>
+<p>Keep membership, consent, privacy, and audit as separate primitives.</p>
+<p>Do not infer authority from hierarchy.</p>
+<p>Do not infer legitimacy from relationship shape.</p>
+<p>Do not overwrite source meaning just to make the import easier.</p>
+<h2 id="reference-model-ambition">Reference Model Ambition</h2>
+<p>PluralBridge should become the reference model for plural data portability and System self-modeling.</p>
+<p>The goal is not only to replace Simply Plural functionality.</p>
+<p>The goal is to define safer primitives for:</p>
+<ul>
+<li>import fidelity</li>
+<li>System focus</li>
+<li>flexible relationships</li>
+<li>consent</li>
+<li>privacy</li>
+<li>audit</li>
+<li>user-authored structure</li>
+<li>source-data preservation</li>
+<li>controlled sharing</li>
+<li>therapist/professional-facing outputs without professional gatekeeping</li>
+</ul>
+<h2 id="spine-level-implication">Spine-Level Implication</h2>
+<p>PluralBridge's spine must not merely support the first app release.</p>
+<p>It must establish the primitives future plural apps should be able to preserve:</p>
+<ul>
+<li>Account</li>
+<li>Membership</li>
+<li>Focused System Context</li>
+<li>System relationships</li>
+<li>privacy boundaries</li>
+<li>consent</li>
+<li>audit</li>
+<li>source-data fidelity</li>
+</ul>
+<p>The first browser release can still be simple.</p>
+<p>The important thing is that the underlying model must not close off the larger direction.</p>
+<h2 id="what-differentiates-pluralbridge">What Differentiates PluralBridge</h2>
+<p>The differentiator is not simply that PluralBridge has more features.</p>
+<p>The differentiator is that PluralBridge does not force a System into the app's worldview.</p>
+<p>PluralBridge should preserve the System's own model as much as possible.</p>
+<p>This affects trust.</p>
+<p>Users may not immediately notice the architecture, but they will feel it when the app does not corner them into explaining themselves to the software.</p>
+<h2 id="comparison-to-other-apps">Comparison to Other Apps</h2>
+<p>It is probably not useful to say publicly that other platforms are less capable unless there is a direct feature comparison.</p>
+<p>Internally, however, this is where PluralBridge can go beyond the existing app category.</p>
+<p>Most apps are likely to focus on replacing obvious Simply Plural surface features:</p>
+<ul>
+<li>members</li>
+<li>fronts</li>
+<li>notes</li>
+<li>groups</li>
+<li>avatars</li>
+</ul>
+<p>PluralBridge can aim higher by preserving the underlying meaning and letting Systems model themselves without losing privacy or control.</p>
+<h2 id="community-and-open-source-meaning">Community and Open Source Meaning</h2>
+<p>This direction also changes the public meaning of the project.</p>
+<p>PluralBridge should be seen as:</p>
+<ul>
+<li>technically serious</li>
+<li>community-centered</li>
+<li>open source in practice, not only in license</li>
+<li>willing to share findings with other app developers</li>
+<li>focused on preserving data and meaning, not capturing users</li>
+<li>built around the needs of plural Systems rather than app convenience</li>
+</ul>
+<p>The point is not to beat other apps by hoarding knowledge.</p>
+<p>The point is to raise the floor for everyone.</p>
+<p>If another app can preserve important data points correctly, that helps the community.</p>
+<p>If PluralBridge discovers a safer or more faithful modeling pattern, sharing that knowledge strengthens the whole ecosystem.</p>
+<h2 id="strategic-framing">Strategic Framing</h2>
+<p>The larger claim should be handled carefully.</p>
+<p>Publicly, PluralBridge should not sound grandiose or self-congratulatory.</p>
+<p>The work should prove the claim.</p>
+<p>Internally, the strategic framing is clear:</p>
+<p>If PluralBridge gets this right, it becomes more than a replacement app.</p>
+<p>It becomes a standard other apps would need to aspire to:</p>
+<ul>
+<li>not because PluralBridge declares itself the standard</li>
+<li>but because the model preserves more truth, more agency, and more safety than the simpler app patterns</li>
+</ul>
+<p>That is the real opportunity.</p>
+<h2 id="short-form">Short Form</h2>
+<p>PluralBridge should not merely store plural data.</p>
+<p>PluralBridge should preserve plural meaning.</p>
+<p>The app should not define Systems for users.</p>
+<p>The app should give Systems the primitives to define themselves.</p>
+<p>If the spine gets this right, PluralBridge can become the reference model for plural data portability, System focus, flexible relationships, privacy, consent, and import fidelity.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>
