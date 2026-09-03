@@ -17,18 +17,18 @@ PluralBridge is independent and has no affiliation with Simply Plural, Apparylli
 
 ## Schema references (public developer docs)
 
-- [Schema docs overview (README)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/README.md)
-- [Simply Plural export format (observed)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/simply-plural-export-format.md)
-- [Simply Plural export inferred schema JSON](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/simply_plural_last_export.inferred.schema.json)
-- [PluralBridge working DB schema format (observed)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/pluralbridge-db-schema-format.md)
-- [SQL schema snapshot (script.sql)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/script.sql)
-- [PluralBridge DB schema diagram](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/PluralBridge-DB-Schema.png)
-- [Samsung Smart Switch simply.db format (observed)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/samsung-smart-switch-simply-db-format.md)
-- [Samsung Smart Switch simply.db inferred schema JSON](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/samsung_smart_switch_simply_db.inferred.schema.json)
-- [Samsung Smart Switch backup layout (sanitized)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/samsung-smart-switch-backup-layout.md)
-- [Samsung Smart Switch PHOTO_INFO format (sanitized)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/samsung-smart-switch-photo-info-format.md)
-- [Samsung Smart Switch SP recovery notes (sanitized)](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/samsung-smart-switch-sp-recovery.md)
-- [Updated export format notes](https://github.com/needsofmany/PluralBridge/blob/master/docs/schema/simply-plural-export-format-updated-from-pluralkit.md)
+- [Schema docs overview (README)](schema/README.md)
+- [Simply Plural export format (observed)](schema/simply-plural-export-format.md)
+- [Simply Plural export inferred schema JSON](schema/simply_plural_last_export.inferred.schema.json)
+- [PluralBridge working DB schema format (observed)](schema/pluralbridge-db-schema-format.md)
+- [SQL schema snapshot (script.sql)](schema/script.sql)
+- [PluralBridge DB schema diagram](schema/PluralBridge-DB-Schema.png)
+- [Samsung Smart Switch simply.db format (observed)](schema/samsung-smart-switch-simply-db-format.md)
+- [Samsung Smart Switch simply.db inferred schema JSON](schema/samsung_smart_switch_simply_db.inferred.schema.json)
+- [Samsung Smart Switch backup layout (sanitized)](schema/samsung-smart-switch-backup-layout.md)
+- [Samsung Smart Switch PHOTO_INFO format (sanitized)](schema/samsung-smart-switch-photo-info-format.md)
+- [Samsung Smart Switch SP recovery notes (sanitized)](schema/samsung-smart-switch-sp-recovery.md)
+- [Updated export format notes](schema/simply-plural-export-format-updated-from-pluralkit.md)
 
 ## Project
 
