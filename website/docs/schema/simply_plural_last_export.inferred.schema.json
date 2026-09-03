@@ -1,0 +1,1000 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simply_plural_last_export.inferred.schema.json",
+  "title": "Simply Plural Export JSON (Observed Inferred Schema)",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "automatedReminders": {
+      "type": "array",
+      "items": {}
+    },
+    "avatarExports": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/avatarExportsItem"
+      }
+    },
+    "boardMessages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/boardMessagesItem"
+      }
+    },
+    "cancelFeedback": {
+      "type": "array",
+      "items": {}
+    },
+    "channelCategories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/channelCategoriesItem"
+      }
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/channelsItem"
+      }
+    },
+    "chatMessages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/chatMessagesItem"
+      }
+    },
+    "comments": {
+      "type": "array",
+      "items": {}
+    },
+    "customFields": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/customFieldsItem"
+      }
+    },
+    "dataExports": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dataExportsItem"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {}
+    },
+    "friends": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/friendsItem"
+      }
+    },
+    "frontHistory": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/frontHistoryItem"
+      }
+    },
+    "frontStatuses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/frontStatusesItem"
+      }
+    },
+    "fronters": {
+      "type": "array",
+      "items": {}
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/groupsItem"
+      }
+    },
+    "invalidJwtTokens": {
+      "type": "array",
+      "items": {}
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/membersItem"
+      }
+    },
+    "messages": {
+      "type": "array",
+      "items": {}
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/notesItem"
+      }
+    },
+    "notifications": {
+      "type": "array",
+      "items": {}
+    },
+    "pendingFriendRequests": {
+      "type": "array",
+      "items": {}
+    },
+    "polls": {
+      "type": "array",
+      "items": {}
+    },
+    "potato": {
+      "type": "array",
+      "items": {}
+    },
+    "privacyBuckets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/privacyBucketsItem"
+      }
+    },
+    "private": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/privateItem"
+      }
+    },
+    "privateFront": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/privateFrontItem"
+      }
+    },
+    "queuedEvents": {
+      "type": "array",
+      "items": {}
+    },
+    "repeatedRemidners": {
+      "type": "array",
+      "items": {}
+    },
+    "repeatedReminders": {
+      "type": "array",
+      "items": {}
+    },
+    "reports": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reportsItem"
+      }
+    },
+    "securityLogs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/securityLogsItem"
+      }
+    },
+    "serverData": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/serverDataItem"
+      }
+    },
+    "sharedFront": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sharedFrontItem"
+      }
+    },
+    "socketNotifications": {
+      "type": "array",
+      "items": {}
+    },
+    "subscribers": {
+      "type": "array",
+      "items": {}
+    },
+    "test": {
+      "type": "array",
+      "items": {}
+    },
+    "tokens": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/tokensItem"
+      }
+    },
+    "undeliveredMessages": {
+      "type": "array",
+      "items": {}
+    },
+    "usage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/usageItem"
+      }
+    },
+    "users": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/usersItem"
+      }
+    },
+    "verifiedKeys": {
+      "type": "array",
+      "items": {}
+    },
+    "views": {
+      "type": "array",
+      "items": {}
+    }
+  },
+  "$defs": {
+    "avatarExportsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "downloads": {
+          "type": "integer"
+        },
+        "exp": {
+          "type": "integer"
+        },
+        "key": {
+          "type": "string"
+        },
+        "lastDownload": {
+          "type": "integer"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "boardMessagesItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "supportMarkdown": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "writtenAt": {
+          "type": "integer"
+        },
+        "writtenBy": {
+          "type": "string"
+        },
+        "writtenFor": {
+          "type": "string"
+        }
+      }
+    },
+    "channelCategoriesItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "channels": {
+          "type": "array",
+          "items": {}
+        },
+        "desc": {
+          "type": "string"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "channelsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "chatMessagesItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "iv": {
+          "type": "string"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "writer": {
+          "type": "string"
+        },
+        "writtenAt": {
+          "type": "integer"
+        }
+      }
+    },
+    "customFieldsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "buckets": {
+          "type": "array",
+          "items": {}
+        },
+        "name": {
+          "type": "string"
+        },
+        "oid": {
+          "type": "string"
+        },
+        "order": {
+          "type": "string"
+        },
+        "supportMarkdown": {
+          "type": "null"
+        },
+        "type": {
+          "type": "integer"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "dataExportsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "downloads": {
+          "type": "integer"
+        },
+        "exp": {
+          "type": "integer"
+        },
+        "key": {
+          "type": "string"
+        },
+        "lastDownload": {
+          "type": "integer"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "friendsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "buckets": {
+          "type": "array",
+          "items": {}
+        },
+        "customFrontString": {
+          "type": "string"
+        },
+        "frienduid": {
+          "type": "string"
+        },
+        "frontNotificationString": {
+          "type": "string"
+        },
+        "frontString": {
+          "type": "string"
+        },
+        "getFrontNotif": {
+          "type": "boolean"
+        },
+        "getTheirFrontNotif": {
+          "type": "boolean"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "seeFront": {
+          "type": "boolean"
+        },
+        "seeMembers": {
+          "type": "boolean"
+        },
+        "trusted": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "frontHistoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "custom": {
+          "type": "boolean"
+        },
+        "customStatus": {
+          "type": "string"
+        },
+        "endTime": {
+          "type": "integer"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "member": {
+          "type": "string"
+        },
+        "startTime": {
+          "type": "integer"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "frontStatusesItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string"
+        },
+        "avatarUuid": {
+          "type": "string"
+        },
+        "buckets": {
+          "type": "array",
+          "items": {}
+        },
+        "color": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "frame": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "preventTrusted": {
+          "type": "boolean"
+        },
+        "preventsFrontNotifs": {
+          "type": "boolean"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "supportDescMarkdown": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "groupsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "buckets": {
+          "type": "array",
+          "items": {}
+        },
+        "color": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "emoji": {
+          "type": "string"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "members": {
+          "type": "array",
+          "items": {}
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "supportDescMarkdown": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "membersItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "archivedReason": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string"
+        },
+        "avatarUuid": {
+          "type": "string"
+        },
+        "buckets": {
+          "type": "array",
+          "items": {}
+        },
+        "color": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "frame": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "info": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pkId": {
+          "type": "string"
+        },
+        "preventTrusted": {
+          "type": "boolean"
+        },
+        "preventsFrontNotifs": {
+          "type": "boolean"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "pronouns": {
+          "type": "string"
+        },
+        "receiveMessageBoardNotifs": {
+          "type": "boolean"
+        },
+        "supportDescMarkdown": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "notesItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "date": {
+          "type": "integer"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "member": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "supportMarkdown": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "privacyBucketsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rank": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "privateItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "auditContentChanges": {
+          "type": "boolean"
+        },
+        "auditRetention": {
+          "type": "integer"
+        },
+        "categories": {
+          "type": "array",
+          "items": {}
+        },
+        "defaultPrivacySettings": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "generationsLeft": {
+          "type": "integer"
+        },
+        "hideAudits": {
+          "type": "boolean"
+        },
+        "lastExport": {
+          "type": "integer"
+        },
+        "lastExportAttempt": {
+          "type": "integer"
+        },
+        "lastGenerationReset": {
+          "type": "integer"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "lastRefresh": {
+          "type": "integer"
+        },
+        "latestVersion": {
+          "type": "integer"
+        },
+        "location": {
+          "type": "string"
+        },
+        "notificationHistory": {
+          "type": "array",
+          "items": {}
+        },
+        "notificationToken": {
+          "type": "array",
+          "items": {}
+        },
+        "termsOfServiceAccepted": {
+          "type": "boolean"
+        },
+        "termsOfServicesAccepted": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "privateFrontItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "beforeCustomFrontString": {
+          "type": "string"
+        },
+        "beforeFrontNotificationString": {
+          "type": "string"
+        },
+        "customFrontString": {
+          "type": "string"
+        },
+        "customFronters": {
+          "type": "array",
+          "items": {}
+        },
+        "frontNotificationString": {
+          "type": "string"
+        },
+        "frontString": {
+          "type": "string"
+        },
+        "fronters": {
+          "type": "array",
+          "items": {}
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "reportsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "usedSettings": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "securityLogsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "ip": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "serverDataItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "lastReadMessage": {
+          "type": "integer"
+        },
+        "migrated": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "sharedFrontItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "beforeCustomFrontString": {
+          "type": "string"
+        },
+        "beforeFrontNotificationString": {
+          "type": "string"
+        },
+        "customFrontString": {
+          "type": "string"
+        },
+        "customFronters": {
+          "type": "array",
+          "items": {}
+        },
+        "frontNotificationString": {
+          "type": "string"
+        },
+        "frontString": {
+          "type": "string"
+        },
+        "fronters": {
+          "type": "array",
+          "items": {}
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "tokensItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "permission": {
+          "type": "integer"
+        },
+        "token": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        }
+      }
+    },
+    "usageItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "expireAt": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "GET/POST/PATCH/DELETE endpoint counters": {
+          "type": "integer"
+        }
+      }
+    },
+    "usersItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "frame": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "isAsystem": {
+          "type": "boolean"
+        },
+        "lastOperationTime": {
+          "type": "integer"
+        },
+        "supportDescMarkdown": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
