@@ -1,10 +1,12 @@
 from pathlib import Path
 import html
 import re
+import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 WEBSITE = ROOT / "website"
 DOCS = WEBSITE / "docs"
+DOCS_SOURCE = ROOT / "docs"
 
 NAV = """<header class="site-header">
     <div class="header-inner">
@@ -288,7 +290,31 @@ def update_docs_index():
     path.write_text(text, encoding="utf-8")
     print("updated website/docs.html links")
 
+def sync_public_docs_sources():
+    sync_pairs = [
+        (DOCS_SOURCE / "schema", DOCS / "schema"),
+        (DOCS_SOURCE / "system-modeling", DOCS / "system-modeling"),
+    ]
+
+    copied = 0
+    for source_dir, target_dir in sync_pairs:
+        if not source_dir.exists():
+            continue
+
+        for source_file in source_dir.rglob("*"):
+            if not source_file.is_file():
+                continue
+
+            rel = source_file.relative_to(source_dir)
+            target_file = target_dir / rel
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_file, target_file)
+            copied += 1
+
+    print(f"synced {copied} public docs files into website/docs")
+
 def main():
+    sync_public_docs_sources()
     for md_path in sorted(DOCS.rglob("*.md")):
         render_page(md_path)
     update_docs_index()
