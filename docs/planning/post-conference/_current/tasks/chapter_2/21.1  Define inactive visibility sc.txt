@@ -1,0 +1,55 @@
+21.1  Define inactive visibility scope intent
+      Add the Task 21 note that says PB visibility scope schema and rules exist, but runtime enforcement stays inactive.
+      Done when:
+        PB visibility scope remains available as future authority
+        current owner path remains unchanged
+        no role-specific visibility enforcement is activated
+        no API behavior change is introduced
+
+21.2  Add inactive visibility scope design record
+      Add a design file that names the dormant boundary.
+      Done when it states:
+        PB visibility scopes exist as schema/design groundwork
+        PB-first / SP-fallback rule is defined but not enforced
+        current data reads do not filter by PB visibility scope
+        role-specific visibility behavior waits for a concrete feature
+
+21.3  Add inactive visibility verification script
+      Add a SQL script under:
+        scripts/sqlserver/chap2_safe_spine/scripts
+      Done when the script verifies:
+        pb_visibility_scopes exists
+        pb_visibility_scope_members exists
+        baseline visibility scopes exist
+        current runtime data root tables have no PB visibility enforcement columns
+        current runtime data root tables have no FK dependency on pb_visibility_scopes
+        pb_privacy_buckets still remains separate
+
+21.4  Run inactive visibility verification script
+      Run the saved script in SSMS against PluralBridgeChap2SafeSpine.
+      Done when:
+        TASK21_PB_VISIBILITY_SCHEMA_EXISTS=1
+        TASK21_BASELINE_SCOPES_EXIST=1
+        TASK21_RUNTIME_TABLE_VISIBILITY_COLUMN_COUNT=0
+        TASK21_RUNTIME_TABLE_VISIBILITY_FK_COUNT=0
+        TASK21_SP_BUCKETS_SEPARATE=1
+        TASK21_OK
+
+21.5  Verify owner path remains unchanged
+      Run the existing focused owner/access verification path.
+      Done when:
+        owner authorization test still passes
+        no new role-specific visibility test is required
+        no API visibility behavior is activated
+
+21.6  Commit Task 21
+      Commit the bounded inactive-visibility design and verification files.
+      Done when the branch contains a commit named:
+        Keep visibility scope inactive
+        no remaining Task 21 files in git status
+
+21.7  Push Task 21
+      Push feature/pb-next-account-model-010 to origin.
+      Done when:
+        remote branch has Keep visibility scope inactive
+        no remaining Task 21 files in git status

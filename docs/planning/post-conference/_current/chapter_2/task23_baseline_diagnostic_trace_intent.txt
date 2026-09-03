@@ -1,0 +1,31 @@
+Task 23 intent: Add baseline diagnostic trace boundary
+2026-06-22 01:59 AM PT
+
+Level 1 diagnostic trace is always on for the Chapter 2 request spine.
+
+Level 1 trace carries TraceId and CorrelationId.
+
+Level 1 trace covers these spine stages:
+- account resolution
+- membership resolution
+- current system resolution
+- authorization
+- data access
+- error handling
+
+Level 1 trace emits minimal structured diagnostic facts.
+
+Level 1 trace contains no sensitive content.
+
+Forbidden trace content includes:
+- email addresses
+- display names
+- member names
+- note text
+- custom field values
+- avatar data
+- imported raw payloads
+
+Task 23 adds the baseline diagnostic boundary.
+Task 23 does not change authorization behavior.
+Task 23 does not change data access behavior.

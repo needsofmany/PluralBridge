@@ -1,0 +1,117 @@
+Chapter 3 Task 2.3
+Define Member Add Request Contract
+
+Purpose
+
+This step defines the request shape for creating a new member through the Chapter 3 editable member path.
+
+This is a contract-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser behavior.
+It does not change /api/me behavior.
+
+Member Add Contract
+
+The member add request creates a new member inside the current system resolved by the server from AccessContext.
+
+The browser does not choose the authoritative SystemId.
+The browser does not choose source/import ownership fields.
+The browser provides only user-editable member fields.
+
+Required Add Fields
+
+The normal member add request requires:
+
+Name or display/member name
+
+The name value must be present.
+The name value must not be empty after normal trimming.
+
+Optional Add Fields
+
+The normal member add request may include:
+
+Description
+Privacy bucket value
+
+Optional fields may be omitted.
+Optional text fields may be null or empty when the API contract allows them.
+
+SystemId Rule
+
+Client-supplied SystemId is excluded from normal member add input.
+
+The API resolves SystemId from AccessContext.
+The API uses the resolved SystemId when inserting the member.
+The browser request cannot move the new member into another system.
+
+MemberId Rule
+
+Client-supplied MemberId is excluded from normal member add input.
+
+The API or database owns new MemberId generation.
+
+A future import or restore path may reserve explicit MemberId behavior, but that is not part of the normal Chapter 3 member add request.
+
+Source And Import Field Rule
+
+Source/import ownership fields are excluded from normal member add input.
+
+Normal member add does not accept source system identity.
+Normal member add does not accept source record identity.
+Normal member add does not accept import batch ownership.
+Normal member add does not overwrite migration proof fields.
+
+Privacy Bucket Input Rule
+
+The member add request may include a privacy bucket value when privacy bucket assignment is available through the UI.
+
+If supplied, the privacy bucket value must be valid for the current system and allowed by the Chapter 3 privacy bucket rule.
+
+If omitted, the API uses the defined default behavior for member privacy bucket assignment.
+
+The member add request does not define a new privacy model.
+The member add request does not override the existing Chapter 2 privacy bucket separation.
+
+Server-Owned Fields
+
+The browser cannot set:
+
+SystemId
+MemberId
+CreatedAtUtc
+UpdatedAtUtc
+source/import identity fields
+audit fields
+trace or correlation fields
+
+Request Shape
+
+The normal member add request should contain only the editable add fields:
+
+name
+description, optional
+privacyBucket, optional
+
+The exact JSON property names are finalized when the C# request model is added.
+
+Non-Runtime Boundary
+
+This step defines add request shape only.
+
+It does not implement member add.
+It does not add validation code.
+It does not add audit code.
+It does not add browser form behavior.
+
+Done When
+
+Required add fields are defined.
+Optional add fields are defined.
+Client-supplied SystemId is excluded.
+Server resolves SystemId from AccessContext.
+Client-supplied MemberId is excluded unless explicitly reserved for future import behavior.
+Source/import ownership fields are excluded from normal add input.
+Privacy bucket input rule is defined.

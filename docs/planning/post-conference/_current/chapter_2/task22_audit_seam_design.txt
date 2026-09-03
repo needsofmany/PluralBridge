@@ -1,0 +1,27 @@
+Task 22 design: Audit seam
+2026-06-22 12:12 AM PT
+
+Boundary name: Chapter 2 Audit Seam
+
+The audit seam is the future evidence boundary for the request spine.
+
+Audit seam placement:
+1. After current account resolution.
+2. After membership resolution.
+3. After current system resolution.
+4. After authorization decision.
+5. Before or around future evidence-worthy data access or mutation points.
+
+Future audit records may reference:
+- account identity
+- system identity
+- membership identity
+- authorization decision
+- operation name
+- trace or correlation identity
+
+Task 22 names the seam only.
+Task 22 does not create audit storage.
+Task 22 does not add audit writes.
+Task 22 does not add audit triggers.
+Task 22 does not change runtime behavior.

@@ -1,0 +1,99 @@
+Chapter 3 Task 2.2
+Define Member Read Response Contract
+
+Purpose
+
+This step defines the response shape for reading members through the Chapter 3 system-scoped member path.
+
+This is a contract-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser behavior.
+It does not change /api/me behavior.
+
+Member Read Contract
+
+The member read response returns members that belong to the current system resolved by the server from AccessContext.
+
+The browser does not choose the authoritative SystemId for the read path.
+
+SystemId Handling
+
+SystemId is server-scoped.
+
+The API resolves the current SystemId from AccessContext.
+The API uses that SystemId to scope the member query.
+The API may return SystemId in the response for proof and diagnostics, but the browser request does not supply it as authority.
+
+Member Shape
+
+Each returned member includes:
+
+MemberId
+SystemId, when useful for proof or diagnostics
+Name or display/member name
+Description, when present
+Privacy bucket value, when present
+Source/import fields, when present and useful for read-only proof
+CreatedAtUtc, when present
+UpdatedAtUtc, when present
+
+Description Field Handling
+
+Description is returned as member data.
+The browser may show a short description preview in the compact member row.
+The browser may show the full description in the expanded row.
+The read response does not define description edit behavior.
+
+Privacy Bucket Field Handling
+
+Privacy bucket data is returned when available.
+The response should distinguish the member privacy bucket value from any future effective privacy calculation.
+The read contract does not define privacy bucket write behavior.
+
+Source And Import Fields
+
+Source/import identity fields are read-only in the member read response.
+They may be included to preserve migration proof and traceability.
+They are not editable through the member read contract.
+
+Server-Owned Timestamp Fields
+
+CreatedAtUtc is server-owned.
+UpdatedAtUtc is server-owned.
+The browser does not set these fields.
+The member read contract may return them as read-only values.
+
+Response Shape
+
+The successful member read response should include:
+
+api
+phase
+mode
+traceId or requestTraceId, when available
+currentSystem, when useful for proof
+members array
+
+The members array contains the resulting member shape.
+
+Non-Write Boundary
+
+This step defines read response shape only.
+
+It does not define member add behavior.
+It does not define member edit behavior.
+It does not define validation failure behavior.
+It does not define audit behavior.
+
+Done When
+
+MemberId is included.
+SystemId handling is described as server-scoped.
+Display/member name is included.
+Description field handling is defined.
+Privacy bucket field handling is defined.
+Source/import fields are identified as read-only where present.
+Server-owned timestamp fields are identified as read-only.
+Member read does not define write behavior.

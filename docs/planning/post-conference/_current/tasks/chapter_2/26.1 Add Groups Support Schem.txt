@@ -1,0 +1,123 @@
+Task 26 is **Add groups support schema**. This task adds database support for system-scoped groups and group-member links. Groups preserve Simply Plural organization data, but do not become Account, System, Membership, Role, or a security boundary.
+
+26.1  Define groups support intent
+      Add the Task 26 note that defines groups as system-scoped organization.
+      Done when:
+        groups are named as system-internal organization
+        groups are described as data/import support
+        groups are not described as security boundaries
+        pb_groups is named
+        pb_group_members is named
+
+26.2  Add groups schema design record
+      Add a design file that defines the group schema shape.
+      Done when it states:
+        pb_groups stores one row per group
+        pb_group_members stores one row per member assignment to a group
+        group membership is many-to-many
+        a member can belong to more than one group
+        groups belong to one SystemId
+        groups do not replace System or Membership
+
+26.3  Add pb_groups table
+      Run the pb_groups CREATE TABLE SQL in SSMS against PluralBridgeChap2SafeSpine.
+      Done when:
+        dbo.pb_groups exists
+        GroupId exists
+        SystemId exists
+        SourceGroupId exists
+        ParentGroupId exists
+        ParentSourceGroupId exists
+        GroupName exists
+        GroupColor exists
+        GroupDesc exists
+        GroupEmoji exists
+        SupportsDescMarkdown exists
+        SourceExists exists
+        LastOperationTimeUnixMs exists
+        LastOperationAtUtc exists
+        CreatedAtUtc exists
+        UpdatedAtUtc exists
+
+26.4  Add pb_group_members table
+      Run the pb_group_members CREATE TABLE SQL in SSMS against PluralBridgeChap2SafeSpine.
+      Done when:
+        dbo.pb_group_members exists
+        GroupMemberId exists
+        SystemId exists
+        GroupId exists
+        MemberId exists
+        SourceGroupId exists
+        SourceMemberId exists
+        CreatedAtUtc exists
+
+26.5  Add group table constraints
+      Run the group constraint SQL in SSMS against PluralBridgeChap2SafeSpine.
+      Done when:
+        pb_groups has a primary key on GroupId
+        pb_group_members has a primary key on GroupMemberId
+        pb_groups has a foreign key to pb_systems
+        pb_groups has a self-referencing foreign key for ParentGroupId
+        pb_group_members has a foreign key to pb_systems
+        pb_group_members has a foreign key to pb_groups
+        pb_group_members has a foreign key to pb_members
+        pb_group_members has a unique constraint for SystemId, GroupId, MemberId
+
+26.6  Add group schema verification SQL
+      Add a saved SQL verification script under:
+        scripts/sqlserver/chap2_safe_spine/scripts
+      Done when the script verifies:
+        pb_groups exists
+        pb_group_members exists
+        expected group columns exist
+        expected group-member columns exist
+        expected foreign keys exist
+        expected unique constraint exists
+        group support is schema-only
+        no runtime behavior is activated
+
+26.7  Run group schema verification SQL
+      Run the saved verification script in SSMS against PluralBridgeChap2SafeSpine.
+      Done when:
+        TASK26_GROUPS_TABLE_EXISTS=1
+        TASK26_GROUP_MEMBERS_TABLE_EXISTS=1
+        TASK26_GROUPS_EXPECTED_COLUMNS=1
+        TASK26_GROUP_MEMBERS_EXPECTED_COLUMNS=1
+        TASK26_GROUP_FK_COUNT is correct
+        TASK26_GROUP_UNIQUE_CONSTRAINT_EXISTS=1
+        TASK26_GROUP_SUPPORT_SCHEMA_ONLY=1
+        TASK26_OK
+
+26.8  Verify /api/me owner path still works
+      Run /api/me and confirm group schema did not change the current owner path.
+      Done when:
+        currentAccount.email = demo@thepluralbridge.local
+        membershipAccess[0].membershipStatus.statusName = Active
+        membershipAccess[0].roles[0].roleName = Owner
+        members = 49
+        privacyBuckets = 2
+        customFields = 7
+        frontHistory = 886
+
+26.9  Add groups support verification record
+      Add a Task 26 verification file recording the group schema result.
+      Done when it states:
+        pb_groups exists
+        pb_group_members exists
+        constraints exist
+        group membership is many-to-many
+        groups are system-scoped
+        groups are not security boundaries
+        /api/me owner path remains unchanged
+
+26.10  Commit Task 26
+      Commit the bounded groups support schema change.
+      Done when the branch contains a commit named:
+        Add groups support schema
+        no remaining Task 26 files in git status
+
+26.11  Push Task 26
+      Push feature/pb-next-account-model-010 to origin.
+      Done when:
+        remote branch has Add groups support schema
+        no remaining Task 26 files in git status

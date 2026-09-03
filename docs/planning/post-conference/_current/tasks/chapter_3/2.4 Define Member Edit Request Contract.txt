@@ -1,0 +1,125 @@
+Chapter 3 Task 2.4
+Define Member Edit Request Contract
+
+Purpose
+
+This step defines the request shape for editing an existing member through the Chapter 3 editable member path.
+
+This is a contract-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser behavior.
+It does not change /api/me behavior.
+
+Member Edit Contract
+
+The member edit request updates an existing member inside the current system resolved by the server from AccessContext.
+
+The browser identifies the target member.
+The server verifies that the target member belongs to the current system.
+The browser does not choose the authoritative SystemId.
+The browser does not move a member between systems.
+The browser does not overwrite source/import ownership fields.
+
+Target Member Rule
+
+Target MemberId is required.
+
+The API uses MemberId to locate the member candidate.
+The API then verifies that the member belongs to the current SystemId resolved from AccessContext.
+
+A member outside the current SystemId is not editable through this request.
+
+Editable Fields
+
+The normal member edit request may update:
+
+Name or display/member name
+Description
+Privacy bucket value, when allowed by the Chapter 3 privacy bucket rule
+
+The exact JSON property names are finalized when the C# request model is added.
+
+Non-Editable Fields
+
+The normal member edit request cannot update:
+
+SystemId
+MemberId
+CreatedAtUtc
+source/import identity fields
+audit fields
+trace or correlation fields
+
+SystemId Rule
+
+Client-supplied SystemId cannot move the member.
+
+The API resolves the current SystemId from AccessContext.
+The API checks that the target MemberId belongs to that SystemId.
+If the member does not belong to the current SystemId, the edit request fails.
+
+MemberId Rule
+
+MemberId identifies the target member.
+MemberId is not changed by the edit request.
+
+Source And Import Field Rule
+
+Source/import ownership fields are not overwritten by normal member edit.
+
+Normal member edit does not change source system identity.
+Normal member edit does not change source record identity.
+Normal member edit does not change import batch ownership.
+Normal member edit preserves migration proof fields.
+
+Privacy Bucket Change Rule
+
+The member edit request may change the member privacy bucket value when privacy bucket editing is available through the UI.
+
+If supplied, the privacy bucket value must be valid for the current system and allowed by the Chapter 3 privacy bucket rule.
+
+If omitted, the existing privacy bucket value is not changed.
+
+The member edit request does not define a new privacy model.
+The member edit request does not override the existing Chapter 2 privacy bucket separation.
+
+Server-Owned Fields
+
+The API/database owns:
+
+SystemId enforcement
+UpdatedAtUtc
+audit fields
+trace or correlation fields
+
+Request Shape
+
+The normal member edit request should contain:
+
+memberId
+name, when changed or when using full replacement semantics
+description, when changed or when using full replacement semantics
+privacyBucket, optional
+
+The final C# request model will decide whether edit uses full replacement or limited update semantics.
+
+Non-Runtime Boundary
+
+This step defines edit request shape only.
+
+It does not implement member edit.
+It does not add validation code.
+It does not add audit code.
+It does not add browser form behavior.
+
+Done When
+
+Target MemberId is required.
+Editable fields are defined.
+Non-editable fields are defined.
+Client-supplied SystemId cannot move the member.
+Target member must belong to the current SystemId.
+Source/import ownership fields are not overwritten by normal edit.
+Privacy bucket change rule is defined.

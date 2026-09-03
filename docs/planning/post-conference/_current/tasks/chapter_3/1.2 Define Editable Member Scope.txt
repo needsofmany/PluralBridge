@@ -1,0 +1,23 @@
+Task 1.2 Define editable member scope
+
+Chapter 3 includes the first editable member path.
+
+Included behavior:
+
+member read
+member add
+member edit
+
+Member read is the baseline path.
+Member add is the first create path.
+Member edit is the first update path.
+
+Excluded behavior:
+
+delete
+bulk import
+account management
+membership management
+role management
+group runtime behavior
+child-system runtime behavior

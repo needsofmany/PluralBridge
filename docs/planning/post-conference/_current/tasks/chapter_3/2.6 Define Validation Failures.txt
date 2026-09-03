@@ -1,0 +1,151 @@
+Chapter 3 Task 2.6
+Define Validation Failures
+
+Purpose
+
+This step defines predictable validation outcomes for member read, member add, and member edit.
+
+This is a contract-only step.
+
+It does not add SQL behavior.
+It does not add C# runtime behavior.
+It does not add browser behavior.
+It does not change /api/me behavior.
+
+Validation Rule
+
+The editable member path must fail predictably.
+
+Validation failures should be understandable by the browser.
+Validation failures should not expose private enforcement internals.
+Validation failures should preserve the server-owned field boundary.
+Validation failures should include trace information when appropriate.
+
+Missing Required Field
+
+If a required field is missing, the request fails validation.
+
+For normal member add, name or display/member name is required.
+For normal member edit, target MemberId is required.
+
+The response identifies the missing field in a browser-usable validation shape.
+
+Empty Required Field
+
+If a required text field is present but empty after normal trimming, the request fails validation.
+
+The response identifies the field and the validation reason.
+
+Invalid MemberId
+
+If MemberId is missing where required, the request fails validation.
+If MemberId has an invalid format, the request fails validation.
+If MemberId cannot be parsed into the expected identifier type, the request fails validation.
+
+The response identifies MemberId as invalid without exposing database lookup details.
+
+Target Member Not Found
+
+If the target member does not exist in the current system scope, the request fails.
+
+The response should be safe for the browser.
+The response should not reveal whether the MemberId exists in another system.
+
+Target Member Outside Current System
+
+If the target member exists but does not belong to the current SystemId resolved from AccessContext, the request fails.
+
+The browser cannot use member edit to cross system boundaries.
+The browser cannot use client-supplied SystemId to move or reach a member outside the current system.
+
+The failure response should not expose private cross-system details.
+
+Invalid Privacy Bucket
+
+If a privacy bucket value is supplied, it must be valid for the current system and allowed by the Chapter 3 privacy bucket rule.
+
+If the value is invalid, unavailable, outside scope, or not allowed, the request fails validation.
+
+The response identifies the privacy bucket field as invalid.
+The response does not define a new privacy model.
+The response does not override the Chapter 2 privacy bucket separation.
+
+Missing Active Membership
+
+If AccessContext cannot resolve an active membership for the current account and system path, the request fails.
+
+Member read requires an allowed membership.
+Member add requires an allowed membership.
+Member edit requires an allowed membership.
+
+The response indicates that access is not available without exposing private membership internals.
+
+Inactive Membership
+
+If a membership exists but is inactive, the request fails.
+
+Inactive membership does not authorize member read.
+Inactive membership does not authorize member add.
+Inactive membership does not authorize member edit.
+
+The response indicates that access is not available.
+
+Server-Owned Field Rejection
+
+If a browser request attempts to set server-owned enforcement fields, the request fails or ignores those fields according to the final C# request model.
+
+Server-owned fields include:
+
+SystemId
+CreatedAtUtc
+UpdatedAtUtc
+source/import identity fields
+audit fields
+trace or correlation fields
+
+The preferred Chapter 3 contract is to reject unexpected enforcement fields rather than silently trusting them.
+
+Validation Failure Response Shape
+
+A validation failure response should include:
+
+api
+phase
+mode
+traceId or requestTraceId, when available
+success false
+error code
+safe user-facing message
+field errors, when field-specific validation failed
+
+Field errors should include:
+
+field name
+validation code
+safe validation message
+
+The response should not expose SQL details.
+The response should not expose private membership internals.
+The response should not expose cross-system existence details.
+
+Non-Runtime Boundary
+
+This step defines validation failure behavior only.
+
+It does not implement validation.
+It does not add member read behavior.
+It does not add member add behavior.
+It does not add member edit behavior.
+It does not add audit behavior.
+It does not add browser form behavior.
+
+Done When
+
+Missing required field behavior is defined.
+Invalid MemberId behavior is defined.
+Target member not found behavior is defined.
+Target member outside current SystemId behavior is defined.
+Invalid privacy bucket behavior is defined.
+Missing active membership behavior is defined.
+Inactive membership behavior is defined.
+Validation failure response shape is defined.

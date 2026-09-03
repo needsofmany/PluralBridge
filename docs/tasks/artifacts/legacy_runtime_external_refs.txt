@@ -1,0 +1,16 @@
+==== app/app.css ====
+.\api\PluralBridge.Api\PluralBridge.Api\Program.cs:168:app.MapGet("/app/app.css", () =>
+==== app/app.js ====
+.\api\PluralBridge.Api\PluralBridge.Api\Program.cs:175:app.MapGet("/app/app.js", () =>
+==== app/css/base.css ====
+==== app/css/developer-tools.css ====
+==== app/css/layout.css ====
+==== app/css/legacy-app.css ====
+==== app/css/members.css ====
+==== app/index.html ====
+.\api\PluralBridge.Api\PluralBridge.Api\Program.cs:161:app.MapGet("/app/index.html", () =>
+==== app/js/api-client.js ====
+==== app/js/bootstrap.js ====
+==== app/js/developer-tools.js ====
+==== app/js/legacy-app.js ====
+==== app/js/members.js ====

@@ -1,0 +1,100 @@
+A visibility scope is a named rule-space for who is allowed to see a thing.
+
+For PluralBridge, think of it like this:
+
+Account = who is logged in
+System = whose data namespace this is
+Membership = this account is connected to this system
+Role = what authority this membership has
+Visibility Scope = which audience inside the system can see this record
+
+A role answers:
+
+Can Stacy administer this system?
+Can this account edit members?
+Can this account import data?
+
+A visibility scope answers:
+
+Who can see this member?
+Who can see this note?
+Who can see this custom field value?
+Who can see this history item?
+
+In NT/security terms, System is the object namespace/security boundary. Membership/Role is the account’s authority inside that boundary. Visibility Scope is closer to an object-level access category or ACL target, but PB-native and human-readable.
+
+Example scopes could be:
+
+Whole System
+Only Fronting Members
+Only Owners
+Only Specific Members
+Private To One Member
+Imported SP Bucket: Friends
+Imported SP Bucket: Therapists
+
+So when we say PB Visibility Scope, we mean:
+
+A PluralBridge-owned visibility category that can be attached to data rows.
+
+It gives us a future place to say:
+
+This member/note/field/history row is visible to this audience.
+
+The important distinction for Task 18:
+
+Simply Plural privacy buckets are imported source data.
+
+PB visibility scopes are the future PluralBridge authority for visibility.
+
+We are not replacing SP buckets yet. We are creating the PB-side socket where visibility decisions will eventually plug in.
+
+so if the system contains jane and jim, can jane see jims resources?]
+
+Assuming Jane and Jim are members inside the same PluralBridge System, Jane should not automatically see Jim’s resources.
+
+The System says Jane and Jim live inside the same protected namespace.
+
+The Visibility Scope says whether Jane can see Jim’s specific data.
+
+Example:
+
+System: The Yellow Fish System
+
+Members:
+  Jane
+  Jim
+
+Resources:
+  Jim's journal note
+  Jim's custom field value
+  Jim's front history entry
+  Jim's private avatar
+
+Possible visibility outcomes:
+
+Jim's journal note
+Visibility Scope = Private to Jim
+Jane cannot see it
+
+Jim's front history entry
+Visibility Scope = Whole System
+Jane can see it
+
+Jim's therapy note
+Visibility Scope = Owners only
+Jane can see it only if Jane is acting through an Owner-authorized account/context
+
+Jim's shared planning note
+Visibility Scope = Jane + Jim
+Jane can see it
+
+So the model separates two questions:
+
+Are Jane and Jim in the same system?
+System boundary answers this.
+
+Can Jane see Jim's resource?
+Visibility scope answers this.
+
+For PB-NEXT, that means membership in the same System is necessary for access to that System’s namespace, but resource visibility still needs its own rule. This is the part Task 18 is preparing for.

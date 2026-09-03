@@ -1,0 +1,19 @@
+Task 19 intent: Preserve SP privacy buckets
+
+pb_privacy_buckets remains Simply Plural import/export fidelity data.
+
+pb_privacy_buckets preserves source-shaped privacy bucket data from Simply Plural.
+
+PB visibility scopes are the PB runtime visibility authority.
+
+Task 19 protects the separation between:
+- imported Simply Plural privacy bucket fidelity data
+- PB-native runtime visibility scope data
+
+Task 19 preserves pb_privacy_buckets:
+- no pb_privacy_buckets schema change
+- no pb_privacy_buckets data change
+- no PB visibility scope columns added to pb_privacy_buckets
+- no PB visibility enforcement added to pb_privacy_buckets
+
+Task 19 does not change import, upload, API, or runtime visibility behavior.

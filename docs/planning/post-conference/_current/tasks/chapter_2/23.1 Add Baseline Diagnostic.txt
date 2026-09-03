@@ -1,0 +1,98 @@
+Task 23 is **Add baseline diagnostic trace boundary**. The Chapter 2 build list says Level 1 tracing is always on for the request spine, and the done condition requires minimal structured trace facts for account resolution, membership resolution, system resolution, authorization, data access, and error handling, with `TraceId` / `CorrelationId` and no sensitive content. 
+
+23.1  Define Level 1 trace boundary intent
+      Add the Task 23 note that defines baseline tracing as always-on request-spine diagnostics.
+      Done when:
+        Level 1 trace is always on
+        trace has TraceId and CorrelationId
+        trace covers account, membership, system, authorization, data access, and error handling
+        trace contains no sensitive content
+
+23.2  Add Level 1 trace design record
+      Add a design file that names the exact allowed trace facts.
+      Done when it states:
+        allowed: TraceId, CorrelationId, stage name, outcome, elapsed timing, safe IDs when needed
+        forbidden: email, display name, member name, note text, custom field value, avatar data, imported raw payloads
+        Level 1 trace is diagnostic-only
+        Level 1 trace does not change authorization or data behavior
+
+23.3  Add request trace context helper
+      Add a small C# helper for creating and carrying TraceId and CorrelationId through the request spine.
+      Done when code can create:
+        TraceId
+        CorrelationId
+        request start timestamp
+        safe stage log helper
+
+23.4  Add account and membership trace points
+      Add Level 1 trace calls around account and membership resolution.
+      Done when trace emits safe facts for:
+        account resolution started
+        account resolution completed or failed
+        membership resolution started
+        membership resolution completed or failed
+
+23.5  Add system and authorization trace points
+      Add Level 1 trace calls around current-system resolution and authorization.
+      Done when trace emits safe facts for:
+        current system resolution started
+        current system resolution completed or failed
+        authorization check started
+        authorization check allowed or denied
+
+23.6  Add data access and error trace points
+      Add Level 1 trace calls around existing system data reads and request error handling.
+      Done when trace emits safe facts for:
+        data access started
+        data access completed or failed
+        error path reached
+        no sensitive content included
+
+23.7  Add baseline trace tests
+      Add focused tests for the trace helper or trace formatting.
+      Done when tests prove:
+        TraceId is present
+        CorrelationId is present
+        stage name is present
+        sensitive fields are not included by the helper
+
+23.8  Run focused trace tests
+      Run only the new baseline diagnostic trace tests in Visual Studio Test Explorer.
+      Done when:
+        new trace tests pass
+        0 failed
+
+23.9  Run authorization test class
+      Run AccessContextAuthorizationTests to confirm the existing spine tests still pass.
+      Done when:
+        all existing authorization tests pass
+        0 failed
+
+23.10  Build the API solution
+       Build api/PluralBridge.Api/PluralBridge.Api.sln in Visual Studio.
+       Done when:
+         Build succeeded
+         0 errors
+
+23.11  Verify /api/me still works
+       Run the API and open /api/me only to confirm the owner path still returns existing data.
+       Done when:
+         currentAccount.email = demo@thepluralbridge.local
+         membershipAccess[0].membershipStatus.statusName = Active
+         membershipAccess[0].roles[0].roleName = Owner
+         members = 49
+         privacyBuckets = 2
+         customFields = 7
+         frontHistory = 886
+
+23.12  Commit Task 23
+       Commit the bounded Level 1 diagnostic trace change.
+       Done when the branch contains a commit named:
+         Add baseline diagnostic trace boundary
+         no remaining Task 23 files in git status
+
+23.13  Push Task 23
+       Push feature/pb-next-account-model-010 to origin.
+       Done when:
+         remote branch has Add baseline diagnostic trace boundary
+         no remaining Task 23 files in git status

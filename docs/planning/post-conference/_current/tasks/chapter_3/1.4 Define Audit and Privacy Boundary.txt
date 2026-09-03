@@ -1,0 +1,29 @@
+Task 1.4 Define audit and privacy boundary
+
+Member add requires minimal audit evidence.
+
+Member edit requires minimal audit evidence.
+
+Minimal audit evidence includes:
+
+AccountId
+SystemId
+MembershipId
+action
+entity type
+entity id
+trace id or correlation id
+
+Audit is evidence-only.
+
+Audit does not drive authorization.
+
+Member read is privacy-bucket aware.
+Member add is privacy-bucket aware.
+Member edit is privacy-bucket aware.
+
+Privacy buckets are not security principals.
+Privacy buckets are not memberships.
+Privacy buckets are not roles.
+
+Task 1.4 records the audit and privacy boundary only.
