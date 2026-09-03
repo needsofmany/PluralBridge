@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System Modeling Notes Overview — PluralBridge Documentation</title>
+  <meta name="description" content="System Modeling Notes Overview. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="system-modeling-notes-overview">System Modeling Notes Overview</h1>
+<p>This folder contains standalone PluralBridge concept notes for system modeling, focus, and consent-aware collaboration patterns.</p>
+<h2 id="how-to-use-this-folder">How to use this folder</h2>
+<ul>
+<li>Treat these notes as working design ideas, not final policy or roadmap commitments.</li>
+<li>Read each note as standalone; no single file is the one “master” model.</li>
+<li>Use these notes to pressure-test architecture, API, and UI assumptions while design evolves.</li>
+</ul>
+<h2 id="file-by-file-guide">File-by-file guide</h2>
+<table><thead><tr>
+<th>File</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>pluralbridge_focused_system_context_spine_note.md</code></td>
+<td>Spine-level concept note for separating focus, membership, and relationship shape from authority.</td>
+</tr>
+<tr>
+<td><code>pluralbridge_reference_model_direction_note.md</code></td>
+<td>Strategic direction note framing PluralBridge as a reference model for plural data portability and user-authored structure.</td>
+</tr>
+<tr>
+<td><code>pluralbridge_structural_model_examples.md</code></td>
+<td>Example catalog of valid structure patterns (single root, multiple roots, child/sibling/related, graph, archived, evolving).</td>
+</tr>
+<tr>
+<td><code>pluralbridge_therapist_concept_note.md</code></td>
+<td>Therapist/professional-facing concept framing for safety, consent, language, and non-gatekeeping boundaries.</td>
+</tr>
+<tr>
+<td><code>pluralbridge_privilege_contribution_grant_note.md</code></td>
+<td>Attributed contribution concept for member-to-member description updates using explicit grant metadata and audit-safe behavior.</td>
+</tr>
+</tbody></table>
+<h2 id="suggested-read-order">Suggested read order</h2>
+<ol>
+<li><code>pluralbridge_focused_system_context_spine_note.md</code></li>
+<li><code>pluralbridge_structural_model_examples.md</code></li>
+<li><code>pluralbridge_privilege_contribution_grant_note.md</code></li>
+<li><code>pluralbridge_therapist_concept_note.md</code></li>
+<li><code>pluralbridge_reference_model_direction_note.md</code></li>
+</ol>
+<h2 id="shared-design-boundaries">Shared design boundaries</h2>
+<ul>
+<li>Relationship shape is descriptive; it does not grant authority by itself.</li>
+<li>Access comes from explicit membership, consent, or policy.</li>
+<li>Focus and fronting are related but separate concepts.</li>
+<li>Notes here are intentionally non-normative and may evolve as implementation matures.</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>
