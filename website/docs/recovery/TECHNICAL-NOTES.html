@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simply Plural Recovery — Technical Notes — PluralBridge Documentation</title>
+  <meta name="description" content="Simply Plural Recovery — Technical Notes. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<p>````text</p>
+<p>Copyright © 2026 Needs of the Many / PluralBridge contributors</p>
+<p>Licensed under the GNU General Public License v3.0 (GPLv3).</p>
+<p>This recovery implementation and accompanying documentation were developed by Needs of the Many / PluralBridge. Please preserve this attribution as required by the applicable license terms.</p>
+<h1 id="simply-plural-recovery-technical-notes">Simply Plural Recovery — Technical Notes</h1>
+<h2 id="purpose">Purpose</h2>
+<p>This document records the technical findings behind the Simply Plural Android recovery work.</p>
+<p>It is intended for:</p>
+<ul>
+<li>developers implementing recovery or import support;
+</li>
+<li>researchers reviewing the recovery method;
+</li>
+<li>contributors extending recovery to other Android devices;
+</li>
+<li>maintainers of other plural applications that want to support recovered Simply Plural data.
+</li>
+</ul>
+<p>For end-user recovery instructions, see:</p>
+<p><code>SP data extraction instructions.md</code></p>
+<p>For the command-line extraction sequence, see:</p>
+<p><code>recover-simplyplural-data.cmd</code></p>
+<p>---</p>
+<h2 id="confirmed-test-environment">Confirmed Test Environment</h2>
+<p>The recovery procedure has been successfully reproduced on:</p>
+<pre><code class="language-text">Device: Samsung Galaxy S24+
+Model: SM-S926U
+Platform: Android
+Acquisition method: Samsung Smart Switch for Windows
+Simply Plural package: com.saltypandastudios.frontime</code></pre>
+<p>The recovery was performed after the Simply Plural servers had shut down.</p>
+<p>Simply Plural still opened on the device and displayed locally retained System data.</p>
+<p>No existing official Simply Plural export was required.</p>
+<p>No root access was required.</p>
+<p>---</p>
+<h2 id="recovery-architecture">Recovery Architecture</h2>
+<p>The confirmed recovery path is:</p>
+<pre><code class="language-text">Samsung Galaxy S24+
+        ↓
+Samsung Smart Switch
+        ↓
+com.saltypandastudios.frontime.noedata
+        ↓
+Android Backup payload
+        ↓
+TAR archive
+        ↓
+apps/com.saltypandastudios.frontime/r/app_flutter/simply.db
+        ↓
+UTF-8 JSON</code></pre>
+<p>The important recovery target is:</p>
+<pre><code class="language-text">app_flutter/simply.db</code></pre>
+<p>The acquisition method is Samsung-specific.</p>
+<p>The <code>simply.db</code> target belongs to Simply Plural and is therefore not inherently Samsung-specific.</p>
+<p>---</p>
+<h2 id="smart-switch-backup-artifact">Smart Switch Backup Artifact</h2>
+<p>When Simply Plural is selected in Samsung Smart Switch, the application backup contains:</p>
+<pre><code class="language-text">APKFILE\data\com.saltypandastudios.frontime\
+    com.saltypandastudios.frontime.noedata</code></pre>
+<p>The confirmed <code>.noedata</code> file begins with:</p>
+<pre><code class="language-text">ANDROID BACKUP
+5
+0
+none</code></pre>
+<p>The corresponding raw byte representation is:</p>
+<pre><code class="language-text">b&#x27;ANDROID BACKUP\n5\n0\nnone\n&#x27;</code></pre>
+<p>For the confirmed backup this header is 24 bytes.</p>
+<p>The fields indicate:</p>
+<pre><code class="language-text">ANDROID BACKUP   Android backup magic
+5                backup format version
+0                payload is not compressed
+none             payload is not encrypted</code></pre>
+<p>After removing the 24-byte header, the remainder is a TAR archive.</p>
+<p>The current extraction script assumes this exact confirmed header.</p>
+<p>A backup with a different header should not automatically be processed using the same fixed offset.</p>
+<p>---</p>
+<h2 id="tar-contents">TAR Contents</h2>
+<p>The confirmed Smart Switch application archive included:</p>
+<pre><code class="language-text">apps/com.saltypandastudios.frontime/_manifest
+apps/com.saltypandastudios.frontime/r/app_flutter
+apps/com.saltypandastudios.frontime/r/app_flutter/messages_*.db
+apps/com.saltypandastudios.frontime/r/app_flutter/simply.db
+apps/com.saltypandastudios.frontime/r/app_flutter/pendingRequests.db
+apps/com.saltypandastudios.frontime/r/app_flutter/logs.db
+apps/com.saltypandastudios.frontime/r/app_flutter/events.db
+apps/com.saltypandastudios.frontime/f/images.db
+apps/com.saltypandastudios.frontime/f/images.db-journal</code></pre>
+<p>Additional application and preference files were also present.</p>
+<p>The primary structured-data recovery target is:</p>
+<pre><code class="language-text">apps/com.saltypandastudios.frontime/r/app_flutter/simply.db</code></pre>
+<p>---</p>
+<h2 id="simply-db-format"><code>simply.db</code> Format</h2>
+<p>Despite its <code>.db</code> extension, <code>simply.db</code> is not a SQLite database.</p>
+<p>The recovered production file begins with JSON text:</p>
+<pre><code class="language-text">{&quot;private&quot;:{</code></pre>
+<p>It can be read directly as UTF-8 and parsed using a standard JSON parser.</p>
+<p>A normal formatted JSON file can therefore be produced without reverse-engineering a database engine or encryption layer.</p>
+<p>---</p>
+<h2 id="reproduced-collection-inventory">Reproduced Collection Inventory</h2>
+<p>The confirmed Samsung Galaxy S24+ recovery produced the following top-level collections and record counts:</p>
+<pre><code class="language-text">private dict 1
+Privates dict 1
+users dict 1
+FrontHistory dict 32
+Users dict 1
+Channels dict 6
+Members dict 37
+fronthistory dict 99
+privates dict 1
+chatcategories dict 1
+customfields dict 7
+friends dict 2
+friendssettings dict 2
+privacybuckets dict 2
+members dict 49
+channels dict 6</code></pre>
+<p>Counts are specific to the test System and will vary between users.</p>
+<p>Important recovered collections include:</p>
+<pre><code class="language-text">members
+fronthistory
+customfields
+privacybuckets
+channels
+friends
+friendssettings
+chatcategories
+users
+private</code></pre>
+<p>---</p>
+<h2 id="duplicate-generational-collections">Duplicate / Generational Collections</h2>
+<p>The recovered cache contains several collection names in both uppercase and lowercase forms, including:</p>
+<pre><code class="language-text">Members
+members
+
+FrontHistory
+fronthistory
+
+Channels
+channels
+
+Users
+users
+
+Privates
+privates</code></pre>
+<p>Observed relationships in the confirmed recovery:</p>
+<pre><code class="language-text">Members       37 records
+members       49 records
+shared IDs    37
+
+Channels      6 records
+channels      6 records
+shared IDs    6
+
+FrontHistory  32 records
+fronthistory  99 records
+shared IDs    0</code></pre>
+<p>The lowercase <code>members</code> collection appears to contain a newer or broader generation of member data for the confirmed System.</p>
+<p>This should not yet be generalized into a destructive normalization rule.</p>
+<p>A future export-reconstruction implementation should preserve source data and handle collection merging deliberately.</p>
+<p>---</p>
+<h2 id="example-member-structure">Example Member Structure</h2>
+<p>Recovered member records are stored in dictionary form.</p>
+<p>The dictionary key functions as the member record ID.</p>
+<p>Conceptually:</p>
+<pre><code class="language-json">{
+  &quot;members&quot;: {
+    &quot;&lt;MEMBER_ID&gt;&quot;: {
+      &quot;name&quot;: &quot;...&quot;,
+      &quot;desc&quot;: &quot;...&quot;,
+      &quot;pronouns&quot;: &quot;...&quot;,
+      &quot;avatarUuid&quot;: &quot;...&quot;,
+      &quot;avatarUrl&quot;: &quot;...&quot;,
+      &quot;color&quot;: &quot;...&quot;,
+      &quot;info&quot;: {},
+      &quot;buckets&quot;: []
+    }
+  }
+}</code></pre>
+<p>This differs structurally from an official Simply Plural export, which represents entity collections as arrays containing explicit <code>_id</code> fields.</p>
+<p>The recovered JSON is therefore structured Simply Plural data, but it is not yet an official-export-compatible reconstruction.</p>
+<p>---</p>
+<h2 id="system-identifier">System Identifier</h2>
+<p>The recovered cache retains the Simply Plural System/user identifier.</p>
+<p>It appears in local data including the <code>private</code> collection and avatar URLs.</p>
+<p>This means a converter can recover the System identifier without requiring an existing official export.</p>
+<p>---</p>
+<h2 id="avatar-metadata">Avatar Metadata</h2>
+<p>Recovered member records retain avatar metadata such as:</p>
+<pre><code class="language-text">avatarUuid
+avatarUrl</code></pre>
+<p>The Smart Switch application backup also contains:</p>
+<pre><code class="language-text">apps/com.saltypandastudios.frontime/f/images.db</code></pre>
+<p><code>images.db</code> is a SQLite database containing a cache index.</p>
+<p>Observed schema:</p>
+<pre><code class="language-text">cacheObject
+    _id
+    url
+    key
+    relativePath
+    eTag
+    validTill
+    touched
+    length</code></pre>
+<p>For a member with a known <code>avatarUuid</code>, the cache index can provide a record such as:</p>
+<pre><code class="language-text">https://spaces.apparyllis.com/avatars/&lt;SYSTEM_ID&gt;/&lt;AVATAR_UUID&gt;</code></pre>
+<p>and a corresponding cached filename such as:</p>
+<pre><code class="language-text">3a7b29a0-4c66-11ef-99d7-cb5f4a67e2a2.bin</code></pre>
+<p>This provides a machine-readable relationship:</p>
+<pre><code class="language-text">member
+    ↓
+avatarUuid
+    ↓
+images.db
+    ↓
+Simply Plural avatar URL
+    ↓
+local cache filename</code></pre>
+<p>---</p>
+<h2 id="avatar-cache-limitation">Avatar Cache Limitation</h2>
+<p>The confirmed Smart Switch application backup contained the <code>images.db</code> cache index but did not contain the referenced <code>.bin</code> cache files.</p>
+<p>Therefore:</p>
+<pre><code class="language-text">member → avatarUuid → cache record</code></pre>
+<p>is recoverable, but:</p>
+<pre><code class="language-text">cache record → cached image bytes</code></pre>
+<p>was not recovered through this Smart Switch application backup.</p>
+<p>---</p>
+<h2 id="smart-switch-image-backup-findings">Smart Switch Image Backup Findings</h2>
+<p>When the Smart Switch <strong>Images</strong> category was also selected, Smart Switch preserved files from:</p>
+<pre><code class="language-text">/mnt/sdcard/DCIM/SimplyPlural/</code></pre>
+<p>These included recognizable original/source images associated with the Simply Plural System.</p>
+<p>This is potentially valuable because the recovered files may retain more image data than cropped or resized application-cache versions.</p>
+<p>However, the current backup does not contain a confirmed machine-readable mapping between:</p>
+<pre><code class="language-text">DCIM/SimplyPlural/&lt;SOURCE_FILENAME&gt;</code></pre>
+<p>and:</p>
+<pre><code class="language-text">member.avatarUuid</code></pre>
+<p>Avatar/source-image reconstruction therefore remains under investigation.</p>
+<p>---</p>
+<h2 id="adb-findings">ADB Findings</h2>
+<p>Standard ADB access alone did not provide access to Simply Plural's private application data on the confirmed production installation.</p>
+<p>The package returned:</p>
+<pre><code class="language-text">run-as: package not debuggable: com.saltypandastudios.frontime</code></pre>
+<p>Therefore the confirmed stock-device recovery path does not rely on <code>run-as</code>.</p>
+<p>The successful private-data acquisition was performed by Samsung Smart Switch.</p>
+<p>---</p>
+<h2 id="non-samsung-android-devices">Non-Samsung Android Devices</h2>
+<p>The recovered target:</p>
+<pre><code class="language-text">app_flutter/simply.db</code></pre>
+<p>is a Simply Plural application artifact.</p>
+<p>It is not inherently Samsung-specific.</p>
+<p>What is currently Samsung-specific is the proven acquisition method:</p>
+<pre><code class="language-text">Samsung Smart Switch → .noedata → simply.db</code></pre>
+<p>Equivalent acquisition paths for non-Samsung Android devices have not yet been confirmed.</p>
+<p>Any mechanism that can safely acquire the Simply Plural application data and recover <code>app_flutter/simply.db</code> should be able to use the same JSON-processing work after that point.</p>
+<p>---</p>
+<h2 id="privacy-model">Privacy Model</h2>
+<p>Needs of the Many / PluralBridge does not need access to a user's recovered System data.</p>
+<p>The intended architecture is:</p>
+<pre><code class="language-text">user&#x27;s device
+    ↓
+local recovery
+    ↓
+recovered Simply Plural data
+    ↓
+user&#x27;s chosen plural application</code></pre>
+<p>Recovery tools should operate locally whenever possible.</p>
+<p>Users should not be instructed to send Needs of the Many / PluralBridge:</p>
+<pre><code class="language-text">.noedata files
+simply.db
+recovered JSON
+official exports
+avatar files
+passwords
+tokens
+screenshots containing private System information</code></pre>
+<p>---</p>
+<h2 id="integration-goal">Integration Goal</h2>
+<p>Plural applications that already support official Simply Plural imports can potentially support a second input path:</p>
+<pre><code class="language-text">Official Simply Plural export
+        ↓
+existing importer</code></pre>
+<p>or:</p>
+<pre><code class="language-text">Recovered Android application data
+        ↓
+recovery / normalization layer
+        ↓
+Simply Plural-compatible data
+        ↓
+existing importer</code></pre>
+<p>Needs of the Many / PluralBridge intends to publish the technical information, documentation, scripts, mappings, and reference implementation needed to support this work.</p>
+<p>---</p>
+<h2 id="current-status">Current Status</h2>
+<h3 id="confirmed">Confirmed</h3>
+<ul>
+<li>Samsung Galaxy S24+ recovery
+</li>
+<li>Samsung Smart Switch acquisition
+</li>
+<li><code>.noedata</code> extraction
+</li>
+<li>Android Backup header identification
+</li>
+<li>TAR extraction
+</li>
+<li>recovery of <code>app_flutter/simply.db</code>
+</li>
+<li>confirmation that <code>simply.db</code> is UTF-8 JSON
+</li>
+<li>structured member and front-history recovery
+</li>
+<li>recovery of additional Simply Plural collections
+</li>
+<li>recovery of avatar UUID metadata
+</li>
+<li>recovery of the <code>images.db</code> avatar-cache index
+</li>
+<li>preservation of recognizable files from <code>DCIM/SimplyPlural</code> when Images are included in Smart Switch
+</li>
+</ul>
+<h3 id="in-progress">In Progress</h3>
+<ul>
+<li>reconstruction of an official-export-compatible JSON structure
+</li>
+<li>avatar/source-image mapping
+</li>
+<li>avatar recovery
+</li>
+<li>import support for recovered data
+</li>
+<li>testing acquisition methods for additional Android manufacturers
+</li>
+</ul>
+<h3 id="not-yet-confirmed">Not Yet Confirmed</h3>
+<ul>
+<li>equivalent stock recovery path on non-Samsung Android devices
+</li>
+<li>complete avatar recovery
+</li>
+<li>direct machine-readable mapping from recovered <code>DCIM/SimplyPlural</code> filenames to member records
+</li>
+<li>universal behavior across Simply Plural versions and Android versions
+</li>
+</ul>
+<p>---</p>
+<h2 id="preservation-principle">Preservation Principle</h2>
+<p>The recovery process should preserve the original acquired files unchanged.</p>
+<p>Conversion, normalization, export reconstruction, and import processing should operate on copies.</p>
+<p>The raw recovery artifacts may contain information that later versions of the tooling can interpret even if the first converter does not understand it.</p>
+<p>---</p>
+<p>PluralBridge is an independent project by Needs of the Many.</p>
+<p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+<p>````</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

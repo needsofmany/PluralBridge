@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge Tag Task History — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge Tag Task History. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-tag-task-history">PluralBridge Tag Task History</h1>
+<p>This file records the major work represented by each repository tag. It is intended as a project-facing release/task history for the repository root.</p>
+<p>Tags are listed in reverse chronological order so the latest project changes appear first.</p>
+<p>---</p>
+<h2 id="unreleased-tasks-useroles-member-write-role-enforcement">Unreleased — Tasks.UseRoles member write role enforcement</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Added role-based member write authorization for member <code>POST</code> and <code>PUT</code>.</p>
+<p>* Defined the temporary member write role gate as <code>Owner</code> only.</p>
+<p>* Added reusable member-write authorization helper support in the AccessContext boundary.</p>
+<p>* Enforced role-aware authorization in <code>MembersController</code> write endpoints while keeping read behavior unchanged.</p>
+<p>* Added tests for:</p>
+<p>  * allowed write role success</p>
+<p>  * active membership with insufficient role forbidden behavior</p>
+<p>  * cross-system write forbidden behavior</p>
+<h2 id="v0-8-7-tasks-frontend-single-source-frontend-and-build-sync-enforcement">v0.8.7 — Tasks.FrontEnd single-source frontend and build sync enforcement</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Made <code>app/src/</code> the canonical frontend source tree.</p>
+<p>* Removed legacy runtime mirror files under <code>app/</code> to prevent source drift.</p>
+<p>* Added automated frontend sync in API build/publish.</p>
+<p>* Added sync drift validation that fails build on mismatch.</p>
+<p>* Added allowlist validation that fails build when Program.cs allowlists drift from source modules.</p>
+<p>* Added guardrail docs for generated/runtime paths.</p>
+<h3 id="notes">Notes</h3>
+<p>* Build now enforces frontend consistency via sync + validation checks.</p>
+<p>* Runtime frontend output remains served from <code>api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/</code>.</p>
+<p>* This release reduces manual asset-sync and stale-file regression risk.</p>
+<h2 id="v0-8-6-account-code-email-delivery-and-audit-diagnostics">v0.8.6 — Account code email delivery and audit diagnostics</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Added Azure Communication Services account-code email delivery for account workflows.</p>
+<p>* Preserved the development account-code delivery outbox for local and integration-test workflows.</p>
+<p>* Added provider selection for account-code delivery so local development can use the outbox while configured environments can use Azure email delivery.</p>
+<p>* Added controlled delivery-failure handling so missing or failing email configuration returns a safe account-service failure instead of surfacing as an unhandled API exception.</p>
+<p>* Confirmed missing Azure <code>FromAddress</code> configuration returns a controlled <code>delivery_failed</code> registration response.</p>
+<p>* Confirmed real Azure registration-code email delivery from <code>donotreply@thepluralbridge.org</code>.</p>
+<p>* Confirmed registration email verification succeeds after receiving the Azure-delivered code.</p>
+<p>* Improved account-code audit diagnostics with safe JSON detail for:</p>
+<p>  * registration validation rejection</p>
+<p>  * registration creation</p>
+<p>  * code issuance</p>
+<p>  * registration verification validation rejection</p>
+<p>  * registration verification rejection when no matching code is selected</p>
+<p>  * expired selected registration-verification codes</p>
+<p>  * accepted registration-verification codes</p>
+<p>  * consumed registration-verification codes</p>
+<p>  * completed registration verification</p>
+<p>  * account-code delivery failure</p>
+<p>* Kept public API failure messages generic while adding internal safe diagnostic detail to audit rows.</p>
+<p>* Split the large <code>AccountService</code> implementation into smaller partial-class workflow files under <code>Account/Service/</code>.</p>
+<p>* Added and updated account integration tests for account-code audit <code>SafeDetailJson</code> coverage.</p>
+<p>* Updated account test hosting so integration tests use the development delivery outbox instead of local Azure user-secret configuration.</p>
+<p>* Confirmed:</p>
+<p>  * <code>AccountCodeAuditTests</code> passes</p>
+<p>  * <code>PluralBridge.Api.Tests.Account</code> passes</p>
+<p>  * the full <code>PluralBridge.Api.Tests</code> suite passes</p>
+<h3 id="notes">Notes</h3>
+<p>* This release completes Task.Account 2.a Azure account-code email delivery.</p>
+<p>* Account-code values remain server-side; emails contain the user-facing code while audit details record safe operational context only.</p>
+<p>* The API still intentionally returns generic validation and verification messages to avoid exposing account-discovery or validation-oracle details.</p>
+<p>* Azure delivery is configuration-driven and can be disabled locally by selecting the development provider.</p>
+<p>* The development outbox remains the integration-test proof path for deterministic code retrieval.</p>
+<p>* Follow-up audit work should continue adding safe detail to other account rejection paths as those paths are touched.</p>
+<h2 id="v0-8-5-task-account-2-11-security-cleanup">v0.8.5 — Task.Account 2.11 security cleanup</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Replaced the hardcoded demo-account access path with authenticated account resolution.</p>
+<p>* Added account lookup using the immutable <code>AccountId</code> carried by the authenticated <code>NameIdentifier</code> claim.</p>
+<p>* Rejected access-context resolution when the authenticated account identifier is missing or malformed.</p>
+<p>* Applied authorization enforcement across the protected API controllers.</p>
+<p>* Passed the authenticated principal through each protected access-context path.</p>
+<p>* Added direct API handling for:</p>
+<p>  * <code>401 Unauthorized</code></p>
+<p>  * <code>403 Forbidden</code></p>
+<p>* Preserved browser redirect behavior outside the API.</p>
+<p>* Attached the verified Needs of the Many account to the existing System through an active Owner membership.</p>
+<p>* Added account-boundary tests confirming that:</p>
+<p>  * each authenticated account resolves its own account, membership, and System</p>
+<p>  * each account can read members from its own System</p>
+<p>  * cross-System member access returns <code>403 Forbidden</code></p>
+<p>  * missing and malformed <code>NameIdentifier</code> claims do not resolve an access context</p>
+<p>* Extended runtime test setup and cleanup for Systems, memberships, roles, and members.</p>
+<p>* Added SPDX license headers to the C# source files.</p>
+<p>* Confirmed the complete API test suite passes.</p>
+<h3 id="notes">Notes</h3>
+<p>* This release completes Task.Account section 2.11.</p>
+<p>* Protected API access now derives the acting account from the authenticated session rather than a fixed proof account.</p>
+<p>* Account access remains constrained by active System membership.</p>
+<p>* Existing privacy-bucket boundaries and member-write audit seams remain in place.</p>
+<p>* No database schema changes or new tables were required.</p>
+<p>* Task.UIShell remains the next implementation task.</p>
+<h2 id="v0-8-4-pb-next-task-account-implementation-complete">v0.8.4 — PB-NEXT Task.Account implementation complete</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Completed the PB-NEXT Task.Account implementation and verification path.</p>
+<p>* Added account test infrastructure covering the complete Account workflow.</p>
+<p>* Added account registration with:</p>
+<p>  * username</p>
+<p>  * email</p>
+<p>  * display name</p>
+<p>  * password credential creation</p>
+<p>  * pending email-verification state</p>
+<p>* Added development verification-code delivery through the account code-delivery outbox.</p>
+<p>* Added registration email verification and account activation.</p>
+<p>* Added durable account login using the account’s immutable <code>AccountId</code> as the authenticated identity.</p>
+<p>* Added account recovery flows:</p>
+<p>  * forgot username</p>
+<p>  * forgot password</p>
+<p>  * password reset</p>
+<p>* Added authenticated password change.</p>
+<p>* Added account profile maintenance for display-name updates.</p>
+<p>* Added verified contact/email maintenance:</p>
+<p>  * authenticated contact-change requests</p>
+<p>  * preservation of the existing verified email until the replacement address is verified</p>
+<p>  * verification-code delivery to the proposed replacement email</p>
+<p>  * rejection of blank, unchanged, duplicate, and unavailable-account requests</p>
+<p>  * invalid and expired verification-code handling</p>
+<p>  * transactional replacement of the verified account email after successful verification</p>
+<p>  * verification-code consumption after successful contact verification</p>
+<p>* Added account audit coverage for:</p>
+<p>  * registration</p>
+<p>  * verification codes</p>
+<p>  * login</p>
+<p>  * username recovery</p>
+<p>  * password reset</p>
+<p>  * password change</p>
+<p>  * profile maintenance</p>
+<p>  * contact maintenance</p>
+<p>* Added cross-cutting authentication safety tests confirming that unauthenticated requests cannot:</p>
+<p>  * update an account profile</p>
+<p>  * initiate an account contact change</p>
+<p>  * verify an account contact change</p>
+<p>* Standardized Account test/runtime database configuration on:</p>
+<p>  * <code>PluralBridgeChap2SafeSpine</code></p>
+<p>* Confirmed the complete <code>PluralBridge.Api.Tests.Account</code> test suite passes.</p>
+<h3 id="notes">Notes</h3>
+<p>* This release completes Task.Account through sections 2.0–2.10.</p>
+<p>* Account identity is now based on the immutable account identifier carried by the authenticated session rather than resolving the acting account from a mutable username.</p>
+<p>* Changing an account email is intentionally a two-step verified operation; the existing email remains active until the replacement address successfully completes verification.</p>
+<p>* Verification-code state remains server-side and auditable.</p>
+<p>* Development code delivery continues to use the test/development outbox rather than production email delivery.</p>
+<p>* This release does not complete the public application shell or Simply Plural import workflow.</p>
+<p>* Task.UIShell is the next implementation task.</p>
+<h2 id="v0-8-3-post-shutdown-website-messaging-update">v0.8.3 — Post-shutdown website messaging update</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Updated the public website for the post-shutdown Simply Plural phase.</p>
+<p>* Reframed public messaging away from pre-shutdown export urgency.</p>
+<p>* Updated major public website pages:</p>
+<p>  * home page</p>
+<p>  * Start Here</p>
+<p>  * Shutdown Info</p>
+<p>  * Export Guidance</p>
+<p>  * Help Me Export</p>
+<p>  * Safety</p>
+<p>  * About</p>
+<p>  * Contact</p>
+<p>  * Help Build</p>
+<p>  * What PluralBridge Is Building</p>
+<p>* Removed stale hosted-demo routing from the public user path.</p>
+<p>* Changed the top navigation Demo entry into a disabled Preview gate.</p>
+<p>* Gated public Preview until the first release spine is ready:</p>
+<p>  * account setup / sign-in</p>
+<p>  * system and membership resolution</p>
+<p>  * Simply Plural import preview before saving</p>
+<p>  * member profile read/add/update</p>
+<p>  * privacy boundary for private System data</p>
+<p>* Removed Install and Run from promoted website navigation.</p>
+<p>* Reframed Export Guidance and Help Me Export as post-shutdown reference and safety guidance instead of current export workflow pages.</p>
+<p>* Strengthened privacy language around:</p>
+<p>  * Simply Plural exports</p>
+<p>  * old API tokens</p>
+<p>  * passwords</p>
+<p>  * screenshots</p>
+<p>  * support requests</p>
+<p>  * private notes</p>
+<p>  * member records</p>
+<p>  * avatars</p>
+<p>  * fronting history</p>
+<p>  * generated database files</p>
+<p>  * private System data</p>
+<p>* Clarified that PluralBridge is:</p>
+<p>  * independent</p>
+<p>  * free</p>
+<p>  * open-source</p>
+<p>  * privacy-centered</p>
+<p>  * not affiliated with Simply Plural or Apparyllis</p>
+<p>* Clarified that PluralBridge is not asking users for money.</p>
+<p>* Pointed contributor messaging toward the current development priorities:</p>
+<p>  * Account</p>
+<p>  * Import</p>
+<p>  * member profiles</p>
+<p>  * privacy</p>
+<p>  * testing</p>
+<p>  * documentation</p>
+<p>  * accessibility</p>
+<p>  * security</p>
+<p>  * review</p>
+<h3 id="notes">Notes</h3>
+<p>* This release is a website-only messaging and navigation update.</p>
+<p>* No app, API, database, account, import, or member-editing runtime behavior is released by this tag.</p>
+<p>* The old hosted read-only demo is no longer promoted as the public proof path.</p>
+<p>* Public Preview remains intentionally disabled until account setup, import review, and editable member profiles are coherent enough to show safely.</p>
+<p>* The current development priority remains completing Account and Import so the first release spine is complete.</p>
+<h2 id="v0-8-2-pb-next-chapter-3-access-enforcement-retrofit">v0.8.2 — PB-NEXT Chapter 3 access enforcement retrofit</h2>
+<p><strong>Work in progress, not yet ready to be promoted to master</strong></p>
+<h2 id="v0-8-2-pb-next-chapter-3-access-enforcement-retrofit">v0.8.2 — PB-NEXT Chapter 3 access enforcement retrofit</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Completed the PB-NEXT Chapter 3 Task 3A access-context enforcement retrofit for existing API endpoints.</p>
+<p>* Preserved the protected read-only proof surface while moving existing endpoint metadata to Phase 3.</p>
+<p>* Centralized repeated API contract strings through <code>Globals.cs</code>, including:</p>
+<p>  * project API name</p>
+<p>  * project phase</p>
+<p>  * connection string name</p>
+<p>  * common connection-string error text</p>
+<p>  * route roots</p>
+<p>  * endpoint roots</p>
+<p>  * endpoint segments</p>
+<p>  * route templates</p>
+<p>* Retrofitted current access-context enforcement into existing protected read endpoints:</p>
+<p>  * custom fields</p>
+<p>  * front history</p>
+<p>  * import batches</p>
+<p>  * import metadata</p>
+<p>  * members</p>
+<p>  * privacy buckets</p>
+<p>  * source ID mappings</p>
+<p>  * source records</p>
+<p>  * source systems</p>
+<p>  * systems</p>
+<p>* Enforced the current-system boundary on system-routed endpoints:</p>
+<p>  * route <code>systemId</code> must match the resolved current system</p>
+<p>  * mismatched route system identifiers do not return protected endpoint data</p>
+<p>* Added current access enforcement to global protected endpoints without route <code>systemId</code> values:</p>
+<p>  * <code>/api/source-systems</code></p>
+<p>  * <code>/api/systems</code></p>
+<p>* Scoped <code>/api/systems</code> to the resolved current system so it returns only the current authorized system row.</p>
+<p>* Added focused xUnit coverage for the current-system authorization rule in <code>AccessContextHelper</code>.</p>
+<p>* Confirmed browser verification for protected existing endpoints:</p>
+<p>  * logged-in current-system routes return protected JSON</p>
+<p>  * wrong-system routes do not expose protected endpoint data</p>
+<p>  * global protected endpoints return Phase 3 metadata and current-system context</p>
+<p>  * logged-out access remains protected by authentication handling</p>
+<h3 id="notes">Notes</h3>
+<p>* This release is a Chapter 3 Pre-Bravo enforcement retrofit.</p>
+<p>* Runtime remains protected and read-only.</p>
+<p>* Member editing is not implemented in this release.</p>
+<p>* Browser member management is not implemented in this release.</p>
+<p>* Existing imported data remains unchanged.</p>
+<p>* Task 4 begins the editable member API path.</p>
+<h2 id="v0-8-1-pb-next-chapter-2-implementation-complete">v0.8.1 — PB-NEXT Chapter 2 implementation complete</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Completed the PB-NEXT Chapter 2 safe-spine implementation path.</p>
+<p>* Preserved the existing protected read-only browser and API proof behavior.</p>
+<p>* Confirmed the Chapter 2 proof database:</p>
+<p>  * <code>PluralBridgeChap2SafeSpine</code></p>
+<p>* Added the account/security-principal foundation:</p>
+<p>  * account resolution</p>
+<p>  * account status lookup</p>
+<p>  * fixed proof account path</p>
+<p>* Added the system access foundation:</p>
+<p>  * system membership resolution</p>
+<p>  * active membership selection</p>
+<p>  * membership status lookup</p>
+<p>  * membership role lookup</p>
+<p>  * current system resolution</p>
+<p>* Confirmed the core Chapter 2 identity model:</p>
+<p>  * Account = login/security principal</p>
+<p>  * System = protected data namespace and data container</p>
+<p>  * Membership = account-to-system access grant</p>
+<p>  * Role = permission shape attached through membership</p>
+<p>* Added the authorization boundary used by the current read path.</p>
+<p>* Refactored <code>/api/me</code> to use the access-context helper instead of inline access SQL.</p>
+<p>* Added tests for the access-context and authorization boundary.</p>
+<p>* Added baseline diagnostic trace support.</p>
+<p>* Added local rolling trace file support.</p>
+<p>* Defined expanded diagnostic trace mode as future flag-controlled design.</p>
+<p>* Completed final Chapter 2 verification of:</p>
+<p>  * API solution build</p>
+<p>  * request trace tests</p>
+<p>  * access-context authorization tests</p>
+<p>  * protected browser sign-in</p>
+<p>  * logged-out <code>/api/me</code> protection</p>
+<p>  * logged-in <code>/api/me</code> owner path</p>
+<p>  * local rolling trace output</p>
+<p>* Added group support schema:</p>
+<p>  * <code>pb_groups</code></p>
+<p>  * <code>pb_group_members</code></p>
+<p>* Modeled group membership as many-to-many.</p>
+<p>* Preserved groups as system-scoped data/import organization.</p>
+<p>* Kept groups separate from accounts, systems, memberships, roles, and security boundaries.</p>
+<p>* Added child system relationship schema:</p>
+<p>  * <code>pb_system_relationships</code></p>
+<p>* Seeded the root system relationship row for the existing proof system.</p>
+<p>* Preserved <code>/api/me</code> owner-path behavior after group and child-system schema additions.</p>
+<h3 id="notes">Notes</h3>
+<p>* This release completes PB-NEXT Chapter 2 implementation.</p>
+<p>* Runtime remains a protected read-only proof path.</p>
+<p>* Group support is schema-only in this release.</p>
+<p>* Child system relationships are schema-only in this release.</p>
+<p>* Audit remains a future evidence seam.</p>
+<p>* PB-native visibility scope remains future work.</p>
+<p>* Simply Plural-shaped privacy bucket data remains preserved source/import data.</p>
+<p>* Existing proof counts remain unchanged:</p>
+<p>  * members: 49</p>
+<p>  * privacy buckets: 2</p>
+<p>  * custom fields: 7</p>
+<p>  * front history rows: 886</p>
+<h2 id="v0-8-0-pb-next-chapter-2-safe-spine-sql-foundation">v0.8.0 — PB-NEXT Chapter 2 safe-spine SQL foundation</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<p>* Added Chapter 2 safe-spine SQL scripts under <code>scripts/sqlserver/chap2_safe_spine/scripts/</code>.</p>
+<p>* Confirmed frozen demo behavior before safe-spine work:</p>
+<p>  * demo login still works</p>
+<p>  * <code>/api/me</code> still works</p>
+<p>  * existing read-only demo counts remain unchanged</p>
+<p>* Confirmed current runtime schema contract around:</p>
+<p>  * <code>pb_systems</code></p>
+<p>  * <code>pb_members</code></p>
+<p>  * <code>pb_front_history</code></p>
+<p>  * <code>pb_privacy_buckets</code></p>
+<p>  * <code>pb_custom_fields</code></p>
+<p>* Added account lifecycle foundation:</p>
+<p>  * <code>pb_account_statuses</code></p>
+<p>  * <code>pb_accounts</code></p>
+<p>  * demo account seed scripts</p>
+<p>* Added constrained role and membership lifecycle lookups:</p>
+<p>  * <code>pb_roles</code></p>
+<p>  * <code>pb_system_membership_statuses</code></p>
+<p>* Added system membership foundation:</p>
+<p>  * <code>pb_system_memberships</code></p>
+<p>  * <code>pb_system_membership_roles</code></p>
+<p>* Corrected membership-role design to support multiple roles per system membership by moving role assignment into <code>pb_system_membership_roles</code>.</p>
+<p>* Added foreign key coverage for:</p>
+<p>  * account status</p>
+<p>  * account membership</p>
+<p>  * system membership</p>
+<p>  * membership status</p>
+<p>  * membership role assignment</p>
+<p>* Added composite primary key on <code>pb_system_membership_roles</code> to prevent duplicate role assignments for the same membership.</p>
+<p>* Seeded the demo account.</p>
+<p>* Seeded the demo account’s active Owner membership on the existing demo system.</p>
+<h3 id="notes">Notes</h3>
+<p>* This tag is SQL/script foundation work only.</p>
+<p>* Runtime authorization behavior is not changed yet.</p>
+<p>* Existing demo read-only behavior remains the baseline.</p>
+<p>* The Simply Plural-shaped privacy bucket data remains untouched.</p>
+<p>* PB-native visibility scope, account resolver, membership resolver, authorization boundary, and diagnostic tracing remain future Chapter 2 tasks.</p>
+<h2 id="v0-7-6-contact-page">v0.7.6 — Contact page</h2>
+<p>Static public website release adding a dedicated Contact page for project-level communication.</p>
+<ul>
+<li>Added <code>website/contact.html</code>.
+</li>
+<li>Replaced disabled <code>Contact Us</code> placeholders in the About menu with live <code>contact.html</code> links across static pages.
+</li>
+<li>Added project-level contact paths:
+<ul>
+<li>General contact: <code>info@thepluralbridge.org</code>
+</li>
+<li>Support/export help: <code>support@thepluralbridge.org</code>
+</li>
+</ul>
+</li>
+<li>Added privacy and safety boundaries telling visitors not to send Simply Plural tokens, passwords, export files, private System data, or screenshots with private data.
+</li>
+<li>Added not-emergency-support language and an independent-project disclaimer.
+</li>
+<li>Added <code>contact.html</code> to the website sitemap and VS solution website items.
+</li>
+</ul>
+<h2 id="v0-7-5-conference-website-demo-navigation-polish">v0.7.5 — Conference website demo navigation polish</h2>
+<ul>
+<li>Added a Projects navigation menu between Guides and Community.
+</li>
+<li>Added the first Projects item, “PluralBridge Application,” linking to the new application project page.
+</li>
+<li>Added a new PluralBridge Application page describing the browser app direction, cloud-hosted database, REST API, and browser app demo.
+</li>
+<li>Added demo screenshots for the PluralBridge Application page.
+</li>
+<li>Added prominent Demo buttons that open the hosted demo app at <code>https://demo.thepluralbridge.org/app/</code>.
+</li>
+<li>Styled Demo buttons as forest green call-to-action buttons with white text.
+</li>
+<li>Kept Export Now as the primary homepage preservation action.
+</li>
+<li>Kept the privacy reminder near the top of the homepage.
+</li>
+<li>Left app, API, database, import, upload, and Azure runtime behavior unchanged.
+</li>
+</ul>
+<h2 id="v0-7-4-conference-booth-website-update">v0.7.4 — Conference booth website update</h2>
+<ul>
+<li>Added a public homepage notice that PluralBridge will be at the Power to the Plurals Conference.
+</li>
+<li>Added the static website files to the Visual Studio solution as solution items for easier editing.
+</li>
+<li>Set up the Friday Airmeet virtual booth for PluralBridge with booth description, resource links, website link, chat, and interest button.
+</li>
+<li>Created real Microsoft 365 mailboxes for Molly Westin and Allison Bethson for conference and booth access.
+</li>
+<li>Kept app, API, database, import, upload, and Azure runtime behavior frozen from v0.7.3.
+</li>
+</ul>
+<h2 id="v0-7-3-demo-ui-polish">v0.7.3 — Demo UI polish</h2>
+<ul>
+<li>Replaced the in-app login proof panel with a compact protected-session strip and logout action.
+</li>
+<li>Added friendly read-only demo views for every app button.
+</li>
+<li>Rendered members, front history, source systems, systems, privacy buckets, custom fields, import batches, source records, source ID mappings, import metadata, and demo session data as readable cards/rows.
+</li>
+<li>Kept raw JSON available behind row expanders for proof and verification.
+</li>
+<li>Updated the app page title to “Explore the PluralBridge read-only demo.”
+</li>
+<li>Preserved the served/root app split and the required apiBaseUrl difference.
+</li>
+</ul>
+<h2 id="v0-7-2-conference-safe-hosted-demo-database">v0.7.2 — Conference-safe hosted demo database</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Created and validated the conference-safe Azure SQL demo database <code>PluralBridgeDemoAnonXlat</code>.
+</li>
+<li>Rebuilt the anonymized demo database from an SSMS-generated script with remapped GUID literals instead of live GUID mutation.
+</li>
+<li>Replaced member display names with a 49-name synthetic list.
+</li>
+<li>Replaced member descriptions and the System description with same-character-count lorem ipsum text.
+</li>
+<li>Cleared <code>dbo.pb_source_records.RawJson</code> to <code>N'[ ]'</code> for all 945 source-record rows.
+</li>
+<li>Validated row counts, table and column shape, primary keys, foreign keys, constraints, foreign-key orphan checks, DBCC constraint validation, and uniqueidentifier profiling.
+</li>
+<li>Retained the conference demo anonymization and validation scripts under <code>database/demo/</code>.
+</li>
+<li>Updated the hosted API proof so <code>/api/me</code> reports <code>PluralBridgeDemoAnonXlat</code>.
+</li>
+<li>Updated the Azure App Service connection string so the protected browser demo reads from <code>PluralBridgeDemoAnonXlat</code>.
+</li>
+<li>Validated the live protected browser path: login, <code>me</code>, <code>members</code>, anonymized member names, and lorem ipsum descriptions.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release marks the protected Azure-hosted browser/API proof as conference-demo ready. The deployed demo reads from the anonymized <code>PluralBridgeDemoAnonXlat</code> database, while private/source proof databases remain outside public demo configuration.</p>
+<p>Historical Azure proof and targeting artifacts remain project history. Runtime public surfaces for the app, API, website, and GitHub deployment path do not point at the private/source proof database.</p>
+<p>---</p>
+<h2 id="v0-7-1-protected-browser-button-app-proof">v0.7.1 — Protected browser button app proof</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added a protected browser button app proof under the ASP.NET Core API project.
+</li>
+<li>Copied the browser proof app into <code>api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/</code> so the Azure API App Service can host <code>/app/</code> directly.
+</li>
+<li>Added cookie-auth login and logout endpoints for the protected proof surface.
+</li>
+<li>Protected <code>/app/</code>, copied app static files, and <code>/api/*</code> controller endpoints behind authentication.
+</li>
+<li>Added configuration support for demo credentials through local User Secrets and Azure App Service app settings.
+</li>
+<li>Guarded the temporary <code>/whoami</code> auth diagnostic endpoint behind <code>DEBUG_MODE</code> so it remains available for local diagnostics without appearing in normal release builds.
+</li>
+<li>Deployed the protected proof to the Azure App Service <code>pluralbridge-api-proof-001</code> using Kudu ZIP deployment.
+</li>
+<li>Turned SCM Basic Auth Publishing Credentials back off after deployment.
+</li>
+<li>Validated the Azure end-to-end flow: login, app load, protected <code>me</code> API call, and logout.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release proves that the Azure-hosted PluralBridge API can serve a protected browser app and protected REST surface from the same App Service. It keeps the demo credential values outside repository history by using User Secrets locally and Azure App Service app settings in the deployed proof.</p>
+<p>The protected browser app remains a proof path for the Plural conference/demo objective. Later work can replace the fixed demo login with durable user/session/System mapping and decide how <code>https://thepluralbridge.org/app</code> routes to the application surface.</p>
+<h2 id="v0-7-0-read-only-c-api-and-database-backed-browser-proof">v0.7.0 — Read-only C# API and database-backed browser proof</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added the first durable ASP.NET Core C# REST API under <code>api/</code>.
+</li>
+<li>Added Microsoft.Data.SqlClient database access against the validated Azure SQL proof database.
+</li>
+<li>Added read-only REST endpoints for <code>me</code>, source systems, import batches, systems, members, privacy buckets, custom fields, front history, source records, source ID mappings, and import metadata.
+</li>
+<li>Wired the browser app read-only buttons to real API calls instead of static mock contract payloads.
+</li>
+<li>Preserved the Phase 3A login/session surface as frozen placeholder behavior while completing Phase 2B.
+</li>
+<li>Confirmed all required Phase 2B browser/API counts from the validated 1-6 proof slice: 1 source system, 1 import batch, 1 system, 49 members, 2 privacy buckets, 7 custom fields, 886 front-history rows, 945 source records, and 945 source ID mappings.
+</li>
+<li>Kept all Phase 2B endpoints read-only with <code>canWrite</code> set to false.
+</li>
+<li>Excluded raw source JSON from the public source-record endpoint while preserving source inventory and hash metadata.
+</li>
+<li>Added Visual Studio and .NET ignore rules so local build output, user settings, and transient IDE files stay out of repository history.
+</li>
+<li>Added output-box CSS wrapping and height limits so large JSON payloads remain usable in the browser proof surface.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release marks the first PluralBridge browser proof backed by a durable C# REST API and real Azure SQL data. It corrects the Phase 2 read-only surface so the app now proves live database retrieval across the complete 1-6 proof slice instead of static browser-side contract JSON.</p>
+<p>The API still uses a fixed Phase 2B proof context. Phase 3 remains responsible for replacing that fixed context with real login, session, and user-to-System mapping behavior.</p>
+<p>---</p>
+<h2 id="v0-6-0-azure-sql-cloud-readiness-proof">v0.6.0 — Azure SQL cloud-readiness proof</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Created the Azure SQL cloud-readiness proof database for the validated PluralBridge 1-6 vertical slice.
+</li>
+<li>Proved the 1-6 schema in Azure SQL with the expected 9 proof tables.
+</li>
+<li>Validated expected core columns, primary keys, foreign keys, and unique constraints in Azure SQL.
+</li>
+<li>Confirmed the Azure proof database was writable and suitable for schema and data-load validation.
+</li>
+<li>Generated a private ignored data-load SQL artifact from the private JSON export.
+</li>
+<li>Loaded the validated 1-6 slice into Azure SQL using SSMS.
+</li>
+<li>Confirmed all expected Azure data counts passed: 1 source system, 1 import batch, 1 system, 49 members, 2 privacy buckets, 7 custom fields, 886 front-history rows, 945 source records, and 945 source ID mappings.
+</li>
+<li>Archived failed candidate paths instead of repairing failed generated SQL forward.
+</li>
+<li>Added compact non-private audit checkpoints for the Azure schema proof and data-load proof.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release marks the first completed Azure SQL database-backed proof for the minimal PluralBridge 1-6 vertical slice. Private JSON export files and generated private SQL load files remain ignored and are not part of the public repository history.</p>
+<p>The next project phase can build on this proof toward the read-only REST/browser demo path for token-scoped member and front-history data.</p>
+<p>---</p>
+<h2 id="v0-5-2-website-menu-restructure">v0.5.2 — Website menu restructure</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Restructured the top-level public website navigation into grouped menus.
+</li>
+<li>Added <code>Home</code> as a visible top-level navigation item.
+</li>
+<li>Kept <code>Start Here</code> and <code>Export Now</code> as direct top-level navigation items.
+</li>
+<li>Grouped documentation and user-flow pages under <code>Guides</code>.
+</li>
+<li>Grouped Discussions, Pluralpedia, Mastodon, and GitHub under <code>Community</code>.
+</li>
+<li>Converted <code>About</code> into a grouped menu with <code>About PluralBridge</code> and a disabled <code>Contact Us</code> coming-soon placeholder.
+</li>
+<li>Added active navigation states for top-level pages and guide submenu items.
+</li>
+<li>Added mobile styling so dropdown menu labels behave like centered navigation buttons.
+</li>
+<li>Added <code>website/site-menu.js</code> so opening one dropdown closes any other open dropdown.
+</li>
+<li>Previewed the grouped navigation locally in desktop browser and on Android before release.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release improves the public website navigation before the later Contact/Support page work. The Contact Us item is intentionally present as a disabled placeholder; the actual Contact/Support page is deferred to a separate feature branch.</p>
+<p>---</p>
+<h2 id="v0-5-1-social-preview-image-update">v0.5.1 — Social preview image update</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added <code>website/assets/images/pluralbridge-about-logo.png</code> as the current approved PluralBridge logo image for social previews.
+</li>
+<li>Updated Open Graph metadata in <code>website/index.html</code> so shared website links point to the current approved logo.
+</li>
+<li>Updated Twitter card metadata in <code>website/index.html</code> so shared website links point to the current approved logo.
+</li>
+<li>Left the old social-preview image file in place instead of deleting it.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This is a small production patch release for the public website metadata. It gets the current approved PluralBridge logo into production for link previews on Mastodon and other social platforms. Some services may cache previews, so the corrected image may appear only after cache refresh or a new share.</p>
+<p>---</p>
+<h2 id="v0-5-0-mobile-navigation-and-privacy-reminder-usability">v0.5.0 — Mobile navigation and privacy reminder usability</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added the first contributor-ready starter Issues for developer-community outreach.
+</li>
+<li>Added and labeled starter Issues for synthetic fixtures, export validation, SQLite schema drafting, non-technical export guidance, and documentation/accessibility review.
+</li>
+<li>Added a developer landing Discussion pointing contributors to scoped starter Issues and privacy-safe contribution boundaries.
+</li>
+<li>Improved public website navigation for narrow screens and mobile devices.
+</li>
+<li>Changed mobile navigation into a two-column tappable grid.
+</li>
+<li>Preserved the existing desktop navigation and page structure while allowing better wrapping behavior.
+</li>
+<li>Added a mobile privacy reminder toggle so the privacy warning starts compact on phones and can be expanded when needed.
+</li>
+<li>Kept the full privacy warning visible on desktop.
+</li>
+<li>Added <code>website/privacy-banner.js</code> for the mobile privacy reminder toggle.
+</li>
+<li>Previewed website changes locally and on a real phone before release.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release is a visible website usability release. It improves the mobile path before adding the later Contact/Support page, so users can navigate the site more clearly on phones while still seeing the privacy reminder and having access to the full warning text.</p>
+<p>The developer-outreach foundation now includes scoped starter Issues and a GitHub Discussion landing point, with the same safety boundary: contributors should use synthetic examples, redacted descriptions, and public-safe fixtures only.</p>
+<p>---</p>
+<h2 id="v0-4-2-github-discussions-and-public-project-links">v0.4.2 — GitHub Discussions and public project links</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Enabled and configured GitHub Discussions for the PluralBridge repository.
+</li>
+<li>Created starter Discussions categories for announcements, design proposals, feature ideas, help and questions, community and documentation, and polls.
+</li>
+<li>Added pinned starter discussions explaining how each major discussion area should be used.
+</li>
+<li>Added GitHub Discussions links to <code>README.md</code>.
+</li>
+<li>Added GitHub Discussions links to the public website navigation.
+</li>
+<li>Refreshed the <code>TAG_TASKS.md</code> follow-up queue for the current <code>v0.4.1</code> project state.
+</li>
+<li>Added developer-community publicizing follow-up items to the release task queue.
+</li>
+<li>Added official Simply Plural export guidance follow-up items to the release task queue.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release prepares PluralBridge for developer and community participation by making GitHub Discussions visible from the repository and website, while keeping privacy boundaries and public-project workflow expectations clear.</p>
+<p>---</p>
+<h2 id="v0-4-1-release-history-bookkeeping">v0.4.1 — Release-history bookkeeping</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added the missing <code>v0.4.0</code> entry to <code>TAG_TASKS.md</code> after the <code>v0.4.0</code> release tag had already been created.
+</li>
+<li>Preserved the existing <code>v0.4.0</code> tag instead of rewriting or moving release history.
+</li>
+<li>Recorded this follow-up as a small patch release so the repository history remains explicit.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release is a release-history correction. It documents the <code>v0.4.0</code> contributor-governance release in <code>TAG_TASKS.md</code> without changing the already-published <code>v0.4.0</code> tag.</p>
+<p>---</p>
+<h2 id="v0-4-0-contributor-governance-and-developer-workflow">v0.4.0 — Contributor governance and developer workflow</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Expanded contributor governance guidance in <code>CONTRIBUTING.md</code>.
+</li>
+<li>Documented the project discussion model for GitHub Discussions, Issues, Pull Requests, and community spaces.
+</li>
+<li>Added branch-role guidance for <code>master</code>, <code>dev</code>, feature branches, and production patch branches.
+</li>
+<li>Added maintainer authority and delegation guidance for protecting privacy posture, release stability, public trust, and community safety.
+</li>
+<li>Added contributor privacy rules covering real exports, tokens, avatars, notes, logs, member data, friend data, fronting history, privacy buckets, and database files.
+</li>
+<li>Added project independence boundaries for Simply Plural and Apparyllis interoperability work.
+</li>
+<li>Added plural-community conduct guidance for contributors.
+</li>
+<li>Added current developer-help areas, including official export normalization, SQLite support, validation reports, documentation, accessibility, SQL review, viewer prototypes, and import bridges.
+</li>
+<li>Expanded <code>website/developer-workflow.html</code> to mirror the repository-facing contributor workflow guidance.
+</li>
+<li>Normalized top-level website navigation across public pages.
+</li>
+<li>Normalized Docs and About hero presentation.
+</li>
+<li>Tightened navbar CSS for the current flat navigation.
+</li>
+<li>Previewed website changes locally and through Cloudflare before release.
+</li>
+</ul>
+<h3 id="pull-requests-and-major-commits-included">Pull requests and major commits included</h3>
+<ul>
+<li>PR #25: Expand contributor governance and website consistency.
+</li>
+<li>PR #26: Release contributor governance guidance.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release prepared PluralBridge for careful developer and open-source contributor participation by documenting where discussions happen, how branches are handled, what privacy boundaries apply, and how contributors can help without handling private user data.</p>
+<p>---</p>
+<h2 id="v0-3-4-website-logo-and-release-history-access">v0.3.4 — Website logo and release-history access</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added the PluralBridge bridge image to the public website navigation.
+</li>
+<li>Moved the larger PluralBridge logo/banner to the About page, where project identity is explained.
+</li>
+<li>Updated homepage social preview image metadata to use the PluralBridge logo.
+</li>
+<li>Added homepage access to the release and tag task history.
+</li>
+<li>Added documentation-page access to the release and tag task history.
+</li>
+<li>Previewed the website changes locally before merging into <code>dev</code>.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release added the first public PluralBridge logo treatment to the website, improved project identity presentation, and made the repository tag/task history easier for visitors to find.</p>
+<p>---</p>
+<h2 id="v0-3-3-official-export-probes-and-privacy-banner">v0.3.3 — Official export probes and privacy banner</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added inspection/probe tooling for official Simply Plural export files.
+</li>
+<li>Added normalization/probe support to help understand the shape of official export data.
+</li>
+<li>Added a site-wide privacy reminder banner warning that Simply Plural exports may contain sensitive account, token, note, message, friend, avatar, and System data.
+</li>
+<li>Reinforced that export files should be treated as private backups and should not be posted publicly or attached to support requests.
+</li>
+</ul>
+<h3 id="pull-requests-and-major-commits-included">Pull requests and major commits included</h3>
+<ul>
+<li>PR #17: Add official export inspection and normalization probes.
+</li>
+<li>PR #18: Add site-wide export privacy reminder.
+</li>
+<li>PR #19: Release official export probes and privacy banner.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release started the investigation path for official Simply Plural export files while preserving the project safety boundary around private export data.</p>
+<p>---</p>
+<h2 id="v0-3-2-guided-export-launcher">v0.3.2 — Guided export launcher</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added a guided export launcher to make the export path easier for regular users.
+</li>
+<li>Continued reducing command-line friction for users who need to preserve data before the Simply Plural shutdown.
+</li>
+<li>Kept the export process aligned with the local-first safety model.
+</li>
+</ul>
+<h3 id="pull-requests-and-major-commits-included">Pull requests and major commits included</h3>
+<ul>
+<li>PR #15: Add guided export launcher.
+</li>
+<li>PR #16: Release guided export launcher.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release moved PluralBridge toward a more approachable export workflow while still keeping the current implementation script-based and local-first.</p>
+<p>---</p>
+<h2 id="v0-3-1-root-tag-task-history">v0.3.1 — Root tag task history</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added root-level <code>TAG_TASKS.md</code> to record major work represented by repository tags.
+</li>
+<li>Established a project-facing release and task history outside generated website documentation.
+</li>
+<li>Created a place to summarize release work, repair checkpoints, and follow-up queues.
+</li>
+</ul>
+<h3 id="pull-requests-and-major-commits-included">Pull requests and major commits included</h3>
+<ul>
+<li>PR #13: Add tag task history.
+</li>
+<li>PR #14: Release tag task history.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release added the repository-level task history that is now being linked from the public website.</p>
+<p>---</p>
+<h2 id="v0-3-0-public-website-documentation-rendering-and-non-technical-user-path">v0.3.0 — Public website, documentation rendering, and non-technical user path</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Added generated public documentation pages under <code>website/docs</code>.
+</li>
+<li>Added local Prism-based syntax highlighting for documentation code blocks.
+</li>
+<li>Added public Start Here and Help Me Export paths for regular users.
+</li>
+<li>Improved README and <code>START_HERE.md</code> guidance for users arriving from GitHub.
+</li>
+<li>Added Simply Plural shutdown and preservation landing content.
+</li>
+<li>Reworked <code>install.html</code> from a requirements inventory into a practical setup sequence.
+</li>
+<li>Reworked <code>run.html</code> into a plain-language export procedure.
+</li>
+<li>Added clearer Simply Plural API token setup guidance using <code>SP_TOKEN</code>.
+</li>
+<li>Added JSON export guidance.
+</li>
+<li>Added avatar export guidance.
+</li>
+<li>Added output-checking guidance for:
+<ul>
+<li><code>exports/json</code>
+</li>
+<li><code>exports/member_images</code>
+</li>
+<li>additional export folders or manifest files as scripts are added or documented
+</li>
+</ul>
+</li>
+<li>Added common warning signs for:
+<ul>
+<li>missing token
+</li>
+<li>missing <code>exports/json</code>
+</li>
+<li>missing <code>exports/json/members.json</code>
+</li>
+<li>authentication or authorization errors
+</li>
+</ul>
+</li>
+<li>Added OS-specific install guidance for:
+<ul>
+<li>Windows
+</li>
+<li>macOS
+</li>
+<li>Linux
+</li>
+</ul>
+</li>
+<li>Moved Python download links into the Python installation step.
+</li>
+<li>Kept Git Bash, Terminal, and Git guidance in the command-line setup step.
+</li>
+<li>Added a <code>mailto:</code> contact path for other desktop or laptop setups:
+<ul>
+<li><code>needsofthemany@thepluralbridge.org</code>
+</li>
+</ul>
+</li>
+<li>Clarified that mobile-only export is not the current PluralBridge path.
+</li>
+<li>Added token walkthrough screenshots and public user/developer/project documentation pages.
+</li>
+<li>Added SEO metadata, sitemap, <code>robots.txt</code>, and Google Search Console verification support.
+</li>
+<li>Fixed documentation rendering, code highlighting, docs layout, and token guide screenshot issues.
+</li>
+<li>Previewed the website changes before release.
+</li>
+<li>Released through a <code>dev</code> to <code>master</code> pull request.
+</li>
+<li>Fast-forwarded <code>dev</code> back to the released <code>master</code> state.
+</li>
+<li>Created and pushed annotated tag <code>v0.3.0</code>.
+</li>
+</ul>
+<h3 id="pull-requests-and-major-commits-included">Pull requests and major commits included</h3>
+<ul>
+<li>PR #4: Add nontechnical start here path.
+</li>
+<li>PR #5: Release earlier <code>dev</code> work into <code>master</code>.
+</li>
+<li>PR #6: Add plain-language export guide.
+</li>
+<li>PR #7: Clarify Git requirement for regular users.
+</li>
+<li>PR #8: Release <code>dev</code> into <code>master</code>.
+</li>
+<li>PR #9: Improve install and run user path.
+</li>
+<li>PR #10: Add OS-specific install download paths.
+</li>
+<li>PR #11: Separate Python and shell install guidance.
+</li>
+<li>PR #12: Release improved public guidance for non-technical users.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This release materially changed the public shape of PluralBridge. It made the project more legible to regular users, especially users arriving from GitHub who may not know the difference between a source repository, a ZIP download, scripts, and a finished app installer.</p>
+<p>The release keeps PluralBridge focused on preservation first: helping users understand how to export and protect their Simply Plural data while the original service remains available.</p>
+<p>---</p>
+<h2 id="docs-rendering-live-verified-documentation-rendering-workflow">docs-rendering-live — Verified documentation rendering workflow</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Verified the public documentation rendering workflow.
+</li>
+<li>Confirmed generated documentation pages could be built and deployed through the website path.
+</li>
+<li>Improved generated documentation page behavior and layout.
+</li>
+<li>Helped establish the website documentation pipeline that later shipped as part of <code>v0.3.0</code>.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This was a workflow verification tag rather than a versioned release. It marks a known-good point for documentation rendering.</p>
+<p>---</p>
+<h2 id="image-fix-token-guide-screenshot-repair-point">image-fix — Token guide screenshot repair point</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Fixed the token guide Step 6 screenshot issue.
+</li>
+<li>Preserved the token walkthrough as a usable visual guide.
+</li>
+<li>Kept the correction isolated to the token-guide image problem.
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This was a focused repair tag rather than a versioned release. It marks a known-good point for the corrected token-guide screenshot.</p>
+<p>---</p>
+<h2 id="v0-2-0-public-site-and-repository-maturity-baseline">v0.2.0 — Public site and repository maturity baseline</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Expanded the public-facing project website.
+</li>
+<li>Added or strengthened public project pages around:
+<ul>
+<li>project identity
+</li>
+<li>Simply Plural shutdown urgency
+</li>
+<li>export/preservation messaging
+</li>
+<li>install/run/safety guidance
+</li>
+<li>documentation navigation
+</li>
+</ul>
+</li>
+<li>Improved public messaging for regular users arriving from GitHub.
+</li>
+<li>Added public metadata and crawler/indexing support.
+</li>
+<li>Added public website structure that could support later documentation rendering and user-path improvements.
+</li>
+<li>Improved GitHub-facing credibility through clearer project framing.
+</li>
+<li>Continued refining safety guidance and public-facing documentation boundaries.
+</li>
+<li>Preserved the project’s core message:
+<ul>
+<li>export first
+</li>
+<li>keep user data private
+</li>
+<li>do not treat a Simply Plural token as a future PluralBridge credential
+</li>
+<li>build future tools around preserved data
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This tag represents a stronger public baseline before the larger <code>v0.3.0</code> website/documentation/user-path release.</p>
+<p>---</p>
+<h2 id="v0-1-0-initial-public-preservation-baseline">v0.1.0 — Initial public preservation baseline</h2>
+<h3 id="major-tasks-completed">Major tasks completed</h3>
+<ul>
+<li>Established PluralBridge as an independent preservation and continuity project.
+</li>
+<li>Published the initial public repository structure.
+</li>
+<li>Added the GNU GPL v3.0 project license.
+</li>
+<li>Added core project framing:
+<ul>
+<li>PluralBridge is independent.
+</li>
+<li>PluralBridge is not affiliated with Simply Plural, Apparyllis, or the Simply Plural development team.
+</li>
+<li>PluralBridge uses public Apparyllis REST API access with a user-created token.
+</li>
+<li>PluralBridge is focused first on preservation of user-owned data.
+</li>
+</ul>
+</li>
+<li>Added initial repository documentation and examples.
+</li>
+<li>Added early Python export tooling for Simply Plural data.
+</li>
+<li>Added early avatar export tooling.
+</li>
+<li>Added SQL Server migration/import script structure.
+</li>
+<li>Added redacted/safe example shapes.
+</li>
+<li>Added basic safety guidance for tokens, exports, private data, screenshots, reports, avatars, notes, and database files.
+</li>
+<li>Added repository layout for:
+<ul>
+<li><code>docs/</code>
+</li>
+<li><code>examples/</code>
+</li>
+<li><code>reports/</code>
+</li>
+<li><code>scripts/</code>
+</li>
+<li><code>tests/</code>
+</li>
+<li><code>website/</code>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<p>This tag represents the initial public foundation: export-first preservation, local files, private user control, and a repo structure large enough to grow into documentation, database work, viewers, and future services.</p>
+<p>---</p>
+<h2 id="current-post-v0-5-2-follow-up-queue">Current post-v0.5.2 follow-up queue</h2>
+<h3 id="public-site-and-user-path-verification">Public site and user-path verification</h3>
+<ul>
+<li>Smoke-test the production site after deployment.
+</li>
+<li>Verify the home page social-preview metadata points to <code>https://thepluralbridge.org/assets/images/pluralbridge-about-logo.png</code>.
+</li>
+<li>Check:
+<ul>
+<li><code>https://thepluralbridge.org/start-here.html</code>
+</li>
+<li><code>https://thepluralbridge.org/help-me-export.html</code>
+</li>
+<li><code>https://thepluralbridge.org/export-now.html</code>
+</li>
+<li><code>https://thepluralbridge.org/install.html</code>
+</li>
+<li><code>https://thepluralbridge.org/run.html</code>
+</li>
+<li><code>https://thepluralbridge.org/safety.html</code>
+</li>
+<li><code>https://thepluralbridge.org/developer-workflow.html</code>
+</li>
+</ul>
+</li>
+<li>Verify the full click path:
+<ul>
+<li>Start Here → Help Me Export → Export Now → Install → Run → Safety
+</li>
+</ul>
+</li>
+<li>Confirm GitHub Discussions links are visible from the website and README.
+</li>
+<li>Confirm <code>mailto:needsofthemany@thepluralbridge.org</code> behaves reasonably in common browsers.
+</li>
+<li>Request search indexing for newly added or materially changed pages if needed.
+</li>
+</ul>
+<h3 id="developer-community-publicizing">Developer-community publicizing</h3>
+<ul>
+<li>Point developer outreach to GitHub Discussions before asking for broad participation.
+</li>
+<li>Use Discussions for design proposals, questions, feature ideas, documentation suggestions, and polls.
+</li>
+<li>Use Issues only for scoped, actionable work.
+</li>
+<li>Keep contributor-facing messaging clear that private exports, real System data, tokens, avatars, notes, logs, and database files must not be posted publicly.
+</li>
+</ul>
+<h3 id="documentation-and-contributor-workflow">Documentation and contributor workflow</h3>
+<ul>
+<li>Add a release checklist.
+</li>
+<li>Decide whether to add <code>CHANGELOG.md</code>.
+</li>
+<li>Keep <code>CONTRIBUTING.md</code> and <code>website/developer-workflow.html</code> aligned as contributor workflow evolves.
+</li>
+</ul>
+<h3 id="regular-user-tooling">Regular-user tooling</h3>
+<ul>
+<li>Add export validation helper output.
+</li>
+<li>Consider first-pass Windows-friendly helper script.
+</li>
+<li>Improve notes export documentation once the workflow is ready.
+</li>
+<li>Add clearer success/failure reporting.
+</li>
+</ul>
+<h3 id="official-simply-plural-export-guidance">Official Simply Plural export guidance</h3>
+<ul>
+<li>Add user-facing guidance that the official Simply Plural export should be saved now and treated as a private backup.
+</li>
+<li>Explain that official Simply Plural export files may contain sensitive account, token, security, private, note, message, friend, avatar-reference, report, usage, and System data.
+</li>
+<li>Explain that the official Simply Plural export does not download avatar image files.
+</li>
+<li>Explain that PluralBridge API export can download actual member avatar files while they are still reachable.
+</li>
+</ul>
+<h3 id="private-candidate-review">Private candidate review</h3>
+<ul>
+<li>Review private repo <code>candidates</code> docs.
+</li>
+<li>Sort candidate docs into:
+<ul>
+<li>promote public
+</li>
+<li>keep private
+</li>
+<li>rewrite/sanitize
+</li>
+<li>archive/discard
+</li>
+</ul>
+</li>
+<li>Promote only public-safe material.
+</li>
+</ul>
+<h3 id="pluralpedia">Pluralpedia</h3>
+<ul>
+<li>Review the current Pluralpedia page.
+</li>
+<li>Restore or rewrite missing public-facing project context where appropriate.
+</li>
+<li>Keep wording factual, calm, and focused on preservation and continuity.
+</li>
+</ul>
+<p>---</p>
+<h2 id="current-contributor-ready-outreach-state">Current contributor-ready outreach state</h2>
+<p>The first starter Issues and developer landing Discussion have been created for developer-community outreach. Further Issues should still be created only when each item has a clear scope, privacy-safe boundaries, and a synthetic-data path.</p>
+<h3 id="current-starter-issues">Current starter Issues</h3>
+<ul>
+<li>#38 — Add synthetic export fixture set for tests and examples.
+</li>
+<li>#39 — Add export validation summary output.
+</li>
+<li>#40 — Draft initial SQLite schema for local/offline preserved data.
+</li>
+<li>#41 — Improve non-technical export success/failure guidance.
+</li>
+<li>#42 — Review documentation for accessibility and plain-language clarity.
+</li>
+</ul>
+<h3 id="privacy-and-data-safety-boundary">Privacy and data-safety boundary</h3>
+<p>All contributor-ready Issues should assume synthetic examples, redacted descriptions, and public-safe fixtures only. Contributors should not request, post, attach, or inspect private Simply Plural exports, real System data, API tokens, authorization headers, avatar images, notes, messages, friend data, fronting history, logs, screenshots containing private data, or database files created from real exports.</p>
+<h3 id="outreach-sequencing">Outreach sequencing</h3>
+<p>Developer-community outreach should come before the Contact/Support page. Mobile navigation repair has now been addressed in the v0.5.0 work. The Contact/Support page remains the next focused website task after developer outreach stabilizes.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

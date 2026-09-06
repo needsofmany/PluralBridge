@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Use the Simply Plural REST API with a Token — Archived — PluralBridge Documentation</title>
-  <meta name="description" content="Use the Simply Plural REST API with a Token — Archived. PluralBridge documentation published by Needs of the Many.">
+  <title>API Endpoint Reference — PluralBridge Documentation</title>
+  <meta name="description" content="API Endpoint Reference. PluralBridge documentation published by Needs of the Many.">
   <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/vendor/prism/prism.css">
 <link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
@@ -60,27 +60,281 @@
 </header>
 <main class="page">
   <article class="card doc-page">
-<h1 id="use-the-simply-plural-rest-api-with-a-token-archived">Use the Simply Plural REST API with a Token — Archived</h1>
-<p>This guide is retained as part of PluralBridge's project history.</p>
-<p>Simply Plural's servers are no longer available. The legacy Apparyllis REST API workflow can no longer be used to create a new Simply Plural export.</p>
-<p>The earlier REST API documentation remains part of the repository history for understanding preserved export formats and the development path that led to the current PluralBridge import work.</p>
-<p>For current information:</p>
+<h1 id="api-endpoint-reference">API Endpoint Reference</h1>
+<p>This page documents the current PluralBridge API surface in Swagger-style groups.</p>
+<p>Click an endpoint in the table to expand usage and programming examples for that row.</p>
+<p>Base behavior:</p>
 <ul>
-<li><a href="/export-now.html">Export guidance</a>
+<li>Response format: JSON
 </li>
-<li><a href="/simply-plural-shutdown.html">Simply Plural shutdown information</a>
+<li>Correlation header supported: <code>X-Correlation-ID</code>
 </li>
-<li><a href="/browser-app.html">What PluralBridge is building</a>
+<li>Protected endpoints require authenticated session/cookie unless noted otherwise
 </li>
-<li><a href="/developer-workflow.html">Help build PluralBridge</a>
+<li>Route parameters:
+<ul>
+<li><code>{systemId}</code> = system GUID
+</li>
+<li><code>{memberId}</code> = member GUID
 </li>
 </ul>
-<p>PluralBridge is published by Needs of the Many and is independent of Simply Plural and Apparyllis.</p>
+</li>
+</ul>
+<h2 id="account">Account</h2>
+<p>Base route: <code>/api/account</code></p>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>POST</td>
+<td><code>/api/account/register</code></td>
+<td>Anonymous</td>
+<td>Start account registration.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/account/verify-registration</code></td>
+<td>Anonymous</td>
+<td>Verify registration with code.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/account/login</code></td>
+<td>Anonymous</td>
+<td>Sign in and create session.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/account/forgot-username</code></td>
+<td>Anonymous</td>
+<td>Start username recovery flow.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/account/forgot-password</code></td>
+<td>Anonymous</td>
+<td>Start password reset flow.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/account/reset-password</code></td>
+<td>Anonymous</td>
+<td>Complete password reset with code.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/account/change-password</code></td>
+<td>Anonymous</td>
+<td>Change password using validated request flow.</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/account/profile</code></td>
+<td>Protected</td>
+<td>Update account profile values.</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/account/contact</code></td>
+<td>Protected</td>
+<td>Update account contact destination.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/account/verify-contact</code></td>
+<td>Protected</td>
+<td>Verify contact update with code.</td>
+</tr>
+</tbody></table>
+<h2 id="me">Me</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/me</code></td>
+<td>Protected</td>
+<td>Return current access context, resolved system, proof metadata, and table counts.</td>
+</tr>
+</tbody></table>
+<h2 id="source-systems">Source Systems</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/source-systems</code></td>
+<td>Protected</td>
+<td>List source application families present in imported data.</td>
+</tr>
+</tbody></table>
+<h2 id="systems">Systems</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems</code></td>
+<td>Protected</td>
+<td>List systems visible to current account context.</td>
+</tr>
+</tbody></table>
+<h2 id="members">Members</h2>
+<p>Base route: <code>/api/systems/{systemId}/members</code></p>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/members</code></td>
+<td>Protected</td>
+<td>List members for one system.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/members/{memberId}</code></td>
+<td>Protected</td>
+<td>Get one member by id.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/systems/{systemId}/members</code></td>
+<td>Protected</td>
+<td>Create one member in the current system context.</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/systems/{systemId}/members/{memberId}</code></td>
+<td>Protected</td>
+<td>Update one member in the current system context.</td>
+</tr>
+</tbody></table>
+<h2 id="front-history">Front History</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/front-history</code></td>
+<td>Protected</td>
+<td>Return front-history rows for one system context.</td>
+</tr>
+</tbody></table>
+<h2 id="custom-fields">Custom Fields</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/custom-fields</code></td>
+<td>Protected</td>
+<td>Return custom-field definitions/values for one system.</td>
+</tr>
+</tbody></table>
+<h2 id="privacy-buckets">Privacy Buckets</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/privacy-buckets</code></td>
+<td>Protected</td>
+<td>Return privacy bucket data for one system.</td>
+</tr>
+</tbody></table>
+<h2 id="import-batches">Import Batches</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/import-batches</code></td>
+<td>Protected</td>
+<td>Return import batch metadata for one system.</td>
+</tr>
+</tbody></table>
+<h2 id="import-metadata">Import Metadata</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/import-metadata</code></td>
+<td>Protected</td>
+<td>Return import metadata rows for one system.</td>
+</tr>
+</tbody></table>
+<h2 id="source-records">Source Records</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/source-records</code></td>
+<td>Protected</td>
+<td>Return source record inventory and metadata for one system.</td>
+</tr>
+</tbody></table>
+<h2 id="source-id-mappings">Source ID Mappings</h2>
+<table><thead><tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/systems/{systemId}/source-id-mappings</code></td>
+<td>Protected</td>
+<td>Return source-to-PluralBridge id mapping rows for one system.</td>
+</tr>
+</tbody></table>
+<h2 id="notes">Notes</h2>
+<ul>
+<li>API routes above are derived from current controller routes in <code>PluralBridge.Api</code>.
+</li>
+<li>Endpoint behavior remains contract-governed and versioning rules apply as the public contract evolves.
+</li>
+</ul>
   </article>
 </main>
 <script src="/vendor/prism/prism.js"></script>
 <script src="/vendor/prism/prism-autoloader.js"></script>
 <script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
 <script>
 if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
     window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";

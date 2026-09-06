@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simply Plural Android Data Recovery — Samsung Smart Switch Path A — PluralBridge Documentation</title>
+  <meta name="description" content="Simply Plural Android Data Recovery — Samsung Smart Switch Path A. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<blockquote>
+<p><strong>Copyright © 2026 Needs of the Many / PluralBridge contributors</strong></p>
+<p></p>
+<p>Licensed under the GNU General Public License v3.0 (GPLv3).</p>
+<p></p>
+<p>This recovery implementation and accompanying documentation were developed by Needs of the Many / PluralBridge. Please preserve this attribution as required by the applicable license terms.</p>
+</blockquote>
+<h1 id="simply-plural-android-data-recovery-samsung-smart-switch-path-a">Simply Plural Android Data Recovery — Samsung Smart Switch Path A</h1>
+<h2 id="scope">Scope</h2>
+<p>This procedure documents a Simply Plural data-recovery path successfully reproduced on a Samsung Galaxy S24+ after the Simply Plural servers shut down.</p>
+<p>It recovers Simply Plural's locally stored structured data and converts it into a normal UTF-8 JSON file.</p>
+<p>This procedure:</p>
+<ul>
+<li>does not require root access;
+</li>
+<li>does not require ADB access to Simply Plural's private app directory;
+</li>
+<li>does not require an existing Simply Plural export;
+</li>
+<li>keeps the recovered data local on the user's computer.
+</li>
+</ul>
+<p>The resulting JSON is recovered Simply Plural local data. It is not yet a reconstructed official Simply Plural export.</p>
+<h2 id="requirements">Requirements</h2>
+<ul>
+<li>Samsung Galaxy phone with Simply Plural still installed
+</li>
+<li>Windows PC
+</li>
+<li>Samsung Smart Switch
+</li>
+<li>Python 3 available from Command Prompt
+</li>
+<li>Windows <code>tar</code> command
+</li>
+</ul>
+<blockquote>
+<p><strong>Important:</strong> Do not uninstall Simply Plural, clear its app data, or factory-reset the phone before attempting recovery.</p>
+</blockquote>
+<p>---</p>
+<h2 id="step-1-back-up-simply-plural-with-samsung-smart-switch">Step 1 — Back up Simply Plural with Samsung Smart Switch</h2>
+<p>Connect the Samsung phone to the PC and open Samsung Smart Switch.</p>
+<p>Choose <strong>Backup</strong>.</p>
+<p>In the backup-selection screen:</p>
+<ol>
+<li>Select <strong>Apps</strong>.</li>
+<li>Select <strong>Simply Plural</strong>.</li>
+<li>Deselect other apps if you want the smallest possible backup.</li>
+</ol>
+<p>Selecting <strong>Images</strong> is optional for recovering the JSON, but is recommended if you also want to preserve possible Simply Plural-related images for later avatar-recovery work.</p>
+<p>Run the backup.</p>
+<p><strong>Expected</strong></p>
+<p>Smart Switch reports that the Simply Plural backup completed successfully.</p>
+<p>---</p>
+<h2 id="step-2-locate-the-simply-plural-noedata-file">Step 2 — Locate the Simply Plural <code>.noedata</code> file</h2>
+<p>Open the newly created Smart Switch backup folder.</p>
+<p>The Simply Plural backup payload should be under a path similar to:</p>
+<pre><code class="language-text">C:\Users\&lt;WINDOWS_USER&gt;\Samsung\SmartSwitch\backup\&lt;DEVICE_MODEL&gt;\&lt;DEVICE_FOLDER&gt;\&lt;BACKUP_FOLDER&gt;\APKFILE\data\com.saltypandastudios.frontime\</code></pre>
+<p>Inside that folder, locate:</p>
+<pre><code class="language-text">com.saltypandastudios.frontime.noedata</code></pre>
+<p><strong>Expected</strong></p>
+<p>The <code>.noedata</code> file exists.</p>
+<p>---</p>
+<h2 id="step-3-create-a-clean-recovery-working-folder">Step 3 — Create a clean recovery working folder</h2>
+<p>Open Command Prompt and run:</p>
+<pre><code class="language-cmd">mkdir C:\SP-Recovery</code></pre>
+<p><strong>Expected</strong></p>
+<p>No output if the directory is created successfully.</p>
+<p>If the folder already exists from a previous recovery attempt, use a different empty folder.</p>
+<p>---</p>
+<h2 id="step-4-copy-the-noedata-file-into-the-working-folder">Step 4 — Copy the <code>.noedata</code> file into the working folder</h2>
+<p>Run:</p>
+<pre><code class="language-cmd">copy &quot;&lt;FULL_PATH_TO_BACKUP&gt;\com.saltypandastudios.frontime.noedata&quot; C:\SP-Recovery\</code></pre>
+<p><strong>Expected</strong></p>
+<pre><code class="language-text">        1 file(s) copied.</code></pre>
+<p>---</p>
+<h2 id="step-5-verify-the-android-backup-header">Step 5 — Verify the Android Backup header</h2>
+<p>Run:</p>
+<pre><code class="language-cmd">python -c &quot;from pathlib import Path; p=Path(r&#x27;C:\SP-Recovery\com.saltypandastudios.frontime.noedata&#x27;); print(p.read_bytes()[:24])&quot;</code></pre>
+<p><strong>Expected on the confirmed Samsung Galaxy S24+ recovery</strong></p>
+<pre><code class="language-text">b&#x27;ANDROID BACKUP\n5\n0\nnone\n&#x27;</code></pre>
+<p>This indicates:</p>
+<ul>
+<li>Android Backup version 5
+</li>
+<li>uncompressed payload
+</li>
+<li>unencrypted payload
+</li>
+</ul>
+<p><strong>If your header differs, stop before continuing.</strong></p>
+<p>The extraction command below assumes this exact 24-byte header.</p>
+<p>---</p>
+<h2 id="step-6-remove-the-android-backup-header-and-create-a-tar-archive">Step 6 — Remove the Android Backup header and create a TAR archive</h2>
+<p>Run:</p>
+<pre><code class="language-cmd">python -c &quot;from pathlib import Path; p=Path(r&#x27;C:\SP-Recovery\com.saltypandastudios.frontime.noedata&#x27;); Path(r&#x27;C:\SP-Recovery\simplyplural.tar&#x27;).write_bytes(p.read_bytes()[24:])&quot;</code></pre>
+<p><strong>Expected</strong></p>
+<p>No output.</p>
+<p>The following file should now exist:</p>
+<pre><code class="language-text">C:\SP-Recovery\simplyplural.tar</code></pre>
+<p>---</p>
+<h2 id="step-7-confirm-that-the-tar-contains-simply-db">Step 7 — Confirm that the TAR contains <code>simply.db</code></h2>
+<p>Run:</p>
+<pre><code class="language-cmd">tar -tf C:\SP-Recovery\simplyplural.tar | findstr /I &quot;app_flutter/simply.db&quot;</code></pre>
+<p><strong>Expected</strong></p>
+<pre><code class="language-text">apps/com.saltypandastudios.frontime/r/app_flutter/simply.db</code></pre>
+<p>---</p>
+<h2 id="step-8-extract-simply-db">Step 8 — Extract <code>simply.db</code></h2>
+<p>Run:</p>
+<pre><code class="language-cmd">tar -xf C:\SP-Recovery\simplyplural.tar -C C:\SP-Recovery apps/com.saltypandastudios.frontime/r/app_flutter/simply.db</code></pre>
+<p><strong>Expected</strong></p>
+<p>No output.</p>
+<p>The recovered file should now exist at:</p>
+<pre><code class="language-text">C:\SP-Recovery\apps\com.saltypandastudios.frontime\r\app_flutter\simply.db</code></pre>
+<p>---</p>
+<h2 id="step-9-confirm-that-simply-db-contains-json">Step 9 — Confirm that <code>simply.db</code> contains JSON</h2>
+<p>Run:</p>
+<pre><code class="language-cmd">python -c &quot;from pathlib import Path; p=Path(r&#x27;C:\SP-Recovery\apps\com.saltypandastudios.frontime\r\app_flutter\simply.db&#x27;); print(p.read_text(encoding=&#x27;utf-8&#x27;)[:40])&quot;</code></pre>
+<p><strong>Expected</strong></p>
+<p>Output beginning with:</p>
+<pre><code class="language-text">{&quot;private&quot;:{</code></pre>
+<p>The characters following that will vary by system.</p>
+<p>Despite its <code>.db</code> filename extension, <code>simply.db</code> contains JSON text.</p>
+<p>---</p>
+<h2 id="step-10-create-a-normal-utf-8-json-file">Step 10 — Create a normal UTF-8 <code>.json</code> file</h2>
+<p>Run:</p>
+<pre><code class="language-cmd">python -c &quot;import json; src=r&#x27;C:\SP-Recovery\apps\com.saltypandastudios.frontime\r\app_flutter\simply.db&#x27;; dst=r&#x27;C:\SP-Recovery\simply.pretty.utf8.json&#x27;; d=json.load(open(src,encoding=&#x27;utf-8&#x27;)); json.dump(d,open(dst,&#x27;w&#x27;,encoding=&#x27;utf-8&#x27;),ensure_ascii=False,indent=2)&quot;</code></pre>
+<p><strong>Expected</strong></p>
+<p>No output.</p>
+<p>The resulting JSON file should be:</p>
+<pre><code class="language-text">C:\SP-Recovery\simply.pretty.utf8.json</code></pre>
+<p>---</p>
+<h2 id="step-11-validate-the-json-syntax">Step 11 — Validate the JSON syntax</h2>
+<p>Run:</p>
+<pre><code class="language-cmd">python -m json.tool C:\SP-Recovery\simply.pretty.utf8.json &gt; nul</code></pre>
+<p><strong>Expected</strong></p>
+<p>No output.</p>
+<p>No output means Python successfully parsed the file as valid JSON.</p>
+<p>---</p>
+<h2 id="step-12-display-the-recovered-collections-and-record-counts">Step 12 — Display the recovered collections and record counts</h2>
+<p>Run:</p>
+<pre><code class="language-cmd">python -c &quot;import json; d=json.load(open(r&#x27;C:\SP-Recovery\simply.pretty.utf8.json&#x27;,encoding=&#x27;utf-8&#x27;)); [print(k, type(v).__name__, len(v) if hasattr(v,&#x27;__len__&#x27;) else &#x27;&#x27;) for k,v in d.items()]&quot;</code></pre>
+<p><strong>Expected</strong></p>
+<p>The exact collections and counts will vary by system.</p>
+<p>In the Samsung Galaxy S24+ system used to reproduce this procedure, the result was:</p>
+<pre><code class="language-text">private dict 1
+Privates dict 1
+users dict 1
+FrontHistory dict 32
+Users dict 1
+Channels dict 6
+Members dict 37
+fronthistory dict 99
+privates dict 1
+chatcategories dict 1
+customfields dict 7
+friends dict 2
+friendssettings dict 2
+privacybuckets dict 2
+members dict 49
+channels dict 6</code></pre>
+<p>Important recovered collections included:</p>
+<pre><code class="language-text">members
+fronthistory
+customfields
+privacybuckets
+channels
+friends
+friendssettings
+chatcategories
+users
+private</code></pre>
+<p>For this reproduced recovery, the JSON contained:</p>
+<ul>
+<li>49 records in the lowercase <code>members</code> collection
+</li>
+<li>99 records in the lowercase <code>fronthistory</code> collection
+</li>
+<li>7 custom-field records
+</li>
+<li>2 privacy-bucket records
+</li>
+<li>6 channel records
+</li>
+<li>2 friend records
+</li>
+<li>additional system and cached Simply Plural collections
+</li>
+</ul>
+<p>At this point, the structured Simply Plural data has been successfully recovered from the Samsung Smart Switch backup and converted into a validated UTF-8 JSON file.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

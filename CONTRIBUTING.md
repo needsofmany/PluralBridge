@@ -1,4 +1,15 @@
+# Contributing to PluralBridge
+
 Thanks for your interest in contributing.
+
+This guide explains how to propose work, where discussions happen, and the privacy/safety boundaries required for this project.
+
+## Quick Start
+
+1. Start from `dev` and create a focused feature branch.
+2. Keep changes small, testable, and scoped to one coherent goal.
+3. Open a pull request into `dev` with summary + test notes.
+4. Never include real export data, tokens, or private user/System details.
 
 ## License for Contributions
 
@@ -16,54 +27,30 @@ This workflow exists so contributors do not have to guess. It explains where con
 
 ## Where Project Discussions Happen
 
-Use GitHub Discussions for design proposals, broad questions, feature ideas, and governance conversations before work is scoped.
+Use these channels by purpose:
 
-Use GitHub Issues for accepted, actionable work.
+- **GitHub Discussions**: design proposals, broad questions, feature ideas, governance conversation before work is scoped ([https://github.com/needsofmany/PluralBridge/discussions](https://github.com/needsofmany/PluralBridge/discussions)).
+- **GitHub Issues**: accepted, actionable work.
+- **Pull requests**: review of actual code, documentation, website, or data-shape changes.
+- **Community spaces** (Discord, Facebook, Reddit, email): informal conversation and outreach.
 
-Use pull requests for review of actual code, documentation, website, or data-shape changes.
-
-Use Discord, Facebook, Reddit, email, and other community spaces for informal conversation and outreach. Project decisions that affect code, documentation, privacy posture, release behavior, supported workflows, or public messaging should be captured in GitHub so future contributors can see the reasoning.
+Project decisions that affect code, documentation, privacy posture, release behavior, supported workflows, or public messaging should be captured in GitHub so future contributors can see the reasoning.
 
 Security-sensitive or privacy-sensitive reports should use the project security reporting path instead of public discussion.
 
-## Branch and Deployment Workflow
+## Branch Workflow
 
-PluralBridge uses a small branch structure so production stays stable, development stays reviewable, and project work can be previewed before it reaches users.
+PluralBridge uses a small branch structure so production stays stable, development stays reviewable, and active work stays isolated.
 
 ### Branch roles
 
-#### master
+| Branch | Role | Rules |
+|---|---|---|
+| `master` | Production branch | Merge into `master` from `dev` only. Must never be in a broken state. Represents the current public release. |
+| `dev` | Stable integration branch for next release | Merge into `dev` from project branches only. Must never be in a broken state. Collects reviewed project work before release. |
+| `<project_branch>` | Active work branch | Create from `dev`. Keep scope to one coherent change. Test before merging back into `dev`. Use clear names like `feature/docs-rendering`, `feature/branching-workflow-docs`, or `patch/image-fix`. |
 
-`master` is the production branch.
-
-Rules for `master`:
-
-- `master` only gets merged from `dev`.
-- `master` must never be in a broken state.
-- `master` represents the current public release.
-
-#### dev
-
-`dev` is the stable integration branch for the next release.
-
-Rules for `dev`:
-
-- `dev` only gets merged from project branches.
-- `dev` must never be in a broken state.
-- `dev` is where reviewed project work is collected before release.
-
-#### <project_branch>
-
-A project branch is where active work happens.
-
-Rules for project branches:
-
-- Create ordinary feature branches from `dev`.
-- Keep each project branch focused on one coherent change.
-- Test the work before merging it back into `dev`.
-- Use clear branch names such as `feature/docs-rendering`, `feature/branching-workflow-docs`, or `patch/image-fix`.
-
-### Feature Branch Decisions
+### Feature branch decisions
 
 Feature branches are proposal branches. Opening a pull request does not guarantee acceptance.
 
@@ -87,7 +74,7 @@ Changes that should be discussed before coding include:
 
 Maintainers may ask for changes, ask that work be split, defer work to a later milestone, redirect work into a different branch, or close work that does not fit the project. A change can be technically correct and still be declined if it does not fit the project mission, privacy posture, accessibility goals, documentation tone, release plan, or community safety needs.
 
-### Patch Branches and Production Fixes
+### Patch branches and production fixes
 
 Patch branches are exceptional production-fix branches.
 
@@ -122,17 +109,17 @@ Patch workflow:
 5. `master` is tagged if the patch changes the released version.
 6. After the patch release goes live, `master` is merged or fast-forwarded back into `dev` so the production fix remains present in future releases.
 
-### Maintainer Authority and Delegation
+### Maintainer authority and delegation
 
 PluralBridge welcomes outside contributions, but contribution access is not the same thing as production authority. Maintainers are responsible for protecting the project's privacy posture, public trust, release stability, and community safety.
 
-### Development and Deployment Rules
+## Deployment Workflow
 
-#### Web development
+### Web and REST service deployment
 
 For website and REST service work, use GitHub pull requests and Cloudflare preview deployments so changes can be inspected before they merge forward.
 
-##### Pull request setup
+**Pull request checklist**
 
 - Open the pull request from the project branch into `dev`.
 - Use a short title that describes the change.
@@ -141,27 +128,24 @@ For website and REST service work, use GitHub pull requests and Cloudflare previ
 - List deployment notes, including whether the change affects the website, REST service, client apps, or documentation.
 - List the testing performed before requesting review.
 
-##### Finding the Cloudflare preview
+**Cloudflare preview steps**
 
 After the pull request is created, GitHub should show an **All checks have passed** box when the Cloudflare Pages deployment succeeds.
 
 1. Open the pull request conversation page.
 2. Scroll to the merge/status box near the bottom of the pull request.
-3. Expand the small chevron on the right side of the **All checks have passed** row.
-4. Find the **Cloudflare Pages** check row.
-5. Use the check details or three-dot menu on that row to open the deployment or preview page.
+3. Open the checks details for the Cloudflare Pages status entry.
+4. Follow the deployment or preview link shown in the check details.
 
 The preview URL is generated by Cloudflare after the branch is pushed and the pull request check runs. Contributors do not need Cloudflare dashboard access to find it.
 
-**Needs follow-up:** document the exact Cloudflare check menu labels after confirming the GitHub and Cloudflare UI wording.
-
-#### Client application work
+## Client Application Workflow (Current State)
 
 For Windows, Linux, macOS, Android, and iOS client work, the release workflow is still TBD.
 
 The project will need an automated build process that runs when client code is committed and pushed.
 
-### Contributor expectations
+## Contributor Expectations
 
 Contributors should keep changes small, reviewable, and safe.
 
@@ -245,7 +229,6 @@ Useful contribution areas include:
 ## Developer Notes
 
 - Preserve existing copyright and license notices.
-- Add a prominent notice to modified files when you make substantive changes.
 - Keep changes focused and well-described.
 - Update documentation when behavior changes.
 
@@ -259,19 +242,8 @@ Please include:
 
 ## Privacy and Safety
 
-Do not include real exported Simply Plural data in pull requests, issues, examples, screenshots, test fixtures, or documentation unless it is your own data and you intentionally chose to make it public.
+This section is a quick summary. The authoritative policy is in **Contributor Privacy Rules** above.
 
-Avoid publishing:
-
-- API tokens
-- user IDs
-- member names
-- avatar images
-- note contents
-- friends lists
-- fronting history
-- custom fields
-- privacy buckets
-- screenshots containing private data
-
-Use redacted examples and synthetic test data whenever possible.
+- Never include real exported Simply Plural data in pull requests, issues, examples, screenshots, test fixtures, or documentation.
+- Never include tokens, IDs, member names, avatars, notes, friends lists, fronting history, custom fields, privacy buckets, or screenshots containing private data.
+- Use synthetic fixtures and strongly redacted examples only.

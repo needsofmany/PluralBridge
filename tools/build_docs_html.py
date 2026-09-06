@@ -304,11 +304,8 @@ def page_title(markdown, fallback):
             return m.group(1).strip()
     return fallback
 
-def render_page(md_path):
-    markdown = md_path.read_text(encoding="utf-8")
-    title = page_title(markdown, md_path.stem.replace("-", " ").title())
-    body = markdown_to_html(markdown)
-    html_path = md_path.with_suffix(".html")
+def write_html_page(title, body, html_path):
+    html_path.parent.mkdir(parents=True, exist_ok=True)
     html_path.write_text(f"""<!doctype html>
 <html lang="en">
 <head>
@@ -330,6 +327,7 @@ def render_page(md_path):
 <script src="/vendor/prism/prism.js"></script>
 <script src="/vendor/prism/prism-autoloader.js"></script>
 <script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
 <script>
 if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {{
     window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
@@ -338,7 +336,23 @@ if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {{
 </body>
 </html>
 """, encoding="utf-8")
+
+def render_page(md_path):
+    markdown = md_path.read_text(encoding="utf-8")
+    title = page_title(markdown, md_path.stem.replace("-", " ").title())
+    body = markdown_to_html(markdown)
+    html_path = md_path.with_suffix(".html")
+    write_html_page(title, body, html_path)
     print(f"generated {html_path.relative_to(ROOT)}")
+
+def render_external_page(source_md, target_html):
+    if not source_md.exists():
+        return
+    markdown = source_md.read_text(encoding="utf-8")
+    title = page_title(markdown, source_md.stem.replace("-", " ").title())
+    body = markdown_to_html(markdown)
+    write_html_page(title, body, target_html)
+    print(f"generated {target_html.relative_to(ROOT)}")
 
 def update_docs_index():
     path = WEBSITE / "docs.html"
@@ -360,6 +374,7 @@ def sync_public_docs_sources():
     sync_pairs = [
         (DOCS_SOURCE / "schema", DOCS / "schema"),
         (DOCS_SOURCE / "system-modeling", DOCS / "system-modeling"),
+        (ROOT / "recovery", DOCS / "recovery"),
     ]
 
     copied = 0
@@ -377,12 +392,21 @@ def sync_public_docs_sources():
             shutil.copy2(source_file, target_file)
             copied += 1
 
+    for stale_path in [
+        DOCS / "project" / "contributing.md",
+        DOCS / "project" / "tag_tasks.md",
+    ]:
+        if stale_path.exists():
+            stale_path.unlink()
+
     print(f"synced {copied} public docs files into website/docs")
 
 def main():
     sync_public_docs_sources()
     for md_path in sorted(DOCS.rglob("*.md")):
         render_page(md_path)
+    render_external_page(ROOT / "CONTRIBUTING.md", DOCS / "project" / "contributing.html")
+    render_external_page(ROOT / "TAG_TASKS.md", DOCS / "project" / "tag_tasks.html")
     update_docs_index()
 
 if __name__ == "__main__":

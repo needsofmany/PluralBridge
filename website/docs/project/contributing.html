@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contributing to PluralBridge — PluralBridge Documentation</title>
+  <meta name="description" content="Contributing to PluralBridge. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/index.html">
+            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+            <span class="brand-text">
+                <span class="brand-title">PluralBridge</span>
+                <span class="brand-subtitle">Needs of the Many</span>
+            </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+            <a href="/index.html">Home</a>
+            <a href="/start-here.html">Start Here</a>
+            <a href="/export-now.html">Data Recovery</a>
+            <details class="nav-menu">
+                <summary data-current="section">Guides</summary>
+                <div class="nav-menu-panel">
+                    <a href="/docs.html">Documentation Home</a>
+                    <a href="/safety.html">Safety</a>
+                    <a href="/developer-workflow.html">Help Build</a>
+                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Projects</summary>
+                <div class="nav-menu-panel">
+                    <a href="/browser-app.html">What PluralBridge Is Building</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Community</summary>
+                <div class="nav-menu-panel">
+                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>About</summary>
+                <div class="nav-menu-panel">
+                    <a href="/about.html">About PluralBridge</a>
+                    <a href="/contact.html">Contact Us</a>
+                </div>
+            </details>
+            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+        </nav>
+    </div>
+</header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="contributing-to-pluralbridge">Contributing to PluralBridge</h1>
+<p>Thanks for your interest in contributing.</p>
+<p>This guide explains how to propose work, where discussions happen, and the privacy/safety boundaries required for this project.</p>
+<h2 id="quick-start">Quick Start</h2>
+<ol>
+<li>Start from <code>dev</code> and create a focused feature branch.</li>
+<li>Keep changes small, testable, and scoped to one coherent goal.</li>
+<li>Open a pull request into <code>dev</code> with summary + test notes.</li>
+<li>Never include real export data, tokens, or private user/System details.</li>
+</ol>
+<h2 id="license-for-contributions">License for Contributions</h2>
+<p>By submitting a pull request, patch, or other contribution to this repository, you agree that your contribution is provided under the same license as this project:</p>
+<p>GNU General Public License, version 3 or, at your option, any later version (GPL-3.0-or-later).</p>
+<h2 id="different-backgrounds-shared-workflow">Different Backgrounds, Shared Workflow</h2>
+<p>PluralBridge may attract contributors from several worlds: professional software development, open-source maintenance, plural-community support, documentation, data preservation, security, accessibility, and user advocacy.</p>
+<p>Those backgrounds do not all use the same habits or vocabulary. A professional developer may be new to GitHub Discussions, public issue triage, or open-source maintainer norms. An experienced open-source contributor may be new to the privacy, safety, and release-stability requirements of a project preserving sensitive plural System data.</p>
+<p>This workflow exists so contributors do not have to guess. It explains where conversations happen, how work becomes accepted, when maintainers need to decide, and how PluralBridge protects users while still welcoming outside help.</p>
+<h2 id="where-project-discussions-happen">Where Project Discussions Happen</h2>
+<p>Use these channels by purpose:</p>
+<ul>
+<li><strong>GitHub Discussions</strong>: design proposals, broad questions, feature ideas, governance conversation before work is scoped (<a href="https://github.com/needsofmany/PluralBridge/discussions">https://github.com/needsofmany/PluralBridge/discussions</a>).
+</li>
+<li><strong>GitHub Issues</strong>: accepted, actionable work.
+</li>
+<li><strong>Pull requests</strong>: review of actual code, documentation, website, or data-shape changes.
+</li>
+<li><strong>Community spaces</strong> (Discord, Facebook, Reddit, email): informal conversation and outreach.
+</li>
+</ul>
+<p>Project decisions that affect code, documentation, privacy posture, release behavior, supported workflows, or public messaging should be captured in GitHub so future contributors can see the reasoning.</p>
+<p>Security-sensitive or privacy-sensitive reports should use the project security reporting path instead of public discussion.</p>
+<h2 id="branch-workflow">Branch Workflow</h2>
+<p>PluralBridge uses a small branch structure so production stays stable, development stays reviewable, and active work stays isolated.</p>
+<h3 id="branch-roles">Branch roles</h3>
+<table><thead><tr>
+<th>Branch</th>
+<th>Role</th>
+<th>Rules</th>
+</tr></thead><tbody>
+<tr>
+<td><code>master</code></td>
+<td>Production branch</td>
+<td>Merge into <code>master</code> from <code>dev</code> only. Must never be in a broken state. Represents the current public release.</td>
+</tr>
+<tr>
+<td><code>dev</code></td>
+<td>Stable integration branch for next release</td>
+<td>Merge into <code>dev</code> from project branches only. Must never be in a broken state. Collects reviewed project work before release.</td>
+</tr>
+<tr>
+<td><code>&lt;project_branch&gt;</code></td>
+<td>Active work branch</td>
+<td>Create from <code>dev</code>. Keep scope to one coherent change. Test before merging back into <code>dev</code>. Use clear names like <code>feature/docs-rendering</code>, <code>feature/branching-workflow-docs</code>, or <code>patch/image-fix</code>.</td>
+</tr>
+</tbody></table>
+<h3 id="feature-branch-decisions">Feature branch decisions</h3>
+<p>Feature branches are proposal branches. Opening a pull request does not guarantee acceptance.</p>
+<p>Small fixes may be opened directly as pull requests. Larger changes should start with an issue or discussion before implementation.</p>
+<p>Changes that should be discussed before coding include:</p>
+<ul>
+<li>visual design or branding changes
+</li>
+<li>navigation or public website structure changes
+</li>
+<li>public messaging changes
+</li>
+<li>privacy, safety, or trust-boundary wording changes
+</li>
+<li>database schema changes
+</li>
+<li>export format changes
+</li>
+<li>importer or normalizer behavior changes
+</li>
+<li>authentication, token, or secret-handling changes
+</li>
+<li>REST API compatibility decisions
+</li>
+<li>client architecture decisions
+</li>
+<li>large refactors
+</li>
+<li>new dependencies
+</li>
+<li>changes that affect nontechnical-user workflows
+</li>
+</ul>
+<p>Maintainers may ask for changes, ask that work be split, defer work to a later milestone, redirect work into a different branch, or close work that does not fit the project. A change can be technically correct and still be declined if it does not fit the project mission, privacy posture, accessibility goals, documentation tone, release plan, or community safety needs.</p>
+<h3 id="patch-branches-and-production-fixes">Patch branches and production fixes</h3>
+<p>Patch branches are exceptional production-fix branches.</p>
+<p>Create a patch branch only when the current public release needs a targeted correction that should not wait for unreleased work already in <code>dev</code>.</p>
+<p>Contributors may propose patch handling by opening an issue or discussion explaining the production impact. A maintainer decides whether the issue qualifies for patch handling.</p>
+<p>Good reasons for a patch branch include:</p>
+<ul>
+<li>live website breakage
+</li>
+<li>privacy or safety wording already published on <code>master</code>
+</li>
+<li>broken public install, export, or run instructions
+</li>
+<li>release artifact problems
+</li>
+<li>serious production-facing bugs
+</li>
+<li>small urgent corrections that must ship without unrelated <code>dev</code> changes
+</li>
+</ul>
+<p>Poor reasons for a patch branch include:</p>
+<ul>
+<li>ordinary feature work
+</li>
+<li>broad documentation rewrites
+</li>
+<li>speculative refactoring
+</li>
+<li>experimental importer or viewer work
+</li>
+<li>wording polish that can wait for the next release
+</li>
+<li>changes that would pull unrelated <code>dev</code> work into production
+</li>
+</ul>
+<p>Patch workflow:</p>
+<ol>
+<li>A contributor or maintainer identifies the production-impacting issue.</li>
+<li>A maintainer approves patch handling.</li>
+<li>The patch branch is created from <code>master</code>.</li>
+<li>The patch is kept narrow and reviewed through a pull request into <code>master</code>.</li>
+<li><code>master</code> is tagged if the patch changes the released version.</li>
+<li>After the patch release goes live, <code>master</code> is merged or fast-forwarded back into <code>dev</code> so the production fix remains present in future releases.</li>
+</ol>
+<h3 id="maintainer-authority-and-delegation">Maintainer authority and delegation</h3>
+<p>PluralBridge welcomes outside contributions, but contribution access is not the same thing as production authority. Maintainers are responsible for protecting the project's privacy posture, public trust, release stability, and community safety.</p>
+<h2 id="deployment-workflow">Deployment Workflow</h2>
+<h3 id="web-and-rest-service-deployment">Web and REST service deployment</h3>
+<p>For website and REST service work, use GitHub pull requests and Cloudflare preview deployments so changes can be inspected before they merge forward.</p>
+<p><strong>Pull request checklist</strong></p>
+<ul>
+<li>Open the pull request from the project branch into <code>dev</code>.
+</li>
+<li>Use a short title that describes the change.
+</li>
+<li>In the description, include a summary of what changed.
+</li>
+<li>List the branch model or workflow rules affected by the change, when applicable.
+</li>
+<li>List deployment notes, including whether the change affects the website, REST service, client apps, or documentation.
+</li>
+<li>List the testing performed before requesting review.
+</li>
+</ul>
+<p><strong>Cloudflare preview steps</strong></p>
+<p>After the pull request is created, GitHub should show an <strong>All checks have passed</strong> box when the Cloudflare Pages deployment succeeds.</p>
+<ol>
+<li>Open the pull request conversation page.</li>
+<li>Scroll to the merge/status box near the bottom of the pull request.</li>
+<li>Open the checks details for the Cloudflare Pages status entry.</li>
+<li>Follow the deployment or preview link shown in the check details.</li>
+</ol>
+<p>The preview URL is generated by Cloudflare after the branch is pushed and the pull request check runs. Contributors do not need Cloudflare dashboard access to find it.</p>
+<h2 id="client-application-workflow-current-state">Client Application Workflow (Current State)</h2>
+<p>For Windows, Linux, macOS, Android, and iOS client work, the release workflow is still TBD.</p>
+<p>The project will need an automated build process that runs when client code is committed and pushed.</p>
+<h2 id="contributor-expectations">Contributor Expectations</h2>
+<p>Contributors should keep changes small, reviewable, and safe.</p>
+<p>Expected behavior:</p>
+<ul>
+<li>Start from the correct branch.
+</li>
+<li>Keep unrelated changes out of the same pull request.
+</li>
+<li>Do not commit generated exports, private data, credentials, local database files, or machine-specific artifacts.
+</li>
+<li>Include a clear summary of what changed and how it was tested.
+</li>
+<li>Update documentation when behavior, commands, website pages, or user-facing workflows change.
+</li>
+</ul>
+<h2 id="contributor-privacy-rules">Contributor Privacy Rules</h2>
+<p>PluralBridge works with sensitive preservation data. Contributors must keep real user and System data out of public project work.</p>
+<p>Do not include any of the following in issues, pull requests, commits, examples, screenshots, logs, fixtures, documentation, or support discussions:</p>
+<ul>
+<li>real Simply Plural export files
+</li>
+<li>real PluralBridge export folders
+</li>
+<li>API tokens or authorization headers
+</li>
+<li>security logs
+</li>
+<li>IP addresses from exports or logs
+</li>
+<li>private notes or message content
+</li>
+<li>real member names or profile data
+</li>
+<li>avatar images from real Systems
+</li>
+<li>friend data
+</li>
+<li>fronting history
+</li>
+<li>private custom fields
+</li>
+<li>privacy bucket data
+</li>
+<li>database files created from real exports
+</li>
+</ul>
+<p>Use synthetic test data or carefully redacted examples. Redaction must remove private values, stable identifiers, tokens, account data, and anything that could expose a real System.</p>
+<p>Official Simply Plural exports should be treated as secret-bearing private backup files. They may contain account, token, security, private, note, message, friend, avatar-reference, report, usage, and System data.</p>
+<h2 id="project-independence-boundaries">Project Independence Boundaries</h2>
+<p>PluralBridge is an independent preservation and continuity project. It is not affiliated with Simply Plural or Apparyllis.</p>
+<p>Contributors must not copy or import Simply Plural or Apparyllis private implementation materials.</p>
+<p>Do not contribute work based on:</p>
+<ul>
+<li>decompiled application code
+</li>
+<li>reverse engineered private implementation details
+</li>
+<li>copied Simply Plural UI layouts or app flows
+</li>
+<li>copied Simply Plural branding or visual identity
+</li>
+<li>private server behavior that is not exposed through public user-facing APIs or documented behavior
+</li>
+<li>authentication systems copied from Simply Plural or Apparyllis
+</li>
+</ul>
+<p>Interoperability work should stay focused on user-owned exported data, documented/public API behavior, local preservation, validation, migration, and future compatible interfaces where feasible.</p>
+<h2 id="plural-community-conduct">Plural Community Conduct</h2>
+<p>PluralBridge serves plural Systems and people preserving sensitive personal records. Contributors should reduce friction and protect user agency.</p>
+<p>Expected conduct:</p>
+<ul>
+<li>Respect plural Systems and plural-community language.
+</li>
+<li>Do not ask users to disclose private System details.
+</li>
+<li>Do not ask users to upload private exports for troubleshooting.
+</li>
+<li>Do not turn support or development threads into debates about identity, diagnosis, legitimacy, or community politics.
+</li>
+<li>Assume users may be under shutdown pressure and may be worried about losing years of records.
+</li>
+<li>Keep explanations practical, calm, and privacy-preserving.
+</li>
+</ul>
+<h2 id="current-ways-developers-can-help">Current Ways Developers Can Help</h2>
+<p>Useful contribution areas include:</p>
+<ul>
+<li>official Simply Plural export inspection and normalization using synthetic fixtures
+</li>
+<li>tests for normalizer behavior and export validation
+</li>
+<li>SQLite support for local/offline use
+</li>
+<li>validation reports and readable summaries
+</li>
+<li>documentation for nontechnical users
+</li>
+<li>website accessibility and clarity improvements
+</li>
+<li>SQL review and report-query improvements
+</li>
+<li>local viewer prototypes
+</li>
+<li>import bridges for other plural tools when those projects want them
+</li>
+<li>safe synthetic sample data shaped like Simply Plural data without exposing real System data
+</li>
+</ul>
+<h2 id="developer-notes">Developer Notes</h2>
+<ul>
+<li>Preserve existing copyright and license notices.
+</li>
+<li>Keep changes focused and well-described.
+</li>
+<li>Update documentation when behavior changes.
+</li>
+</ul>
+<h2 id="pull-requests">Pull Requests</h2>
+<p>Please include:</p>
+<ul>
+<li>a clear description of the change
+</li>
+<li>the reason for the change
+</li>
+<li>any testing performed
+</li>
+</ul>
+<h2 id="privacy-and-safety">Privacy and Safety</h2>
+<p>This section is a quick summary. The authoritative policy is in <strong>Contributor Privacy Rules</strong> above.</p>
+<ul>
+<li>Never include real exported Simply Plural data in pull requests, issues, examples, screenshots, test fixtures, or documentation.
+</li>
+<li>Never include tokens, IDs, member names, avatars, notes, friends lists, fronting history, custom fields, privacy buckets, or screenshots containing private data.
+</li>
+<li>Use synthetic fixtures and strongly redacted examples only.
+</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>
