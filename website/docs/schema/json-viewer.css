@@ -1,0 +1,85 @@
+:root {
+  color-scheme: light dark;
+}
+
+.json-page {
+  width: min(1200px, 94vw);
+}
+
+.json-card {
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+#json-status {
+  margin: 0 0 0.55rem;
+  color: #9ca3af;
+}
+
+#json-output {
+  margin: 0.4rem 0 0;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #f7f8fa;
+  color: #1f2937;
+  padding: 10px 12px;
+  max-height: 76vh;
+  overflow: auto;
+  white-space: pre;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.08;
+  tab-size: 2;
+}
+
+#json-output .json-key {
+  color: #a31515;
+}
+
+#json-output .json-string {
+  color: #0f766e;
+}
+
+#json-output .json-number {
+  color: #2563eb;
+}
+
+#json-output .json-literal {
+  color: #7c3aed;
+  font-weight: 700;
+}
+
+#json-output .json-punct {
+  color: #374151;
+}
+
+@media (prefers-color-scheme: dark) {
+  #json-output {
+    border-color: #334155;
+    background: #0f172a;
+    color: #e5e7eb;
+  }
+
+  #json-output .json-key {
+    color: #fda4af;
+  }
+
+  #json-output .json-string {
+    color: #5eead4;
+  }
+
+  #json-output .json-number {
+    color: #93c5fd;
+  }
+
+  #json-output .json-literal {
+    color: #c4b5fd;
+  }
+
+  #json-output .json-punct {
+    color: #cbd5e1;
+  }
+
+  #json-status {
+    color: #cbd5e1;
+  }
+}

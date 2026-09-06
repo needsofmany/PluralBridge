@@ -14,6 +14,24 @@ This note captures standalone example structures that help express and test desi
 - Assume examples are independent; no single example is the official topology.
 - Test focus switching, permission checks, and query scoping against several shapes, not just the simple case.
 
+## Global Working Rule (Applies To Every Example)
+
+The account may have access to multiple Systems, but one System is active at a time.
+
+### Example
+
+- **Accessible Systems**: System A, System B, System C
+- **Focused System**: System B
+- **Current front state**:
+  - Member A fronting
+  - Member B co-fronting
+
+Interpretation:
+
+- 🧭 **Focus answers**: Which System context is active?
+- **Fronting answers**: Who or what is active inside that context?
+- 🔐 **Access still comes from membership/consent/policy**, not from relationship shape.
+
 ## Quick Concept Key
 
 - 🌲 **Tree model** = parent/child-style structure.
@@ -40,6 +58,7 @@ The central idea is that PluralBridge should not force every plural System into 
 
 A person signs in and has one System.
 
+```text
 Account
 └── System: The Harbor
     ├── Member: A
@@ -48,6 +67,7 @@ Account
     ├── Groups
     ├── Notes
     └── Front history
+```
 
 This is the default model: one account, one System, members inside it, and one focused System context.
 
@@ -57,14 +77,15 @@ This is the default model: one account, one System, members inside it, and one f
 
 A person has more than one root-level System. Neither root owns the other.
 
+```text
 Account
 ├── System: The Harbor
 │   ├── Members
 │   └── Front history
-│
 └── System: The Observatory
     ├── Members
     └── Notes
+```
 
 This supports a user who experiences two distinct top-level structures. The app treats both as root Systems because neither has a parent relationship.
 
@@ -74,14 +95,15 @@ This supports a user who experiences two distinct top-level structures. The app 
 
 One System contains or relates to a smaller child System.
 
+```text
 Account
 └── System: Main House
     ├── Member: Rowan
     ├── Member: Tess
-    │
     └── Child System: The Workshop
         ├── Member: Kit
         └── Member: Lark
+```
 
 The parent / child relationship describes structure. Access and privacy remain governed by membership, consent, and policy.
 
@@ -91,9 +113,11 @@ The parent / child relationship describes structure. Access and privacy remain g
 
 Two Systems share a common relationship, but neither controls the other.
 
+```text
 Account
 ├── System: Day Team
 └── System: Night Team
+```
 
 This is useful for Systems that see themselves as parallel, cooperative, or operationally separate.
 
@@ -103,11 +127,12 @@ This is useful for Systems that see themselves as parallel, cooperative, or oper
 
 Two Systems are associated without a parent / child shape.
 
+```text
 Account
 ├── System: The Harbor
-│
 └── System: The Archive
-    relationship to The Harbor: "related"
+    └── relationship to The Harbor: "related"
+```
 
 This could represent shared history, partial overlap, a past structure, or a loosely connected internal organization.
 
@@ -117,6 +142,7 @@ This could represent shared history, partial overlap, a past structure, or a loo
 
 A member, group, or internal cluster may have its own structure.
 
+```text
 System: The Harbor
 ├── Member: Alex
 ├── Member: Morgan
@@ -124,6 +150,7 @@ System: The Harbor
 │       ├── Member: M1
 │       └── Member: M2
 └── Member: Rae
+```
 
 This is one of the models where a strict flat member list starts to run out of descriptive power.
 
@@ -133,10 +160,12 @@ This is one of the models where a strict flat member list starts to run out of d
 
 The user knows two structures are connected, and the exact relationship is still forming.
 
+```text
 Account
 ├── System: The Harbor
 └── System: North Wing
-    relationship to The Harbor: "unknown" or "evolving"
+    └── relationship to The Harbor: "unknown" or "evolving"
+```
 
 This gives the user a way to preserve reality-in-progress without prematurely naming it.
 
@@ -146,10 +175,12 @@ This gives the user a way to preserve reality-in-progress without prematurely na
 
 A System or structure still matters historically, but is no longer active.
 
+```text
 Account
 ├── System: Current System
 └── System: Old Map
-    status: archived
+    └── status: archived
+```
 
 This helps preserve migration meaning, old fronting records, old notes, and past organization.
 
@@ -159,46 +190,20 @@ This helps preserve migration meaning, old fronting records, old notes, and past
 
 Some Systems may have overlapping or cross-linked relationships.
 
+```text
 Account
 ├── System: A
 ├── System: B
 └── System: C
+```
 
-Relationships:
-A related to B
-B sibling of C
-C associated with A
+Relationship examples:
+
+- A related to B
+- B sibling of C
+- C associated with A
 
 This breaks the ordinary tree assumption. The structure becomes a graph of relationships instead of a single trunk with branches.
-
-
-
-## 10. Focus-Based Working Model
-
-The account has access to multiple Systems, but one System is active at a time.
-
-Account has access to:
-- The Harbor
-- The Observatory
-- The Archive
-
-Current focus:
-The Observatory
-
-Inside the focused System, fronting can still be separate.
-
-Focused System: The Observatory
-Current front state:
-- Mira fronting
-- Sol co-fronting
-
-This keeps System focus and fronting as separate concepts.
-
-Focus answers:
-Which System context is active?
-
-Fronting answers:
-Who or what is active inside that context?
 
 
 

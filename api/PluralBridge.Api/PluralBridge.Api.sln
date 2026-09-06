@@ -11,6 +11,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Website", "Website", "{02EA
 		..\..\website\browser-app.html = ..\..\website\browser-app.html
 		..\..\website\contact.html = ..\..\website\contact.html
 		..\..\website\developer-workflow.html = ..\..\website\developer-workflow.html
+		..\..\website\docs-topic-toggle.js = ..\..\website\docs-topic-toggle.js
 		..\..\website\docs.html = ..\..\website\docs.html
 		..\..\website\export-now.html = ..\..\website\export-now.html
 		..\..\website\googleb087a67406285ba0.html = ..\..\website\googleb087a67406285ba0.html

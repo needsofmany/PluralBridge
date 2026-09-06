@@ -62,10 +62,6 @@ def slugify(text):
     text = re.sub(r"[^a-z0-9]+", "-", text)
     return text.strip("-") or "section"
 
-def should_preserve_md_link(href):
-    normalized = href.split("?", 1)[0].split("#", 1)[0].lstrip("./")
-    return normalized.startswith("schema/") or normalized.startswith("docs/schema/")
-
 def inline_markup(text):
     text = html.escape(text, quote=False)
 
@@ -75,7 +71,6 @@ def inline_markup(text):
         if (
             src.endswith(".md")
             and not re.match(r"^[a-z]+://", src, re.IGNORECASE)
-            and not should_preserve_md_link(src)
         ):
             src = src[:-3] + ".html"
         return f'<img src="{html.escape(src, quote=True)}" alt="{alt}">'
@@ -86,14 +81,15 @@ def inline_markup(text):
         if (
             href.endswith(".md")
             and not re.match(r"^[a-z]+://", href, re.IGNORECASE)
-            and not should_preserve_md_link(href)
         ):
             href = href[:-3] + ".html"
         return f'<a href="{html.escape(href, quote=True)}">{label}</a>'
 
     text = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", image_repl, text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link_repl, text)
-    text = re.sub(r"`([^`]+)`", lambda m: "<code>" + html.escape(m.group(1)) + "</code>", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", text)
+    text = re.sub(r"`([^`]+)`", lambda m: "<code>" + m.group(1) + "</code>", text)
     return text
 
 def markdown_to_html(markdown):
@@ -102,9 +98,11 @@ def markdown_to_html(markdown):
     in_code = False
     code_lang = "text"
     code_lines = []
-    in_ul = False
+    ul_depth = 0
+    ul_li_open = []
     in_ol = False
     in_table = False
+    in_blockquote = False
 
     def split_table_row(line):
         cells = line.strip().strip("|").split("|")
@@ -115,10 +113,15 @@ def markdown_to_html(markdown):
         return bool(cells) and all(re.match(r"^:?-{3,}:?$", cell) for cell in cells)
 
     def close_lists():
-        nonlocal in_ul, in_ol
-        if in_ul:
+        nonlocal ul_depth, ul_li_open, in_ol
+        while ul_depth > 0:
+            if ul_li_open and ul_li_open[-1]:
+                out.append("</li>")
+                ul_li_open[-1] = False
             out.append("</ul>")
-            in_ul = False
+            ul_depth -= 1
+            if ul_li_open:
+                ul_li_open.pop()
         if in_ol:
             out.append("</ol>")
             in_ol = False
@@ -129,9 +132,16 @@ def markdown_to_html(markdown):
             out.append("</tbody></table>")
             in_table = False
 
+    def close_blockquote():
+        nonlocal in_blockquote
+        if in_blockquote:
+            out.append("</blockquote>")
+            in_blockquote = False
+
     def close_blocks():
         close_lists()
         close_table()
+        close_blockquote()
 
     i = 0
     while i < len(lines):
@@ -164,6 +174,17 @@ def markdown_to_html(markdown):
 
         if not line.strip():
             close_blocks()
+            i += 1
+            continue
+
+        quote = re.match(r"^\s*>\s?(.*)$", line)
+        if quote:
+            close_lists()
+            close_table()
+            if not in_blockquote:
+                out.append("<blockquote>")
+                in_blockquote = True
+            out.append("<p>" + inline_markup(quote.group(1)) + "</p>")
             i += 1
             continue
 
@@ -210,18 +231,50 @@ def markdown_to_html(markdown):
             i += 1
             continue
 
-        bullet = re.match(r"^\s*-\s+(.*)$", line)
+        bullet = re.match(r"^(\s*)-\s+(.*)$", line)
         if bullet:
-            if not in_ul:
-                close_blocks()
+            close_table()
+            close_blockquote()
+            if in_ol:
+                out.append("</ol>")
+                in_ol = False
+
+            indent = len(bullet.group(1).expandtabs(2))
+            target_depth = (indent // 2) + 1
+            if target_depth > ul_depth + 1:
+                target_depth = ul_depth + 1
+
+            while ul_depth < target_depth:
                 out.append("<ul>")
-                in_ul = True
-            out.append("<li>" + inline_markup(bullet.group(1)) + "</li>")
+                ul_depth += 1
+                ul_li_open.append(False)
+            while ul_depth > target_depth:
+                if ul_li_open and ul_li_open[-1]:
+                    out.append("</li>")
+                    ul_li_open[-1] = False
+                out.append("</ul>")
+                ul_depth -= 1
+                ul_li_open.pop()
+
+            if ul_li_open and ul_li_open[-1]:
+                out.append("</li>")
+                ul_li_open[-1] = False
+
+            out.append("<li>" + inline_markup(bullet.group(2)))
+            ul_li_open[-1] = True
             i += 1
             continue
 
         numbered = re.match(r"^\s*\d+\.\s+(.*)$", line)
         if numbered:
+            if ul_depth > 0:
+                while ul_depth > 0:
+                    if ul_li_open and ul_li_open[-1]:
+                        out.append("</li>")
+                        ul_li_open[-1] = False
+                    out.append("</ul>")
+                    ul_depth -= 1
+                    ul_li_open.pop()
             if not in_ol:
                 close_blocks()
                 out.append("<ol>")
@@ -276,6 +329,7 @@ def render_page(md_path):
 </main>
 <script src="/vendor/prism/prism.js"></script>
 <script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/roadmap-accordion.js"></script>
 <script>
 if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {{
     window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
@@ -294,7 +348,7 @@ def update_docs_index():
         href = match.group(1)
         if re.match(r"^[a-z]+://", href, re.IGNORECASE):
             return f'href="{href}"'
-        if href.endswith(".md") and not should_preserve_md_link(href):
+        if href.endswith(".md"):
             href = href[:-3] + ".html"
         return f'href="{href}"'
 

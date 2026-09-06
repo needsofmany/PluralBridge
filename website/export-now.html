@@ -94,81 +94,80 @@
         </section>
 
         <section class="section notice" id="recovery-paths">
-            <h2>There are now two paths to preserving your Simply Plural data.</h2>
+            <h2>Choose your recovery path</h2>
 
-            <h3>Path A — You did not export before shutdown</h3>
+            <h3>Path A — You already have a Simply Plural export</h3>
+            <ul>
+                <li>Keep your export private and under your control.</li>
+                <li>Keep at least two backups in separate locations.</li>
+                <li>Use this export path first if your app already supports Simply Plural imports.</li>
+            </ul>
+
+            <h3>Path B — You do not have an export</h3>
+            <ul>
+                <li>If Simply Plural still shows your System on-device, preserve that phone immediately.</li>
+                <li>Do not uninstall Simply Plural, clear app data, or factory-reset the phone.</li>
+                <li>Use phone backup recovery paths where supported.</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2>Current device status</h2>
+            <ul class="recovery-status">
+                <li><img class="mfgr-icon samsung" src="https://cdn.simpleicons.org/samsung/1428A0" alt="Samsung"> Samsung Galaxy S24+: data extraction available now.</li>
+                <li><img class="mfgr-icon samsung" src="https://cdn.simpleicons.org/samsung/1428A0" alt="Samsung"> Samsung Galaxy S24+ avatars: not available yet.</li>
+                <li><img class="mfgr-icon google" src="https://cdn.simpleicons.org/google/4285F4" alt="Google"> Google Pixel 10a: investigation started.</li>
+                <li class="mfgr-apple"><img class="mfgr-icon apple" src="https://cdn.simpleicons.org/apple/FFFFFF" alt="Apple"> Apple iPhone 16: investigation in progress.</li>
+            </ul>
+        </section>
+
+        <section class="section notice">
+            <h2>For plural-app developers</h2>
             <p>
-                If Simply Plural still exists on your phone and still shows your System, preserve the phone.
-                On a Samsung Galaxy S24+, we have successfully recovered the locally stored structured data
-                using Samsung Smart Switch and converted it into validated JSON.
+                If your app already supports Simply Plural imports, you can use our phone export documentation
+                to add native import paths for users who no longer have export files.
             </p>
             <p>
-                Do not uninstall Simply Plural, clear its app data, or factory-reset the phone before attempting recovery.
-            </p>
-
-            <h3>Path B — You already have a Simply Plural export</h3>
-            <p>
-                Keep that export private, backed up, and somewhere you control. It remains the simplest path
-                for applications that already support Simply Plural imports.
+                Recovery docs and scripts are published so users can recover locally without sending private System data
+                to Needs of the Many / PluralBridge.
             </p>
         </section>
 
         <section class="section">
             <h2>What we recovered</h2>
             <p>
-                The Samsung Galaxy S24+ recovery produced structured Simply Plural JSON data rather than screenshots
-                or screen-scraped text.
-            </p>
-            <p>
-                The recovered local data included:
+                On a Samsung Galaxy S24+, recovery produced structured Simply Plural JSON instead of screenshots or
+                screen-scraped text.
             </p>
             <ul>
                 <li>Member records and profile data.</li>
                 <li>Fronting history and timestamps.</li>
-                <li>Custom fields.</li>
-                <li>Privacy buckets.</li>
-                <li>Channels.</li>
-                <li>Friends and friend settings.</li>
-                <li>System and user information.</li>
-                <li>Additional locally cached Simply Plural records.</li>
+                <li>Custom fields and privacy buckets.</li>
+                <li>Channels, friends, and friend settings.</li>
+                <li>System and user information plus additional cached records.</li>
             </ul>
             <p>
-                Avatar recovery is still under investigation. The structured member records retain avatar identifiers,
-                and we have also recovered recognizable Simply Plural-related source images, but we do not yet have a
-                complete machine-readable mapping between those images and individual member records.
+                Avatar recovery is still in progress. Member records retain avatar identifiers, but a complete
+                machine-readable member-to-image mapping is not yet available.
             </p>
         </section>
 
         <section class="section">
             <h2>What to do now</h2>
             <ul>
-                <li>If you already have a Simply Plural export, keep it private, backed up, and somewhere you control.</li>
-                <li>If you did not export and Simply Plural still exists on your phone, preserve the device and do not clear the app data.</li>
-                <li>Keep recovered JSON, Smart Switch backups, and other recovery files private.</li>
-                <li>Keep Simply Plural data out of public GitHub repositories, paste sites, screenshots, and public support threads.</li>
-                <li>Do not send your export, recovered JSON, or app backup to Needs of the Many / PluralBridge.</li>
+                <li>If you already have an export, keep it private and backed up.</li>
+                <li>If you do not have an export, preserve the phone and avoid app-data resets.</li>
+                <li>Keep recovered JSON, phone backups, and recovery artifacts private.</li>
+                <li>Keep Simply Plural data out of public repos, paste sites, screenshots, and support threads.</li>
+                <li>Do not send your export, recovered JSON, or backup files to Needs of the Many / PluralBridge.</li>
             </ul>
-        </section>
-
-        <section class="section">
-            <h2>What we learned after shutdown</h2>
-            <p>
-                Simply Plural can retain structured local System data on the phone after the servers are gone.
-                On a Samsung Galaxy S24+, we successfully recovered that data from a Smart Switch backup,
-                extracted <code>simply.db</code>, and converted it into validated UTF-8 JSON.
-            </p>
-            <p>
-                We are documenting the recovery process, publishing the technical details and scripts, and continuing
-                work on avatar recovery. We do not yet know whether the same acquisition path will work on non-Samsung
-                Android phones.
-            </p>
         </section>
 
         <section class="section">
             <h2>Recovery instructions and script</h2>
             <p>
-                The confirmed Samsung Smart Switch recovery procedure and supporting command script are published
-                in the PluralBridge repository.
+                The confirmed Samsung Smart Switch recovery procedure and command script are published in the
+                PluralBridge repository.
             </p>
             <ul>
                 <li>
@@ -183,25 +182,7 @@
                 </li>
             </ul>
             <p>
-                These materials are intended to let recovery happen locally. Do not send your recovered Simply Plural
-                data to Needs of the Many / PluralBridge.
-            </p>
-        </section>
-
-        <section class="section notice">
-            <h2>For plural-app developers</h2>
-            <p>
-                If your application already supports Simply Plural imports, we want to work with you on a second path
-                for users who did not create an export before shutdown.
-            </p>
-            <p>
-                Needs of the Many / PluralBridge will publish the technical documentation, recovery scripts,
-                data-format findings, and reference implementation needed to support this recovery path.
-                Users should not need to send their private System data to us.
-            </p>
-            <p>
-                PluralBridge is developed under the GNU General Public License v3.0. Recovery code and documentation
-                that we publish will include the applicable copyright, license, and attribution notices.
+                Run recovery locally and keep all recovered data private.
             </p>
         </section>
 

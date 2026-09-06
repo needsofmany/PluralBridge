@@ -1,0 +1,16 @@
+document.addEventListener("DOMContentLoaded", () => {
+  const toggles = document.querySelectorAll(".docs-topic-toggle");
+  toggles.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const expanded = btn.getAttribute("aria-expanded") === "true";
+      const nextState = !expanded;
+      btn.setAttribute("aria-expanded", String(nextState));
+
+      const chevron = btn.querySelector(".docs-topic-chevron");
+      if (chevron) chevron.textContent = nextState ? "^" : "v";
+
+      const body = btn.closest(".docs-topic")?.querySelector(".docs-topic-body");
+      if (body) body.hidden = !nextState;
+    });
+  });
+});
