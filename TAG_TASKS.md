@@ -6,7 +6,7 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
-## Unreleased — Tasks.UseRoles member write role enforcement
+## v0.8.8 — Tasks.UseRoles member write role enforcement
 
 ### Major tasks completed
 
