@@ -78,15 +78,15 @@
     <main>
         <section class="hero">
             <p class="eyebrow">What PluralBridge is building</p>
-            <h1>A browser-based place for preserved Simply Plural data to land.</h1>
+            <h1>A browser-based home for preserved Simply Plural data.</h1>
             <p class="lede">
-                PluralBridge is moving from emergency preservation toward the first browser-based release. The current focus
-                is the release spine: account setup, Simply Plural import preview before saving, and member profiles that can
-                be viewed, added, and updated.
+                PluralBridge is building the first public release around one practical goal:
+                give users a safe place to land preserved Simply Plural data and keep using it.
             </p>
             <p class="lede">
-                Once that spine is complete, the public Preview can open without sending users to an old proof-of-concept or
-                asking anyone to risk private System data.
+                Current work covers account setup, import preview before save, member profiles, fronting/history,
+                and recovery support for users without exports, including a confirmed Samsung S24+ path while Pixel 10a
+                and iPhone 16 recovery paths remain in active investigation.
             </p>
             <div class="actions">
                 <a class="button primary" href="developer-workflow.html">Help build PluralBridge</a>
@@ -95,93 +95,232 @@
             </div>
         </section>
 
-        <section class="section notice">
-            <h2>Preview is intentionally gated.</h2>
-            <p>
-                The public Preview should open after the first release spine is ready: account setup, import review, and
-                editable member profiles.
-            </p>
-            <p>
-                Until then, PluralBridge is not asking users to upload exports, enter tokens, send screenshots, or move
-                private System data into the project.
-            </p>
-        </section>
-
         <section class="section">
-            <h2>The first release spine</h2>
+            <h2>What the first release includes</h2>
+            <p><strong>Legend:</strong> ✅ done, 🟨 in progress (basic parts working), ⬜ planned / not started</p>
             <ul>
-                <li><strong>Account:</strong> establish who is using PluralBridge.</li>
-                <li><strong>System and membership:</strong> establish what System the account belongs to and what access it has.</li>
-                <li><strong>Import preview:</strong> let users review a preserved Simply Plural export before anything is saved.</li>
-                <li><strong>Member profiles:</strong> let users view, add, and update member profiles in the browser.</li>
-                <li><strong>Privacy boundary:</strong> keep private System data under clear user control.</li>
+                <li>✅ <strong>Recovery documentation and scripts:</strong> published for local recovery workflows.</li>
+                <li>✅ <strong>Public schema and recovery docs:</strong> published for outside developer use.</li>
+                <li>⬜ <strong>Account and sign-in:</strong> identify who is using PluralBridge.</li>
+                <li>✅ <strong>Systems membership boundary:</strong> resolve which Systems an account can access.</li>
+                <li>✅ <strong>Roles and permissions:</strong> enforce role-based access for private System data actions.</li>
+                <li>⬜ <strong>Import preview:</strong> review preserved data before writing anything.</li>
+                <li>✅ <strong>Member profiles:</strong> view, add, and update profiles in the browser.</li>
+                <li>⬜ <strong>Fronting and history:</strong> view and update fronting status with usable history.</li>
+                <li>⬜ <strong>Custom fields:</strong> preserve and edit custom field data from imported records.</li>
+                <li>🟨 <strong>Consent and audit trails:</strong> basic tracking is in place; fuller coverage is still being built.</li>
+                <li>⬜ <strong>Privacy controls:</strong> keep private System data under user control.</li>
             </ul>
         </section>
 
         <section class="section">
-            <h2>Why this comes first</h2>
-            <p>
-                Account and import complete the project spine. After that, PluralBridge has the core shape of a real
-                replacement path: a user can sign in, connect to a System, review preserved data, and work with member
-                profiles.
-            </p>
-            <p>
-                Later features can build outward from that foundation instead of trying to compensate for a missing spine.
-            </p>
-        </section>
-
-        <section class="section">
-            <h2>What the first release should do</h2>
+            <h2>Recovery progress</h2>
+            <p><strong>Legend:</strong> ✅ done, 🟨 in progress (basic parts working), ⬜ planned / not started</p>
             <ul>
-                <li>Run in a modern web browser.</li>
-                <li>Support account setup and sign-in.</li>
-                <li>Resolve account, System, and membership access.</li>
-                <li>Let users review a Simply Plural export before saving anything.</li>
-                <li>Show member profiles in a readable browser view.</li>
-                <li>Let users add and update member profiles.</li>
-                <li>Avoid exposing private System data through public examples, logs, screenshots, or support paths.</li>
+                <li>✅ <strong>Samsung Galaxy S24+ structured extraction:</strong> confirmed and documented.</li>
+                <li>🟨 <strong>Samsung Galaxy S24+ avatar mapping:</strong> extraction evidence exists; full member-to-avatar mapping is still being built.</li>
+                <li>⬜ <strong>Google Pixel 10a recovery path:</strong> investigation in progress.</li>
+                <li>⬜ <strong>Apple iPhone 16 recovery path:</strong> investigation in progress.</li>
+                <li>✅ <strong>Public recovery references:</strong> recovery docs and schema references are published for outside developers.</li>
             </ul>
         </section>
 
-        <section class="grid" aria-label="First release pieces">
-            <article class="card">
-                <h3>1. Account</h3>
-                <p>Give PluralBridge the account and membership foundation needed before private System data can be saved or edited.</p>
-            </article>
+        <section class="section">
+            <h2>How recovery work affects app development</h2>
+            <p>
+                Data recovery work has consumed meaningful engineering time that would otherwise be spent only on app features.
+                That work is still necessary because users without exports need a realistic path to keep their data.
+            </p>
+            <p>
+                Current active recovery investigation includes Pixel 10a and iPhone 16, while Samsung S24+ structured extraction
+                is already confirmed. Recovery and app development are moving in parallel, but the split effort affects pace.
+            </p>
+        </section>
 
-            <article class="card">
-                <h3>2. Import preview</h3>
-                <p>Inspect preserved Simply Plural export data before importing it into PluralBridge.</p>
-            </article>
+        <section class="section models-accordion">
+            <h2>Systems and head-mates</h2>
+            <p><strong>Systems, Memberships, Roles, and Privileges</strong></p>
+            <p>PluralBridge separates structure from authority.</p>
+            <p>🧩 <strong>System</strong> describes how plurals are organized.</p>
+            <p>👪 <strong>Membership</strong> describes which headmates and subsystems belong to a System.</p>
+            <p>🪪 <strong>Roles</strong> describe what system(s) and/or headmate(s) are allowed to do.</p>
+            <p>🔑 <strong>Privileges</strong> grant specific exceptions that allow designated System(s) and/or headmate(s) to perform otherwise denied actions (such as add, edit, or delete) on a target System or headmate, based on the roles assigned to those System(s) and/or headmate(s).</p>
+            <p>For this release, one account works in one active System at a time, while still supporting broader multi-System access over time.</p>
+            <p>Fronting, profile updates, and contribution actions are controlled by membership, role, and privilege rules, not by structure labels alone.</p>
+            <p>We currently support the following models:</p>
 
-            <article class="card">
-                <h3>3. Member profiles</h3>
-                <p>View, add, and update member profiles in the browser after data has somewhere to land.</p>
-            </article>
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">1. Simple Single-System Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>A person signs in and has one System.</p>
+<pre><code>Account
+└── System: The Harbor
+    ├── Member: A
+    ├── Member: B
+    ├── Member: C
+    ├── Groups
+    ├── Notes
+    └── Front history</code></pre>
+                    <p>This is the default model: one account, one System, members inside it, and one focused System context.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">2. Multiple Top-Level Systems Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>A person has more than one root-level System. Neither root owns the other.</p>
+<pre><code>Account
+├── System: The Harbor
+│   ├── Members
+│   └── Front history
+└── System: The Observatory
+    ├── Members
+    └── Notes</code></pre>
+                    <p>This supports a user who experiences two distinct top-level structures. The app treats both as root Systems because neither has a parent relationship.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">3. Parent / Child System Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>One System contains or relates to a smaller child System.</p>
+<pre><code>Account
+└── System: Main House
+    ├── Member: Rowan
+    ├── Member: Tess
+    └── Child System: The Workshop
+        ├── Member: Kit
+        └── Member: Lark</code></pre>
+                    <p>The parent/child relationship describes structure. Access and privacy remain governed by membership, consent, and policy.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">4. Sibling Systems Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>Two Systems share a common relationship, but neither controls the other.</p>
+<pre><code>Account
+├── System: Day Team
+└── System: Night Team</code></pre>
+                    <p>This is useful for Systems that see themselves as parallel, cooperative, or operationally separate.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">5. Related Systems Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>Two Systems are associated without a parent/child shape.</p>
+<pre><code>Account
+├── System: The Harbor
+└── System: The Archive
+relationship to The Harbor: "related"</code></pre>
+                    <p>This can represent shared history, partial overlap, a past structure, or a loosely connected internal organization.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">6. Subsystem Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>A member, group, or internal cluster may have its own structure.</p>
+<pre><code>System: The Harbor
+├── Member: Alex
+├── Member: Morgan
+│   └── Subsystem: Morgan's Room
+│       ├── Member: M1
+│       └── Member: M2
+└── Member: Rae</code></pre>
+                    <p>This is one model where a strict flat member list starts to run out of descriptive power.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">7. Evolving / Uncertain Relationship Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>The user knows two structures are connected, and the exact relationship is still forming.</p>
+<pre><code>Account
+├── System: The Harbor
+└── System: North Wing
+relationship to The Harbor: "unknown" or "evolving"</code></pre>
+                    <p>This preserves reality-in-progress without prematurely naming a relationship.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">8. Archived System Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>A System or structure still matters historically, but is no longer active.</p>
+<pre><code>Account
+├── System: Current System
+└── System: Old Map
+status: archived</code></pre>
+                    <p>This helps preserve migration meaning, old fronting records, old notes, and past organization.</p>
+                </div>
+            </div>
+
+            <div class="model-topic">
+                <button type="button" class="model-toggle" aria-expanded="false">
+                    <span class="model-chevron" aria-hidden="true">></span>
+                    <span class="model-title">9. Non-Tree / Graph Model</span>
+                </button>
+                <div class="model-body" hidden>
+                    <p>Some Systems may have overlapping or cross-linked relationships.</p>
+<pre><code>Account
+├── System: A
+├── System: B
+└── System: C
+
+Relationships:
+A related to B
+B sibling of C
+C associated with A</code></pre>
+                    <p>This breaks the ordinary tree assumption and treats structure as a relationship graph.</p>
+                </div>
+            </div>
+
+        </section>
+
+        <section class="section">
+            <h2>What still needs to be done</h2>
+            <ul>
+                <li>Finish end-to-end wiring between account, import preview, roles, profile editing, and fronting.</li>
+                <li>Expand device recovery coverage beyond the currently confirmed Samsung path.</li>
+                <li>Complete avatar recovery mapping where feasible.</li>
+                <li>Finalize consent and audit trail behavior before broader preview access.</li>
+                <li>Increase test coverage and contributor onboarding for sustainable delivery.</li>
+            </ul>
         </section>
 
         <section class="section">
             <h2>Why browser-based</h2>
             <p>
-                A browser-based release can run on Windows, Mac, Linux, phones, tablets, and anything else with a modern
-                browser. That matters because plural Systems should not need one specific device type or operating system to
-                reach preserved data.
+                A browser-based release works across Windows, Mac, Linux, phones, and tablets without requiring one device type.
             </p>
             <p>
-                Browser-based does not mean careless with privacy. The PluralBridge path still needs deliberate import,
-                explicit review, account boundaries, membership checks, and clear control over System data.
-            </p>
-        </section>
-
-        <section class="section">
-            <h2>What comes after the spine</h2>
-            <p>
-                Once account, import, and member profiles are coherent, later work can build outward: stronger privacy
-                controls, richer import coverage, groups, notes, avatars, fronting history, delete and retention behavior,
-                audit reporting, account lifecycle cleanup, and compatible interfaces where feasible.
-            </p>
-            <p>
-                That is why the current development priority is account and import.
+                Cross-platform access still requires strict privacy boundaries, deliberate import review, and clear user control.
             </p>
         </section>
 
@@ -212,5 +351,6 @@
     </footer>
     <script src="privacy-banner.js"></script>
     <script src="site-menu.js"></script>
+    <script src="models-accordion.js"></script>
 </body>
 </html>

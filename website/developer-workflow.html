@@ -84,8 +84,8 @@
                 review a Simply Plural export before saving it, and work with member profiles in the browser.
             </p>
             <p class="lede">
-                Help is needed from developers, reviewers, testers, documentation helpers, accessibility reviewers,
-                security-minded contributors, and people who can think clearly about privacy and user safety.
+                Help is needed from developers, users/Systems, and subject matter experts working together on privacy,
+                safety, usability, and release quality.
             </p>
             <div class="actions">
                 <a class="button primary" href="https://github.com/needsofmany/PluralBridge">Open the repository</a>
@@ -109,20 +109,52 @@
 
         <section class="section card">
             <h2>Current areas where help matters</h2>
+            <h3>Developers</h3>
             <ul>
                 <li>.NET / C# API work for accounts, membership, import, member profiles, authorization, audit, and validation.</li>
                 <li>Browser-side HTML, CSS, and JavaScript for clear, accessible workflows.</li>
                 <li>SQL Server / Azure SQL schema review, migrations, constraints, and reporting queries.</li>
                 <li>Import preview design for preserved Simply Plural exports.</li>
-                <li>Privacy and security review for token handling, export handling, account boundaries, and public examples.</li>
                 <li>Automated tests, synthetic fixtures, validation reports, and failure-case coverage.</li>
-                <li>Documentation for users who are not developers.</li>
-                <li>Website clarity, accessibility, and public messaging review.</li>
             </ul>
+            <h3>Users/Systems</h3>
+            <ul>
+                <li>Review workflows for clarity, safety, and practical usability.</li>
+                <li>Flag confusing wording, risky assumptions, or missing real-world scenarios.</li>
+                <li>Help validate that public guidance protects privacy while staying usable under stress.</li>
+            </ul>
+            <h3>Subject Matter Experts</h3>
+            <p>
+                Subject matter experts provide domain guidance across privacy/safety, consent boundaries, accessibility,
+                data handling, and lived-practice realities, including but not limited to therapists, advocates,
+                researchers, and other qualified specialists.
+            </p>
+            <ul>
+                <li>Review safety boundaries and consent implications in planned features.</li>
+                <li>Review accessibility and communication quality for public-facing guidance.</li>
+                <li>Identify domain-specific risks before they become user harm.</li>
+            </ul>
+            <h3>GitHub Discussions</h3>
+            <ul>
+                <li>Propose ideas, clarify scope, and surface risks before coding begins.</li>
+                <li>Align developers, users/Systems, and subject matter experts on decisions.</li>
+                <li>Capture decisions and rationale in public threads so future contributors can follow context.</li>
+            </ul>
+            <p>
+                <strong>Community participation:</strong> We actively participate in plural-community spaces such as
+                <code>r/SimplyPlural</code> and <code>r/plurals</code> (including as <strong>Sharky_J_Yellowfish</strong>).
+                When appropriate, we also share relevant PluralBridge updates there.
+            </p>
         </section>
 
-        <section class="section card">
-            <h2>Contributor privacy rules</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Contributor privacy rules</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <p>
                 PluralBridge works around sensitive System data. Contributors must keep real user and System data out of
                 public project work.
@@ -136,10 +168,17 @@
                 Use synthetic test data. Redaction must remove private values, stable identifiers, tokens, account data, and
                 anything that could expose a real System.
             </p>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Different backgrounds, shared workflow</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Different backgrounds, shared workflow</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <p>
                 PluralBridge may attract contributors from software development, open-source maintenance, plural-community
                 support, documentation, data preservation, security, accessibility, and user advocacy.
@@ -149,10 +188,17 @@
                 where conversations happen, how work becomes accepted, when maintainers need to decide, and how PluralBridge
                 protects users while still welcoming outside help.
             </p>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Where project discussions happen</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Where project discussions happen</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <ul>
                 <li>Use <a href="https://github.com/needsofmany/PluralBridge/discussions">GitHub Discussions</a> for design proposals, broad questions, feature ideas, and governance conversations before work is scoped.</li>
                 <li>Use GitHub Issues for accepted, actionable work.</li>
@@ -163,10 +209,17 @@
                 Project decisions that affect code, documentation, privacy posture, release behavior, supported workflows,
                 or public messaging should be captured in GitHub so future contributors can see the reasoning.
             </p>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Before you open a pull request</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Before you open a pull request</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <ul>
                 <li>Check whether the work already has an issue, discussion, or active branch.</li>
                 <li>Ask before starting large architectural changes.</li>
@@ -175,10 +228,17 @@
                 <li>Write down what you tested.</li>
                 <li>Explain user-facing behavior in plain language.</li>
             </ul>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Branch roles</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Branch roles</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
 
             <h3>master</h3>
             <p><code>master</code> is the production branch and represents the current public release.</p>
@@ -203,10 +263,17 @@
                 <li>Create patch branches from <code>master</code> only for narrow production fixes.</li>
                 <li>Keep branch names clear, such as <code>feature/import-preview</code> or <code>patch/website-safety-copy</code>.</li>
             </ul>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Discuss these before coding</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Discuss these before coding</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <ul>
                 <li>Authentication, authorization, membership, or account-boundary changes.</li>
                 <li>Import behavior, export interpretation, normalizer behavior, or database schema changes.</li>
@@ -220,10 +287,17 @@
                 Maintainers may ask for changes, split work into smaller pieces, defer work to a later milestone, redirect
                 work into a different branch, or close work that does not fit the project.
             </p>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Pull requests and previews</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Pull requests and previews</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <p>
                 Website and documentation work should use GitHub pull requests and preview deployments so changes can be
                 inspected before they reach users.
@@ -235,10 +309,17 @@
                 <li>List testing performed before requesting review.</li>
                 <li>Preview website changes before merge when layout, navigation, images, or user-facing wording changed.</li>
             </ul>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Project independence boundaries</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Project independence boundaries</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <p>
                 PluralBridge is an independent project. It is not affiliated with Simply Plural, Apparyllis, or the Simply
                 Plural development team.
@@ -252,10 +333,17 @@
                 Interoperability work should stay focused on user-owned exported data, documented or public API behavior,
                 local preservation, validation, migration, and future compatible interfaces where feasible.
             </p>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Plural community conduct</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Plural community conduct</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <p>
                 PluralBridge serves plural Systems and people preserving sensitive personal records. Contributors should
                 reduce friction and protect user agency.
@@ -267,10 +355,17 @@
                 <li>Do not turn support or development threads into debates about identity, diagnosis, legitimacy, or community politics.</li>
                 <li>Keep explanations practical, calm, and privacy-preserving.</li>
             </ul>
+            </div>
         </section>
 
-        <section class="section card">
-            <h2>Ways to help without writing code</h2>
+        <section class="section card fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Ways to help without writing code</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <ul>
                 <li>Review public pages for clarity and accessibility.</li>
                 <li>Help turn technical notes into user-readable documentation.</li>
@@ -279,10 +374,17 @@
                 <li>Help identify confusing wording before users see it.</li>
                 <li>Watch public discussions and route people to the right page without collecting private data.</li>
             </ul>
+            </div>
         </section>
 
-        <section class="section">
-            <h2>Where to start</h2>
+        <section class="section fold-topic">
+            <h2>
+                <button type="button" class="fold-toggle" aria-expanded="false">
+                    <span class="fold-chevron" aria-hidden="true">></span>
+                    <span class="fold-title">Where to start</span>
+                </button>
+            </h2>
+            <div class="fold-body" hidden>
             <p>
                 Start with the browser release goal, then use GitHub Discussions or Issues to find work that fits your skill
                 set. Keep private user data out of public project spaces.
@@ -292,6 +394,7 @@
                 <a class="button" href="https://github.com/needsofmany/PluralBridge">Open the repository</a>
                 <a class="button" href="https://github.com/needsofmany/PluralBridge/discussions">Open discussions</a>
                 <a class="button" href="contact.html">Contact PluralBridge</a>
+            </div>
             </div>
         </section>
     </main>
@@ -303,6 +406,7 @@
         </div>
     </footer>
     <script src="privacy-banner.js"></script>
+    <script src="developer-workflow-toggle.js"></script>
     <script src="site-menu.js"></script>
 </body>
 </html>
