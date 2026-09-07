@@ -5,13 +5,13 @@
 
 **Created: 2026-07-01 02:07 PM PT**
 
-This note captures one strategic design idea in progress: PluralBridge as a reference model for user-defined structure, consent boundaries, and source fidelity. It is a standalone direction note intended to preserve thinking while design work is active. It is not a final driver, commitment, or roadmap.
+This note captures one strategic design idea in progress: PluralBridge as a 🌱 reference model for 🧬 user-defined structure, 🛡️ consent boundaries, and source fidelity. It is a standalone 📝 direction note intended to preserve thinking while design work is active. It is not a final driver, commitment, or roadmap.
 
 ## Start Here
 
 - This note is for strategic framing: why PluralBridge should preserve meaning, not just store records.
 - Read it as directional intent that informs decisions over time.
-- Use it to sanity-check whether implementation choices protect user-authored structure and consent boundaries.
+- Use it to sanity-check whether implementation choices protect 🧬 user-authored structure and 🛡️ consent boundaries.
 
 ## Quick Concept Key
 
@@ -33,7 +33,7 @@ This note captures the larger design implication that emerged from the Focused S
 
 This is separate from the technical spine note. The purpose here is to preserve the strategic and philosophical direction while it is fresh.
 
-The idea is that PluralBridge may be doing something more important than creating another replacement app. If we get the spine right, PluralBridge can establish a reference model for how plural apps should preserve, model, protect, and move System data.
+The idea is that PluralBridge may be doing something more important than creating another replacement app. If we get the spine right, PluralBridge can establish a 🌱 reference model for how plural apps should preserve, model, protect, and move System data.
 
 
 
@@ -89,7 +89,7 @@ PluralBridge defines what a System must be.
 
 The standard is:
 
-PluralBridge preserves the user's ontology.
+PluralBridge preserves the user's 🧬 ontology.
 
 PluralBridge should provide a model flexible enough for Systems to define themselves.
 
@@ -99,7 +99,7 @@ The app should not force Systems into a rigid hierarchy, single-root worldview, 
 
 ## Core Standard-Setting Principles
 
-Preserve the user's ontology.
+Preserve the user's 🧬 ontology.
 
 Keep access separate from structure.
 
@@ -117,7 +117,7 @@ Treat System focus as the active context.
 
 Treat fronting as activity within that context.
 
-Keep membership, consent, privacy, and audit as separate primitives.
+Keep membership, 🛡️ consent, privacy, and audit as separate primitives.
 
 Do not infer authority from hierarchy.
 
@@ -129,7 +129,7 @@ Do not overwrite source meaning just to make the import easier.
 
 ## Reference Model Ambition
 
-PluralBridge should become the reference model for plural data portability and System self-modeling.
+PluralBridge should become the 🌱 reference model for plural data portability and System self-modeling.
 
 The goal is not only to replace Simply Plural functionality.
 
@@ -138,8 +138,8 @@ The goal is to define safer primitives for:
 - import fidelity
 - System focus
 - flexible relationships
-- consent
-- privacy
+- 🛡️ consent
+- 🛡️ privacy
 - audit
 - user-authored structure
 - source-data preservation
@@ -255,4 +255,4 @@ The app should not define Systems for users.
 
 The app should give Systems the primitives to define themselves.
 
-If the spine gets this right, PluralBridge can become the reference model for plural data portability, System focus, flexible relationships, privacy, consent, and import fidelity.
+If the spine gets this right, PluralBridge can become the 🌱 reference model for plural data portability, System focus, flexible relationships, 🛡️ privacy, 🛡️ consent, and import fidelity.

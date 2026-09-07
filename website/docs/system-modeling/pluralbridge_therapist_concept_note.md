@@ -5,13 +5,13 @@
 
 **Created: 2026-07-01 02:10 PM PT**
 
-This note captures a standalone concept for therapist and professional feedback while design is still evolving. It focuses on safety, consent, and continuity implications without introducing clinical gatekeeping into product behavior. It is a working idea note, not a final policy or roadmap.
+This note captures a standalone concept for therapist and 🤝 professional feedback while design is still evolving. It focuses on safety, 🔒 consent, and continuity implications without introducing clinical gatekeeping into product behavior. It is a 📝 working idea note, not a final policy or roadmap.
 
 ## Start Here
 
-- This note is for therapist/professional feedback on safety language and harm-reduction framing.
+- This note is for therapist/🤝 professional feedback on safety language and harm-reduction framing.
 - It explains design intent in plain language, without requiring architecture context first.
-- The boundary is explicit: professional input informs design, but does not define user legitimacy.
+- The boundary is explicit: 🤝 professional input informs design, but does not define user legitimacy.
 
 ## Quick Concept Key
 
@@ -66,9 +66,9 @@ The software should not force every user into one official hierarchy.
 
 Some apps treat System structure as if there is one obvious shape:
 
-one account
-one System
-members inside that System
+- one account
+- one System
+- members inside that System
 
 That may work for many people, especially at the start, but it may not fit everyone.
 
@@ -86,12 +86,11 @@ That can accidentally imply there should only be one.
 
 For PluralBridge, a root System should simply mean:
 
-A System with no parent relationship.
-
-There may be one root System.
-There may be more than one root System.
-A root System is not more legitimate than another System.
-A root System is not automatically the authority over every other System.
+- A System with no parent relationship.
+- There may be one root System.
+- There may be more than one root System.
+- A root System is not more legitimate than another System.
+- A root System is not automatically the authority over every other System.
 
 This matters because "root" should not become a hidden rule that forces people into one model.
 
@@ -99,7 +98,7 @@ This matters because "root" should not become a hidden rule that forces people i
 
 ## System Relationships
 
-PluralBridge should allow Systems to describe relationships between Systems.
+PluralBridge should allow Systems to describe 🪪 relationships between Systems.
 
 For example:
 
@@ -116,19 +115,19 @@ These relationships should be descriptive.
 
 They describe how the System wants to model itself.
 
-They should not automatically decide authority, access, privacy, or legitimacy.
+They should not automatically decide authority, access, 🔒 privacy, or legitimacy.
 
 
 
 ## Access and Privacy
 
-A key design principle is that structure and access should stay separate.
+A key design principle is that 🪪 structure and access should stay separate.
 
 Just because one System is described as a parent of another does not mean the parent automatically gets access to everything in the child System.
 
 Just because two Systems are related does not mean their private data should automatically be shared.
 
-Access should come from explicit permission, membership, consent, or policy.
+Access should come from explicit permission, membership, 🔒 consent, or policy.
 
 This keeps the app from making unsafe assumptions.
 
@@ -136,21 +135,21 @@ This keeps the app from making unsafe assumptions.
 
 ## Focus
 
-The most useful concept from this discussion is "focus."
+The most useful concept from this discussion is "🧭 focus."
 
 Rather than asking which System is the one true root, PluralBridge can ask:
 
 Which System is currently in focus?
 
-A focused System is the active System context.
+A focused System is the active 🧭 System context.
 
 In practical terms:
 
 - the account may have access to one or more Systems
-- only one System context is focused at a time
+- only one 🧭 System context is focused at a time
 - the focused System is where current work happens
-- changing focus changes the working context
-- changing focus does not automatically create access
+- changing 🧭 focus changes the working context
+- changing 🧭 focus does not automatically create access
 
 This is useful because it matches both software design and lived experience.
 
@@ -158,9 +157,9 @@ This is useful because it matches both software design and lived experience.
 
 ## Focus and Fronting
 
-In lived terms, focus may map better than hierarchy.
+In lived terms, 🧭 focus may map better than hierarchy.
 
-Only one System context may have focus at a time, even if multiple members or children are fronting within that System.
+Only one 🧭 System context may have focus at a time, even if multiple members or children are fronting within that System.
 
 A focused System may have:
 
@@ -172,11 +171,8 @@ A focused System may have:
 
 This separates two ideas:
 
-System focus:
-Which System context is active.
-
-Fronting:
-Who or what is active inside that context.
+- **🧭 System focus**: Which System context is active.
+- **Fronting**: Who or what is active inside that context.
 
 That distinction may help the app support complex Systems without flattening everything into one global fronting state.
 
@@ -188,10 +184,10 @@ PluralBridge does not need to make the first user experience complicated.
 
 The default experience can be simple:
 
-A person signs in.
-They have one System.
-That System is focused.
-They see their members, notes, groups, fronts, and imported data.
+- A person signs in.
+- They have one System.
+- That System is focused.
+- They see their members, notes, groups, fronts, and imported data.
 
 But the underlying model should not break if later they need:
 
@@ -207,11 +203,11 @@ This allows the app to start simple without locking users into an oversimplified
 
 ## Professional Input
 
-Therapist and professional input can be valuable, especially around:
+Therapist and 🤝 professional input can be valuable, especially around:
 
 - safety
-- privacy
-- consent
+- 🔒 privacy
+- 🔒 consent
 - continuity of care
 - accessibility
 - therapist-facing summaries or exports
@@ -219,13 +215,15 @@ Therapist and professional input can be valuable, especially around:
 - preserving meaning when data is imported
 - supporting users without imposing clinical authority
 
-However, professional input should not become gatekeeping.
+However, 🤝 professional input should not become gatekeeping.
 
 The app should not say:
 
-A System is only valid if it matches a professional model.
+> 🚫 A System is only valid if it matches a professional model.
 
-Instead, professional input should help the app avoid harm while preserving user self-definition.
+Instead, 🤝 professional input should help the app avoid harm while preserving user self-definition.
+
+PluralBridge does not require users to disclose or justify System origin, genesis, or diagnostic framing to use the product safely.
 
 
 
@@ -234,24 +232,15 @@ Instead, professional input should help the app avoid harm while preserving user
 These are the kinds of questions where therapist input could help:
 
 1. Does the concept of "focus" make sense as a way to describe the active System context?
-
 2. Is it useful to separate "System focus" from "fronting"?
-
 3. Are there risks in allowing multiple root-level Systems?
-
 4. Are there risks in forcing only one root-level System?
-
 5. What language would feel least pathologizing to users?
-
 6. What kinds of therapist-facing reports would be helpful if controlled entirely by the user?
-
 7. What should the app avoid assuming about System hierarchy?
-
 8. What privacy mistakes would be especially harmful in this context?
-
 9. How can the app support continuity without encouraging over-disclosure?
-
-10. How can professional perspectives inform safety without overriding lived experience?
+10. How can 🤝 professional perspectives inform safety without overriding lived experience?
 
 
 
@@ -260,10 +249,12 @@ These are the kinds of questions where therapist input could help:
 These are not immediate commitments, but possible future directions:
 
 - user-controlled sharing
+  - never public, always under our security model
 - printable summaries
+  - optional anonymization/redaction mode for shareable output
 - therapist-facing exports
 - selective disclosure
-- consent-bounded sharing
+- 🔒 consent-bounded sharing
 - "show this to my therapist" views
 - privacy-aware reports
 - clear separation between private notes and shareable summaries
@@ -291,8 +282,8 @@ The key concepts are:
 - Relationships describe structure but do not automatically grant authority.
 - Focus means the active System context.
 - Fronting happens inside that focused context.
-- Access, privacy, and consent stay separate from hierarchy.
-- Therapist and professional input can improve safety without becoming gatekeeping.
+- 🔒 Access, privacy, and consent stay separate from hierarchy.
+- 🤝 Therapist and professional input can improve safety without becoming gatekeeping.
 
 
 

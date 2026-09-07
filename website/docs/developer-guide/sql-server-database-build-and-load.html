@@ -10,54 +10,7 @@
 <link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
 </head>
 <body>
-<header class="site-header">
-    <div class="header-inner">
-        <a class="brand" href="/index.html">
-            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
-            <span class="brand-text">
-                <span class="brand-title">PluralBridge</span>
-                <span class="brand-subtitle">Needs of the Many</span>
-            </span>
-        </a>
-        <nav class="nav" aria-label="Main navigation">
-            <a href="/index.html">Home</a>
-            <a href="/start-here.html">Start Here</a>
-            <a href="/export-now.html">Data Recovery</a>
-            <details class="nav-menu">
-                <summary data-current="section">Guides</summary>
-                <div class="nav-menu-panel">
-                    <a href="/docs.html">Documentation Home</a>
-                    <a href="/safety.html">Safety</a>
-                    <a href="/developer-workflow.html">Help Build</a>
-                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>Projects</summary>
-                <div class="nav-menu-panel">
-                    <a href="/browser-app.html">What PluralBridge Is Building</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>Community</summary>
-                <div class="nav-menu-panel">
-                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
-                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
-                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
-                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>About</summary>
-                <div class="nav-menu-panel">
-                    <a href="/about.html">About PluralBridge</a>
-                    <a href="/contact.html">Contact Us</a>
-                </div>
-            </details>
-            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
-        </nav>
-    </div>
-</header>
+<header class="site-header"></header>
 <main class="page">
   <article class="card doc-page">
 <h1 id="pluralbridge-sql-server-database-build-and-load-guide">PluralBridge SQL Server Database Build and Load Guide</h1>
@@ -95,10 +48,14 @@
 </tbody></table>
 <h2 id="sql-server-feature-assumptions">SQL Server Feature Assumptions</h2>
 <ul>
-<li><code>OPENJSON</code>, <code>JSON_VALUE</code>, and <code>JSON_QUERY</code> are available.</li>
-<li><code>OPENROWSET(BULK ...)</code> is allowed, and the SQL Server service account can read the export folder.</li>
-<li><code>AT TIME ZONE</code> is available for UTC-to-Pacific reporting views.</li>
-<li><code>STRING_AGG</code> is available for the member profile summary view. SQL Server 2017 or newer is recommended.</li>
+<li><code>OPENJSON</code>, <code>JSON_VALUE</code>, and <code>JSON_QUERY</code> are available.
+</li>
+<li><code>OPENROWSET(BULK ...)</code> is allowed, and the SQL Server service account can read the export folder.
+</li>
+<li><code>AT TIME ZONE</code> is available for UTC-to-Pacific reporting views.
+</li>
+<li><code>STRING_AGG</code> is available for the member profile summary view. SQL Server 2017 or newer is recommended.
+</li>
 </ul>
 <h2 id="create-the-empty-database-and-schema">Create the Empty Database and Schema</h2>
 <p>This phase creates the database, tables, keys, and base schema. No Simply Plural export data is inserted during this phase.</p>
@@ -114,19 +71,32 @@ GO</code></pre>
 <pre><code class="language-text">scripts/sqlserver/010_create_tables.sql</code></pre>
 <p>This creates the tables used by the load scripts, including:</p>
 <ul>
-<li><code>dbo.[user]</code></li>
-<li><code>dbo.me</code></li>
-<li><code>dbo.members</code></li>
-<li><code>dbo.front_history</code></li>
-<li><code>dbo.customfields</code></li>
-<li><code>dbo.member_info_values</code></li>
-<li><code>dbo.privacybuckets</code></li>
-<li><code>dbo.member_buckets</code></li>
-<li><code>dbo.chat_categories</code></li>
-<li><code>dbo.chat_channels</code></li>
-<li><code>dbo.friends</code></li>
-<li><code>dbo.member_avatars</code></li>
-<li><code>dbo.member_notes</code></li>
+<li><code>dbo.[user]</code>
+</li>
+<li><code>dbo.me</code>
+</li>
+<li><code>dbo.members</code>
+</li>
+<li><code>dbo.front_history</code>
+</li>
+<li><code>dbo.customfields</code>
+</li>
+<li><code>dbo.member_info_values</code>
+</li>
+<li><code>dbo.privacybuckets</code>
+</li>
+<li><code>dbo.member_buckets</code>
+</li>
+<li><code>dbo.chat_categories</code>
+</li>
+<li><code>dbo.chat_channels</code>
+</li>
+<li><code>dbo.friends</code>
+</li>
+<li><code>dbo.member_avatars</code>
+</li>
+<li><code>dbo.member_notes</code>
+</li>
 </ul>
 <h3 id="add-constraints">Add Constraints</h3>
 <p>After the base tables exist and data loading has been proven, run the constraint script:</p>
@@ -287,31 +257,48 @@ ORDER BY t.name;</code></pre>
 </tbody></table>
 <h3 id="validation-checks">Validation Checks</h3>
 <ul>
-<li>Missing parent references should report all zero.</li>
-<li>Duplicate logical keys should report all zero.</li>
-<li>Front-history rows should not have end times before start times.</li>
-<li>A front-history row with a <code>NULL</code> end_time can represent a currently open front interval.</li>
+<li>Missing parent references should report all zero.
+</li>
+<li>Duplicate logical keys should report all zero.
+</li>
+<li>Front-history rows should not have end times before start times.
+</li>
+<li>A front-history row with a <code>NULL</code> end_time can represent a currently open front interval.
+</li>
 </ul>
 <h2 id="operating-notes">Operating Notes</h2>
 <ul>
-<li>The master script is best for a fresh, empty database after the process has been proven.</li>
-<li>The master script does not replace the exported JSON files. The JSON files remain the source evidence.</li>
-<li>The load scripts use <code>INSERT</code>, so re-running them against already-loaded tables can cause key errors or duplicates.</li>
-<li>Wrapper-style tables preserve content as JSON. They can be normalized later after the high-value relational tables are stable.</li>
-<li>Reporting views are non-destructive. They can be dropped and recreated without altering imported source data.</li>
-<li>The SQL Server database is a queryable representation of the exported files, not a substitute for keeping the original JSON export.</li>
+<li>The master script is best for a fresh, empty database after the process has been proven.
+</li>
+<li>The master script does not replace the exported JSON files. The JSON files remain the source evidence.
+</li>
+<li>The load scripts use <code>INSERT</code>, so re-running them against already-loaded tables can cause key errors or duplicates.
+</li>
+<li>Wrapper-style tables preserve content as JSON. They can be normalized later after the high-value relational tables are stable.
+</li>
+<li>Reporting views are non-destructive. They can be dropped and recreated without altering imported source data.
+</li>
+<li>The SQL Server database is a queryable representation of the exported files, not a substitute for keeping the original JSON export.
+</li>
 </ul>
 <h2 id="safety-notes">Safety Notes</h2>
 <ul>
-<li>Do not commit real export files, local database files, database backups, or connection strings.</li>
-<li>Do not use real member names, notes, avatar filenames, or fronting history details in public documentation.</li>
-<li>Use synthetic, redacted, or minimal example data for reports and tests.</li>
-<li>Any future public database documentation should point to a redacted fixture set or a toy export, not an actual user export.</li>
+<li>Do not commit real export files, local database files, database backups, or connection strings.
+</li>
+<li>Do not use real member names, notes, avatar filenames, or fronting history details in public documentation.
+</li>
+<li>Use synthetic, redacted, or minimal example data for reports and tests.
+</li>
+<li>Any future public database documentation should point to a redacted fixture set or a toy export, not an actual user export.
+</li>
 </ul>
   </article>
 </main>
 <script src="/vendor/prism/prism.js"></script>
 <script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
 <script>
 if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
     window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
