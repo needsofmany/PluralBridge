@@ -11,6 +11,71 @@
     <DefineConstants>$(DefineConstants);DEBUG_MODE</DefineConstants>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <BrowserAppSourceDir>$(MSBuildProjectDirectory)\..\..\..\app\src</BrowserAppSourceDir>
+    <BrowserAppServeDir>$(MSBuildProjectDirectory)\wwwroot\app</BrowserAppServeDir>
+    <BrowserAppLegacyDir>$(MSBuildProjectDirectory)\..\..\..\app</BrowserAppLegacyDir>
+  </PropertyGroup>
+
+  <Target Name="SyncBrowserAppArtifacts" BeforeTargets="Build;Publish">
+    <Error Condition="!Exists('$(BrowserAppSourceDir)\index.html')"
+           Text="Browser app source is missing: $(BrowserAppSourceDir)\index.html" />
+    <Error Condition="!Exists('$(BrowserAppSourceDir)\js\app.js')"
+           Text="Browser app source is missing: $(BrowserAppSourceDir)\js\app.js" />
+    <Error Condition="!Exists('$(BrowserAppSourceDir)\css\app.css')"
+           Text="Browser app source is missing: $(BrowserAppSourceDir)\css\app.css" />
+
+    <ItemGroup>
+      <BrowserAppSourceJs Include="$(BrowserAppSourceDir)\js\**\*.js"
+                          Exclude="$(BrowserAppSourceDir)\js\app.js" />
+      <BrowserAppSourceCss Include="$(BrowserAppSourceDir)\css\**\*.css"
+                           Exclude="$(BrowserAppSourceDir)\css\app.css" />
+      <BrowserAppSourceAssets Include="$(BrowserAppSourceDir)\assets\**\*"
+                              Condition="Exists('$(BrowserAppSourceDir)\assets')" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(BrowserAppServeDir);$(BrowserAppServeDir)\js;$(BrowserAppServeDir)\css" />
+    <MakeDir Directories="$(BrowserAppLegacyDir);$(BrowserAppLegacyDir)\js;$(BrowserAppLegacyDir)\css" />
+
+    <Copy SourceFiles="$(BrowserAppSourceDir)\index.html"
+          DestinationFiles="$(BrowserAppServeDir)\index.html" />
+    <Copy SourceFiles="$(BrowserAppSourceDir)\index.html"
+          DestinationFiles="$(BrowserAppLegacyDir)\index.html" />
+
+    <Copy SourceFiles="$(BrowserAppSourceDir)\js\app.js"
+          DestinationFiles="$(BrowserAppServeDir)\app.js" />
+    <Copy SourceFiles="$(BrowserAppSourceDir)\js\app.js"
+          DestinationFiles="$(BrowserAppLegacyDir)\app.js" />
+
+    <Copy SourceFiles="$(BrowserAppSourceDir)\css\app.css"
+          DestinationFiles="$(BrowserAppServeDir)\app.css" />
+    <Copy SourceFiles="$(BrowserAppSourceDir)\css\app.css"
+          DestinationFiles="$(BrowserAppLegacyDir)\app.css" />
+
+    <Copy SourceFiles="@(BrowserAppSourceJs)"
+          DestinationFiles="@(BrowserAppSourceJs->'$(BrowserAppServeDir)\js\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BrowserAppSourceJs)"
+          DestinationFiles="@(BrowserAppSourceJs->'$(BrowserAppLegacyDir)\js\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+
+    <Copy SourceFiles="@(BrowserAppSourceCss)"
+          DestinationFiles="@(BrowserAppSourceCss->'$(BrowserAppServeDir)\css\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BrowserAppSourceCss)"
+          DestinationFiles="@(BrowserAppSourceCss->'$(BrowserAppLegacyDir)\css\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+
+    <Copy SourceFiles="@(BrowserAppSourceAssets)"
+          DestinationFiles="@(BrowserAppSourceAssets->'$(BrowserAppServeDir)\assets\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(BrowserAppSourceAssets)' != ''" />
+    <Copy SourceFiles="@(BrowserAppSourceAssets)"
+          DestinationFiles="@(BrowserAppSourceAssets->'$(BrowserAppLegacyDir)\assets\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(BrowserAppSourceAssets)' != ''" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />

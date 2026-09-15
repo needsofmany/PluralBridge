@@ -1,2 +1,43 @@
-/* Layout browser app styles.
-   Initial module placeholder; existing styles remain in legacy-app.css during the first split. */
+.demo-explainer {
+	margin: 0.75rem 0 1rem;
+}
+
+.demo-explainer-summary {
+	cursor: pointer;
+	font-weight: 700;
+}
+
+.demo-explainer p {
+	margin: 0.65rem 0 0;
+}
+
+.demo-action-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+
+.demo-action-primary,
+.demo-action-session {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.output-box {
+	max-height: none;
+	overflow: visible;
+}
+
+.demo-action-row button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+}
+
+.demo-action-icon {
+	flex: 0 0 auto;
+}

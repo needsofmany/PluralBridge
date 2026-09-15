@@ -521,7 +521,8 @@ app.MapGet("/login", () =>
 //
 app.MapPost("/login", async (
 	HttpContext context,
-	IConfiguration configuration) =>
+	IAccountService accountService,
+	CancellationToken cancellationToken) =>
 {
 	var form = await context.Request.ReadFormAsync();
 
@@ -533,40 +534,29 @@ app.MapPost("/login", async (
 		form["password"].FirstOrDefault() ??
 		string.Empty;
 
-	// These values come from ASP.NET Core configuration.
-	var configuredUserName =
-		configuration["ProtectedDemo:UserName"] ??
-		string.Empty;
+	var loginResult = await accountService.LoginAsync(
+		new LoginRequest(userName, password),
+		cancellationToken);
 
-	var configuredPassword =
-		configuration["ProtectedDemo:Password"] ??
-		string.Empty;
-
-
-	// Any missing configuration or incorrect credential returns the user to
-	// the login page.
-	if (string.IsNullOrWhiteSpace(configuredUserName) ||
-		string.IsNullOrWhiteSpace(configuredPassword) ||
-		!string.Equals(
-			userName,
-			configuredUserName,
-			StringComparison.Ordinal) ||
-		!string.Equals(
-			password,
-			configuredPassword,
-			StringComparison.Ordinal))
+	if (loginResult is not
+		{
+			Succeeded: true,
+			Value: { Account: not null } loginResponse
+		})
 	{
 		return Results.Redirect("/login");
 	}
 
 
 	// Claims describe the authenticated identity.
-	//
-	// At present the proof only stores the configured username as the Name
-	// claim.
 	var claims = new List<Claim>
 	{
-		new(ClaimTypes.Name, configuredUserName)
+		new(
+			ClaimTypes.NameIdentifier,
+			loginResponse.Account.AccountId.ToString()),
+		new(
+			ClaimTypes.Name,
+			loginResponse.Account.Username)
 	};
 
 

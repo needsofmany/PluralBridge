@@ -1,3 +1,6 @@
+/*
+ * Application shell layout.
+ */
 .app-shell {
 	min-height: 100vh;
 	display: grid;
@@ -7,6 +10,33 @@
 }
 
 
+.application-main {
+	min-width: 0;
+	padding: 2rem;
+}
+
+
+.application-content {
+	width: min(1100px, 100%);
+	margin: 0 auto;
+}
+
+
+.application-main .output-box {
+	min-height: calc(100vh - 4rem);
+	max-height: none;
+	overflow: visible;
+}
+
+
+.application-main .developer-tools-panel {
+	margin-top: 1.5rem;
+}
+
+
+/*
+ * Application navigation.
+ */
 .application-navigation {
 	position: sticky;
 	top: 0;
@@ -66,30 +96,6 @@
 }
 
 
-.application-main {
-	min-width: 0;
-	padding: 2rem;
-}
-
-
-.application-content {
-	width: min(1100px, 100%);
-	margin: 0 auto;
-}
-
-
-.application-main .output-box {
-	min-height: calc(100vh - 4rem);
-	max-height: none;
-	overflow: visible;
-}
-
-
-.application-main .developer-tools-panel {
-	margin-top: 1.5rem;
-}
-
-
 /*
  * Desktop-only member profile presentation.
  */
@@ -129,13 +135,14 @@
 	display: none;
 }
 
+
 .application-navigation-backdrop {
 	display: none;
 }
 
 
 /*
- * PHONE SHELL
+ * Phone shell and drawer.
  */
 @media (max-width: 720px) {
 
@@ -148,7 +155,7 @@
 
 
 	/*
-	 * The SAME navigation used on desktop becomes an off-screen drawer.
+	 * The same navigation used on desktop becomes an off-screen drawer.
 	 */
 	.application-navigation {
 		position: fixed;
@@ -203,9 +210,6 @@
 	}
 
 
-	/*
-	 * Explicitly override the application's generic button styling.
-	 */
 	.mobile-navigation-toggle {
 		display: grid;
 		place-items: center;

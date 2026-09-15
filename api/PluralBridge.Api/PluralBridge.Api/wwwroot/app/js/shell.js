@@ -2,8 +2,22 @@ window.PluralBridge = window.PluralBridge || {};
 
 window.PluralBridge.shell = (function () {
 
-    let currentRoute = null;
-    let phoneMenuOpen = false;
+    const selectors = {
+        output: "#appOutput",
+        navigationButton: ".application-navigation .application-nav-item",
+        mainButton: "[data-shell-main]",
+        phoneMenuToggle: "[data-shell-menu-toggle]",
+        phoneMenuBackdrop: "[data-shell-menu-backdrop]"
+    };
+
+    const cssClasses = {
+        phoneMenuOpen: "shell-menu-open"
+    };
+
+    const routes = {
+        main: "main",
+        session: "session"
+    };
 
     const developerContracts = new Set([
         "sourceSystems",
@@ -65,8 +79,27 @@ window.PluralBridge.shell = (function () {
         }
     };
 
+    let currentRoute = null;
+    let phoneMenuOpen = false;
+
+    function query(selector) {
+        return document.querySelector(selector);
+    }
+
+    function queryAll(selector) {
+        return document.querySelectorAll(selector);
+    }
+
     function getOutput() {
-        return document.getElementById("appOutput");
+        return query(selectors.output);
+    }
+
+    function isDeveloperContract(contractName) {
+        return developerContracts.has(contractName);
+    }
+
+    function getDeveloperRoute(contractName) {
+        return "developer:" + contractName;
     }
 
     function getRouteForButton(button) {
@@ -76,15 +109,15 @@ window.PluralBridge.shell = (function () {
         }
 
         if (button.hasAttribute("data-shell-main")) {
-            return "main";
+            return routes.main;
         }
 
         if (button.dataset.contract === "me") {
-            return "session";
+            return routes.session;
         }
 
-        if (developerContracts.has(button.dataset.contract)) {
-            return "developer:" + button.dataset.contract;
+        if (isDeveloperContract(button.dataset.contract)) {
+            return getDeveloperRoute(button.dataset.contract);
         }
 
         if (button.dataset.shellPlaceholder) {
@@ -94,67 +127,102 @@ window.PluralBridge.shell = (function () {
         return null;
     }
 
+    function isDeveloperRoute(route) {
+        return typeof route === "string" && route.startsWith("developer:");
+    }
+
+    function isNativeAppRoute(route) {
+        return route === routes.main || route === routes.session;
+    }
+
     function setActiveRoute(route) {
 
         currentRoute = route;
 
-        const navigationButtons =
-            document.querySelectorAll(
-                ".application-navigation .application-nav-item"
-            );
+        const navigationButtons = queryAll(selectors.navigationButton);
 
         navigationButtons.forEach(function (button) {
 
             const buttonRoute = getRouteForButton(button);
 
-            if (!buttonRoute) {
-                button.setAttribute("aria-pressed", "false");
-                return;
-            }
-
             button.setAttribute(
                 "aria-pressed",
-                String(buttonRoute === route)
+                String(Boolean(buttonRoute) && buttonRoute === route)
             );
-
         });
+    }
+
+    function createElement(tagName, className, textContent) {
+
+        const element = document.createElement(tagName);
+
+        if (className) {
+            element.className = className;
+        }
+
+        if (textContent !== undefined && textContent !== null) {
+            element.textContent = textContent;
+        }
+
+        return element;
+    }
+
+    function clearOutput() {
+
+        const output = getOutput();
+
+        if (!output) {
+            return null;
+        }
+
+        output.replaceChildren();
+
+        return output;
     }
 
     function renderPlaceholder(screenKey) {
 
         const screen = placeholderScreens[screenKey];
-        const output = getOutput();
+        const output = clearOutput();
 
         if (!screen || !output) {
             return;
         }
 
-        output.replaceChildren();
-
-        const wrapper = document.createElement("section");
-        wrapper.className = "member-list";
+        const wrapper = createElement("section", "member-list");
         wrapper.dataset.shellScreen = screenKey;
 
-        const heading = document.createElement("h2");
-        heading.className = "output-heading";
-        heading.textContent = screen.title;
+        wrapper.appendChild(
+            createElement("h2", "output-heading", screen.title)
+        );
 
-        const note = document.createElement("p");
-        note.className = "output-note";
-        note.textContent = screen.message;
-
-        wrapper.appendChild(heading);
-        wrapper.appendChild(note);
+        wrapper.appendChild(
+            createElement("p", "output-note", screen.message)
+        );
 
         output.appendChild(wrapper);
+    }
+
+    function handleResolvedRoute(route) {
+
+        setActiveRoute(route);
+        closePhoneMenu();
+
+        if (isNativeAppRoute(route)) {
+            return;
+        }
+
+        if (isDeveloperRoute(route)) {
+            return;
+        }
+
+        renderPlaceholder(route);
     }
 
     function handleNavigationClick(event) {
 
         const button =
-            event.target.closest(
-                ".application-navigation .application-nav-item"
-            );
+            event.target.closest(selectors.navigationButton);
 
         if (!button) {
             return;
@@ -170,30 +238,61 @@ window.PluralBridge.shell = (function () {
             return;
         }
 
-        setActiveRoute(route);
-        closePhoneMenu();
-
-        if (route === "main" || route === "session") {
-            return;
-        }
-
-        if (route.startsWith("developer:")) {
-            return;
-        }
-
-        renderPlaceholder(route);
+        handleResolvedRoute(route);
     }
 
     function showMain() {
 
-        const mainButton =
-            document.querySelector("[data-shell-main]");
+        const mainButton = query(selectors.mainButton);
 
         if (!mainButton) {
             return;
         }
 
         mainButton.click();
+    }
+
+    function setPhoneMenuOpen(isOpen) {
+
+        phoneMenuOpen = Boolean(isOpen);
+
+        document.body.classList.toggle(
+            cssClasses.phoneMenuOpen,
+            phoneMenuOpen
+        );
+
+        const toggle = query(selectors.phoneMenuToggle);
+
+        if (!toggle) {
+            return;
+        }
+
+        toggle.setAttribute(
+            "aria-expanded",
+            String(phoneMenuOpen)
+        );
+
+        toggle.setAttribute(
+            "aria-label",
+            phoneMenuOpen
+                ? "Close application navigation"
+                : "Open application navigation"
+        );
+    }
+
+    function closePhoneMenu() {
+        setPhoneMenuOpen(false);
+    }
+
+    function togglePhoneMenu() {
+        setPhoneMenuOpen(!phoneMenuOpen);
+    }
+
+    function handlePhoneMenuKeydown(event) {
+
+        if (event.key === "Escape" && phoneMenuOpen) {
+            closePhoneMenu();
+        }
     }
 
     function initializeNavigation() {
@@ -204,70 +303,20 @@ window.PluralBridge.shell = (function () {
         );
     }
 
-    function setPhoneMenuOpen(isOpen) {
-
-        phoneMenuOpen = Boolean(isOpen);
-
-        document.body.classList.toggle(
-            "shell-menu-open",
-            phoneMenuOpen
-        );
-
-        const toggle =
-            document.querySelector("[data-shell-menu-toggle]");
-
-        if (toggle) {
-
-            toggle.setAttribute(
-                "aria-expanded",
-                String(phoneMenuOpen)
-            );
-
-            toggle.setAttribute(
-                "aria-label",
-                phoneMenuOpen
-                    ? "Close application navigation"
-                    : "Open application navigation"
-            );
-        }
-    }
-
-    function closePhoneMenu() {
-        setPhoneMenuOpen(false);
-    }
-
     function initializePhoneNavigation() {
 
-        const toggle =
-            document.querySelector("[data-shell-menu-toggle]");
-
-        const backdrop =
-            document.querySelector("[data-shell-menu-backdrop]");
-
+        const toggle = query(selectors.phoneMenuToggle);
+        const backdrop = query(selectors.phoneMenuBackdrop);
 
         if (toggle) {
-
-            toggle.addEventListener("click", function () {
-                setPhoneMenuOpen(!phoneMenuOpen);
-            });
+            toggle.addEventListener("click", togglePhoneMenu);
         }
-
 
         if (backdrop) {
-
-            backdrop.addEventListener(
-                "click",
-                closePhoneMenu
-            );
+            backdrop.addEventListener("click", closePhoneMenu);
         }
 
-
-        document.addEventListener("keydown", function (event) {
-
-            if (event.key === "Escape" && phoneMenuOpen) {
-                closePhoneMenu();
-            }
-        });
+        document.addEventListener("keydown", handlePhoneMenuKeydown);
     }
 
     function initialize() {
