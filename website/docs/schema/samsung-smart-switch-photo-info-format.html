@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Samsung Smart Switch PHOTO_INFO.json Format (Observed) — PluralBridge Documentation</title>
+  <meta name="description" content="Samsung Smart Switch PHOTO_INFO.json Format (Observed). PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="samsung-smart-switch-photo-info-json-format-observed">Samsung Smart Switch PHOTO_INFO.json Format (Observed)</h1>
+<h2 id="scope">Scope</h2>
+<p>This documents the <strong>Samsung Smart Switch / easyMover <code>PHOTO_INFO.json</code></strong> shape as observed from <strong>one personal</strong> Galaxy S24+ backup:</p>
+<ul>
+<li>SmartSwitch <code>tmp\PHOTO\PHOTO_INFO.json</code> (Galaxy S24+, <code>SM-S926U</code>)
+</li>
+<li>Root <code>count</code> was <strong>131</strong> in that sample, matching <code>files.length</code>
+</li>
+</ul>
+<p>Those counts are example numbers from that one personal dataset. Other backups will differ.</p>
+<p>This is a source-shape reference for phone recovery and media correlation. It is not a PluralBridge ontology and it is not the Simply Plural <code>simply.db</code> JSON (see <code>samsung-smart-switch-simply-db-format.md</code>).</p>
+<p>Field lists below are a union over the observed <code>files</code> records in the sample. Personal paths, file names, and <code>downloadUri</code> values from the sample are not copied here.</p>
+<h2 id="record-tree-key">Record Tree Key</h2>
+<ul>
+<li>🟢 <strong>Always present</strong> on every <code>files</code> record in this sample.
+</li>
+<li>🟡 <strong>Optional</strong>: present on some records only.
+</li>
+<li>🔴 <strong>Not a reliable original-creation signal</strong> for Simply Plural recovery.
+</li>
+</ul>
+<h2 id="record-tree">Record Tree</h2>
+<pre><code class="language-text">PHOTO_INFO.json (object)
+├─ 🟢 categoryType  (string, observed &quot;PHOTO&quot;)
+├─ 🟢 count         (number, observed 131)
+└─ 🟢 files[]       (array of photo records)
+   └─ photo record
+      ├─ 🟢 FilePath
+      ├─ 🟢 FileName
+      ├─ 🟢 Length
+      ├─ 🔴 Taken
+      ├─ 🔴 DateModified
+      ├─ 🟡 RecentPrimary
+      ├─ 🟢 Id
+      ├─ 🟢 SecmpId
+      ├─ 🟢 SefType
+      ├─ 🟢 SefSubType
+      ├─ 🟢 type2
+      ├─ 🟢 CategoryType
+      ├─ 🟡 ownerPackageName2
+      ├─ 🟡 GrpType
+      ├─ 🟡 GrpId
+      ├─ 🟡 downloadUri
+      ├─ 🟡 SefTypes
+      ├─ 🟡 OriginHash
+      ├─ 🟡 OriginSize
+      ├─ 🟡 BestImage
+      └─ 🟡 Orientation</code></pre>
+<p>Root <code>categoryType</code> and each record's <code>CategoryType</code> were both <code>"PHOTO"</code> in this sample.</p>
+<h2 id="root-object">Root object</h2>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>categoryType</code></td>
+<td>string</td>
+<td>Media category for this file. Observed: <code>PHOTO</code>.</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>number</td>
+<td>Declared record count. Observed equal to <code>files.length</code>.</td>
+</tr>
+<tr>
+<td><code>files</code></td>
+<td>array</td>
+<td>Photo metadata records.</td>
+</tr>
+</tbody></table>
+<h2 id="record-types">Record Types</h2>
+<h3 id="files-photo-record-always-present">[🟢] files[] photo record — always present</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>FilePath</code></td>
+<td>string</td>
+<td>Device path. Strong recovery evidence.</td>
+</tr>
+<tr>
+<td><code>FileName</code></td>
+<td>string</td>
+<td>File name on device. Strong recovery evidence.</td>
+</tr>
+<tr>
+<td><code>Length</code></td>
+<td>number</td>
+<td>File size in bytes.</td>
+</tr>
+<tr>
+<td><code>Taken</code></td>
+<td>number</td>
+<td>Timestamp in milliseconds. Present on every record. Not a reliable original creation time for batch-indexed Simply Plural / VZMedia / download rows.</td>
+</tr>
+<tr>
+<td><code>DateModified</code></td>
+<td>number</td>
+<td>Timestamp in milliseconds. Same caveat as <code>Taken</code>.</td>
+</tr>
+<tr>
+<td><code>RecentPrimary</code></td>
+<td>number</td>
+<td>Always present in this sample. About 1000× <code>DateModified</code> (microseconds vs milliseconds). Samsung media-index / recency, usually close to <code>DateModified</code>.</td>
+</tr>
+<tr>
+<td><code>Id</code></td>
+<td>number</td>
+<td>Samsung photo-record id. Separate sequence from <code>SecmpId</code>. Not strong Simply Plural recovery evidence.</td>
+</tr>
+<tr>
+<td><code>SecmpId</code></td>
+<td>number</td>
+<td>Always present. In this sample every value has the <code>0x80000000</code> bit set (Samsung <code>sec_media_id</code> style). <strong>Not</strong> <code>Id + 0x80000000</code>; <code>Id</code> and <code>SecmpId</code> are different sequences. Not strong Simply Plural recovery evidence.</td>
+</tr>
+<tr>
+<td><code>SefType</code></td>
+<td>number</td>
+<td>Almost always <code>0</code> in this sample; a few records used <code>2608</code>. Meaning not documented here.</td>
+</tr>
+<tr>
+<td><code>SefSubType</code></td>
+<td>number</td>
+<td>Always <code>0</code> in this sample.</td>
+</tr>
+<tr>
+<td><code>type2</code></td>
+<td>string</td>
+<td>Always <code>MEDIA</code> in this sample.</td>
+</tr>
+<tr>
+<td><code>CategoryType</code></td>
+<td>string</td>
+<td>Always <code>PHOTO</code> in this sample.</td>
+</tr>
+</tbody></table>
+<h3 id="files-photo-record-optional">[🟡] files[] photo record — optional</h3>
+<p>Counts are out of 131 records in this sample.</p>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Count</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>ownerPackageName2</code></td>
+<td>string</td>
+<td>126</td>
+<td>App that owned or ingested the file (Chrome, Downloads UI, Gmail, Photos, and others). Missing on 5 records.</td>
+</tr>
+<tr>
+<td><code>GrpType</code></td>
+<td>number</td>
+<td>67</td>
+<td>Observed <code>0</code> or <code>2</code>. Absent on the rest.</td>
+</tr>
+<tr>
+<td><code>downloadUri</code></td>
+<td>string</td>
+<td>43</td>
+<td>Source URL when the file was fetched (browser, Photos, and similar). May contain signed query strings. Do not commit sample values.</td>
+</tr>
+<tr>
+<td><code>SefTypes</code></td>
+<td>string</td>
+<td>11</td>
+<td>Comma-wrapped code list, for example <code>,3169,2721,</code>. Related to <code>SefType</code> but not identical.</td>
+</tr>
+<tr>
+<td><code>GrpId</code></td>
+<td>number</td>
+<td>8</td>
+<td>Group id when present.</td>
+</tr>
+<tr>
+<td><code>OriginHash</code></td>
+<td>string</td>
+<td>5</td>
+<td>Hash plus size fragment. Observed length about 71–72 characters.</td>
+</tr>
+<tr>
+<td><code>OriginSize</code></td>
+<td>number</td>
+<td>5</td>
+<td>Appears with <code>OriginHash</code>.</td>
+</tr>
+<tr>
+<td><code>BestImage</code></td>
+<td>number</td>
+<td>1</td>
+<td>Observed <code>1</code> on a single record.</td>
+</tr>
+<tr>
+<td><code>Orientation</code></td>
+<td>number</td>
+<td>1</td>
+<td>Observed <code>90</code> on a single record.</td>
+</tr>
+</tbody></table>
+<h2 id="path-prefixes-in-this-sample">Path prefixes in this sample</h2>
+<p>Directory prefixes only (not file names):</p>
+<table><thead><tr>
+<th>Count</th>
+<th>Directory</th>
+</tr></thead><tbody>
+<tr>
+<td>75</td>
+<td><code>/mnt/sdcard/Download</code></td>
+</tr>
+<tr>
+<td>29</td>
+<td><code>/mnt/sdcard/DCIM/SimplyPlural</code></td>
+</tr>
+<tr>
+<td>21</td>
+<td><code>/mnt/sdcard/VZMedia</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>/mnt/sdcard/dbr-preview-img</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>/mnt/sdcard/DCIM/Restored</code></td>
+</tr>
+</tbody></table>
+<p>Treat <code>/mnt/sdcard/DCIM/SimplyPlural</code> as one directory prefix among several in this sample. It is not the Simply Plural avatar store.</p>
+<p>Many DCIM/SimplyPlural / VZMedia / Download-UI records share a batch index window around <strong>24 July 2024</strong> (<code>Taken</code> / <code>DateModified</code> clustered). Those timestamps cannot be treated as original capture time.</p>
+<h2 id="recovery-use">Recovery use</h2>
+<p>For Simply Plural recovery, the strongest evidence from this file is:</p>
+<ul>
+<li><code>FilePath</code>
+</li>
+<li><code>FileName</code>
+</li>
+<li>Simply Plural member / avatar metadata from the app or an official export
+</li>
+</ul>
+<p>This catalog describes gallery files that happened to be in the photos transfer. It is not a map of uploaded member avatars.</p>
+<p>Do not treat Samsung internal ids (<code>Id</code>, <code>SecmpId</code>) or the timestamp fields as proof of when a member avatar was originally created. Do not copy <code>downloadUri</code> values into git; they can include signed URLs.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

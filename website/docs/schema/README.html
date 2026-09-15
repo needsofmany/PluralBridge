@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Schema Docs Overview — PluralBridge Documentation</title>
+  <meta name="description" content="Schema Docs Overview. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="schema-docs-overview">Schema Docs Overview</h1>
+<p>This folder contains public schema references for PluralBridge import and recovery work.</p>
+<h2 id="how-to-use-this-folder">How to use this folder</h2>
+<ul>
+<li>Treat these files as observed source-shape references, not product requirements.
+</li>
+<li>Prefer official Simply Plural export shape first.
+</li>
+<li>Use Samsung Smart Switch <code>simply.db</code> docs as a recovery/discovery fallback.
+</li>
+<li>Do not commit personal backup data, tokens, signed URLs, or member-identifying samples.
+</li>
+</ul>
+<h2 id="file-by-file-guide">File-by-file guide</h2>
+<table><thead><tr>
+<th>File</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>simply-plural-export-format.md</code></td>
+<td>Human-readable reference for official Simply Plural export JSON shape.</td>
+</tr>
+<tr>
+<td><code>simply_plural_last_export.inferred.schema.json</code></td>
+<td>Machine-readable inferred JSON schema generated from <code>simply-plural-export-format.md</code>.</td>
+</tr>
+<tr>
+<td><code>simply-plural-export-format-updated-from-pluralkit.md</code></td>
+<td>Extended/updated observed export-shape notes for known gaps.</td>
+</tr>
+<tr>
+<td><code>samsung-smart-switch-simply-db-format.md</code></td>
+<td>Human-readable reference for observed JSON recovered from Samsung Smart Switch <code>simply.db</code>.</td>
+</tr>
+<tr>
+<td><code>samsung_smart_switch_simply_db.inferred.schema.json</code></td>
+<td>Machine-readable inferred JSON schema generated from <code>samsung-smart-switch-simply-db-format.md</code>.</td>
+</tr>
+<tr>
+<td><code>samsung-smart-switch-backup-layout.md</code></td>
+<td>Generalized Smart Switch backup folder/layout reference for recovery planning.</td>
+</tr>
+<tr>
+<td><code>samsung-smart-switch-photo-info-format.md</code></td>
+<td>Observed <code>PHOTO_INFO</code> shape reference for media metadata correlation.</td>
+</tr>
+<tr>
+<td><code>samsung-smart-switch-sp-recovery.md</code></td>
+<td>Generalized recovery workflow notes linking backup artifacts to import planning.</td>
+</tr>
+<tr>
+<td><code>pluralbridge-db-schema-format.md</code></td>
+<td>Human-readable reference for current PluralBridge working SQL schema.</td>
+</tr>
+<tr>
+<td><code>script.sql</code></td>
+<td>SQL schema script snapshot used as provenance for <code>pluralbridge-db-schema-format.md</code>.</td>
+</tr>
+<tr>
+<td><code>PluralBridge-DB-Schema.png</code></td>
+<td>Visual ERD-style diagram of the working database schema.</td>
+</tr>
+</tbody></table>
+<h2 id="suggested-read-order-for-outside-developers">Suggested read order for outside developers</h2>
+<ol>
+<li><code>simply-plural-export-format.md</code></li>
+<li><code>simply_plural_last_export.inferred.schema.json</code></li>
+<li><code>pluralbridge-db-schema-format.md</code></li>
+<li><code>script.sql</code></li>
+<li>Recovery-specific <code>samsung-*</code> docs only when working fallback recovery/import paths</li>
+</ol>
+<h2 id="provenance-note">Provenance note</h2>
+<p>Generated files in this folder are derived from checked-in markdown schema references so external contributors can validate assumptions without private repo access.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simply Plural Export JSON Format (Observed) — PluralBridge Documentation</title>
+  <meta name="description" content="Simply Plural Export JSON Format (Observed). PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="simply-plural-export-json-format-observed">Simply Plural Export JSON Format (Observed)</h1>
+<h2 id="scope">Scope</h2>
+<p>This documents the <strong>official Simply Plural export JSON</strong> shape as observed from the inferred schema source:</p>
+<ul>
+<li><code>simply_plural_last_export.inferred.schema.json</code>
+</li>
+</ul>
+<p>This is a source-shape reference for import planning, not a PluralBridge ontology.</p>
+<h2 id="record-tree-key">Record Tree Key</h2>
+<ul>
+<li>🟢 <strong>Documented record type</strong>: item shape is documented in this file with a 3-column table.
+</li>
+<li>🟡 <strong>Observed but variant/special case</strong>: known oddity such as misspelling or duplicated naming pattern.
+</li>
+<li>🟠 <strong>Known container/sub-structure</strong>: nested object exists but is not a top-level record type table.
+</li>
+<li>🔴 <strong>Unknown item shape</strong>: collection exists but item fields were not available from observed sample data.
+</li>
+</ul>
+<h2 id="record-tree">Record Tree</h2>
+<pre><code class="language-text">Export (object)
+├─ 🔴 automatedReminders[] (unknown item shape)
+├─ 🟢 avatarExports[] -&gt; avatarExportsItem
+├─ 🟢 boardMessages[] -&gt; boardMessagesItem
+├─ 🔴 cancelFeedback[] (unknown item shape)
+├─ 🟢 channelCategories[] -&gt; channelCategoriesItem
+├─ 🟢 channels[] -&gt; channelsItem
+├─ 🟢 chatMessages[] -&gt; chatMessagesItem
+├─ 🔴 comments[] (unknown item shape)
+├─ 🟢 customFields[] -&gt; customFieldsItem
+├─ 🟢 dataExports[] -&gt; dataExportsItem
+├─ 🔴 events[] (unknown item shape)
+├─ 🟢 friends[] -&gt; friendsItem
+├─ 🟢 frontHistory[] -&gt; frontHistoryItem
+├─ 🟢 frontStatuses[] -&gt; frontStatusesItem
+├─ 🔴 fronters[] (unknown item shape)
+├─ 🟢 groups[] -&gt; groupsItem
+├─ 🔴 invalidJwtTokens[] (unknown item shape)
+├─ 🟢 members[] -&gt; membersItem
+├─ 🔴 messages[] (unknown item shape)
+├─ 🟢 notes[] -&gt; notesItem
+├─ 🔴 notifications[] (unknown item shape)
+├─ 🔴 pendingFriendRequests[] (unknown item shape)
+├─ 🔴 polls[] (unknown item shape)
+├─ 🔴 potato[] (unknown item shape)
+├─ 🟢 privacyBuckets[] -&gt; privacyBucketsItem
+├─ 🟢 private[] -&gt; privateItem
+│  └─ 🟠 defaultPrivacySettings (object)
+│     ├─ 🔴 customFields[] (unknown item shape)
+│     ├─ 🔴 customFronts[] (unknown item shape)
+│     ├─ 🔴 groups[] (unknown item shape)
+│     └─ 🔴 members[] (unknown item shape)
+├─ 🟢 privateFront[] -&gt; privateFrontItem
+├─ 🔴 queuedEvents[] (unknown item shape)
+├─ 🟡 repeatedRemidners[] (unknown item shape, observed misspelling)
+├─ 🔴 repeatedReminders[] (unknown item shape)
+├─ 🟢 reports[] -&gt; reportsItem
+│  └─ 🟠 usedSettings (object)
+│     ├─ 🔴 cc[] (unknown item shape)
+│     ├─ 🟠 customFronts (object)
+│     │  ├─ 🔴 buckets[] (unknown item shape)
+│     │  ├─ includeBucketless (boolean)
+│     │  └─ privacyLevel (integer)
+│     ├─ 🟠 frontHistory (object)
+│     │  ├─ 🔴 customFrontBuckets[] (unknown item shape)
+│     │  ├─ 🔴 memberBuckets[] (unknown item shape)
+│     │  ├─ start (integer)
+│     │  ├─ end (integer)
+│     │  ├─ includeCustomFronts (boolean)
+│     │  ├─ includeCustomFrontsBucketless (boolean)
+│     │  ├─ includeMembers (boolean)
+│     │  ├─ includeMembersBucketless (boolean)
+│     │  └─ privacyLevel (integer)
+│     ├─ 🟠 members (object)
+│     │  ├─ 🔴 buckets[] (unknown item shape)
+│     │  ├─ includeBucketless (boolean)
+│     │  ├─ includeCustomFields (boolean)
+│     │  └─ privacyLevel (integer)
+│     └─ sendTo (string)
+├─ 🟢 securityLogs[] -&gt; securityLogsItem
+├─ 🟢 serverData[] -&gt; serverDataItem
+├─ 🟢 sharedFront[] -&gt; sharedFrontItem
+├─ 🔴 socketNotifications[] (unknown item shape)
+├─ 🔴 subscribers[] (unknown item shape)
+├─ 🔴 test[] (unknown item shape)
+├─ 🟢 tokens[] -&gt; tokensItem
+├─ 🔴 undeliveredMessages[] (unknown item shape)
+├─ 🟢 usage[] -&gt; usageItem
+├─ 🟢 users[] -&gt; usersItem
+│  ├─ 🟠 fields (object keyed by field id)
+│  │  └─ 🟠 field config object
+│  └─ 🟠 frame (object)
+├─ 🔴 verifiedKeys[] (unknown item shape)
+└─ 🔴 views[] (unknown item shape)</code></pre>
+<h2 id="record-types">Record Types</h2>
+<h3 id="avatarexportsitem">[🟢] avatarExportsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>downloads</code></td>
+<td>integer</td>
+<td>Observed download counter.</td>
+</tr>
+<tr>
+<td><code>exp</code></td>
+<td>integer</td>
+<td>Expiration timestamp/value from source.</td>
+</tr>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>Source storage/export key.</td>
+</tr>
+<tr>
+<td><code>lastDownload</code></td>
+<td>integer</td>
+<td>Last download timestamp/value.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="boardmessagesitem">[🟢] boardMessagesItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>string</td>
+<td>Message body text.</td>
+</tr>
+<tr>
+<td><code>read</code></td>
+<td>boolean</td>
+<td>Read/unread state.</td>
+</tr>
+<tr>
+<td><code>supportMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>Message title.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+<tr>
+<td><code>writtenAt</code></td>
+<td>integer</td>
+<td>Written-at timestamp/value.</td>
+</tr>
+<tr>
+<td><code>writtenBy</code></td>
+<td>string</td>
+<td>Source author identifier.</td>
+</tr>
+<tr>
+<td><code>writtenFor</code></td>
+<td>string</td>
+<td>Source target identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="channelcategoriesitem">[🟢] channelCategoriesItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>channels</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Channel identifiers in this category.</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>Category description.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Category name.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="channelsitem">[🟢] channelsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>Channel description.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Channel name.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="chatmessagesitem">[🟢] chatMessagesItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>channel</code></td>
+<td>string</td>
+<td>Channel identifier for this message.</td>
+</tr>
+<tr>
+<td><code>iv</code></td>
+<td>string</td>
+<td>Source encryption/vector-related field.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>string</td>
+<td>Message body text.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+<tr>
+<td><code>writer</code></td>
+<td>string</td>
+<td>Source author identifier.</td>
+</tr>
+<tr>
+<td><code>writtenAt</code></td>
+<td>integer</td>
+<td>Written-at timestamp/value.</td>
+</tr>
+</tbody></table>
+<h3 id="customfieldsitem">[🟢] customFieldsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>buckets</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Linked privacy bucket identifiers.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Custom field display name.</td>
+</tr>
+<tr>
+<td><code>oid</code></td>
+<td>string</td>
+<td>Source object/field identifier.</td>
+</tr>
+<tr>
+<td><code>order</code></td>
+<td>string</td>
+<td>Source ordering value.</td>
+</tr>
+<tr>
+<td><code>supportMarkdown</code></td>
+<td>null</td>
+<td>Observed as null in this export sample.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>integer</td>
+<td>Source custom field type code.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="dataexportsitem">[🟢] dataExportsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>downloads</code></td>
+<td>integer</td>
+<td>Observed download counter.</td>
+</tr>
+<tr>
+<td><code>exp</code></td>
+<td>integer</td>
+<td>Expiration timestamp/value from source.</td>
+</tr>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>Source storage/export key.</td>
+</tr>
+<tr>
+<td><code>lastDownload</code></td>
+<td>integer</td>
+<td>Last download timestamp/value.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="friendsitem">[🟢] friendsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>buckets</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Linked privacy bucket identifiers.</td>
+</tr>
+<tr>
+<td><code>customFrontString</code></td>
+<td>string</td>
+<td>Source custom front status text.</td>
+</tr>
+<tr>
+<td><code>frienduid</code></td>
+<td>string</td>
+<td>Friend user/system identifier.</td>
+</tr>
+<tr>
+<td><code>frontNotificationString</code></td>
+<td>string</td>
+<td>Front notification display text.</td>
+</tr>
+<tr>
+<td><code>frontString</code></td>
+<td>string</td>
+<td>Front display text.</td>
+</tr>
+<tr>
+<td><code>getFrontNotif</code></td>
+<td>boolean</td>
+<td>Receive front notifications flag.</td>
+</tr>
+<tr>
+<td><code>getTheirFrontNotif</code></td>
+<td>boolean</td>
+<td>Receive their-front notifications flag.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>seeFront</code></td>
+<td>boolean</td>
+<td>Visibility flag for front state.</td>
+</tr>
+<tr>
+<td><code>seeMembers</code></td>
+<td>boolean</td>
+<td>Visibility flag for member data.</td>
+</tr>
+<tr>
+<td><code>trusted</code></td>
+<td>boolean</td>
+<td>Trusted-relationship flag.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="fronthistoryitem">[🟢] frontHistoryItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>custom</code></td>
+<td>boolean</td>
+<td>Custom front state flag.</td>
+</tr>
+<tr>
+<td><code>customStatus</code></td>
+<td>string</td>
+<td>Custom front status text.</td>
+</tr>
+<tr>
+<td><code>endTime</code></td>
+<td>integer</td>
+<td>End timestamp/value.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>live</code></td>
+<td>boolean</td>
+<td>Live/current front entry flag.</td>
+</tr>
+<tr>
+<td><code>member</code></td>
+<td>string</td>
+<td>Member identifier linked to entry.</td>
+</tr>
+<tr>
+<td><code>startTime</code></td>
+<td>integer</td>
+<td>Start timestamp/value.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="frontstatusesitem">[🟢] frontStatusesItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>avatarUuid</code></td>
+<td>string</td>
+<td>Avatar UUID/reference.</td>
+</tr>
+<tr>
+<td><code>buckets</code></td>
+<td>array</td>
+<td>Linked privacy bucket identifiers (observed empty).</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>string</td>
+<td>Color value.</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>Description text.</td>
+</tr>
+<tr>
+<td><code>frame</code></td>
+<td>object</td>
+<td>Visual frame configuration object.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Name/title value.</td>
+</tr>
+<tr>
+<td><code>preventTrusted</code></td>
+<td>boolean</td>
+<td>Trusted-visibility prevention flag.</td>
+</tr>
+<tr>
+<td><code>preventsFrontNotifs</code></td>
+<td>boolean</td>
+<td>Front notification prevention flag.</td>
+</tr>
+<tr>
+<td><code>private</code></td>
+<td>boolean</td>
+<td>Private visibility flag.</td>
+</tr>
+<tr>
+<td><code>supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="groupsitem">[🟢] groupsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>buckets</code></td>
+<td>array</td>
+<td>Linked privacy bucket identifiers.</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>string</td>
+<td>Group color value.</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>Group description text.</td>
+</tr>
+<tr>
+<td><code>emoji</code></td>
+<td>string</td>
+<td>Group emoji value.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>members</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Member identifiers linked to group.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Group name.</td>
+</tr>
+<tr>
+<td><code>parent</code></td>
+<td>string</td>
+<td>Parent group identifier (source).</td>
+</tr>
+<tr>
+<td><code>supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="membersitem">[🟢] membersItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>archived</code></td>
+<td>boolean</td>
+<td>Archived state flag.</td>
+</tr>
+<tr>
+<td><code>archivedReason</code></td>
+<td>string</td>
+<td>Archived reason text.</td>
+</tr>
+<tr>
+<td><code>avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>avatarUuid</code></td>
+<td>string</td>
+<td>Avatar UUID/reference.</td>
+</tr>
+<tr>
+<td><code>buckets</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Linked privacy bucket identifiers.</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>string</td>
+<td>Member color value.</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>Member description text.</td>
+</tr>
+<tr>
+<td><code>frame</code></td>
+<td>object</td>
+<td>Visual frame configuration object.</td>
+</tr>
+<tr>
+<td><code>info</code></td>
+<td>object</td>
+<td>Dynamic map of custom field id to value.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Member display name.</td>
+</tr>
+<tr>
+<td><code>pkId</code></td>
+<td>string</td>
+<td>Source primary-key-like identifier.</td>
+</tr>
+<tr>
+<td><code>preventTrusted</code></td>
+<td>boolean</td>
+<td>Trusted-visibility prevention flag.</td>
+</tr>
+<tr>
+<td><code>preventsFrontNotifs</code></td>
+<td>boolean</td>
+<td>Front notification prevention flag.</td>
+</tr>
+<tr>
+<td><code>private</code></td>
+<td>boolean</td>
+<td>Private visibility flag.</td>
+</tr>
+<tr>
+<td><code>pronouns</code></td>
+<td>string</td>
+<td>Pronoun text.</td>
+</tr>
+<tr>
+<td><code>receiveMessageBoardNotifs</code></td>
+<td>boolean</td>
+<td>Message board notification flag.</td>
+</tr>
+<tr>
+<td><code>supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="notesitem">[🟢] notesItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>string</td>
+<td>Note color value.</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td>integer</td>
+<td>Note timestamp/value.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>member</code></td>
+<td>string</td>
+<td>Member identifier linked to note.</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>string</td>
+<td>Note body text.</td>
+</tr>
+<tr>
+<td><code>supportMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>Note title text.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="privacybucketsitem">[🟢] privacyBucketsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>string</td>
+<td>Bucket color value.</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>Bucket description text.</td>
+</tr>
+<tr>
+<td><code>icon</code></td>
+<td>string</td>
+<td>Bucket icon value.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Bucket name.</td>
+</tr>
+<tr>
+<td><code>rank</code></td>
+<td>string</td>
+<td>Bucket ranking/order value.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="privateitem">[🟢] privateItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>auditContentChanges</code></td>
+<td>boolean</td>
+<td>Audit-content-changes flag.</td>
+</tr>
+<tr>
+<td><code>auditRetention</code></td>
+<td>integer</td>
+<td>Audit retention value.</td>
+</tr>
+<tr>
+<td><code>categories</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Source category list.</td>
+</tr>
+<tr>
+<td><code>defaultPrivacySettings</code></td>
+<td>object</td>
+<td>Default privacy configuration object.</td>
+</tr>
+<tr>
+<td><code>generationsLeft</code></td>
+<td>integer</td>
+<td>Source generation counter.</td>
+</tr>
+<tr>
+<td><code>hideAudits</code></td>
+<td>boolean</td>
+<td>Hide-audits flag.</td>
+</tr>
+<tr>
+<td><code>lastExport</code></td>
+<td>integer</td>
+<td>Last export timestamp/value.</td>
+</tr>
+<tr>
+<td><code>lastExportAttempt</code></td>
+<td>integer</td>
+<td>Last export attempt timestamp/value.</td>
+</tr>
+<tr>
+<td><code>lastGenerationReset</code></td>
+<td>integer</td>
+<td>Last generation reset timestamp/value.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>lastRefresh</code></td>
+<td>integer</td>
+<td>Last refresh timestamp/value.</td>
+</tr>
+<tr>
+<td><code>latestVersion</code></td>
+<td>integer</td>
+<td>Source version indicator.</td>
+</tr>
+<tr>
+<td><code>location</code></td>
+<td>string</td>
+<td>Location/region text.</td>
+</tr>
+<tr>
+<td><code>notificationHistory</code></td>
+<td>array\&lt;object&gt;</td>
+<td>Notification history entries.</td>
+</tr>
+<tr>
+<td><code>notificationToken</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Notification token values (sensitive).</td>
+</tr>
+<tr>
+<td><code>termsOfServiceAccepted</code></td>
+<td>boolean</td>
+<td>Terms accepted flag.</td>
+</tr>
+<tr>
+<td><code>termsOfServicesAccepted</code></td>
+<td>boolean</td>
+<td>Alternate spelling variant observed.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="privatefrontitem">[🟢] privateFrontItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>beforeCustomFrontString</code></td>
+<td>string</td>
+<td>Prior custom front text.</td>
+</tr>
+<tr>
+<td><code>beforeFrontNotificationString</code></td>
+<td>string</td>
+<td>Prior front notification text.</td>
+</tr>
+<tr>
+<td><code>customFrontString</code></td>
+<td>string</td>
+<td>Current custom front text.</td>
+</tr>
+<tr>
+<td><code>customFronters</code></td>
+<td>array</td>
+<td>Custom fronter entries.</td>
+</tr>
+<tr>
+<td><code>frontNotificationString</code></td>
+<td>string</td>
+<td>Front notification text.</td>
+</tr>
+<tr>
+<td><code>frontString</code></td>
+<td>string</td>
+<td>Front display text.</td>
+</tr>
+<tr>
+<td><code>fronters</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Fronter identifiers.</td>
+</tr>
+<tr>
+<td><code>private</code></td>
+<td>boolean</td>
+<td>Private visibility flag.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="reportsitem">[🟢] reportsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>createdAt</code></td>
+<td>integer</td>
+<td>Report created-at timestamp/value.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td>string</td>
+<td>Report URL/reference.</td>
+</tr>
+<tr>
+<td><code>usedSettings</code></td>
+<td>object</td>
+<td>Report generation settings object.</td>
+</tr>
+</tbody></table>
+<h3 id="securitylogsitem">[🟢] securityLogsItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td>string</td>
+<td>Security-log action label.</td>
+</tr>
+<tr>
+<td><code>at</code></td>
+<td>integer</td>
+<td>Action timestamp/value.</td>
+</tr>
+<tr>
+<td><code>ip</code></td>
+<td>string</td>
+<td>IP address string.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="serverdataitem">[🟢] serverDataItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>lastReadMessage</code></td>
+<td>integer</td>
+<td>Last-read message pointer/timestamp.</td>
+</tr>
+<tr>
+<td><code>migrated</code></td>
+<td>boolean</td>
+<td>Source migrated flag.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="sharedfrontitem">[🟢] sharedFrontItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>beforeCustomFrontString</code></td>
+<td>string</td>
+<td>Prior custom front text.</td>
+</tr>
+<tr>
+<td><code>beforeFrontNotificationString</code></td>
+<td>string</td>
+<td>Prior front notification text.</td>
+</tr>
+<tr>
+<td><code>customFrontString</code></td>
+<td>string</td>
+<td>Current custom front text.</td>
+</tr>
+<tr>
+<td><code>customFronters</code></td>
+<td>array</td>
+<td>Custom fronter entries.</td>
+</tr>
+<tr>
+<td><code>frontNotificationString</code></td>
+<td>string</td>
+<td>Front notification text.</td>
+</tr>
+<tr>
+<td><code>frontString</code></td>
+<td>string</td>
+<td>Front display text.</td>
+</tr>
+<tr>
+<td><code>fronters</code></td>
+<td>array</td>
+<td>Fronter entries (observed mixed/empty).</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="tokensitem">[🟢] tokensItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>permission</code></td>
+<td>integer</td>
+<td>Source permission value/code.</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td>string</td>
+<td>Token value (sensitive).</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+</tbody></table>
+<h3 id="usageitem">[🟢] usageItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>expireAt</code></td>
+<td>string</td>
+<td>Usage-metrics expiration value.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+<tr>
+<td><code>GET/POST/PATCH/DELETE endpoint counters</code></td>
+<td>integer fields</td>
+<td>Dynamic map of endpoint label to usage count.</td>
+</tr>
+</tbody></table>
+<h3 id="usersitem">[🟢] usersItem</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>string</td>
+<td>User/system color value.</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>Description text.</td>
+</tr>
+<tr>
+<td><code>fields</code></td>
+<td>object</td>
+<td>Dynamic map of custom field definitions keyed by field id.</td>
+</tr>
+<tr>
+<td><code>frame</code></td>
+<td>object</td>
+<td>Visual frame configuration object.</td>
+</tr>
+<tr>
+<td><code>isAsystem</code></td>
+<td>boolean</td>
+<td>Source system-indicator flag.</td>
+</tr>
+<tr>
+<td><code>lastOperationTime</code></td>
+<td>integer</td>
+<td>Source last-operation timestamp.</td>
+</tr>
+<tr>
+<td><code>supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string</td>
+<td>Source user/system identifier.</td>
+</tr>
+<tr>
+<td><code>username</code></td>
+<td>string</td>
+<td>Source username.</td>
+</tr>
+</tbody></table>
+<h2 id="notes">Notes</h2>
+<ul>
+<li>Some top-level collections have unknown/empty item shape in observed data; they are intentionally listed in the tree.
+</li>
+<li>Key spellings and variants should be preserved as source facts (for example <code>repeatedRemidners</code>).
+</li>
+<li>Sensitive fields (for example token-like values) should never be logged or exposed in unsafe output.
+</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

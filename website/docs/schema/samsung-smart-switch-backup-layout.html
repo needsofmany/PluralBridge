@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Samsung Smart Switch Backup Layout (Observed) — PluralBridge Documentation</title>
+  <meta name="description" content="Samsung Smart Switch Backup Layout (Observed). PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="samsung-smart-switch-backup-layout-observed">Samsung Smart Switch Backup Layout (Observed)</h1>
+<p>The combined how-to plus this tree is <code>samsung-smart-switch-sp-recovery.md</code>. This file remains the shorter observed-layout note.</p>
+<h2 id="scope">Scope</h2>
+<p>This is a <strong>file-tree map</strong> of <strong>one personal</strong> PC Smart Switch backup of a Galaxy S24+ (<code>SM-S926U</code>). Counts, sizes, and folder inventories below are example numbers from that dataset, not a dump of the backup, not typical values, and not a PluralBridge ontology.</p>
+<p>Observed backup root (UNC, read in place; do not copy into git):</p>
+<p><code>\\&lt;host&gt;\c_drive\Users\&lt;user&gt;\Samsung\SmartSwitch\backup\&lt;device_model&gt;\&lt;device_id&gt;\&lt;backup_timestamp&gt;\</code></p>
+<p>Sibling notes (do not duplicate here):</p>
+<ul>
+<li><code>samsung-smart-switch-photo-info-format.md</code> — easyMover <code>PHOTO_INFO.json</code>
+</li>
+<li><code>samsung-smart-switch-simply-db-format.md</code> — <code>simply.db</code> JSON shape
+</li>
+</ul>
+<p>Official Simply Plural export JSON and Chap2 Safe Spine SQL notes stay as they are. This tree is a Smart Switch media + one-app backup, not an Apparyllis export.</p>
+<p>Current location of this map: <code>Working\Architecture\schema\</code> in the private repo. Destination if a later pass migrates it: public <code>recovery/</code> or <code>docs/schema/</code> — decide then. Do not reshape the public <code>docs/</code> tree from this pass.</p>
+<h2 id="record-tree-key">Record Tree Key</h2>
+<ul>
+<li>🟢 <strong>Strong recovery</strong> for Simply Plural / PluralBridge phone recovery.
+</li>
+<li>🟡 <strong>Supporting index / catalog</strong>: useful to correlate, not a substitute for bytes or <code>simply.db</code>.
+</li>
+<li>🟠 <strong>Opaque or encrypted</strong>: present, not directly readable in this pass.
+</li>
+<li>🔴 <strong>Not useful, failed, or absent</strong> from this tree.
+</li>
+</ul>
+<h2 id="what-this-backup-is">What this backup is</h2>
+<p>This is <strong>one personal Galaxy S24+</strong> PC transfer (<code>MakeOption</code> = <code>WithSelectList</code>, <code>FullBackupMode</code> = false, <code>ConnectType</code> = <code>pc</code>), not a full-phone backup and not a typical inventory. Counts below are from that sample. Manifest <code>CategoryInfoExtra</code> lists <strong>226</strong> device packages that <em>could</em> be offered on that phone; this folder only contains what was actually transferred.</p>
+<table><thead><tr>
+<th>Observed</th>
+<th>Value</th>
+</tr></thead><tbody>
+<tr>
+<td>Device</td>
+<td><code>SM-S926U</code> (product code <code>SM-S926UZVAVZW</code>, sales code <code>VZW</code>)</td>
+</tr>
+<tr>
+<td>Android / One UI</td>
+<td>Android 16 (<code>OsVer</code> 36 / <code>PlatformVersion</code> 16.0.0), One UI 8 (<code>OneUiVer</code> 80500)</td>
+</tr>
+<tr>
+<td>Smart Switch (phone)</td>
+<td><code>AppVer</code> 3.7.72.6</td>
+</tr>
+<tr>
+<td>PC Kies / Smart Switch</td>
+<td><code>KiesVersion</code> 5.0.48.0, bundle <code>Version</code> 2.6</td>
+</tr>
+<tr>
+<td>Saved time</td>
+<td><code>2026-08-19T23:46:26</code> (folder stamp <code>20260819234505</code>)</td>
+</tr>
+<tr>
+<td>Protocol</td>
+<td><code>Type</code> = <code>AOA</code>, <code>D2dProtocolVer</code> 37</td>
+</tr>
+<tr>
+<td>History rollup</td>
+<td><code>ItemsCount</code> 141, <code>FileSize</code> 303888312 (declared; packed-on-disk is smaller)</td>
+</tr>
+</tbody></table>
+<p>The only app APK + app-data <strong>in that sample</strong> is <strong>Simply Plural 1.11.5</strong>, package <code>com.saltypandastudios.frontime</code> (Salty Panda / Frontime). There is <strong>no</strong> <code>com.apparyllis.simplyplural</code> package, and <strong>no</strong> loose <code>simply.db</code> at backup root. <code>simply.db</code> is inside the Frontime Android backup envelope (see APKFILE).</p>
+<h2 id="backup-root">Backup root</h2>
+<pre><code class="language-text">&lt;backup_timestamp&gt;\
+├─ 🟡 backupHistoryInfo.xml
+├─ 🟡 ReqItemsInfo.json
+├─ 🟡 SmartSwitchBackup.json          (identical SHA-256 to *_back.json)
+├─ 🟡 SmartSwitchBackup_back.json
+├─ 🟢 APKFILE\                        Frontime / Simply Plural APK + app data
+├─ 🟡 Photo\                          131 media files + PHOTO_INFO.json
+├─ 🟡 PHOTO_ORIGIN\                    5 photo-editor originals
+├─ 🟡 GALLERYSETTING\                album catalog + gallery prefs (zip)
+├─ 🟠 SECMP\                          encrypted Samsung media-provider DB
+├─ 🟠 MEDIASEARCH\                    opaque gallery-search blob
+├─ 🔴 APKDENYLIST\                    unrelated denylist stub
+├─ 🔴 ContentBnrResult\                per-category backup result receipts
+└─ 🔴 (no USERTAG\ folder)             requested in manifests, not on disk</code></pre>
+<p>On-disk file counts / bytes (this tree):</p>
+<table><thead><tr>
+<th>Area</th>
+<th>Files</th>
+<th>Bytes</th>
+</tr></thead><tbody>
+<tr>
+<td>Photo</td>
+<td>132</td>
+<td>123,381,467</td>
+</tr>
+<tr>
+<td>SECMP</td>
+<td>1</td>
+<td>56,206,254</td>
+</tr>
+<tr>
+<td>APKFILE</td>
+<td>9</td>
+<td>44,785,379</td>
+</tr>
+<tr>
+<td>MEDIASEARCH</td>
+<td>1</td>
+<td>19,353,233</td>
+</tr>
+<tr>
+<td>PHOTO_ORIGIN</td>
+<td>5</td>
+<td>4,801,303</td>
+</tr>
+<tr>
+<td>GALLERYSETTING</td>
+<td>1</td>
+<td>5,879</td>
+</tr>
+<tr>
+<td>APKDENYLIST</td>
+<td>1</td>
+<td>10,991</td>
+</tr>
+<tr>
+<td>ContentBnrResult</td>
+<td>2</td>
+<td>858</td>
+</tr>
+<tr>
+<td>Root JSON/XML</td>
+<td>4</td>
+<td>~417 KB</td>
+</tr>
+</tbody></table>
+<h2 id="manifest-files-root">Manifest files (root)</h2>
+<h3 id="backuphistoryinfo-xml">[🟡] backupHistoryInfo.xml</h3>
+<p>Root element <code>BatchInfomationItem</code> (Samsung spelling). Children: <code>BundleInfo</code>, <code>ItemsInfo</code>.</p>
+<p><code>BundleInfo</code> is a <code>BatchServiceBuldleInformation</code>: mode <code>Basic</code>, <code>FullBackupMode</code> false, <code>Type</code> AOA. <code>ItemsInfo</code> has one <code>BatchInformation</code> per transferred category. Observed <code>FileName</code> values vs this tree:</p>
+<table><thead><tr>
+<th>History <code>FileName</code></th>
+<th>History <code>Type</code></th>
+<th>On disk</th>
+</tr></thead><tbody>
+<tr>
+<td><code>APKFILE\</code></td>
+<td>Application</td>
+<td>folder (not a zip)</td>
+</tr>
+<tr>
+<td><code>PHOTO\</code></td>
+<td>Photo</td>
+<td>folder, 131 items</td>
+</tr>
+<tr>
+<td><code>MEDIASEARCH\MEDIASEARCH.zip</code></td>
+<td>MediaSearch</td>
+<td>matches</td>
+</tr>
+<tr>
+<td><code>SECMP\SECMP.zip</code></td>
+<td>SECMP</td>
+<td>matches</td>
+</tr>
+<tr>
+<td><code>PHOTO_ORIGIN\PHOTO_ORIGIN.zip</code></td>
+<td>PhotoOrigin</td>
+<td><strong>mismatch</strong>: tree is <code>PHOTO_ORIGIN\data\sec\photoeditor\0\</code>, not a zip</td>
+</tr>
+<tr>
+<td><code>GALLERYSETTING\GALLERYSETTING.zip</code></td>
+<td>GallerySetting</td>
+<td>matches</td>
+</tr>
+<tr>
+<td><code>APKDENYLIST\APKDENYLIST.zip</code></td>
+<td>ApkDenyList</td>
+<td>matches</td>
+</tr>
+</tbody></table>
+<p>History <code>FileSize</code> on several categories is a placeholder or pre-pack size (e.g. MEDIASEARCH declared 102400, zip is ~19 MB; GALLERYSETTING declared ~59 MB, zip is 5.8 KB). Trust the files on disk, not those size fields.</p>
+<p>The APK <code>BatchInformation</code> names the app <code>Simply Plural</code>, <code>ApplicationID</code> <code>com.saltypandastudios.frontime</code>, version <code>1.11.5</code> / code 384.</p>
+<h3 id="reqitemsinfo-json">[🟡] ReqItemsInfo.json</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>MakeOption</code></td>
+<td>string</td>
+<td>Observed <code>WithSelectList</code>.</td>
+</tr>
+<tr>
+<td><code>SDeviceInfoAll</code></td>
+<td>object</td>
+<td>Device capability snapshot (model, One UI, storage, feature flags). Contains identifiers; do not copy IMEI, accounts, phone number, serial, or keystore material into git.</td>
+</tr>
+<tr>
+<td><code>Items.ItemList</code></td>
+<td>array</td>
+<td>10 requested categories. Status on this snapshot: <code>WAITING</code>.</td>
+</tr>
+</tbody></table>
+<p><code>ItemList</code> types, in order: <code>APKFILE</code>, <code>PHOTO</code> (ViewCount 131), <code>GALLERYEVENT</code>, <code>MEDIASEARCH</code>, <code>GALLERY_PET_SERVICE</code>, <code>SECMP</code>, <code>PHOTO_ORIGIN</code> (ViewCount 5), <code>GALLERYSETTING</code>, <code>USERTAG</code>, <code>APKDENYLIST</code>.</p>
+<p><code>SDeviceInfoAll.IndivisualTransferSupportItems</code> is a capability list for this phone/session, not a list of what is in the folder.</p>
+<h3 id="smartswitchbackup-json-smartswitchbackup-back-json">[🟡] SmartSwitchBackup.json / SmartSwitchBackup_back.json</h3>
+<p>Byte-identical in this sample. Device + session catalog. Useful fields for recovery mapping (values that are identifiers stay out of git):</p>
+<table><thead><tr>
+<th>Field</th>
+<th>Observed</th>
+</tr></thead><tbody>
+<tr>
+<td><code>OsType</code></td>
+<td><code>Android</code></td>
+</tr>
+<tr>
+<td><code>OsVer</code></td>
+<td>36</td>
+</tr>
+<tr>
+<td><code>OneUiVer</code></td>
+<td>80500</td>
+</tr>
+<tr>
+<td><code>AppVer</code></td>
+<td>3.7.72.6</td>
+</tr>
+<tr>
+<td><code>ConnectType</code></td>
+<td><code>pc</code></td>
+</tr>
+<tr>
+<td><code>DeviceType</code></td>
+<td><code>phone</code></td>
+</tr>
+<tr>
+<td><code>IsApp</code></td>
+<td>10 category objects, <code>Status</code> = <code>PREPARED</code></td>
+</tr>
+<tr>
+<td><code>CategoryInfoExtra</code></td>
+<td>226 packages (device inventory, not this backup’s contents)</td>
+</tr>
+<tr>
+<td><code>PackageNameKeys</code> / <code>PackageNameValues</code></td>
+<td>length 3</td>
+</tr>
+</tbody></table>
+<p><code>IsApp</code> <code>AppNameInfos</code> maps every Frontime split APK name to launcher label <code>Simply Plural</code>.</p>
+<p><code>IsApp</code> includes <code>USERTAG</code> and <code>GALLERY_PET_SERVICE</code>. Neither has a payload folder here.</p>
+<h2 id="apkfile-simply-plural-frontime">APKFILE (Simply Plural / Frontime)</h2>
+<pre><code class="language-text">APKFILE\
+├─ 🟡 AppList.json / AppList.bk
+├─ 🟠 com.saltypandastudios.frontime.penc          encrypted base APK
+├─ 🟡 com.saltypandastudios.frontime.png           launcher icon (PNG)
+├─ 🟡 com.saltypandastudios.frontime_split_config.*.apk   plaintext split APKs
+└─ 🟢 data\com.saltypandastudios.frontime\
+     └─ 🟢 com.saltypandastudios.frontime.noedata  Android Backup envelope</code></pre>
+<h3 id="applist-json">[🟡] AppList.json</h3>
+<p>Single <code>Apks[]</code> entry. <code>ApkName</code> = <code>Simply Plural</code>, <code>ApkPkgName</code> = <code>com.saltypandastudios.frontime</code>, <code>VersionName</code> 1.11.5, <code>VersionCode</code> 384, <code>TargetSdkVersion</code> 35, <code>AllowBackup</code> true, <code>IsSelected</code> true. <code>InstPkgName</code> = <code>com.android.vending</code>. <code>DataFile</code> / <code>AppDataFileName</code> point at the <code>.noedata</code> envelope. <code>AppList.bk</code> is a binary companion (not JSON; magic not PNG/ZIP/SQLite).</p>
+<h3 id="penc-vs-split-apks">[🟠] <code>.penc</code> vs split APKs</h3>
+<p><code>.penc</code> is not a ZIP (leading bytes not <code>PK</code>). Split configs (<code>arm64_v8a</code>, <code>en</code>, <code>es</code>, <code>xxhdpi</code>) are ordinary APK/ZIP. For recovery, the <strong>app data</strong> in <code>.noedata</code> matters more than the APK bytes.</p>
+<h3 id="noedata-android-backup-then-tar">[🟢] <code>.noedata</code> — Android Backup, then tar</h3>
+<p>Header (ASCII, four newline-terminated lines), then uncompressed ustar. Observed:</p>
+<pre><code class="language-text">ANDROID BACKUP
+5
+0
+none</code></pre>
+<p>Payload starts at byte 24. Encryption line <code>none</code>, compression <code>0</code>. This is the live Simply Plural app-data source for this backup.</p>
+<p>Android backup path tokens under <code>apps/com.saltypandastudios.frontime/</code>:</p>
+<table><thead><tr>
+<th>Prefix</th>
+<th>Meaning</th>
+</tr></thead><tbody>
+<tr>
+<td><code>_manifest</code></td>
+<td>Package backup manifest</td>
+</tr>
+<tr>
+<td><code>r/</code></td>
+<td>Remaining app-data tree (Flutter <code>app_flutter</code>)</td>
+</tr>
+<tr>
+<td><code>f/</code></td>
+<td><code>files/</code></td>
+</tr>
+<tr>
+<td><code>db/</code></td>
+<td><code>databases/</code></td>
+</tr>
+<tr>
+<td><code>sp/</code></td>
+<td><code>shared_prefs</code></td>
+</tr>
+</tbody></table>
+<h3 id="r-app-flutter-simply-db">[🟢] <code>r/app_flutter/simply.db</code></h3>
+<table><thead><tr>
+<th></th>
+<th></th>
+</tr></thead><tbody>
+<tr>
+<td>Size</td>
+<td>116,539 bytes</td>
+</tr>
+<tr>
+<td>Disk type</td>
+<td>JSON object, despite <code>.db</code></td>
+</tr>
+<tr>
+<td>Starts with</td>
+<td><code>{"private":{...</code></td>
+</tr>
+</tbody></table>
+<p>Top-level keys on this live file (duplicate case/pluralization, same family as the sibling note): <code>private</code>, <code>Privates</code>, <code>privates</code>, <code>users</code>, <code>Users</code>, <code>Members</code>, <code>members</code>, <code>Channels</code>, <code>channels</code>, <code>FrontHistory</code>, <code>fronthistory</code>, <code>chatcategories</code>, <code>customfields</code>, <code>friends</code>, <code>friendssettings</code>, <code>privacybuckets</code>.</p>
+<p>That agrees with <code>samsung-smart-switch-simply-db-format.md</code>. Do not replace that note from this tree. Field tables stay there. This map only records <strong>location</strong> and that the live object is JSON with those keys.</p>
+<h3 id="other-app-flutter-files-also-db-names-mostly-json">Other <code>app_flutter</code> files (also <code>.db</code> names, mostly JSON)</h3>
+<p>Do not copy bodies (messages, queued API payloads, log lines, member names).</p>
+<table><thead><tr>
+<th>Member</th>
+<th>Size</th>
+<th>Observed shape</th>
+</tr></thead><tbody>
+<tr>
+<td><code>messages_&lt;channelId&gt;.db</code></td>
+<td>616</td>
+<td>JSON <code>{ "messages": [...] }</code>. One file in this sample. Item fields: <code>message</code>, <code>channel</code>, <code>writer</code>, <code>writtenAt</code>, <code>id</code>. 4 messages.</td>
+</tr>
+<tr>
+<td><code>pendingRequests.db</code></td>
+<td>4,043</td>
+<td>JSON array of 9 stringified request objects. Inner keys: <code>method</code>, <code>path</code>, <code>query</code>, <code>payload</code>, <code>timestamp</code>.</td>
+</tr>
+<tr>
+<td><code>logs.db</code></td>
+<td>90,706</td>
+<td>JSON array of log-line strings. Sample starts <code>2026-08-18</code> (day before this backup).</td>
+</tr>
+<tr>
+<td><code>events.db</code></td>
+<td>306</td>
+<td>JSON <code>{ "events": [{ "event", "time" }] }</code>. 5 events.</td>
+</tr>
+</tbody></table>
+<h3 id="f-images-db-real-sqlite">[🟡] <code>f/images.db</code> (real SQLite)</h3>
+<p>SQLite 3, 40,960 bytes. Tables: <code>android_metadata</code>, <code>cacheObject</code> (57 rows).</p>
+<p><code>cacheObject</code> columns: <code>_id</code>, <code>url</code>, <code>key</code>, <code>relativePath</code>, <code>eTag</code>, <code>validTill</code>, <code>touched</code>, <code>length</code>.</p>
+<p>URL hosts in this sample (no full URLs, no signed query strings, no system uid):</p>
+<table><thead><tr>
+<th>Count</th>
+<th>Host</th>
+<th>Path prefix</th>
+</tr></thead><tbody>
+<tr>
+<td>51</td>
+<td><code>spaces.apparyllis.com</code></td>
+<td><code>/avatars/&lt;systemUid&gt;/</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>dist.apparyllis.com</code></td>
+<td><code>/resources/</code> (stock plurality art)</td>
+</tr>
+<tr>
+<td>1</td>
+<td>one non-Apparyllis host</td>
+<td>ignore for SP recovery</td>
+</tr>
+</tbody></table>
+<p><code>relativePath</code> values are 40-character <code>.bin</code> names. The <strong>blob files are not in this Android backup</strong> (typical: image cache lives under <code>cache/</code>, which backup omits). Treat <code>images.db</code> as an avatar-URL index, not as recovered avatar bytes. This backup’s <code>Photo\</code> tree is a selected gallery transfer, not the avatar store.</p>
+<h3 id="sp-shared-prefs-key-names-only">[🟡] <code>sp/</code> shared_prefs (key names only)</h3>
+<p>Present: <code>FlutterSharedPreferences.xml</code>, <code>FlutterSecureStorage.xml</code>, <code>FlutterSecureKeyStorage.xml</code>, Frontime prefs, Firebase/GMS/messaging XML.</p>
+<p><code>FlutterSharedPreferences.xml</code> key names observed: <code>flutter.uid</code>, <code>flutter.access_key</code>, <code>flutter.refresh_key</code>, <code>flutter.pkAPI</code>, <code>flutter.loc</code>, <code>flutter.loc_country</code>, <code>flutter.lastConfigSync</code>, <code>flutter.listMembers</code>, plus FAQ/how-to and remote-config keys.</p>
+<p><code>flutter.access_key</code>, <code>flutter.refresh_key</code>, <code>flutter.pkAPI</code>, and <code>FlutterSecureStorage.xml</code> values are credentials. Do not copy them into git. They may be useful on a private recovery workstation only.</p>
+<p><code>db/</code> contains only Google Data Transport events SQLite (not Simply Plural). Firebase installation JSON filenames include an installation id; ignore the id.</p>
+<h2 id="photo">Photo</h2>
+<p>Matches <code>PHOTO_INFO.json</code> <code>count</code> = 131 = <code>files.length</code>. Layout:</p>
+<pre><code class="language-text">Photo\
+├─ 🟢 data\user\0\com.sec.android.easyMover\files\SmartSwitch\tmp\PHOTO\
+│     PHOTO_INFO.json
+├─ 🟡 DCIM\SimplyPlural\     29 files
+├─ 🟡 DCIM\Restored\         3 files (.jpg)
+├─ 🟡 Download\              75 files
+├─ 🟡 VZMedia\               21 files (.jpeg)
+└─ 🟡 dbr-preview-img\       3 files (.jpg)</code></pre>
+<h3 id="photo-info-json">[🟢] PHOTO_INFO.json</h3>
+<p>Path: <code>Photo\data\user\0\com.sec.android.easyMover\files\SmartSwitch\tmp\PHOTO\PHOTO_INFO.json</code> (61,187 bytes).</p>
+<p>Field tables, SecmpId bit, and timestamp caveats: <code>samsung-smart-switch-photo-info-format.md</code>. <code>FilePath</code> / <code>FileName</code> describe the packed gallery files. They are not a map of uploaded member avatars.</p>
+<h3 id="path-prefixes-in-this-tree-directory-only">Path prefixes in this tree (directory only)</h3>
+<table><thead><tr>
+<th>Count</th>
+<th>Backup folder</th>
+<th>Device prefix in PHOTO_INFO / album DB</th>
+</tr></thead><tbody>
+<tr>
+<td>75</td>
+<td><code>Photo\Download</code></td>
+<td><code>/mnt/sdcard/Download</code></td>
+</tr>
+<tr>
+<td>29</td>
+<td><code>Photo\DCIM\SimplyPlural</code></td>
+<td><code>/mnt/sdcard/DCIM/SimplyPlural</code></td>
+</tr>
+<tr>
+<td>21</td>
+<td><code>Photo\VZMedia</code></td>
+<td><code>/mnt/sdcard/VZMedia</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>Photo\dbr-preview-img</code></td>
+<td><code>/mnt/sdcard/dbr-preview-img</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>Photo\DCIM\Restored</code></td>
+<td><code>/mnt/sdcard/DCIM/Restored</code></td>
+</tr>
+</tbody></table>
+<p><code>DCIM\SimplyPlural</code> extensions in this tree: <code>.jpg</code> 22, <code>.jpeg</code> 3, <code>.webp</code> 3, <code>.png</code> 1.</p>
+<p><code>Photo\DCIM\SimplyPlural</code> is one gallery prefix in this sample, not the Simply Plural avatar store. Download / VZMedia / Restored / dbr-preview are likewise selected photos. Do not catalog personal names, Discord/Gmail attachments, or <code>downloadUri</code> values.</p>
+<h2 id="photo-origin">PHOTO_ORIGIN</h2>
+<pre><code class="language-text">PHOTO_ORIGIN\data\sec\photoeditor\0\
+  &lt;64-hex&gt;_&lt;byteLength&gt;.jpg   (5 files)</code></pre>
+<p>Samsung Photo Editor originals, not an SP folder. History XML still calls this <code>PHOTO_ORIGIN.zip</code>. Useful only if an edited gallery file needs a pre-edit original. Hashed names; no personal file names in the tree.</p>
+<h2 id="gallerysetting-zip">GALLERYSETTING.zip</h2>
+<p>Three text members:</p>
+<table><thead><tr>
+<th>Member</th>
+<th>Role</th>
+</tr></thead><tbody>
+<tr>
+<td><code>BACKUP_ALBUM_DB.txt</code></td>
+<td>JSON array, <strong>70</strong> album objects</td>
+</tr>
+<tr>
+<td><code>BACKUP_GALLERY_PREFERENCE_VALUE.txt</code></td>
+<td>Gallery UI prefs (column counts, location)</td>
+</tr>
+<tr>
+<td><code>BACKUP_SETTINGS_PREFERENCE_VALUE.txt</code></td>
+<td>Gallery settings (trash, notifications, etc.)</td>
+</tr>
+</tbody></table>
+<h3 id="album-object-fields">[🟡] album object fields</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Presence</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>__bucketID</code></td>
+<td>70/70</td>
+<td>Album id</td>
+</tr>
+<tr>
+<td><code>__Title</code></td>
+<td>70/70</td>
+<td>Album title</td>
+</tr>
+<tr>
+<td><code>album_order</code></td>
+<td>70/70</td>
+<td>Sort order</td>
+</tr>
+<tr>
+<td><code>__albumType</code></td>
+<td>70/70</td>
+<td>Observed 0, 1, 2, 3, 5</td>
+</tr>
+<tr>
+<td><code>__albumLevel</code></td>
+<td>70/70</td>
+<td>Observed 0 or 1</td>
+</tr>
+<tr>
+<td><code>essential_album_order</code></td>
+<td>70/70</td>
+<td></td>
+</tr>
+<tr>
+<td><code>__absPath</code></td>
+<td>63/70</td>
+<td>Device directory</td>
+</tr>
+<tr>
+<td><code>cover_rect</code></td>
+<td>63/70</td>
+<td>Cover crop</td>
+</tr>
+<tr>
+<td><code>default_cover_path</code></td>
+<td>62/70</td>
+<td>Cover file path (do not copy personal names)</td>
+</tr>
+<tr>
+<td><code>folder_id</code> / <code>folder_name</code></td>
+<td>25/70</td>
+<td>Optional folder grouping</td>
+</tr>
+</tbody></table>
+<p>Prefixes present in the album catalog <strong>and</strong> in <code>Photo\</code>:</p>
+<ul>
+<li><code>/storage/emulated/0/DCIM/SimplyPlural</code> (title <code>SimplyPlural</code>)
+</li>
+<li><code>/storage/emulated/0/Download</code>
+</li>
+<li><code>/storage/emulated/0/VZMedia</code>
+</li>
+<li><code>/storage/emulated/0/DCIM/Restored</code>
+</li>
+<li><code>/storage/emulated/0/dbr-preview-img</code>
+</li>
+</ul>
+<p>The album DB also lists many other device albums (Camera, Screenshots, WhatsApp media, trip folders, and similar). <strong>Those files are not in this backup.</strong> Do not copy personal album titles into git. The catalog is a device map; this transfer only packed the 131 PHOTO items.</p>
+<h2 id="secmp-mediasearch-apkdenylist-contentbnrresult">SECMP / MEDIASEARCH / APKDENYLIST / ContentBnrResult</h2>
+<h3 id="secmp-zip">[🟠] SECMP.zip</h3>
+<p>One member: <code>encrypted_backup.db</code> (~56.2 MB uncompressed). Magic is <strong>not</strong> SQLite. Relates to Samsung <code>sec_media_id</code> / <code>SecmpId</code> in PHOTO_INFO. Do not treat as a Simply Plural database. Not opened in this pass.</p>
+<h3 id="mediasearch-zip">[🟠] MEDIASEARCH.zip</h3>
+<p>One member: <code>backup_v23.bin</code> (~19.3 MB). Opaque binary. Gallery search index, not SP app data.</p>
+<h3 id="apkdenylist-zip">[🔴] APKDENYLIST.zip</h3>
+<p><code>APKDENYLIST.json</code> lists one unrelated package (<code>com.dti.folderlauncher</code> / GamesHub) plus a PNG. Not Simply Plural.</p>
+<h3 id="contentbnrresult">[🔴] ContentBnrResult</h3>
+<p>Per-category JSON receipts named <code>fail.bk</code>:</p>
+<table><thead><tr>
+<th>Category</th>
+<th><code>Result</code></th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td><code>GALLERYEVENT</code></td>
+<td><code>true</code></td>
+<td>No <code>GALLERYEVENT\</code> payload folder in this tree</td>
+</tr>
+<tr>
+<td><code>GALLERY_PET_SERVICE</code></td>
+<td><code>false</code></td>
+<td><code>Err_Code</code> 5; no payload folder</td>
+</tr>
+</tbody></table>
+<p><code>USERTAG</code> appears in <code>ReqItemsInfo</code> / <code>IsApp</code> and not in <code>backupHistoryInfo</code> <code>ItemsInfo</code> and not on disk.</p>
+<h2 id="recovery-use-this-tree">Recovery use (this tree)</h2>
+<p>Work in this order:</p>
+<ol>
+<li><strong>App state</strong> — extract <code>simply.db</code> from <code>APKFILE\data\com.saltypandastudios.frontime\com.saltypandastudios.frontime.noedata</code> (Android Backup header, then tar member <code>apps/com.saltypandastudios.frontime/r/app_flutter/simply.db</code>). Shape: sibling simply.db note.</li>
+<li><strong>Avatar references</strong> — <code>simply.db</code> fields and optional <code>images.db</code> <code>cacheObject.url</code> hosts (<code>spaces.apparyllis.com/avatars/</code>) without committing URLs. Cached <code>.bin</code> files are not in this backup.</li>
+<li><strong>Gallery <code>Photo\</code></strong> — selected media only; not the Simply Plural avatar store.</li>
+<li><strong>Do not</strong> treat SECMP, MEDIASEARCH, <code>.penc</code>, Samsung timestamps, or <code>SecmpId</code> as SP source of truth.</li>
+<li><strong>Do not</strong> commit tokens from <code>FlutterSharedPreferences</code> / <code>FlutterSecureStorage</code>, <code>downloadUri</code> values, personal file names, or member names from <code>simply.db</code>.</li>
+</ol>
+<h2 id="not-in-this-tree">Not in this tree</h2>
+<ul>
+<li>No official Apparyllis/Simply Plural <strong>export</strong> JSON (see <code>simply-plural-export-format.md</code> if needed; it is a different source).
+</li>
+<li>No <code>com.apparyllis.simplyplural</code> package data.
+</li>
+<li>No messages/contacts/calendar/SMS payload folders.
+</li>
+<li>No Chap2 Safe Spine SQL.
+</li>
+<li>Cached avatar <code>.bin</code> files referenced by <code>images.db</code> (index only).
+</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

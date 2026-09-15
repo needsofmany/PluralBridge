@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DB Schema Graph — PluralBridge</title>
+  <meta name="description" content="Auto-generated database schema graph from script.sql for PluralBridge docs.">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="./diagram-viewer.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="/index.html">
+      <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
+      <span class="brand-text">
+        <span class="brand-title">PluralBridge</span>
+        <span class="brand-subtitle">Needs of the Many</span>
+      </span>
+    </a>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="/index.html">Home</a>
+      <a href="/start-here.html">Start Here</a>
+      <a href="/export-now.html">Data Recovery</a>
+      <details class="nav-menu">
+        <summary data-current="section">Guides</summary>
+        <div class="nav-menu-panel">
+          <a href="/docs.html">Documentation Home</a>
+          <a href="/safety.html">Safety</a>
+          <a href="/developer-workflow.html">Help Build</a>
+          <a href="/simply-plural-shutdown.html">Shutdown Info</a>
+        </div>
+      </details>
+      <details class="nav-menu">
+        <summary>Projects</summary>
+        <div class="nav-menu-panel">
+          <a href="/browser-app.html">What PluralBridge Is Building</a>
+        </div>
+      </details>
+      <details class="nav-menu">
+        <summary>Community</summary>
+        <div class="nav-menu-panel">
+          <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
+          <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
+          <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
+          <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
+        </div>
+      </details>
+      <details class="nav-menu">
+        <summary>About</summary>
+        <div class="nav-menu-panel">
+          <a href="/about.html">About PluralBridge</a>
+          <a href="/contact.html">Contact Us</a>
+        </div>
+      </details>
+      <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
+    </nav>
+  </div>
+</header>
+
+<main class="page diagram-page">
+  <article class="card diagram-card">
+    <h1>PluralBridge DB schema graph</h1>
+    <p class="diagram-meta">
+      <button id="mode-graph" type="button">Generated graph</button>
+      <button id="mode-image" type="button">Original image</button>
+      <button id="zoom-reset" type="button">100%</button>
+      <button id="zoom-in" type="button">Zoom in</button>
+      <button id="zoom-out" type="button">Zoom out</button>
+      <span id="zoom-label">100%</span>
+      <a href="./script.sql" target="_blank" rel="noopener">Open source SQL</a>
+      <a href="./PluralBridge-DB-Schema.png" target="_blank" rel="noopener">Open source image</a>
+    </p>
+    <p id="diagram-status" class="diagram-status">Generating graph from script.sql...</p>
+    <div id="diagram-wrap" class="diagram-wrap">
+      <div id="diagram-canvas" class="viewer-pane"></div>
+      <div id="diagram-image-pane" class="viewer-pane" hidden>
+        <img id="diagram-image" src="./PluralBridge-DB-Schema.png" alt="PluralBridge database schema diagram">
+      </div>
+    </div>
+    <details class="diagram-source">
+      <summary>Show generated Mermaid source</summary>
+      <pre id="diagram-source-text"></pre>
+    </details>
+  </article>
+</main>
+
+<script src="./diagram-viewer.js"></script>
+</body>
+</html>
