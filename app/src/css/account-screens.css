@@ -1,0 +1,153 @@
+/*
+ * Account screen presentation.
+ */
+
+.account-screen {
+	display: grid;
+	gap: 1rem;
+}
+
+
+.account-screen-intro {
+	max-width: 65ch;
+	margin: -0.25rem 0 0;
+	color: #b7c4d5;
+	line-height: 1.5;
+}
+
+
+.account-card-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+	align-items: stretch;
+}
+
+
+.account-card {
+	display: grid;
+	align-content: start;
+	gap: 0.85rem;
+	min-width: 0;
+	padding: 1rem;
+	border: 1px solid rgba(168, 199, 255, 0.18);
+	border-radius: 0.8rem;
+	background: rgba(7, 10, 13, 0.42);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), inset 0 0 0 1px rgba(0, 0, 0, 0.22);
+}
+
+
+.account-card-title {
+	margin: 0;
+	color: #edf4ff;
+	font-size: 1rem;
+	font-weight: 800;
+}
+
+
+.account-card-note {
+	margin: 0;
+	color: #b7c4d5;
+	line-height: 1.5;
+}
+
+
+.account-detail-list {
+	display: grid;
+	gap: 0.65rem;
+	margin: 0;
+}
+
+
+.account-detail-row {
+	display: grid;
+	grid-template-columns: 10rem minmax(0, 1fr);
+	gap: 0.75rem;
+	padding-top: 0.65rem;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+
+	.account-detail-row:first-child {
+		padding-top: 0;
+		border-top: 0;
+	}
+
+
+	.account-detail-row dt {
+		color: #a8c7ff;
+		font-size: 0.8rem;
+		font-weight: 800;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+
+
+	.account-detail-row dd {
+		min-width: 0;
+		margin: 0;
+		color: #d8e1ed;
+		line-height: 1.45;
+	}
+
+
+.account-status-pill {
+	display: inline-flex;
+	align-items: center;
+	min-height: 1.7rem;
+	padding: 0.15rem 0.55rem;
+	border: 1px solid rgba(168, 199, 255, 0.32);
+	border-radius: 999px;
+	background: rgba(168, 199, 255, 0.12);
+	color: #edf4ff;
+	font-size: 0.82rem;
+	font-weight: 800;
+}
+
+
+.account-action-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.15rem;
+}
+
+
+.account-secondary-button {
+	padding: 0.65rem 0.8rem;
+	border: 1px solid rgba(168, 199, 255, 0.24);
+	border-radius: 0.55rem;
+	color: #d8e1ed;
+	background: rgba(255, 255, 255, 0.06);
+	font-weight: 800;
+}
+
+
+	.account-secondary-button:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+
+
+@media (max-width: 720px) {
+
+	.account-card-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+
+	.account-detail-row {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.25rem;
+	}
+
+
+	.account-action-row {
+		display: grid;
+	}
+
+
+	.account-secondary-button {
+		width: 100%;
+	}
+}

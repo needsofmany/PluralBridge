@@ -279,53 +279,63 @@ app.MapGet("/", () => Results.Redirect("/app/"));
 
 
 // -----------------------------------------------------------------------------
-// PROTECTED BROWSER-ASSET ALLOWLISTS
+// PROTECTED BROWSER-ASSET ALLOWLISTS (STARTUP SCAN)
 // -----------------------------------------------------------------------------
 //
-// IMPORTANT:
-//
-// PluralBridge is NOT currently exposing wwwroot through unrestricted static
-// file middleware.
-//
-// Instead, the browser application's CSS and JavaScript files are served by
-// explicit endpoints farther below:
+// Browser CSS and JavaScript modules are still served through explicit endpoint
+// routes below:
 //
 //     /app/css/{fileName}
 //     /app/js/{fileName}
 //
-// Those endpoints check these allowlists before returning a file.
+// But the allowlists are now derived from the filesystem at startup so new
+// files under wwwroot/app/css and wwwroot/app/js do not require manual
+// Program.cs edits.
 //
-// Therefore:
-//
-//     A file can physically exist under wwwroot/app/css or wwwroot/app/js
-//     and STILL return HTTP 404 if its filename is absent from these sets.
-//
-// This is what happened with shell.css and shell.js.
-//
-// Whenever a new browser CSS or JavaScript module is intentionally added,
-// its filename must also be registered here unless this asset-serving design
-// is changed in the future.
-//
-var allowedBrowserCssFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+static HashSet<string> BuildBrowserAssetAllowlist(
+	string directoryPath,
+	string searchPattern)
 {
-	"base.css",
-	"layout.css",
-	"members.css",
-	"members-mobile.css",
-	"developer-tools.css",
-	"legacy-app.css",
-	"shell.css"
-};
+	var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-{
-	"bootstrap.js",
-	"api-client.js",
-	"members.js",
-	"developer-tools.js",
-	"legacy-app.js",
-	"shell.js"
-};
+	if (!Directory.Exists(directoryPath))
+	{
+		return allowedFiles;
+	}
+
+	foreach (var fullPath in Directory.EnumerateFiles(
+		         directoryPath,
+		         searchPattern,
+		         SearchOption.TopDirectoryOnly))
+	{
+		var fileName = Path.GetFileName(fullPath);
+
+		if (!string.IsNullOrWhiteSpace(fileName))
+		{
+			allowedFiles.Add(fileName);
+		}
+	}
+
+	return allowedFiles;
+}
+
+var browserAppCssDirectory = Path.Combine(
+	app.Environment.WebRootPath!,
+	"app",
+	"css");
+
+var browserAppJsDirectory = Path.Combine(
+	app.Environment.WebRootPath!,
+	"app",
+	"js");
+
+var allowedBrowserCssFiles = BuildBrowserAssetAllowlist(
+	browserAppCssDirectory,
+	"*.css");
+
+var allowedBrowserJsFiles = BuildBrowserAssetAllowlist(
+	browserAppJsDirectory,
+	"*.js");
 
 
 // -----------------------------------------------------------------------------

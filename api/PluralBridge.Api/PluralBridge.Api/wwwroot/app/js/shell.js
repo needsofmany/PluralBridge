@@ -58,21 +58,6 @@ window.PluralBridge.shell = (function () {
             message: "Saved Views functionality has not yet been implemented."
         },
 
-        profile: {
-            title: "Profile",
-            message: "Account Profile functionality has not yet been implemented."
-        },
-
-        security: {
-            title: "Security",
-            message: "Account Security functionality has not yet been implemented."
-        },
-
-        systems: {
-            title: "System(s)",
-            message: "System/account-management functionality has not yet been implemented."
-        },
-
         audit: {
             title: "Audit",
             message: "Audit functionality has not yet been implemented."
@@ -203,6 +188,24 @@ window.PluralBridge.shell = (function () {
         output.appendChild(wrapper);
     }
 
+    function tryRenderExternalScreen(route) {
+
+        const accountScreens =
+            window.PluralBridge && window.PluralBridge.accountScreens
+                ? window.PluralBridge.accountScreens
+                : null;
+
+        if (
+            accountScreens &&
+            typeof accountScreens.render === "function" &&
+            accountScreens.render(route)
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
     function handleResolvedRoute(route) {
 
         setActiveRoute(route);
@@ -213,6 +216,10 @@ window.PluralBridge.shell = (function () {
         }
 
         if (isDeveloperRoute(route)) {
+            return;
+        }
+
+        if (tryRenderExternalScreen(route)) {
             return;
         }
 

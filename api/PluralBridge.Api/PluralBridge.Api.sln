@@ -52,10 +52,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PluralBridge.Api.Tests", ".
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PB App", "PB App", "{E8A02964-6D6B-42B4-8BD3-05E213A4B9BA}"
 	ProjectSection(SolutionItems) = preProject
-		..\..\app\app.css = ..\..\app\app.css
-		..\..\app\app.js = ..\..\app\app.js
-		..\..\app\index.html = ..\..\app\index.html
 	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "app", "app", "{77B7FD91-4BEC-4974-914E-A98F8C52D0D5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{0B1D42DE-0373-49E5-9F90-5FF3F58AC702}"
 	ProjectSection(SolutionItems) = preProject
@@ -71,6 +70,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "assets", "assets", "{962CC0
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "css", "css", "{FE8104D0-8D43-42E7-BF2A-D50F29A9B4B2}"
 	ProjectSection(SolutionItems) = preProject
+		..\..\app\src\css\account-screens.css = ..\..\app\src\css\account-screens.css
 		..\..\app\src\css\app.css = ..\..\app\src\css\app.css
 		..\..\app\src\css\base.css = ..\..\app\src\css\base.css
 		..\..\app\src\css\developer-tools.css = ..\..\app\src\css\developer-tools.css
@@ -83,6 +83,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "css", "css", "{FE8104D0-8D4
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "js", "js", "{A5254E8E-8B0C-4026-B391-500A83BC7994}"
 	ProjectSection(SolutionItems) = preProject
+		..\..\app\src\js\account-screens.js = ..\..\app\src\js\account-screens.js
 		..\..\app\src\js\api-client.js = ..\..\app\src\js\api-client.js
 		..\..\app\src\js\app.js = ..\..\app\src\js\app.js
 		..\..\app\src\js\bootstrap.js = ..\..\app\src\js\bootstrap.js
@@ -133,8 +134,9 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{CC619F1C-AF5F-4A27-AAB6-75BBFCE18148} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{7B6E8868-C9C0-4C68-BCC1-A667DAFDB7BE} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
-		{0B1D42DE-0373-49E5-9F90-5FF3F58AC702} = {E8A02964-6D6B-42B4-8BD3-05E213A4B9BA}
-		{EF40D666-3BD9-4A8E-9EEA-0BE38508AA71} = {E8A02964-6D6B-42B4-8BD3-05E213A4B9BA}
+		{77B7FD91-4BEC-4974-914E-A98F8C52D0D5} = {E8A02964-6D6B-42B4-8BD3-05E213A4B9BA}
+		{0B1D42DE-0373-49E5-9F90-5FF3F58AC702} = {77B7FD91-4BEC-4974-914E-A98F8C52D0D5}
+		{EF40D666-3BD9-4A8E-9EEA-0BE38508AA71} = {77B7FD91-4BEC-4974-914E-A98F8C52D0D5}
 		{962CC03A-6F55-4272-B7D5-999F2F5AE46F} = {EF40D666-3BD9-4A8E-9EEA-0BE38508AA71}
 		{FE8104D0-8D43-42E7-BF2A-D50F29A9B4B2} = {EF40D666-3BD9-4A8E-9EEA-0BE38508AA71}
 		{A5254E8E-8B0C-4026-B391-500A83BC7994} = {EF40D666-3BD9-4A8E-9EEA-0BE38508AA71}
