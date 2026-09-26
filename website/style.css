@@ -402,6 +402,12 @@ h3 {
 	background: rgba(255, 255, 255, 0.08);
 }
 
+.button.blog-button {
+	background: #475569;
+	border-color: #94a3b8;
+	color: #ffffff;
+}
+
 .button.primary,
 .button.primary:visited,
 .button.primary:hover,
