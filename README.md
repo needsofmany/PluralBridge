@@ -3,6 +3,7 @@
 [![GitGem](https://gitgem.org/api/badge/github/needsofmany/PluralBridge.svg)](https://gitgem.org/gem/github/needsofmany/PluralBridge)
 
 Project website: https://thepluralbridge.org/
+Project blog: https://blog.thepluralbridge.org/
 
 ## Start Here
 
@@ -167,6 +168,10 @@ The public PluralBridge website is available at:
 - https://www.thepluralbridge.org
 - https://pluralpedia.org/w/PluralBridge
 - https://github.com/needsofmany/PluralBridge/discussions
+
+The PluralBridge blog can be found at:
+
+- https://blog.thepluralbridge.org/
 
 The website source is stored in the `website/` directory and is deployed through Cloudflare Pages from the `master` branch, with `website` as the build output directory.
 

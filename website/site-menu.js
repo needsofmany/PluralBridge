@@ -84,6 +84,7 @@
       '<details class="nav-menu">' +
       '<summary><span class="nav-icon nav-icon-community" aria-hidden="true"></span>Community</summary>' +
       '<div class="nav-menu-panel">' +
+      '<a href="https://blog.thepluralbridge.org/">Blog</a>' +
       '<a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>' +
       '<a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>' +
       '<a href="https://mastodon.social/@needsofthemany">Mastodon</a>' +
