@@ -6,7 +6,23 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
-## Unreleased — Tasks.UseRoles member write role enforcement
+## v0.8.9 — Public blog links
+
+### Major tasks completed
+
+* Added the PluralBridge blog to the website’s Community menu.
+* Added prominent blog links on the homepage and About page.
+* Added the blog URL to the root README.
+
+### Pull requests and major commits included
+
+* PR #152: Link PluralBridge blog from website and README.
+
+### Notes
+
+This release makes the Needs of the Many blog easier to find from the public website and repository.
+
+## v0.8.8 — Tasks.UseRoles member write role enforcement
 
 ### Major tasks completed
 
