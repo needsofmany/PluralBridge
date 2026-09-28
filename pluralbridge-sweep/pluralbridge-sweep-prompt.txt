@@ -1,0 +1,126 @@
+PLURALBRIDGE PUBLIC SWEEP — RUN NOW
+
+Perform a complete PluralBridge / Needs of the Many public outreach and support sweep NOW using only public, unauthenticated web access.
+
+Project:
+- https://thepluralbridge.org/
+- https://github.com/needsofmany/PluralBridge
+- https://blog.thepluralbridge.org/
+- Reddit maintainer identity: u/Sharky_J_Yellowfish
+
+Do not use GitHub connectors or credentials, social-media connectors, email connectors, Facebook, login-gated material, support@thepluralbridge.org, or info@thepluralbridge.org.
+
+PHASE 1 — GITHUB
+
+Check the public needsofmany/PluralBridge repository.
+
+Inspect:
+- repository homepage
+- every currently open issue, including comments and timeline activity
+- open pull requests
+- recent repository activity and commits where publicly accessible
+- visible commit/history count, stars, forks, issue count, and PR count
+- https://thepluralbridge.org/build-info.json if publicly accessible
+
+Historically known maintenance issues include #42, #40, #39, and #38. Their continued existence is not new activity. Check them for new comments or timeline activity.
+
+Prefer direct GitHub evidence. If commit history cannot be retrieved, continue without guessing. Keep GitGem metrics separate from GitHub metrics.
+
+PHASE 2 — REDDIT
+
+Search recent public Reddit posts and comments involving:
+- PluralBridge
+- Simply Plural export
+- Simply Plural shutdown
+- Simply Plural alternatives
+- Simply Plural migration
+- Simply Plural recovery
+- relevant data-recovery discussions
+
+Also search public r/DID material specifically relevant to:
+- plurality/DID software
+- System organization
+- preservation and recovery
+- exports/imports/migration
+- privacy
+- accessibility
+- limitations of existing plurality tools
+
+Do not include generic DID discussions merely to fill the report.
+
+Before classifying any Reddit item as actionable:
+- inspect the actual Reddit thread when possible
+- verify its actual Reddit timestamp
+- never substitute search-engine freshness for publication time
+- verify whether u/Sharky_J_Yellowfish has already replied
+- check whether another person has already accurately referred the poster to PluralBridge
+
+An existing Sharky reply normally means handled/watch.
+An accurate existing SiteRelEnby or other third-party referral normally means watch rather than another maintainer response.
+
+For actionable Reddit items provide:
+- exact title
+- subreddit
+- OP username where visible
+- actual date/time where verifiable
+- direct usable thread link
+- concise reason a response would help
+
+PHASE 3 — PUBLIC WEB AND SOCIAL
+
+Check public mentions of:
+- PluralBridge
+- thepluralbridge.org
+- Needs of the Many
+- blog.thepluralbridge.org
+
+Directly inspect:
+- https://thepluralbridge.org/
+- https://blog.thepluralbridge.org/
+
+Check publicly searchable Mastodon, Bluesky, and Threads material where available.
+
+Look especially for:
+- organic third-party referrals
+- PluralBridge questions
+- bug/support reports
+- recovery and preservation discussions
+- Simply Plural migration discussions
+- interoperability references
+- PluralBridge import/export references
+
+Known context:
+- SiteRelEnby already knows PluralBridge and has previously referred users to its recovery work.
+- Lighthouse-DID Hub has publicly mentioned importing from Simply Plural or PluralBridge and has mentioned PluralBridge folders.
+- Treat those as existing interoperability/community evidence unless there is genuinely new activity.
+- Do not infer which exact PluralBridge schema Lighthouse consumes without explicit public evidence.
+
+FINAL REPORT
+
+After completing all three phases, report EXACTLY these four sections:
+
+1. Needs response now
+2. Watch but no action yet
+3. No new activity found
+4. Suggested next action
+
+Priority:
+1. GitHub issues/support
+2. GitHub repository activity
+3. Reddit support/recovery/migration opportunities
+4. Public web mentions
+5. Mastodon / Bluesky / Threads
+6. Social metrics
+
+Rules:
+- Prioritize support problems and maintainer obligations over metrics.
+- Do not call stale material new.
+- State when freshness cannot be verified.
+- Do not invent activity, motives, risks, or concerns.
+- Do not pad the report.
+- PluralBridge is pre-public-alpha.
+- Do not present it as a finished Simply Plural replacement.
+- Threads seeking a polished app ready for immediate use are usually watch/product intelligence rather than outreach.
+- Recovery, preservation, migration, structured exports/imports, interoperability, richer System modeling, privacy, and accessibility are stronger outreach fits.
+
+Keep the report concise, concrete, and engineering-style.

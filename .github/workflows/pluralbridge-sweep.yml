@@ -1,0 +1,42 @@
+name: PluralBridge Public Sweep
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *"
+      timezone: "America/Los_Angeles"
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install OpenAI SDK
+        run: python -m pip install --upgrade openai
+
+      - name: Run PluralBridge sweep
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: gpt-5.5
+          PB_SWEEP_REPORT: pluralbridge-sweep-report.md
+        run: python pluralbridge-sweep/sweep.py
+
+      - name: Upload sweep report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pluralbridge-sweep-report
+          path: pluralbridge-sweep-report.md
+          if-no-files-found: error
+          retention-days: 30
