@@ -3,6 +3,7 @@
 [![GitGem](https://gitgem.org/api/badge/github/needsofmany/PluralBridge.svg)](https://gitgem.org/gem/github/needsofmany/PluralBridge)
 
 Project website: https://thepluralbridge.org/
+Project blog: https://blog.thepluralbridge.org/
 
 ## Start Here
 
@@ -88,7 +89,8 @@ These materials may still help developers understand the preserved data format a
 ## Repository Layout
 
     api/                  PluralBridge API and service code
-    app/                  Browser application
+    app/src/              Canonical browser application source (edit here)
+    app/                  Legacy browser mirror/scripts (runtime files migrating; avoid editing)
     database/             Database schema and migration work
     docs/                 Project and developer documentation
     examples/             Synthetic and redacted examples
@@ -166,6 +168,10 @@ The public PluralBridge website is available at:
 - https://www.thepluralbridge.org
 - https://pluralpedia.org/w/PluralBridge
 - https://github.com/needsofmany/PluralBridge/discussions
+
+The PluralBridge blog can be found at:
+
+- https://blog.thepluralbridge.org/
 
 The website source is stored in the `website/` directory and is deployed through Cloudflare Pages from the `master` branch, with `website` as the build output directory.
 

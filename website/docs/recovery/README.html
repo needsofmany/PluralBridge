@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simply Plural Data Recovery — PluralBridge Documentation</title>
+  <meta name="description" content="Simply Plural Data Recovery. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<p>````text</p>
+<p>Copyright © 2026 Needs of the Many / PluralBridge contributors</p>
+<p>Licensed under the GNU General Public License v3.0 (GPLv3).</p>
+<p>This recovery implementation and accompanying documentation were developed by Needs of the Many / PluralBridge. Please preserve this attribution as required by the applicable license terms.</p>
+<h1 id="simply-plural-data-recovery">Simply Plural Data Recovery</h1>
+<p>This folder contains the documented recovery path for retrieving locally stored Simply Plural data from an Android device after the Simply Plural server shutdown.</p>
+<h2 id="confirmed-recovery-path">Confirmed Recovery Path</h2>
+<p>The current procedure has been successfully reproduced on a <strong>Samsung Galaxy S24+</strong> using Samsung Smart Switch.</p>
+<p>The confirmed path is:</p>
+<pre><code class="language-text">Samsung Galaxy S24+
+        ↓
+Samsung Smart Switch backup
+        ↓
+com.saltypandastudios.frontime.noedata
+        ↓
+Android backup payload
+        ↓
+app_flutter/simply.db
+        ↓
+validated UTF-8 JSON</code></pre>
+<p>The recovered JSON contains structured Simply Plural data including member records, front history, custom fields, privacy buckets, channels, friends and related locally cached data.</p>
+<p>No existing Simply Plural export is required.</p>
+<p>No root access is required for the confirmed Samsung recovery path.</p>
+<h2 id="files">Files</h2>
+<h3 id="sp-data-extraction-instructions-md"><code>SP data extraction instructions.md</code></h3>
+<p>Step-by-step instructions for:</p>
+<ul>
+<li>creating the Simply Plural Smart Switch backup;
+</li>
+<li>locating the <code>.noedata</code> file;
+</li>
+<li>extracting the Android backup payload;
+</li>
+<li>locating and extracting <code>simply.db</code>;
+</li>
+<li>converting it to normal UTF-8 JSON;
+</li>
+<li>validating the JSON;
+</li>
+<li>displaying recovered collection and record counts.
+</li>
+</ul>
+<p>Start here if performing the recovery manually.</p>
+<h3 id="recover-simplyplural-data-cmd"><code>recover-simplyplural-data.cmd</code></h3>
+<p>Command-line recovery steps corresponding to the extraction portion of the documented procedure.</p>
+<p>The script uses placeholders for device-specific Smart Switch paths. Review and replace the required placeholders before running it.</p>
+<h2 id="privacy">Privacy</h2>
+<p><strong>Do not send your Simply Plural data to Needs of the Many / PluralBridge.</strong></p>
+<p>Recovered data may contain highly private System information.</p>
+<p>Keep the following under your own control:</p>
+<ul>
+<li>Simply Plural exports
+</li>
+<li>Smart Switch backups
+</li>
+<li><code>.noedata</code> files
+</li>
+<li><code>simply.db</code>
+</li>
+<li>recovered JSON
+</li>
+<li>avatar or image files
+</li>
+<li>any other recovered application data
+</li>
+</ul>
+<p>Do not post these files to public GitHub repositories, paste sites, Reddit threads, issue trackers, or other public locations.</p>
+<p>The purpose of this recovery work is to let users recover their own data locally without Needs of the Many / PluralBridge receiving it.</p>
+<h2 id="avatar-recovery">Avatar Recovery</h2>
+<p>Avatar recovery is still under investigation.</p>
+<p>We have confirmed that recovered member records retain avatar identifiers, and Samsung Smart Switch can preserve recognizable images from a <code>DCIM/SimplyPlural</code> folder.</p>
+<p>We have not yet established a complete machine-readable mapping between those recovered source images and individual member records.</p>
+<h2 id="other-android-devices">Other Android Devices</h2>
+<p>The recovery target, <code>app_flutter/simply.db</code>, is part of Simply Plural rather than Samsung.</p>
+<p>Samsung Smart Switch is currently the first stock, non-rooted acquisition path we have successfully reproduced.</p>
+<p>Recovery from non-Samsung Android devices has not yet been established.</p>
+<h2 id="for-other-plural-app-developers">For Other Plural-App Developers</h2>
+<p>If your application already supports importing Simply Plural data, we welcome collaboration on supporting this recovery path for users who did not create an export before shutdown.</p>
+<p>Needs of the Many / PluralBridge intends to publish the technical information, documentation, scripts, mappings, and reference implementation needed to support this work.</p>
+<p>Users should be able to recover their data and take it to the plural application of their choice without sending that data through Needs of the Many / PluralBridge.</p>
+<h2 id="license">License</h2>
+<p>The recovery implementation and accompanying documentation in this folder are licensed under the <strong>GNU General Public License v3.0 (GPLv3)</strong>.</p>
+<p>Please preserve the applicable copyright, license, and attribution notices when using or modifying covered material.</p>
+<p>PluralBridge is an independent project by Needs of the Many.</p>
+<p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+<p>````</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

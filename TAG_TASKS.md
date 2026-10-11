@@ -6,6 +6,136 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## 0.9.0 - Expanded System Model Support
+
+- Added supported system model examples for the nine PluralBridge Alpha-targeted system shapes.
+- Added schema/API support for expanded System relationships, including multi-root, parent/child, sibling, related, subsystem, evolving/uncertain, archived, and graph-style models.
+- Added synthetic example account support for validating each system model shape independently.
+- Verified all nine synthetic example accounts can log in and resolve expected session context.
+- Confirmed the existing Needs of the Many account still loads after the expanded model changes.
+- Added GUI technical debt tracking for member-screen follow-up work needed against the expanded model foundation.
+
+## v0.8.9 — Public blog links
+
+### Major tasks completed
+
+* Added the PluralBridge blog to the website’s Community menu.
+* Added prominent blog links on the homepage and About page.
+* Added the blog URL to the root README.
+
+### Pull requests and major commits included
+
+* PR #152: Link PluralBridge blog from website and README.
+
+### Notes
+
+This release makes the Needs of the Many blog easier to find from the public website and repository.
+
+## v0.8.8 — Tasks.UseRoles member write role enforcement
+
+### Major tasks completed
+
+* Added role-based member write authorization for member `POST` and `PUT`.
+* Defined the temporary member write role gate as `Owner` only.
+* Added reusable member-write authorization helper support in the AccessContext boundary.
+* Enforced role-aware authorization in `MembersControlle	r` write endpoints while keeping read behavior unchanged.
+* Added tests for:
+  * allowed write role success
+  * active membership with insufficient role forbidden behavior
+  * cross-system write forbidden behavior
+
+## v0.8.7 — Tasks.FrontEnd single-source frontend and build sync enforcement
+
+### Major tasks completed
+
+* Made `app/src/` the canonical frontend source tree.
+* Removed legacy runtime mirror files under `app/` to prevent source drift.
+* Added automated frontend sync in API build/publish.
+* Added sync drift validation that fails build on mismatch.
+* Added allowlist validation that fails build when Program.cs allowlists drift from source modules.
+* Added guardrail docs for generated/runtime paths.
+
+### Notes
+
+* Build now enforces frontend consistency via sync + validation checks.
+* Runtime frontend output remains served from `api/PluralBridge.Api/PluralBridge.Api/wwwroot/app/`.
+* This release reduces manual asset-sync and stale-file regression risk.
+
+## v0.8.6 — Account code email delivery and audit diagnostics
+
+### Major tasks completed
+
+* Added Azure Communication Services account-code email delivery for account workflows.
+* Preserved the development account-code delivery outbox for local and integration-test workflows.
+* Added provider selection for account-code delivery so local development can use the outbox while configured environments can use Azure email delivery.
+* Added controlled delivery-failure handling so missing or failing email configuration returns a safe account-service failure instead of surfacing as an unhandled API exception.
+* Confirmed missing Azure `FromAddress` configuration returns a controlled `delivery_failed` registration response.
+* Confirmed real Azure registration-code email delivery from `donotreply@thepluralbridge.org`.
+* Confirmed registration email verification succeeds after receiving the Azure-delivered code.
+* Improved account-code audit diagnostics with safe JSON detail for:
+
+  * registration validation rejection
+  * registration creation
+  * code issuance
+  * registration verification validation rejection
+  * registration verification rejection when no matching code is selected
+  * expired selected registration-verification codes
+  * accepted registration-verification codes
+  * consumed registration-verification codes
+  * completed registration verification
+  * account-code delivery failure
+
+* Kept public API failure messages generic while adding internal safe diagnostic detail to audit rows.
+* Split the large `AccountService` implementation into smaller partial-class workflow files under `Account/Service/`.
+* Added and updated account integration tests for account-code audit `SafeDetailJson` coverage.
+* Updated account test hosting so integration tests use the development delivery outbox instead of local Azure user-secret configuration.
+* Confirmed:
+
+  * `AccountCodeAuditTests` passes
+  * `PluralBridge.Api.Tests.Account` passes
+  * the full `PluralBridge.Api.Tests` suite passes
+
+### Notes
+
+* This release completes Task.Account 2.a Azure account-code email delivery.
+* Account-code values remain server-side; emails contain the user-facing code while audit details record safe operational context only.
+* The API still intentionally returns generic validation and verification messages to avoid exposing account-discovery or validation-oracle details.
+* Azure delivery is configuration-driven and can be disabled locally by selecting the development provider.
+* The development outbox remains the integration-test proof path for deterministic code retrieval.
+* Follow-up audit work should continue adding safe detail to other account rejection paths as those paths are touched.
+
+## v0.8.5 — Task.Account 2.11 security cleanup
+
+### Major tasks completed
+
+* Replaced the hardcoded demo-account access path with authenticated account resolution.
+* Added account lookup using the immutable `AccountId` carried by the authenticated `NameIdentifier` claim.
+* Rejected access-context resolution when the authenticated account identifier is missing or malformed.
+* Applied authorization enforcement across the protected API controllers.
+* Passed the authenticated principal through each protected access-context path.
+* Added direct API handling for:
+  * `401 Unauthorized`
+  * `403 Forbidden`
+* Preserved browser redirect behavior outside the API.
+* Attached the verified Needs of the Many account to the existing System through an active Owner membership.
+* Added account-boundary tests confirming that:
+  * each authenticated account resolves its own account, membership, and System
+  * each account can read members from its own System
+  * cross-System member access returns `403 Forbidden`
+  * missing and malformed `NameIdentifier` claims do not resolve an access context
+* Extended runtime test setup and cleanup for Systems, memberships, roles, and members.
+* Added SPDX license headers to the C# source files.
+* Confirmed the complete API test suite passes.
+
+### Notes
+
+* This release completes Task.Account section 2.11.
+* Protected API access now derives the acting account from the authenticated session rather than a fixed proof account.
+* Account access remains constrained by active System membership.
+* Existing privacy-bucket boundaries and member-write audit seams remain in place.
+* No database schema changes or new tables were required.
+* Task.UIShell remains the next implementation task.
+
 ## v0.8.4 — PB-NEXT Task.Account implementation complete
 
 ### Major tasks completed

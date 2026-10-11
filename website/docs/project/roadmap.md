@@ -1,8 +1,8 @@
 # PluralBridge Roadmap and Post-Release Task List
 
-This roadmap captures the PluralBridge post-release work queue after the initial public repository release. The priority remains preservation first. The next engineering layer is the local REST service boundary.
+This roadmap captures the work after the first public repository release.
 
-SQL Server remains the proven backend for the first service cut. SQLite, the Windows viewer, and cloud migration follow after the API contract is shaped.
+PluralBridge stays preservation-first: protect preserved data, define stable service contracts, then expand clients and hosting.
 
 PluralBridge is published by Needs of the Many.
 
@@ -10,41 +10,64 @@ PluralBridge is independent and has no affiliation with Simply Plural, Apparylli
 
 ## Purpose
 
-This roadmap reflects the current service-side design priorities:
+This roadmap is the working queue for service-side architecture and post-release delivery.
+
+Core priorities:
 
 - Preserve exported data first.
 - Establish a local REST service boundary above preserved storage.
-- Keep the current SQL Server path as the known-good backend for the first service cut.
-- Add SQLite, viewers, cloud migration, and future clients after the service contract has a working shape.
+- Use SQL Server as the known-good backend for the first service cut.
+- Add SQLite, viewer clients, cloud migration, and expanded APIs after the contract shape is reliable.
+- Define explicit mobile storage targets for parity and data fidelity:
+  - Android: local SQLite (via Room or equivalent typed access layer), not JSON-as-database.
+  - iOS/iPadOS: local SQLite-backed store (native wrapper acceptable), not JSON-as-database.
 
-## Task Summary
+Why this matters:
 
-The main post-release workstreams are:
+- Database-shaped data should stay in a real database format so relations, constraints, and migrations are explicit and testable.
+- Treating a `*.db` artifact as JSON encourages lossy transforms, weak validation, and brittle import/export behavior.
+- PluralBridge should preserve source fidelity while using storage primitives that are auditable, queryable, and maintainable.
 
-1. Implement the local REST service boundary.
-2. Define API contracts and versioning.
-3. Use MVC-style service organization.
-4. Build a console client or shell client.
-5. Apply contract-centered testing.
-6. Define the security model.
-7. Create the non-technical user Word guide.
-8. Add SQLite support after the service boundary is shaped.
-9. Start the local viewer after the REST/service path is established.
-10. Roadmap cloud migration and REST expansion.
-11. Continue platform expansion and outreach.
+## Status Legend
 
-## Implement the Local REST Service Boundary
+- `Now` = immediate active focus.
+- `Next` = queued behind current service-boundary work.
+- `Later` = post-contract or scale-dependent work.
 
-Build the first service layer before migrating SQL scripts to SQLite or starting the viewer as the main development target.
+## Status Checklist
+
+Legend:
+
+- ✅ complete
+- 🟡 in progress
+- ⬜ planned / queued
+
+Current checklist:
+
+- ✅ Preservation-first documentation baseline is published.
+- ✅ SQL Server path is established as known-good for first service cut.
+- 🟡 Read-only REST contract shape and endpoint coverage are being finalized.
+- 🟡 Local security defaults (localhost-first, LAN opt-in, local credential boundary) are being hardened.
+- 🟡 Contract-centered tests for schema/version/read-only behavior are active.
+- 🟡 Phone recovery research (Samsung/Pixel/iPhone) is ongoing and feeding import fidelity docs.
+- ⬜ SQLite runtime migration tracking and validation-query pack.
+- ⬜ Native Android foundation (SQLite via Room/typed layer).
+- ⬜ Native iOS/iPadOS foundation (SQLite-backed runtime with migrations).
+- ⬜ Cloud roadmap execution (Azure first, AWS later) on stable contract base.
+
+## Current Workstreams
+
+### Local REST Service Boundary
+
+Build the first service layer before SQLite migration and before viewer-first work.
 
 Key tasks:
 
-- Keep the current PluralBridge SQL Server database as the known-good backend for the first service cut.
+- Keep the current SQL Server database as the known-good backend.
 - Create a local C# REST service that returns JSON from the populated PluralBridge database.
-- Treat the REST layer as the formal separation point between storage and clients.
-- Make future SQLite, Azure, AWS, viewer, and mobile work depend on the service contract rather than direct database access.
-- Start with read-only GET behavior.
-- Add PUT, POST, PATCH, and DELETE only when concrete workflows require them.
+- Treat REST as the formal separation between storage and clients.
+- Keep first contract behavior read-only (`GET`) until write workflows are clearly defined.
+- Make future SQLite, Azure, AWS, viewer, and mobile work depend on the service contract, not direct DB access.
 
 Initial service-side solution shape:
 
@@ -63,15 +86,15 @@ tests/PluralBridge.Business.Tests/
 tests/PluralBridge.Data.Tests/
 ```
 
-## Define API Contracts and Versioning
+### API Contracts and Versioning
 
-PluralBridge REST interfaces are contracts. During development they may change; after public release of a contract version, they become stable while supported.
+PluralBridge REST interfaces are contracts. Before release they can iterate; once published, they stay stable for their support window.
 
 Key tasks:
 
 - Use route-level versioning from the start.
 - Separate PluralBridge-native routes from Simply Plural/Apparyllis-shaped compatibility routes.
-- Mark early contracts as draft until endpoint shape, error shape, date/time behavior, ID behavior, and null/empty behavior are settled.
+- Mark early contracts as `draft` until endpoint shape, error shape, date/time behavior, ID behavior, and null/empty behavior are settled.
 - Expose versioned OpenAPI/Swagger output with Swashbuckle.
 - Protect stable contracts with contract tests.
 
@@ -88,22 +111,22 @@ Contract lifecycle:
 draft -> preview -> stable -> deprecated -> retired
 ```
 
-## Use MVC-Style Service Organization
+### Service Organization (MVC-Style Separation)
 
-The service is not a monolithic app. The first executable may be a console-hosted service, but the parts should remain separated.
+The first executable may be console-hosted, but architecture should stay layered and non-monolithic.
 
 Service organization:
 
 - Model: DTOs and response models.
 - View: JSON returned over HTTP.
-- Controller: routing/glue layer that accepts requests, calls business services, and returns serialized responses.
-- Business layer: service-level rules, mappings, read-only policy, and future write-operation rules.
-- Data layer: repository contracts and storage-specific SQL Server implementation.
-- Swashbuckle/OpenAPI: API discovery, collaborator onboarding, and smoke-test target.
+- Controller: request routing and service orchestration.
+- Business layer: mapping, service rules, read-only policy, and future write-operation rules.
+- Data layer: repository contracts with SQL Server implementation.
+- Swashbuckle/OpenAPI: API discovery, onboarding, and smoke-test targets.
 
-## Build the Console Client / Shell Client
+### Console Client / Shell Client
 
-Create a client that exercises the service boundary rather than talking directly to SQL Server.
+Create a client that exercises REST contracts instead of direct SQL Server access.
 
 Key tasks:
 
@@ -125,9 +148,9 @@ PluralBridge> fronts recent
 PluralBridge> quit
 ```
 
-## Apply Contract-Centered Testing
+### Contract-Centered Testing
 
-Tests should verify design promises and public contracts. They should not become line-by-line implementation policing or coverage theater.
+Tests should verify behavior and contract promises, not implementation trivia.
 
 Useful test targets:
 
@@ -141,9 +164,9 @@ Useful test targets:
 - First service version remains read-only.
 - Stable API versions remain compatible while supported.
 
-## Define the Security Model
+### Local Security Model
 
-Separate local-service security from future hosted/cloud identity. The local service is the immediate concern; passkeys/WebAuthn belong in the future hosted-service design.
+Separate immediate local-service security from future hosted identity design.
 
 Local service rules:
 
@@ -154,14 +177,14 @@ Local service rules:
 - Do not expose the local service directly to the public internet.
 - Do not treat the Simply Plural token as a PluralBridge account credential.
 
-Future hosted-service direction:
+Future hosted-service direction (later):
 
 - Prefer passkeys/WebAuthn.
 - Design account recovery deliberately.
 - Provide authenticator management.
 - Keep authentication and authorization separate.
 
-## Create the Non-Technical User Word Guide
+### Non-Technical User Word Guide
 
 Create a root-level `.docx` guide for ordinary users. The guide should be a Word document, not Markdown.
 
@@ -179,9 +202,9 @@ Suggested filename:
 PluralBridge_User_Guide.docx
 ```
 
-## Add SQLite Support After the Service Boundary Is Shaped
+### SQLite Support (After Service Boundary)
 
-SQLite remains the preferred local/offline runtime database for ordinary users, but it should follow the service-boundary work rather than precede it.
+SQLite remains the preferred local/offline runtime database for ordinary users, but should follow service-boundary stabilization.
 
 Key tasks:
 
@@ -192,7 +215,13 @@ Key tasks:
 - Document the SQLite workflow.
 - Test with synthetic/redacted fixtures only.
 
-## Start the Local Viewer After the REST/Service Path Is Established
+Mobile storage targets tied to this workstream:
+
+- Android: SQLite with a typed data-access layer and migration tracking.
+- iOS/iPadOS: SQLite-backed local store with schema migration tracking.
+- Keep JSON as interchange/import format only, not as the primary runtime database.
+
+### Local Viewer (After REST Path Is Usable)
 
 Build a Visual Studio 2022 C++20 Win32 local/offline viewer after the service contract and local access model are stable enough to consume.
 
@@ -206,7 +235,26 @@ Initial viewer direction:
 - Brief mode TBD.
 - Verbose/full-info mode TBD.
 
-## Roadmap Cloud Migration and REST Expansion
+### Native Phone Apps (Android and iOS/iPadOS)
+
+Native phone apps are part of the roadmap and should follow contract stabilization, local security hardening, and SQLite migration maturity.
+
+Platform direction:
+
+- ![](https://cdn.simpleicons.org/android/3DDC84) Android native app:
+  - Local runtime storage: SQLite (Room or equivalent typed access layer).
+  - Storage model: normalized relational schema with migration tracking.
+  - API usage: consume versioned PluralBridge contracts rather than direct SQL scripting.
+- ![](https://cdn.simpleicons.org/apple/FFFFFF) iOS/iPadOS native app:
+  - Local runtime storage: SQLite-backed local store (native wrapper acceptable).
+  - Storage model: normalized relational schema with migration tracking.
+  - API usage: consume versioned PluralBridge contracts rather than direct SQL scripting.
+
+Boundary rule:
+
+- JSON remains an interchange/import format, not the primary runtime database for phone apps.
+
+### Cloud Migration and REST Expansion
 
 Cloud migration and hosted services should build on the same versioned contract thinking established by the local service.
 
@@ -219,7 +267,7 @@ Key tasks:
 - Support a native PluralBridge API for future clients and hosted services.
 - Use versioned contracts and documented deprecation/retirement windows.
 
-## Platform Expansion and Outreach
+### Platform Expansion and Outreach
 
 Long-term targets after outside developer help becomes realistic:
 
@@ -239,25 +287,31 @@ Outreach and support tasks:
 - Contact adjacent plural-tool maintainers.
 - Position PluralBridge as an import/preservation bridge, including for other tools.
 
+## Consolidated Work Order
+
+Legend:
+
+✅ complete · 🟡 in progress · ⬜ planned / queued
+
+- 🟡 Lock the first read-only service contract (`GET`) for preserved-data access and publish draft OpenAPI output.
+- 🟡 Harden local-service security defaults (localhost-first, LAN opt-in, local credential requirement for non-loopback use).
+- 🟡 Complete compatibility and native route coverage for core preserved data shapes.
+- 🟡 Finalize contract tests for schema shape, version behavior, and read-only guarantees.
+- ⬜ Stabilize SQLite as the cross-platform local runtime store, with migration tracking and validation queries.
+- ⬜ Implement native phone app foundations:
+   - Android: SQLite runtime via Room (or equivalent typed layer).
+   - iOS/iPadOS: SQLite-backed runtime store with migration tracking.
+   - JSON remains import/interchange only, not runtime primary storage.
+- ⬜ Expand client surfaces on stable contracts (console tooling, Windows viewer, and future web/mobile client paths).
+- 🟡 Continue Samsung/Pixel/iPhone recovery research and feed verified findings back into import fidelity rules and docs.
+- ⬜ Draft hosted roadmap in dependency order (Azure first, AWS later) using the same versioned contract model.
+- ⬜ Scale contributor onboarding and support-channel docs as architecture and contracts stabilize.
+
 ## Suggested Work Order
 
-1. Create the local REST service design issue/milestone and make it the next major engineering workstream.
-2. Define the initial read-only endpoint list from the current exported Simply Plural/Apparyllis-shaped data set.
-3. Create the C# service-side solution skeleton with Api, Business, Models, Data, and Data.SqlServer projects.
-4. Add Swashbuckle/OpenAPI and mark the first API contracts as draft.
-5. Implement health/database health endpoints.
-6. Implement the first GET endpoints against the current PluralBridge SQL Server database.
-7. Create the first console client in C# to validate REST calls and JSON responses.
-8. Add contract-centered tests using synthetic/redacted fixtures.
-9. Document API versioning, deprecation, retirement, and read-only behavior.
-10. Document the local-service security model: localhost default, LAN opt-in, local bearer key for LAN mode.
-11. Create the non-technical `.docx` user guide.
-12. Begin SQLite data-layer work behind the service boundary.
-13. Begin Windows viewer design after the REST/service contract is usable.
-14. Draft Azure/native API/compatibility API roadmap documentation.
-15. Continue public documentation, support-channel planning, and contributor onboarding as the project grows.
+Use the consolidated work order above as the active sequence. Reorder only when a dependency changes or a blocker appears.
 
 ## Guiding Principle
 
-Preserve data first. Establish the local REST boundary. Stabilize the contract. Then make the preserved data portable through SQLite, local viewers, cloud migration, compatible APIs, and future clients.
+Preserve data first. Establish the local REST boundary. Stabilize contracts. Then expand portability through SQLite, local viewers, cloud migration, compatibility APIs, and future clients.
 

@@ -1,4 +1,7 @@
-﻿using System.Reflection;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using PluralBridge.Api;
 using PluralBridge.Api.Controllers;

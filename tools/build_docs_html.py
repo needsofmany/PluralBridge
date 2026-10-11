@@ -1,59 +1,14 @@
 from pathlib import Path
 import html
 import re
+import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 WEBSITE = ROOT / "website"
 DOCS = WEBSITE / "docs"
+DOCS_SOURCE = ROOT / "docs"
 
-NAV = """<header class="site-header">
-    <div class="header-inner">
-        <a class="brand" href="/index.html">
-            <img class="brand-logo" src="/assets/images/pluralbridge-nav-logo.png" alt="" aria-hidden="true">
-            <span class="brand-text">
-                <span class="brand-title">PluralBridge</span>
-                <span class="brand-subtitle">Needs of the Many</span>
-            </span>
-        </a>
-        <nav class="nav" aria-label="Main navigation">
-            <a href="/index.html">Home</a>
-            <a href="/start-here.html">Start Here</a>
-            <a href="/export-now.html">Export Guidance</a>
-            <details class="nav-menu">
-                <summary data-current="section">Guides</summary>
-                <div class="nav-menu-panel">
-                    <a href="/docs.html">Documentation Home</a>
-                    <a href="/safety.html">Safety</a>
-                    <a href="/developer-workflow.html">Help Build</a>
-                    <a href="/simply-plural-shutdown.html">Shutdown Info</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>Projects</summary>
-                <div class="nav-menu-panel">
-                    <a href="/browser-app.html">What PluralBridge Is Building</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>Community</summary>
-                <div class="nav-menu-panel">
-                    <a href="https://github.com/needsofmany/PluralBridge/discussions">Discussions</a>
-                    <a href="https://pluralpedia.org/w/PluralBridge">Pluralpedia</a>
-                    <a href="https://mastodon.social/@needsofthemany">Mastodon</a>
-                    <a class="github-link" href="https://github.com/needsofmany/PluralBridge">GitHub</a>
-                </div>
-            </details>
-            <details class="nav-menu">
-                <summary>About</summary>
-                <div class="nav-menu-panel">
-                    <a href="/about.html">About PluralBridge</a>
-                    <a href="/contact.html">Contact Us</a>
-                </div>
-            </details>
-            <span class="nav-preview-disabled" aria-disabled="true" title="Preview coming after account setup, import review, and member profiles are ready">Preview</span>
-        </nav>
-    </div>
-</header>"""
+NAV = """<header class="site-header"></header>"""
 
 def slugify(text):
     text = text.lower()
@@ -66,20 +21,28 @@ def inline_markup(text):
     def image_repl(match):
         alt = html.escape(match.group(1), quote=True)
         src = match.group(2)
-        if src.endswith(".md"):
+        if (
+            src.endswith(".md")
+            and not re.match(r"^[a-z]+://", src, re.IGNORECASE)
+        ):
             src = src[:-3] + ".html"
         return f'<img src="{html.escape(src, quote=True)}" alt="{alt}">'
 
     def link_repl(match):
         label = match.group(1)
         href = match.group(2)
-        if href.endswith(".md"):
+        if (
+            href.endswith(".md")
+            and not re.match(r"^[a-z]+://", href, re.IGNORECASE)
+        ):
             href = href[:-3] + ".html"
         return f'<a href="{html.escape(href, quote=True)}">{label}</a>'
 
     text = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", image_repl, text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link_repl, text)
-    text = re.sub(r"`([^`]+)`", lambda m: "<code>" + html.escape(m.group(1)) + "</code>", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", text)
+    text = re.sub(r"`([^`]+)`", lambda m: "<code>" + m.group(1) + "</code>", text)
     return text
 
 def markdown_to_html(markdown):
@@ -88,9 +51,11 @@ def markdown_to_html(markdown):
     in_code = False
     code_lang = "text"
     code_lines = []
-    in_ul = False
+    ul_depth = 0
+    ul_li_open = []
     in_ol = False
     in_table = False
+    in_blockquote = False
 
     def split_table_row(line):
         cells = line.strip().strip("|").split("|")
@@ -101,10 +66,15 @@ def markdown_to_html(markdown):
         return bool(cells) and all(re.match(r"^:?-{3,}:?$", cell) for cell in cells)
 
     def close_lists():
-        nonlocal in_ul, in_ol
-        if in_ul:
+        nonlocal ul_depth, ul_li_open, in_ol
+        while ul_depth > 0:
+            if ul_li_open and ul_li_open[-1]:
+                out.append("</li>")
+                ul_li_open[-1] = False
             out.append("</ul>")
-            in_ul = False
+            ul_depth -= 1
+            if ul_li_open:
+                ul_li_open.pop()
         if in_ol:
             out.append("</ol>")
             in_ol = False
@@ -115,9 +85,16 @@ def markdown_to_html(markdown):
             out.append("</tbody></table>")
             in_table = False
 
+    def close_blockquote():
+        nonlocal in_blockquote
+        if in_blockquote:
+            out.append("</blockquote>")
+            in_blockquote = False
+
     def close_blocks():
         close_lists()
         close_table()
+        close_blockquote()
 
     i = 0
     while i < len(lines):
@@ -150,6 +127,17 @@ def markdown_to_html(markdown):
 
         if not line.strip():
             close_blocks()
+            i += 1
+            continue
+
+        quote = re.match(r"^\s*>\s?(.*)$", line)
+        if quote:
+            close_lists()
+            close_table()
+            if not in_blockquote:
+                out.append("<blockquote>")
+                in_blockquote = True
+            out.append("<p>" + inline_markup(quote.group(1)) + "</p>")
             i += 1
             continue
 
@@ -196,18 +184,50 @@ def markdown_to_html(markdown):
             i += 1
             continue
 
-        bullet = re.match(r"^\s*-\s+(.*)$", line)
+        bullet = re.match(r"^(\s*)-\s+(.*)$", line)
         if bullet:
-            if not in_ul:
-                close_blocks()
+            close_table()
+            close_blockquote()
+            if in_ol:
+                out.append("</ol>")
+                in_ol = False
+
+            indent = len(bullet.group(1).expandtabs(2))
+            target_depth = (indent // 2) + 1
+            if target_depth > ul_depth + 1:
+                target_depth = ul_depth + 1
+
+            while ul_depth < target_depth:
                 out.append("<ul>")
-                in_ul = True
-            out.append("<li>" + inline_markup(bullet.group(1)) + "</li>")
+                ul_depth += 1
+                ul_li_open.append(False)
+            while ul_depth > target_depth:
+                if ul_li_open and ul_li_open[-1]:
+                    out.append("</li>")
+                    ul_li_open[-1] = False
+                out.append("</ul>")
+                ul_depth -= 1
+                ul_li_open.pop()
+
+            if ul_li_open and ul_li_open[-1]:
+                out.append("</li>")
+                ul_li_open[-1] = False
+
+            out.append("<li>" + inline_markup(bullet.group(2)))
+            ul_li_open[-1] = True
             i += 1
             continue
 
         numbered = re.match(r"^\s*\d+\.\s+(.*)$", line)
         if numbered:
+            if ul_depth > 0:
+                while ul_depth > 0:
+                    if ul_li_open and ul_li_open[-1]:
+                        out.append("</li>")
+                        ul_li_open[-1] = False
+                    out.append("</ul>")
+                    ul_depth -= 1
+                    ul_li_open.pop()
             if not in_ol:
                 close_blocks()
                 out.append("<ol>")
@@ -237,11 +257,8 @@ def page_title(markdown, fallback):
             return m.group(1).strip()
     return fallback
 
-def render_page(md_path):
-    markdown = md_path.read_text(encoding="utf-8")
-    title = page_title(markdown, md_path.stem.replace("-", " ").title())
-    body = markdown_to_html(markdown)
-    html_path = md_path.with_suffix(".html")
+def write_html_page(title, body, html_path):
+    html_path.parent.mkdir(parents=True, exist_ok=True)
     html_path.write_text(f"""<!doctype html>
 <html lang="en">
 <head>
@@ -262,6 +279,9 @@ def render_page(md_path):
 </main>
 <script src="/vendor/prism/prism.js"></script>
 <script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
 <script>
 if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {{
     window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
@@ -270,18 +290,77 @@ if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {{
 </body>
 </html>
 """, encoding="utf-8")
+
+def render_page(md_path):
+    markdown = md_path.read_text(encoding="utf-8")
+    title = page_title(markdown, md_path.stem.replace("-", " ").title())
+    body = markdown_to_html(markdown)
+    html_path = md_path.with_suffix(".html")
+    write_html_page(title, body, html_path)
     print(f"generated {html_path.relative_to(ROOT)}")
+
+def render_external_page(source_md, target_html):
+    if not source_md.exists():
+        return
+    markdown = source_md.read_text(encoding="utf-8")
+    title = page_title(markdown, source_md.stem.replace("-", " ").title())
+    body = markdown_to_html(markdown)
+    write_html_page(title, body, target_html)
+    print(f"generated {target_html.relative_to(ROOT)}")
 
 def update_docs_index():
     path = WEBSITE / "docs.html"
     text = path.read_text(encoding="utf-8")
-    text = text.replace('.md"', '.html"')
+
+    def repl(match):
+        href = match.group(1)
+        if re.match(r"^[a-z]+://", href, re.IGNORECASE):
+            return f'href="{href}"'
+        if href.endswith(".md"):
+            href = href[:-3] + ".html"
+        return f'href="{href}"'
+
+    text = re.sub(r'href="([^"]+)"', repl, text)
     path.write_text(text, encoding="utf-8")
     print("updated website/docs.html links")
 
+def sync_public_docs_sources():
+    sync_pairs = [
+        (DOCS_SOURCE / "schema", DOCS / "schema"),
+        (DOCS_SOURCE / "system-modeling", DOCS / "system-modeling"),
+        (ROOT / "recovery", DOCS / "recovery"),
+    ]
+
+    copied = 0
+    for source_dir, target_dir in sync_pairs:
+        if not source_dir.exists():
+            continue
+
+        for source_file in source_dir.rglob("*"):
+            if not source_file.is_file():
+                continue
+
+            rel = source_file.relative_to(source_dir)
+            target_file = target_dir / rel
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_file, target_file)
+            copied += 1
+
+    for stale_path in [
+        DOCS / "project" / "contributing.md",
+        DOCS / "project" / "tag_tasks.md",
+    ]:
+        if stale_path.exists():
+            stale_path.unlink()
+
+    print(f"synced {copied} public docs files into website/docs")
+
 def main():
+    sync_public_docs_sources()
     for md_path in sorted(DOCS.rglob("*.md")):
         render_page(md_path)
+    render_external_page(ROOT / "CONTRIBUTING.md", DOCS / "project" / "contributing.html")
+    render_external_page(ROOT / "TAG_TASKS.md", DOCS / "project" / "tag_tasks.html")
     update_docs_index()
 
 if __name__ == "__main__":

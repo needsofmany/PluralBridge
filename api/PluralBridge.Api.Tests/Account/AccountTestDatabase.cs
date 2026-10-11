@@ -1,4 +1,7 @@
-﻿using Microsoft.Data.SqlClient;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,7 +16,7 @@ internal static class AccountTestDatabase
 		var configuration = factory.Services.GetRequiredService<IConfiguration>();
 
 		return configuration.GetConnectionString(AccountTestGlobals.Database.DefaultConnectionName)
-		       ?? throw new InvalidOperationException($"{AccountTestGlobals.Database.DefaultConnectionName} is not configured.");
+			   ?? throw new InvalidOperationException($"{AccountTestGlobals.Database.DefaultConnectionName} is not configured.");
 	}
 
 	internal static async Task CleanupRuntimeTestAccountsAsync()
@@ -24,71 +27,271 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   DECLARE @RuntimeAccounts TABLE
-		                   (
-		                   	AccountId uniqueidentifier NOT NULL PRIMARY KEY
-		                   );
+			DECLARE @RuntimeAccounts TABLE
+			(
+				AccountId uniqueidentifier NOT NULL PRIMARY KEY
+			);
 
-		                   INSERT INTO @RuntimeAccounts
-		                   (
-		                   	AccountId
-		                   )
-		                   SELECT
-		                   	AccountId
-		                   FROM dbo.pb_accounts
-		                   WHERE NormalizedUsername LIKE 'RUNTIME_TEST_%'
-		                   	OR NormalizedEmail LIKE '%@EXAMPLE.TEST';
+			INSERT INTO @RuntimeAccounts
+			(
+				AccountId
+			)
+			SELECT
+				AccountId
+			FROM dbo.pb_accounts
+			WHERE NormalizedUsername LIKE 'RUNTIME_TEST_%'
+				OR NormalizedEmail LIKE '%@EXAMPLE.TEST';
 
-		                   DELETE auditEvents
-		                   FROM dbo.pb_account_audit_events auditEvents
-		                   WHERE auditEvents.ActorAccountId IN
-		                   	(
-		                   		SELECT AccountId
-		                   		FROM @RuntimeAccounts
-		                   	)
-		                   	OR auditEvents.TargetAccountId IN
-		                   	(
-		                   		SELECT AccountId
-		                   		FROM @RuntimeAccounts
-		                   	);
+			DECLARE @RuntimeSystems TABLE
+			(
+				SystemId uniqueidentifier NOT NULL PRIMARY KEY
+			);
 
-		                   DELETE codes
-		                   FROM dbo.pb_account_codes codes
-		                   WHERE codes.AccountId IN
-		                   	(
-		                   		SELECT AccountId
-		                   		FROM @RuntimeAccounts
-		                   	);
+			INSERT INTO @RuntimeSystems
+			(
+				SystemId
+			)
+			SELECT
+				SystemId
+			FROM dbo.pb_systems
+			WHERE SystemName LIKE 'RUNTIME_TEST_SYSTEM_%';
 
-		                   DELETE outbox
-		                   FROM dbo.pb_account_code_delivery_outbox outbox
-		                   WHERE outbox.AccountId IN
-		                   	(
-		                   		SELECT AccountId
-		                   		FROM @RuntimeAccounts
-		                   	);
-		                   	
-		                   DELETE credentials
-		                   FROM dbo.pb_account_credentials credentials
-		                   WHERE credentials.AccountId IN
-		                   	(
-		                   		SELECT AccountId
-		                   		FROM @RuntimeAccounts
-		                   	);
+			DELETE memberAudit
+			FROM dbo.pb_member_write_audit AS memberAudit
+			WHERE memberAudit.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				)
+				OR memberAudit.SystemId IN
+				(
+					SELECT SystemId
+					FROM @RuntimeSystems
+				);
 
-		                   DELETE accounts
-		                   FROM dbo.pb_accounts accounts
-		                   WHERE accounts.AccountId IN
-		                   	(
-		                   		SELECT AccountId
-		                   		FROM @RuntimeAccounts
-		                   	);
-		                   """;
+			DELETE members
+			FROM dbo.pb_members AS members
+			WHERE members.SystemId IN
+				(
+					SELECT SystemId
+					FROM @RuntimeSystems
+				);
+
+			DELETE membershipRoles
+			FROM dbo.pb_system_membership_roles AS membershipRoles
+			INNER JOIN dbo.pb_system_memberships AS memberships
+				ON memberships.SystemMembershipId = membershipRoles.SystemMembershipId
+			WHERE memberships.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				)
+				OR memberships.SystemId IN
+				(
+					SELECT SystemId
+					FROM @RuntimeSystems
+				);
+
+			DELETE memberships
+			FROM dbo.pb_system_memberships AS memberships
+			WHERE memberships.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				)
+				OR memberships.SystemId IN
+				(
+					SELECT SystemId
+					FROM @RuntimeSystems
+				);
+
+			DELETE relationships
+			FROM dbo.pb_system_relationships AS relationships
+			WHERE relationships.SystemId IN
+				(
+					SELECT SystemId
+					FROM @RuntimeSystems
+				)
+				OR relationships.ParentSystemId IN
+				(
+					SELECT SystemId
+					FROM @RuntimeSystems
+				);
+
+			DELETE systems
+			FROM dbo.pb_systems AS systems
+			WHERE systems.SystemId IN
+				(
+					SELECT SystemId
+					FROM @RuntimeSystems
+				);
+
+			DELETE auditEvents
+			FROM dbo.pb_account_audit_events auditEvents
+			WHERE auditEvents.ActorAccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				)
+				OR auditEvents.TargetAccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				);
+
+			DELETE codes
+			FROM dbo.pb_account_codes codes
+			WHERE codes.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				);
+
+			DELETE outbox
+			FROM dbo.pb_account_code_delivery_outbox outbox
+			WHERE outbox.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				);
+
+			DELETE credentials
+			FROM dbo.pb_account_credentials credentials
+			WHERE credentials.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				);
+
+			DELETE accounts
+			FROM dbo.pb_accounts accounts
+			WHERE accounts.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				);
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
 		await command.ExecuteNonQueryAsync();
 	}
+
+	internal static async Task<RuntimeAccessFixture> CreateRuntimeAccessFixtureAsync(
+		Guid accountId,
+		string systemName,
+		string memberDisplayName,
+		string membershipRoleName = "Owner")
+	{
+		var connectionString = GetConnectionString();
+		var systemId = Guid.NewGuid();
+		var systemMembershipId = Guid.NewGuid();
+		var memberId = Guid.NewGuid();
+
+		await using var connection = new SqlConnection(connectionString);
+		await connection.OpenAsync();
+
+		const string sql = """
+			DECLARE @ActiveMembershipStatusId int =
+			(
+				SELECT TOP (1) MembershipStatusId
+				FROM dbo.pb_system_membership_statuses
+				WHERE StatusName = 'Active'
+					AND IsActive = 1
+			);
+
+			DECLARE @MembershipRoleId int =
+			(
+				SELECT TOP (1) RoleId
+				FROM dbo.pb_roles
+				WHERE RoleName = @MembershipRoleName
+					AND IsActive = 1
+			);
+
+			IF @ActiveMembershipStatusId IS NULL
+				THROW 50001, 'Active membership status was not found.', 1;
+
+			IF @MembershipRoleId IS NULL
+				THROW 50002, 'Membership role was not found.', 1;
+
+			INSERT INTO dbo.pb_systems
+			(
+				SystemId,
+				SystemName
+			)
+			VALUES
+			(
+				@SystemId,
+				@SystemName
+			);
+
+			INSERT INTO dbo.pb_system_memberships
+			(
+				SystemMembershipId,
+				AccountId,
+				SystemId,
+				MembershipStatusId
+			)
+			VALUES
+			(
+				@SystemMembershipId,
+				@AccountId,
+				@SystemId,
+				@ActiveMembershipStatusId
+			);
+
+			INSERT INTO dbo.pb_system_membership_roles
+			(
+				SystemMembershipId,
+				RoleId
+			)
+			VALUES
+			(
+				@SystemMembershipId,
+				@MembershipRoleId
+			);
+
+			INSERT INTO dbo.pb_members
+			(
+				MemberId,
+				SystemId,
+				DisplayName
+			)
+			VALUES
+			(
+				@MemberId,
+				@SystemId,
+				@MemberDisplayName
+			);
+			""";
+
+		await using var command = new SqlCommand(sql, connection);
+		command.Parameters.AddWithValue("@AccountId", accountId);
+		command.Parameters.AddWithValue("@SystemId", systemId);
+		command.Parameters.AddWithValue("@SystemMembershipId", systemMembershipId);
+		command.Parameters.AddWithValue("@MemberId", memberId);
+		command.Parameters.AddWithValue("@SystemName", systemName);
+		command.Parameters.AddWithValue("@MemberDisplayName", memberDisplayName);
+		command.Parameters.AddWithValue("@MembershipRoleName", membershipRoleName);
+
+		await command.ExecuteNonQueryAsync();
+
+		return new RuntimeAccessFixture(
+			accountId,
+			systemId,
+			systemMembershipId,
+			memberId,
+			systemName,
+			memberDisplayName);
+	}
+
+	internal sealed record RuntimeAccessFixture(
+		Guid AccountId,
+		Guid SystemId,
+		Guid SystemMembershipId,
+		Guid MemberId,
+		string SystemName,
+		string MemberDisplayName);
 
 	internal static async Task<RuntimeAccountState?> ReadAccountStateAsync(string username)
 	{
@@ -98,15 +301,15 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT
-		                   	AccountId,
-		                   	AccountStatusId,
-		                   	IsEmailVerified,
-		                   	NormalizedUsername,
-		                   	NormalizedEmail
-		                   FROM dbo.pb_accounts
-		                   WHERE NormalizedUsername = @NormalizedUsername;
-		                   """;
+			SELECT
+				AccountId,
+				AccountStatusId,
+				IsEmailVerified,
+				NormalizedUsername,
+				NormalizedEmail
+			FROM dbo.pb_accounts
+			WHERE NormalizedUsername = @NormalizedUsername;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -139,22 +342,22 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT TOP (1)
-		                   	AccountCodeId,
-		                   	AccountId,
-		                   	CodePurpose,
-		                   	DestinationType,
-		                   	DestinationNormalized,
-		                   	CodeHash,
-		                   	CodeHashAlgorithm,
-		                   	CodeHashVersion
-		                   FROM dbo.pb_account_codes
-		                   WHERE AccountId = @AccountId
-		                   	AND CodePurpose = @CodePurpose
-		                   	AND DestinationType = @DestinationType
-		                   	AND DestinationNormalized = @DestinationNormalized
-		                   ORDER BY CreatedAtUtc DESC;
-		                   """;
+			SELECT TOP (1)
+				AccountCodeId,
+				AccountId,
+				CodePurpose,
+				DestinationType,
+				DestinationNormalized,
+				CodeHash,
+				CodeHashAlgorithm,
+				CodeHashVersion
+			FROM dbo.pb_account_codes
+			WHERE AccountId = @AccountId
+				AND CodePurpose = @CodePurpose
+				AND DestinationType = @DestinationType
+				AND DestinationNormalized = @DestinationNormalized
+			ORDER BY CreatedAtUtc DESC;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -199,10 +402,10 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT COUNT_BIG(1)
-		                   FROM dbo.pb_account_credentials
-		                   WHERE AccountId = @AccountId;
-		                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_account_credentials
+			WHERE AccountId = @AccountId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -230,13 +433,13 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT COUNT_BIG(1)
-		                   FROM dbo.pb_account_codes
-		                   WHERE AccountId = @AccountId
-		                   	AND CodePurpose = @CodePurpose
-		                   	AND DestinationType = @DestinationType
-		                   	AND DestinationNormalized = @DestinationNormalized;
-		                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_account_codes
+			WHERE AccountId = @AccountId
+				AND CodePurpose = @CodePurpose
+				AND DestinationType = @DestinationType
+				AND DestinationNormalized = @DestinationNormalized;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -258,10 +461,10 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT COUNT_BIG(1)
-		                   FROM dbo.pb_accounts
-		                   WHERE NormalizedUsername = @NormalizedUsername;
-		                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_accounts
+			WHERE NormalizedUsername = @NormalizedUsername;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -280,10 +483,10 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT COUNT_BIG(1)
-		                   FROM dbo.pb_accounts
-		                   WHERE NormalizedEmail = @NormalizedEmail;
-		                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_accounts
+			WHERE NormalizedEmail = @NormalizedEmail;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -302,11 +505,11 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT COUNT_BIG(1)
-		                   FROM dbo.pb_account_audit_events
-		                   WHERE TargetAccountId = @AccountId
-		                   	AND EventName = @EventName;
-		                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_account_audit_events
+			WHERE TargetAccountId = @AccountId
+				AND EventName = @EventName;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -326,12 +529,12 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT COUNT_BIG(1)
-		                   FROM dbo.pb_account_codes
-		                   WHERE CodePurpose = @CodePurpose
-		                   	AND DestinationType = @DestinationType
-		                   	AND DestinationNormalized = @DestinationNormalized;
-		                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_account_codes
+			WHERE CodePurpose = @CodePurpose
+				AND DestinationType = @DestinationType
+				AND DestinationNormalized = @DestinationNormalized;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -356,22 +559,22 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT TOP (1)
-		                   	OutboxId,
-		                   	AccountId,
-		                   	CodePurpose,
-		                   	DestinationType,
-		                   	DestinationNormalized,
-		                   	PlaintextCode,
-		                   	CorrelationId,
-		                   	ConsumedForTestAtUtc
-		                   FROM dbo.pb_account_code_delivery_outbox
-		                   WHERE AccountId = @AccountId
-		                   	AND CodePurpose = @CodePurpose
-		                   	AND DestinationType = @DestinationType
-		                   	AND DestinationNormalized = @DestinationNormalized
-		                   ORDER BY CreatedAtUtc DESC;
-		                   """;
+			SELECT TOP (1)
+				OutboxId,
+				AccountId,
+				CodePurpose,
+				DestinationType,
+				DestinationNormalized,
+				PlaintextCode,
+				CorrelationId,
+				ConsumedForTestAtUtc
+			FROM dbo.pb_account_code_delivery_outbox
+			WHERE AccountId = @AccountId
+				AND CodePurpose = @CodePurpose
+				AND DestinationType = @DestinationType
+				AND DestinationNormalized = @DestinationNormalized
+			ORDER BY CreatedAtUtc DESC;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -416,13 +619,13 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   UPDATE dbo.pb_accounts
-		                   SET
-		                   	AccountStatusId = 1,
-		                   	IsEmailVerified = 1,
-		                   	UpdatedAtUtc = SYSUTCDATETIME()
-		                   WHERE AccountId = @AccountId;
-		                   """;
+			UPDATE dbo.pb_accounts
+			SET
+				AccountStatusId = 1,
+				IsEmailVerified = 1,
+				UpdatedAtUtc = SYSUTCDATETIME()
+			WHERE AccountId = @AccountId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -443,22 +646,22 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT TOP (1)
-		                   	AccountCodeId,
-		                   	AccountId,
-		                   	CodePurpose,
-		                   	DestinationType,
-		                   	DestinationNormalized,
-		                   	ConsumedAtUtc,
-		                   	AttemptCount,
-		                   	MaxAttempts
-		                   FROM dbo.pb_account_codes
-		                   WHERE AccountId = @AccountId
-		                   	AND CodePurpose = @CodePurpose
-		                   	AND DestinationType = @DestinationType
-		                   	AND DestinationNormalized = @DestinationNormalized
-		                   ORDER BY CreatedAtUtc DESC;
-		                   """;
+			SELECT TOP (1)
+				AccountCodeId,
+				AccountId,
+				CodePurpose,
+				DestinationType,
+				DestinationNormalized,
+				ConsumedAtUtc,
+				AttemptCount,
+				MaxAttempts
+			FROM dbo.pb_account_codes
+			WHERE AccountId = @AccountId
+				AND CodePurpose = @CodePurpose
+				AND DestinationType = @DestinationType
+				AND DestinationNormalized = @DestinationNormalized
+			ORDER BY CreatedAtUtc DESC;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -507,23 +710,23 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   WITH LatestCode AS
-		                   (
-		                   	SELECT TOP (1)
-		                   		AccountCodeId
-		                   	FROM dbo.pb_account_codes
-		                   	WHERE AccountId = @AccountId
-		                   		AND CodePurpose = @CodePurpose
-		                   		AND DestinationType = @DestinationType
-		                   		AND DestinationNormalized = @DestinationNormalized
-		                   	ORDER BY CreatedAtUtc DESC
-		                   )
-		                   UPDATE codes
-		                   SET ExpiresAtUtc = DATEADD(minute, -1, SYSUTCDATETIME())
-		                   FROM dbo.pb_account_codes codes
-		                   INNER JOIN LatestCode latestCode
-		                   	ON latestCode.AccountCodeId = codes.AccountCodeId;
-		                   """;
+			WITH LatestCode AS
+			(
+				SELECT TOP (1)
+					AccountCodeId
+				FROM dbo.pb_account_codes
+				WHERE AccountId = @AccountId
+					AND CodePurpose = @CodePurpose
+					AND DestinationType = @DestinationType
+					AND DestinationNormalized = @DestinationNormalized
+				ORDER BY CreatedAtUtc DESC
+			)
+			UPDATE codes
+			SET ExpiresAtUtc = DATEADD(minute, -1, SYSUTCDATETIME())
+			FROM dbo.pb_account_codes codes
+			INNER JOIN LatestCode latestCode
+				ON latestCode.AccountCodeId = codes.AccountCodeId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -547,23 +750,23 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   WITH LatestCode AS
-		                   (
-		                   	SELECT TOP (1)
-		                   		AccountCodeId
-		                   	FROM dbo.pb_account_codes
-		                   	WHERE AccountId = @AccountId
-		                   		AND CodePurpose = @CodePurpose
-		                   		AND DestinationType = @DestinationType
-		                   		AND DestinationNormalized = @DestinationNormalized
-		                   	ORDER BY CreatedAtUtc DESC
-		                   )
-		                   UPDATE codes
-		                   SET AttemptCount = MaxAttempts
-		                   FROM dbo.pb_account_codes codes
-		                   INNER JOIN LatestCode latestCode
-		                   	ON latestCode.AccountCodeId = codes.AccountCodeId;
-		                   """;
+			WITH LatestCode AS
+			(
+				SELECT TOP (1)
+					AccountCodeId
+				FROM dbo.pb_account_codes
+				WHERE AccountId = @AccountId
+					AND CodePurpose = @CodePurpose
+					AND DestinationType = @DestinationType
+					AND DestinationNormalized = @DestinationNormalized
+				ORDER BY CreatedAtUtc DESC
+			)
+			UPDATE codes
+			SET AttemptCount = MaxAttempts
+			FROM dbo.pb_account_codes codes
+			INNER JOIN LatestCode latestCode
+				ON latestCode.AccountCodeId = codes.AccountCodeId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -583,10 +786,10 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT LastLoginAtUtc
-		                   FROM dbo.pb_accounts
-		                   WHERE AccountId = @AccountId;
-		                   """;
+			SELECT LastLoginAtUtc
+			FROM dbo.pb_accounts
+			WHERE AccountId = @AccountId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -610,12 +813,12 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-	                   SELECT COUNT_BIG(1)
-	                   FROM dbo.pb_account_codes
-	                   WHERE CodePurpose = @CodePurpose
-	                   	AND DestinationType = @DestinationType
-	                   	AND DestinationNormalized = @DestinationNormalized;
-	                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_account_codes
+			WHERE CodePurpose = @CodePurpose
+				AND DestinationType = @DestinationType
+				AND DestinationNormalized = @DestinationNormalized;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -639,12 +842,12 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-	                   SELECT COUNT_BIG(1)
-	                   FROM dbo.pb_account_code_delivery_outbox
-	                   WHERE CodePurpose = @CodePurpose
-	                   	AND DestinationType = @DestinationType
-	                   	AND DestinationNormalized = @DestinationNormalized;
-	                   """;
+			SELECT COUNT_BIG(1)
+			FROM dbo.pb_account_code_delivery_outbox
+			WHERE CodePurpose = @CodePurpose
+				AND DestinationType = @DestinationType
+				AND DestinationNormalized = @DestinationNormalized;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -665,15 +868,15 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   UPDATE accounts
-		                   SET
-		                   	accounts.AccountStatusId = statuses.AccountStatusId,
-		                   	accounts.UpdatedAtUtc = SYSUTCDATETIME()
-		                   FROM dbo.pb_accounts AS accounts
-		                   INNER JOIN dbo.pb_account_statuses AS statuses
-		                   	ON statuses.StatusName = 'Disabled'
-		                   WHERE accounts.AccountId = @AccountId;
-		                   """;
+			UPDATE accounts
+			SET
+				accounts.AccountStatusId = statuses.AccountStatusId,
+				accounts.UpdatedAtUtc = SYSUTCDATETIME()
+			FROM dbo.pb_accounts AS accounts
+			INNER JOIN dbo.pb_account_statuses AS statuses
+				ON statuses.StatusName = 'Disabled'
+			WHERE accounts.AccountId = @AccountId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 
@@ -690,10 +893,10 @@ internal static class AccountTestDatabase
 		await connection.OpenAsync();
 
 		const string sql = """
-		                   SELECT DisplayName
-		                   FROM dbo.pb_accounts
-		                   WHERE AccountId = @AccountId;
-		                   """;
+			SELECT DisplayName
+			FROM dbo.pb_accounts
+			WHERE AccountId = @AccountId;
+			""";
 
 		await using var command = new SqlCommand(sql, connection);
 		command.Parameters.AddWithValue("@AccountId", accountId);

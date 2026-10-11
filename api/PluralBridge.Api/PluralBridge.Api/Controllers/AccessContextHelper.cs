@@ -1,11 +1,16 @@
-﻿using Microsoft.Data.SqlClient;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using Microsoft.Data.SqlClient;
 using System.Diagnostics;
-using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace PluralBridge.Api.Controllers
 {
 	internal static class AccessContextHelper
 	{
+		private const string MemberWriteOwnerRoleName = "Owner";
+
 		/// <summary>
 		/// Returns an account record by email address.
 		/// </summary>
@@ -63,17 +68,72 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Reads the active system membership for one account.
+		/// Returns an account record by account identifier.
 		/// </summary>
 		/// <param name="connection">The current database connection.</param>
 		/// <param name="accountId">The account identifier.</param>
-		/// <returns>The active system membership for the account, or null when no active membership is found.</returns>
-		private static async Task<SystemMembership?> ReadActiveMembershipAsync(
+		/// <returns>The matching account record, or null when no account is found.</returns>
+		internal static async Task<Account?> ReadAccountByIdAsync(
 			SqlConnection connection,
 			Guid accountId)
 		{
 			const string sql = """
-                       SELECT TOP (1)
+			                   SELECT TOP (1)
+			                       a.AccountId,
+			                       a.Email,
+			                       a.DisplayName,
+			                       a.AccountStatusId,
+			                       s.StatusName,
+			                       s.StatusDesc,
+			                       s.DisplayOrder,
+			                       s.IsActive,
+			                       a.CreatedAtUtc,
+			                       a.UpdatedAtUtc
+			                   FROM dbo.pb_accounts AS a
+			                   INNER JOIN dbo.pb_account_statuses AS s
+			                       ON s.AccountStatusId = a.AccountStatusId
+			                   WHERE a.AccountId = @AccountId;
+			                   """;
+
+			await using SqlCommand command = new(sql, connection);
+			command.Parameters.AddWithValue("@AccountId", accountId);
+
+			await using var reader = await command.ExecuteReaderAsync();
+
+			if (!await reader.ReadAsync())
+			{
+				return null;
+			}
+
+			var accountStatus = new AccountStatus(
+				reader.GetInt32(3),
+				reader.GetString(4),
+				reader.GetString(5),
+				reader.GetInt32(6),
+				reader.GetBoolean(7));
+
+			return new Account(
+				reader.GetGuid(0),
+				reader.GetString(1),
+				reader.GetString(2),
+				reader.GetInt32(3),
+				accountStatus,
+				reader.GetDateTime(8),
+				reader.IsDBNull(9) ? null : reader.GetDateTime(9));
+		}
+
+		/// <summary>
+		/// Reads all active system memberships for one account.
+		/// </summary>
+		/// <param name="connection">The current database connection.</param>
+		/// <param name="accountId">The account identifier.</param>
+		/// <returns>The active system memberships for the account.</returns>
+		private static async Task<IReadOnlyList<SystemMembership>> ReadActiveMembershipsAsync(
+			SqlConnection connection,
+			Guid accountId)
+		{
+			const string sql = """
+                       SELECT
                            m.SystemMembershipId,
                            m.AccountId,
                            m.SystemId,
@@ -95,50 +155,57 @@ namespace PluralBridge.Api.Controllers
 			await using var command = new SqlCommand(sql, connection);
 			command.Parameters.AddWithValue("@AccountId", accountId);
 
-			Guid systemMembershipId;
-			Guid membershipAccountId;
-			Guid systemId;
-			int membershipStatusId;
-			MembershipStatus membershipStatus;
-			DateTime createdAtUtc;
-			DateTime? updatedAtUtc;
+			var membershipsWithoutRoles = new List<(Guid SystemMembershipId, Guid AccountId, Guid SystemId, int MembershipStatusId, MembershipStatus MembershipStatus, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc)>();
 
 			await using (var reader = await command.ExecuteReaderAsync())
 			{
-				if (!await reader.ReadAsync())
+				while (await reader.ReadAsync())
 				{
-					return null;
+					var membershipStatusId = reader.GetInt32(3);
+
+					var membershipStatus = new MembershipStatus(
+						membershipStatusId,
+						reader.GetString(4),
+						reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+						reader.GetInt32(6),
+						reader.GetBoolean(7));
+
+					membershipsWithoutRoles.Add((
+						reader.GetGuid(0),
+						reader.GetGuid(1),
+						reader.GetGuid(2),
+						membershipStatusId,
+						membershipStatus,
+						reader.GetDateTime(8),
+						reader.IsDBNull(9) ? null : reader.GetDateTime(9)));
 				}
-
-				systemMembershipId = reader.GetGuid(0);
-				membershipAccountId = reader.GetGuid(1);
-				systemId = reader.GetGuid(2);
-				membershipStatusId = reader.GetInt32(3);
-
-				membershipStatus = new MembershipStatus(
-					membershipStatusId,
-					reader.GetString(4),
-					reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
-					reader.GetInt32(6),
-					reader.GetBoolean(7));
-
-				createdAtUtc = reader.GetDateTime(8);
-				updatedAtUtc = reader.IsDBNull(9) ? null : reader.GetDateTime(9);
 			}
 
-			var roles = await ReadRolesForMembershipAsync(
-				connection,
-				systemMembershipId);
+			if (membershipsWithoutRoles.Count == 0)
+			{
+				return [];
+			}
 
-			return new SystemMembership(
-				systemMembershipId,
-				membershipAccountId,
-				systemId,
-				membershipStatusId,
-				membershipStatus,
-				roles,
-				createdAtUtc,
-				updatedAtUtc);
+			var memberships = new List<SystemMembership>(membershipsWithoutRoles.Count);
+
+			foreach (var membership in membershipsWithoutRoles)
+			{
+				var roles = await ReadRolesForMembershipAsync(
+					connection,
+					membership.SystemMembershipId);
+
+				memberships.Add(new SystemMembership(
+					membership.SystemMembershipId,
+					membership.AccountId,
+					membership.SystemId,
+					membership.MembershipStatusId,
+					membership.MembershipStatus,
+					roles,
+					membership.CreatedAtUtc,
+					membership.UpdatedAtUtc));
+			}
+
+			return memberships;
 		}
 
 		/// <summary>
@@ -194,6 +261,7 @@ namespace PluralBridge.Api.Controllers
 		/// <returns>The resolved access context, or null when the current account or current system cannot be resolved.</returns>
 		internal static async Task<AccessContext?> ResolveCurrentAccessAsync(
 			SqlConnection connection,
+			ClaimsPrincipal user,
 			RequestTraceContext? requestTrace = null,
 			ILogger? logger = null)
 		{
@@ -204,7 +272,7 @@ namespace PluralBridge.Api.Controllers
 				"account_resolution",
 				"started");
 
-			var currentAccount = await ResolveCurrentAccountAsync(connection);
+			var currentAccount = await ResolveCurrentAccountAsync(connection, user);
 
 			accountStopwatch.Stop();
 
@@ -334,19 +402,68 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Resolves the current working account for the Chapter 2 safe-spine path.
+		/// Checks whether the current account can write members in the current system.
+		/// </summary>
+		/// <param name="accessContext">The resolved access context for the current request.</param>
+		/// <param name="requestTrace">The optional Level 1 diagnostic trace context for the current request spine.</param>
+		/// <param name="logger">The optional logger used to emit safe Level 1 diagnostic trace facts.</param>
+		/// <returns>True when the current account has active current-system membership with a write role; otherwise, false.</returns>
+		internal static bool IsAuthorizedForMemberWrite(
+			AccessContext accessContext,
+			RequestTraceContext? requestTrace = null,
+			ILogger? logger = null)
+		{
+			var authorizationStopwatch = Stopwatch.StartNew();
+
+			requestTrace?.LogStage(
+				logger!,
+				"member_write_authorization_check",
+				"started");
+
+			var isAuthorized = accessContext.MembershipAccess.Any(membership =>
+				membership.SystemId == accessContext.CurrentSystem.SystemId
+				&& membership.SystemMembershipId == accessContext.CurrentSystem.SystemMembershipId
+				&& membership.MembershipStatus.IsActive
+				&& string.Equals(
+					membership.MembershipStatus.StatusName,
+					"Active",
+					StringComparison.OrdinalIgnoreCase)
+				&& membership.Roles.Any(role =>
+					role.IsActive
+					&& string.Equals(
+						role.RoleName,
+						MemberWriteOwnerRoleName,
+						StringComparison.OrdinalIgnoreCase)));
+
+			authorizationStopwatch.Stop();
+
+			requestTrace?.LogStage(
+				logger!,
+				"member_write_authorization_check",
+				isAuthorized ? "allowed" : "denied",
+				authorizationStopwatch.Elapsed);
+
+			return isAuthorized;
+		}
+
+		/// <summary>
+		/// Resolves the authenticated account for the Chapter 2 safe-spine path.
 		/// </summary>
 		/// <param name="connection">The current database connection.</param>
-		/// <returns>The configured current account, or null when no account is found.</returns>
-		internal static async Task<Account?> ResolveCurrentAccountAsync(SqlConnection connection)
+		/// <param name="user">The authenticated principal for the current request.</param>
+		/// <returns>The authenticated account, or null when the account identifier is absent, malformed, or unknown.</returns>
+		internal static async Task<Account?> ResolveCurrentAccountAsync(
+			SqlConnection connection,
+			ClaimsPrincipal user)
 		{
-			const string currentAccountEmail = "demo@thepluralbridge.local";
+			var accountIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
 
-			var account = await ReadAccountByEmailAsync(
-				connection,
-				currentAccountEmail);
+			if (!Guid.TryParse(accountIdValue, out var accountId))
+			{
+				return null;
+			}
 
-			return account;
+			return await ReadAccountByIdAsync(connection, accountId);
 		}
 
 		/// <summary>
@@ -359,16 +476,11 @@ namespace PluralBridge.Api.Controllers
 			SqlConnection connection,
 			Account currentAccount)
 		{
-			var membership = await ReadActiveMembershipAsync(
+			var memberships = await ReadActiveMembershipsAsync(
 				connection,
 				currentAccount.AccountId);
 
-			if (membership is null)
-			{
-				return [];
-			}
-
-			return [membership];
+			return memberships;
 		}
 
 		/// <summary>

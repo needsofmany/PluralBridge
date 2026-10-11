@@ -31,30 +31,37 @@ mkdir -p "$SERVED_APP/css" || {
   exit 1
 }
 
+rm -f "$SERVED_APP/js/app.js" "$SERVED_APP/css/app.css"
+
 cp -p "$SRC_APP/index.html" "$SERVED_APP/index.html" || {
   printf "SYNC_BROWSER_APP_COPY_INDEX_FAILED\n"
   exit 1
 }
 
-cp -p "$SRC_APP/js/app.js" "$SERVED_APP/app.js" || {
-  printf "SYNC_BROWSER_APP_COPY_APP_JS_FAILED\n"
-  exit 1
-}
-
-cp -p "$SRC_APP/js/"*.js "$SERVED_APP/js/" || {
-  printf "SYNC_BROWSER_APP_COPY_JS_MODULES_FAILED\n"
-  exit 1
-}
+for js_file in "$SRC_APP/js/"*.js; do
+  if [[ "$(basename "$js_file")" == "app.js" ]]; then
+    continue
+  fi
+  cp -p "$js_file" "$SERVED_APP/js/" || {
+    printf "SYNC_BROWSER_APP_COPY_JS_MODULES_FAILED\n"
+    exit 1
+  }
+done
 
 cp -p "$SRC_APP/css/app.css" "$SERVED_APP/app.css" || {
   printf "SYNC_BROWSER_APP_COPY_APP_CSS_FAILED\n"
   exit 1
 }
 
-cp -p "$SRC_APP/css/"*.css "$SERVED_APP/css/" || {
-  printf "SYNC_BROWSER_APP_COPY_CSS_MODULES_FAILED\n"
-  exit 1
-}
+for css_file in "$SRC_APP/css/"*.css; do
+  if [[ "$(basename "$css_file")" == "app.css" ]]; then
+    continue
+  fi
+  cp -p "$css_file" "$SERVED_APP/css/" || {
+    printf "SYNC_BROWSER_APP_COPY_CSS_MODULES_FAILED\n"
+    exit 1
+  }
+done
 
 if [[ -d "$SRC_APP/assets" ]]; then
   mkdir -p "$SERVED_APP/assets" || {
@@ -68,6 +75,8 @@ if [[ -d "$SRC_APP/assets" ]]; then
 fi
 
 printf "SYNC_BROWSER_APP_INDEX_COPIED=1\n"
+rm -f "$SERVED_APP/js/app.js"
+
 printf "SYNC_BROWSER_APP_JS_COPIED=1\n"
 printf "SYNC_BROWSER_APP_CSS_COPIED=1\n"
 printf "SYNC_BROWSER_APP_OK\n"

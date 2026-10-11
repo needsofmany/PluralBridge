@@ -1,0 +1,38 @@
+PASS: absolute paths verified
+[?2004h]0;MINGW64:/c/Users/stacy
+[32mstacy@YELLOW-FISH-PC [35mMINGW64 [33m~[36m[0m
+$ cd "/d/Src/Needs of the Many/PluralBridge"
+
+set -eo pipefail
+pass() { printf "PASS: %s\n" "$1"; }
+fail() { printf "FAIL: %s\n" "$1"; exit 1; }
+
+REPO="/d/Src/Needs of the Many/PluralBridge"
+WEBSITE="/d/Src/Needs of the Many/PluralBridge/website"
+DOCS_HTML="/d/Src/Needs of the Many/PluralBridge/website/docs.html"
+STYLE="/d/Src/Needs of the Many/PluralBridge/website/style.css"
+TOGGLE_JS="/d/Src/Needs of the Many/PluralBridge/website/docs-topic-toggle.js"
+LOCAL_URL="http://127.0.0.1:8080/docs.html?cb=$(date +%s)"
+
+[ -d "$WEBSITE" ] || fail "website folder missing"
+[ -f "$DOCS_HTML" ] || fail "docs.html missing"
+[ -f "$STYLE" ] || fail "style.css missing"
+[ -f "$TOGGLE_JS" ] || fail "docs-topic-toggle.js missing"
+pass "required files exist"
+
+rg -q 'class="docs-topic-toggle"' "$DOCS_HTML" \
+  && pass "docs.html has topic toggles" \
+  || fail "docs.html does not have topic toggles"
+
+[7mrg -q 'docs-topic-toggle\.js' "$DOCS_HTML" \[27m
+[7m  && pass "docs.html loads toggle script" \[27m[7m  || fail "docs.html missing toggle script include"[27m[7mrg -q 'chevron\.textContent' "$TOGGLE_JS" \[27m[7m  && pass "toggle js contains chevron logic" \[27m[7m  || fail "toggle js missing chevron logic"[27m[7m# Local server content check (must already be running on 127.0.0.1:8080)[27m[7mif curl -fsS "http://127.0.0.1:8080/docs.html" >/tmp/pb_docs_local_check.html; t[27m[7mhen[27m[7m  pass "local server reachable on 127.0.0.1:8080"[27m[7melse[27m[7m  fail "local server not reachable. Start it first from $WEBSITE"[27m[7mfi[27m[7mrg -q 'docs-topic-toggle\.js' /tmp/pb_docs_local_check.html \[27m[7m  && pass "served docs.html includes toggle script (correct root served)" \[27m[7m  || fail "served docs.html is stale/wrong root"[27m[7mecho[27m[7mecho "Open this exact local URL (cache-busted):"[27m[7mecho "$LOCAL_URL"[27m[7mcmd.exe /c start "" "$LOCAL_URL" >/dev/null 2>&1 || true[27m[Arg -q 'docs-topic-toggle\.js' "$DOCS_HTML" \
+  && pass "docs.html loads toggle script" \  || fail "docs.html missing toggle script include"rg -q 'chevron\.textContent' "$TOGGLE_JS" \  && pass "toggle js contains chevron logic" \  || fail "toggle js missing chevron logic"# Local server content check (must already be running on 127.0.0.1:8080)if curl -fsS "http://127.0.0.1:8080/docs.html" >/tmp/pb_docs_local_check.html; then  pass "local server reachable on 127.0.0.1:8080"else  fail "local server not reachable. Start it first from $WEBSITE"firg -q 'docs-topic-toggle\.js' /tmp/pb_docs_local_check.html \  && pass "served docs.html includes toggle script (correct root served)" \  || fail "served docs.html is stale/wrong root"echoecho "Open this exact local URL (cache-busted):"echo "$LOCAL_URL"cmd.exe /c start "" "$LOCAL_URL" >/dev/null 2>&1 || true
+[?2004lPASS: required files exist
+PASS: docs.html has topic toggles
+PASS: docs.html loads toggle script
+PASS: toggle js contains chevron logic
+PASS: local server reachable on 127.0.0.1:8080
+PASS: served docs.html includes toggle script (correct root served)
+
+Open this exact local URL (cache-busted):
+http://127.0.0.1:8080/docs.html?cb=1788643036

@@ -1,4 +1,7 @@
-﻿using System.Data;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using System.Data;
 using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Controllers;

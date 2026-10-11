@@ -1,0 +1,78 @@
+:root {
+  color-scheme: light dark;
+}
+
+.sql-page {
+  width: min(1200px, 94vw);
+}
+
+.sql-card {
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+#sql-status {
+  margin: 0 0 0.55rem;
+  color: #9ca3af;
+}
+
+#sql-output {
+  margin: 0.4rem 0 0;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #f7f8fa;
+  color: #1f2937;
+  padding: 10px 12px;
+  max-height: 76vh;
+  overflow: auto;
+  white-space: pre;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.08;
+  tab-size: 2;
+}
+
+#sql-output .sql-keyword {
+  color: #003bce;
+  font-weight: 700;
+}
+
+#sql-output .sql-string {
+  color: #a31515;
+}
+
+#sql-output .sql-comment {
+  color: #008000;
+  font-style: italic;
+}
+
+#sql-output .sql-number {
+  color: #0f766e;
+}
+
+@media (prefers-color-scheme: dark) {
+  #sql-output {
+    border-color: #334155;
+    background: #0f172a;
+    color: #e5e7eb;
+  }
+
+  #sql-output .sql-keyword {
+    color: #93c5fd;
+  }
+
+  #sql-output .sql-string {
+    color: #fca5a5;
+  }
+
+  #sql-output .sql-comment {
+    color: #86efac;
+  }
+
+  #sql-output .sql-number {
+    color: #5eead4;
+  }
+
+  #sql-status {
+    color: #cbd5e1;
+  }
+}

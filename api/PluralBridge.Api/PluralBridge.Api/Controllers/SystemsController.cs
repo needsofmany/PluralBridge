@@ -1,6 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using System.Text;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
+using System.Linq;
 
 namespace PluralBridge.Api.Controllers;
 
@@ -9,6 +15,7 @@ namespace PluralBridge.Api.Controllers;
 /// Systems represent imported PluralBridge system records from the validated proof database.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route(Globals.systemsRouteRoot)]
 public sealed class SystemsController(
 	IConfiguration configuration,
@@ -52,6 +59,7 @@ public sealed class SystemsController(
 
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
+				User,
 				requestTrace,
 				logger);
 
@@ -92,7 +100,7 @@ public sealed class SystemsController(
 			List<SystemRecord> systems;
 			try
 			{
-				systems = await ReadSystemsAsync(connection, accessContext.CurrentSystem.SystemId);
+				systems = await ReadSystemsAsync(connection, accessContext.MembershipAccess);
 
 				dataAccessStopwatch.Stop();
 
@@ -150,32 +158,61 @@ public sealed class SystemsController(
 	/// The selected fields expose imported system metadata needed by the browser proof surface.
 	/// </summary>
 	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
-	/// <param name="systemId">The authorized current system identifier resolved from the active access context.</param>
-	/// <returns>The current system row ordered by creation time and system identifier.</returns>
-	private static async Task<List<SystemRecord>> ReadSystemsAsync(SqlConnection connection, Guid systemId)
+	/// <param name="memberships">The authorized active memberships for the current account.</param>
+	/// <returns>The authorized system rows ordered by creation time and system identifier.</returns>
+	private static async Task<List<SystemRecord>> ReadSystemsAsync(
+		SqlConnection connection,
+		IReadOnlyList<AccessContextHelper.SystemMembership> memberships)
 	{
-		const string sql = """
-		                   SELECT
-		                       SystemId,
-		                       SystemName,
-		                       Description,
-		                       Color,
-		                       AvatarUrl,
-		                       AvatarUuid,
-		                       SourceCreatedAtMs,
-		                       LastOperationTimeMs,
-		                       ImportedAtUtc,
-		                       CreatedAtUtc,
-		                       UpdatedAtUtc
-		                   FROM dbo.pb_systems
-		                   WHERE SystemId = @SystemId
-		                   ORDER BY CreatedAtUtc, SystemId;
-		                   """;
+		var systemIds = memberships
+			.Select(membership => membership.SystemId)
+			.Distinct()
+			.ToArray();
+
+		if (systemIds.Length == 0)
+		{
+			return [];
+		}
+
+		var sql = new StringBuilder(
+			"""
+			SELECT
+			    SystemId,
+			    SystemName,
+			    Description,
+			    Color,
+			    AvatarUrl,
+			    AvatarUuid,
+			    SourceCreatedAtMs,
+			    LastOperationTimeMs,
+			    ImportedAtUtc,
+			    CreatedAtUtc,
+			    UpdatedAtUtc
+			FROM dbo.pb_systems
+			WHERE SystemId IN (
+			""");
+
+		for (var index = 0; index < systemIds.Length; index++)
+		{
+			if (index > 0)
+			{
+				sql.Append(", ");
+			}
+
+			sql.Append("@SystemId").Append(index);
+		}
+
+		sql.AppendLine(")")
+			.AppendLine("ORDER BY CreatedAtUtc, SystemId;");
 
 		var systems = new List<SystemRecord>();
 
-		await using var command = new SqlCommand(sql, connection);
-		command.Parameters.AddWithValue("@SystemId", systemId);
+		await using var command = new SqlCommand(sql.ToString(), connection);
+
+		for (var index = 0; index < systemIds.Length; index++)
+		{
+			command.Parameters.AddWithValue($"@SystemId{index}", systemIds[index]);
+		}
 
 		await using var reader = await command.ExecuteReaderAsync();
 

@@ -1,4 +1,7 @@
-﻿using PluralBridge.Api.Account;
+﻿// Copyright (c) 2026 Needs of the Many
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using PluralBridge.Api.Account;
 using System.Net.Http.Json;
 
 namespace PluralBridge.Api.Tests.Account;

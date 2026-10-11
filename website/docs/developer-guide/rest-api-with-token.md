@@ -1,16 +1,107 @@
-# Use the Simply Plural REST API with a Token — Archived
+# API Endpoint Reference
 
-This guide is retained as part of PluralBridge's project history.
+This page documents the current PluralBridge API surface in Swagger-style groups.
 
-Simply Plural's servers are no longer available. The legacy Apparyllis REST API workflow can no longer be used to create a new Simply Plural export.
+Click an endpoint in the table to expand usage and programming examples for that row.
 
-The earlier REST API documentation remains part of the repository history for understanding preserved export formats and the development path that led to the current PluralBridge import work.
+Base behavior:
 
-For current information:
+- Response format: JSON
+- Correlation header supported: `X-Correlation-ID`
+- Protected endpoints require authenticated session/cookie unless noted otherwise
+- Route parameters:
+  - `{systemId}` = system GUID
+  - `{memberId}` = member GUID
 
-- [Export guidance](/export-now.html)
-- [Simply Plural shutdown information](/simply-plural-shutdown.html)
-- [What PluralBridge is building](/browser-app.html)
-- [Help build PluralBridge](/developer-workflow.html)
+## Account
 
-PluralBridge is published by Needs of the Many and is independent of Simply Plural and Apparyllis.
+Base route: `/api/account`
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| POST | `/api/account/register` | Anonymous | Start account registration. |
+| POST | `/api/account/verify-registration` | Anonymous | Verify registration with code. |
+| POST | `/api/account/login` | Anonymous | Sign in and create session. |
+| POST | `/api/account/forgot-username` | Anonymous | Start username recovery flow. |
+| POST | `/api/account/forgot-password` | Anonymous | Start password reset flow. |
+| POST | `/api/account/reset-password` | Anonymous | Complete password reset with code. |
+| POST | `/api/account/change-password` | Anonymous | Change password using validated request flow. |
+| PUT | `/api/account/profile` | Protected | Update account profile values. |
+| PUT | `/api/account/contact` | Protected | Update account contact destination. |
+| POST | `/api/account/verify-contact` | Protected | Verify contact update with code. |
+
+## Me
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/me` | Protected | Return current access context, resolved system, proof metadata, and table counts. |
+
+## Source Systems
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/source-systems` | Protected | List source application families present in imported data. |
+
+## Systems
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems` | Protected | List systems visible to current account context. |
+
+## Members
+
+Base route: `/api/systems/{systemId}/members`
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/members` | Protected | List members for one system. |
+| GET | `/api/systems/{systemId}/members/{memberId}` | Protected | Get one member by id. |
+| POST | `/api/systems/{systemId}/members` | Protected | Create one member in the current system context. |
+| PUT | `/api/systems/{systemId}/members/{memberId}` | Protected | Update one member in the current system context. |
+
+## Front History
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/front-history` | Protected | Return front-history rows for one system context. |
+
+## Custom Fields
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/custom-fields` | Protected | Return custom-field definitions/values for one system. |
+
+## Privacy Buckets
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/privacy-buckets` | Protected | Return privacy bucket data for one system. |
+
+## Import Batches
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/import-batches` | Protected | Return import batch metadata for one system. |
+
+## Import Metadata
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/import-metadata` | Protected | Return import metadata rows for one system. |
+
+## Source Records
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/source-records` | Protected | Return source record inventory and metadata for one system. |
+
+## Source ID Mappings
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/systems/{systemId}/source-id-mappings` | Protected | Return source-to-PluralBridge id mapping rows for one system. |
+
+## Notes
+
+- API routes above are derived from current controller routes in `PluralBridge.Api`.
+- Endpoint behavior remains contract-governed and versioning rules apply as the public contract evolves.
