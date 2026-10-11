@@ -217,7 +217,7 @@ app.MapGet(Globals.browserLoginRoute, () =>
 		"<body>" +
 		"<main>" +
 		"<h1>PluralBridge Demo Login</h1>" +
-		"<p>Private Phase 2B engineering proof.</p>" +
+		"<p>Private Phase SysModel Update engineering proof.</p>" +
 		$"<form method=\"post\" action=\"{Globals.browserLoginRoute}\">" +
 		$"<label for=\"{Globals.browserLoginUserNameField}\">Username</label><br>" +
 		$"<input id=\"{Globals.browserLoginUserNameField}\" name=\"{Globals.browserLoginUserNameField}\" autocomplete=\"username\" required><br><br>" +

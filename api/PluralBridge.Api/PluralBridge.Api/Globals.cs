@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 Needs of the Many
+// Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // ReSharper disable InconsistentNaming
@@ -11,7 +11,7 @@ namespace PluralBridge.Api
 		/// Application info
 		/// </summary>
 		internal const string connectionString = ("PluralBridgeChap2SafeSpine");
-		internal const string projectPhase = "Account Implementation";
+		internal const string projectPhase = "Phase SysModel Update";
 		internal const string roProof = "read-only proof";
 
 		/// <summary>

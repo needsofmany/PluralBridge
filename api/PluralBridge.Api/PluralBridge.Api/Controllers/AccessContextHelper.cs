@@ -123,17 +123,17 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Reads the active system membership for one account.
+		/// Reads all active system memberships for one account.
 		/// </summary>
 		/// <param name="connection">The current database connection.</param>
 		/// <param name="accountId">The account identifier.</param>
-		/// <returns>The active system membership for the account, or null when no active membership is found.</returns>
-		private static async Task<SystemMembership?> ReadActiveMembershipAsync(
+		/// <returns>The active system memberships for the account.</returns>
+		private static async Task<IReadOnlyList<SystemMembership>> ReadActiveMembershipsAsync(
 			SqlConnection connection,
 			Guid accountId)
 		{
 			const string sql = """
-                       SELECT TOP (1)
+                       SELECT
                            m.SystemMembershipId,
                            m.AccountId,
                            m.SystemId,
@@ -155,50 +155,57 @@ namespace PluralBridge.Api.Controllers
 			await using var command = new SqlCommand(sql, connection);
 			command.Parameters.AddWithValue("@AccountId", accountId);
 
-			Guid systemMembershipId;
-			Guid membershipAccountId;
-			Guid systemId;
-			int membershipStatusId;
-			MembershipStatus membershipStatus;
-			DateTime createdAtUtc;
-			DateTime? updatedAtUtc;
+			var membershipsWithoutRoles = new List<(Guid SystemMembershipId, Guid AccountId, Guid SystemId, int MembershipStatusId, MembershipStatus MembershipStatus, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc)>();
 
 			await using (var reader = await command.ExecuteReaderAsync())
 			{
-				if (!await reader.ReadAsync())
+				while (await reader.ReadAsync())
 				{
-					return null;
+					var membershipStatusId = reader.GetInt32(3);
+
+					var membershipStatus = new MembershipStatus(
+						membershipStatusId,
+						reader.GetString(4),
+						reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+						reader.GetInt32(6),
+						reader.GetBoolean(7));
+
+					membershipsWithoutRoles.Add((
+						reader.GetGuid(0),
+						reader.GetGuid(1),
+						reader.GetGuid(2),
+						membershipStatusId,
+						membershipStatus,
+						reader.GetDateTime(8),
+						reader.IsDBNull(9) ? null : reader.GetDateTime(9)));
 				}
-
-				systemMembershipId = reader.GetGuid(0);
-				membershipAccountId = reader.GetGuid(1);
-				systemId = reader.GetGuid(2);
-				membershipStatusId = reader.GetInt32(3);
-
-				membershipStatus = new MembershipStatus(
-					membershipStatusId,
-					reader.GetString(4),
-					reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
-					reader.GetInt32(6),
-					reader.GetBoolean(7));
-
-				createdAtUtc = reader.GetDateTime(8);
-				updatedAtUtc = reader.IsDBNull(9) ? null : reader.GetDateTime(9);
 			}
 
-			var roles = await ReadRolesForMembershipAsync(
-				connection,
-				systemMembershipId);
+			if (membershipsWithoutRoles.Count == 0)
+			{
+				return [];
+			}
 
-			return new SystemMembership(
-				systemMembershipId,
-				membershipAccountId,
-				systemId,
-				membershipStatusId,
-				membershipStatus,
-				roles,
-				createdAtUtc,
-				updatedAtUtc);
+			var memberships = new List<SystemMembership>(membershipsWithoutRoles.Count);
+
+			foreach (var membership in membershipsWithoutRoles)
+			{
+				var roles = await ReadRolesForMembershipAsync(
+					connection,
+					membership.SystemMembershipId);
+
+				memberships.Add(new SystemMembership(
+					membership.SystemMembershipId,
+					membership.AccountId,
+					membership.SystemId,
+					membership.MembershipStatusId,
+					membership.MembershipStatus,
+					roles,
+					membership.CreatedAtUtc,
+					membership.UpdatedAtUtc));
+			}
+
+			return memberships;
 		}
 
 		/// <summary>
@@ -469,16 +476,11 @@ namespace PluralBridge.Api.Controllers
 			SqlConnection connection,
 			Account currentAccount)
 		{
-			var membership = await ReadActiveMembershipAsync(
+			var memberships = await ReadActiveMembershipsAsync(
 				connection,
 				currentAccount.AccountId);
 
-			if (membership is null)
-			{
-				return [];
-			}
-
-			return [membership];
+			return memberships;
 		}
 
 		/// <summary>
