@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
+using System.Linq;
+using System.Text;
 
 namespace PluralBridge.Api.Controllers;
 
@@ -116,7 +118,9 @@ public sealed class MeController(
 
 			try
 			{
-				counts = await ReadCountsAsync(connection);
+				counts = await ReadCountsAsync(
+					connection,
+					membershipAccess);
 				proofSystem = await ReadProofSystemAsync(connection);
 
 				dataAccessStopwatch.Stop();
@@ -179,50 +183,98 @@ public sealed class MeController(
 	/// </summary>
 	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
 	/// <returns>A dictionary keyed by API-facing count names.</returns>
-	private static async Task<Dictionary<string, long>> ReadCountsAsync(SqlConnection connection)
+	private static async Task<Dictionary<string, long>> ReadCountsAsync(
+		SqlConnection connection,
+		IReadOnlyList<AccessContextHelper.SystemMembership> memberships)
 	{
-		const string sql = """
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_systems;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_import_batches;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_systems;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_members;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_privacy_buckets;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_custom_fields;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_front_history;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_records;
-		                   SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_id_map;
-		                   """;
+		var systemIds = memberships
+			.Select(membership => membership.SystemId)
+			.Distinct()
+			.ToArray();
 
-		string[] names =
-		[
-			nameof(CountKeys.sourceSystems),
-			nameof(CountKeys.importBatches),
-			nameof(CountKeys.systems),
-			nameof(CountKeys.members),
-			nameof(CountKeys.privacyBuckets),
-			nameof(CountKeys.customFields),
-			nameof(CountKeys.frontHistory),
-			nameof(CountKeys.sourceRecords),
-			nameof(CountKeys.sourceIdMappings)
-		];
-
-		Dictionary<string, long> counts = new();
-
-		await using SqlCommand command = new(sql, connection);
-		await using var reader = await command.ExecuteReaderAsync();
-
-		for (var index = 0; index < names.Length; index++)
+		Dictionary<string, long> counts = new()
 		{
-			if (await reader.ReadAsync())
+			[nameof(CountKeys.sourceSystems)] = 0,
+			[nameof(CountKeys.importBatches)] = 0,
+			[nameof(CountKeys.systems)] = 0,
+			[nameof(CountKeys.members)] = 0,
+			[nameof(CountKeys.privacyBuckets)] = 0,
+			[nameof(CountKeys.customFields)] = 0,
+			[nameof(CountKeys.frontHistory)] = 0,
+			[nameof(CountKeys.sourceRecords)] = 0,
+			[nameof(CountKeys.sourceIdMappings)] = 0
+		};
+
+		if (systemIds.Length == 0)
+		{
+			return counts;
+		}
+
+		var idListBuilder = new StringBuilder();
+
+		for (var index = 0; index < systemIds.Length; index++)
+		{
+			if (index > 0)
 			{
-				counts[names[index]] = reader.GetInt64(0);
+				idListBuilder.Append(", ");
 			}
 
-			if (index < names.Length - 1)
-			{
-				await reader.NextResultAsync();
-			}
+			idListBuilder.Append("@SystemId").Append(index);
 		}
+
+		var systemIdInClause = idListBuilder.ToString();
+		var sourceIdMapFilter = $"TRY_CONVERT(uniqueidentifier, sim.PluralBridgeId) IN ({systemIdInClause})";
+		var sourceBatchFilter = $"SELECT DISTINCT sim.ImportBatchId FROM dbo.pb_source_id_map AS sim WHERE {sourceIdMapFilter}";
+
+		async Task<long> ReadCountAsync(string sql)
+		{
+			await using var command = new SqlCommand(sql, connection);
+
+			for (var index = 0; index < systemIds.Length; index++)
+			{
+				command.Parameters.AddWithValue($"@SystemId{index}", systemIds[index]);
+			}
+
+			var value = await command.ExecuteScalarAsync();
+
+			return value switch
+			{
+				long asLong => asLong,
+				int asInt => asInt,
+				decimal asDecimal => (long)asDecimal,
+				_ => 0
+			};
+		}
+
+		counts[nameof(CountKeys.systems)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_systems WHERE SystemId IN ({systemIdInClause});");
+		counts[nameof(CountKeys.members)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_members WHERE SystemId IN ({systemIdInClause});");
+		counts[nameof(CountKeys.privacyBuckets)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_privacy_buckets WHERE SystemId IN ({systemIdInClause});");
+		counts[nameof(CountKeys.customFields)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_custom_fields WHERE SystemId IN ({systemIdInClause});");
+		counts[nameof(CountKeys.frontHistory)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_front_history WHERE SystemId IN ({systemIdInClause});");
+		counts[nameof(CountKeys.sourceIdMappings)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_id_map AS sim WHERE {sourceIdMapFilter};");
+		counts[nameof(CountKeys.importBatches)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM ({sourceBatchFilter}) AS batches;");
+		counts[nameof(CountKeys.sourceRecords)] =
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_source_records AS sr WHERE sr.ImportBatchId IN ({sourceBatchFilter});");
+		counts[nameof(CountKeys.sourceSystems)] =
+			await ReadCountAsync(
+				$"""
+				SELECT CAST(COUNT_BIG(*) AS bigint)
+				FROM dbo.pb_source_systems AS ss
+				WHERE ss.SourceSystemCode IN
+				(
+				    SELECT DISTINCT sim.SourceSystemCode
+				    FROM dbo.pb_source_id_map AS sim
+				    WHERE {sourceIdMapFilter}
+				      AND sim.SourceSystemCode IS NOT NULL
+				);
+				""");
 
 		return counts;
 	}

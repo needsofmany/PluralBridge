@@ -6,6 +6,15 @@ Tags are listed in reverse chronological order so the latest project changes app
 
 ---
 
+## 0.9.0 - Expanded System Model Support
+
+- Added supported system model examples for the nine PluralBridge Alpha-targeted system shapes.
+- Added schema/API support for expanded System relationships, including multi-root, parent/child, sibling, related, subsystem, evolving/uncertain, archived, and graph-style models.
+- Added synthetic example account support for validating each system model shape independently.
+- Verified all nine synthetic example accounts can log in and resolve expected session context.
+- Confirmed the existing Needs of the Many account still loads after the expanded model changes.
+- Added GUI technical debt tracking for member-screen follow-up work needed against the expanded model foundation.
+
 ## v0.8.9 — Public blog links
 
 ### Major tasks completed
@@ -29,7 +38,7 @@ This release makes the Needs of the Many blog easier to find from the public web
 * Added role-based member write authorization for member `POST` and `PUT`.
 * Defined the temporary member write role gate as `Owner` only.
 * Added reusable member-write authorization helper support in the AccessContext boundary.
-* Enforced role-aware authorization in `MembersController` write endpoints while keeping read behavior unchanged.
+* Enforced role-aware authorization in `MembersControlle	r` write endpoints while keeping read behavior unchanged.
 * Added tests for:
   * allowed write role success
   * active membership with insufficient role forbidden behavior
