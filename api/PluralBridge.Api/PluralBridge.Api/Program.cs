@@ -208,33 +208,98 @@ app.MapGet("/app/js/{fileName}", (string fileName) =>
 	return Results.File(path, "text/javascript");
 }).RequireAuthorization();
 
-// add login page endpoint
+var authAssetFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+	"auth.css",
+	"auth-pages.js"
+};
+
+app.MapGet("/auth/{fileName}", (string fileName) =>
+{
+	if (!authAssetFiles.Contains(fileName))
+	{
+		return Results.NotFound();
+	}
+
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		fileName);
+
+	return Results.File(
+		path,
+		fileName.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+			? "text/css"
+			: "text/javascript");
+});
+
+// add login/recovery pages
 app.MapGet(Globals.browserLoginRoute, () =>
 {
-	const string loginPage =
-		"<!doctype html>" +
-		"<html lang=\"en\">" +
-		"<head>" +
-		"<meta charset=\"utf-8\">" +
-		"<title>PluralBridge Demo Login</title>" +
-		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
-		"</head>" +
-		"<body>" +
-		"<main>" +
-		"<h1>PluralBridge Demo Login</h1>" +
-		"<p>Private Phase SysModel Update engineering proof.</p>" +
-		$"<form method=\"post\" action=\"{Globals.browserLoginRoute}\">" +
-		$"<label for=\"{Globals.browserLoginUserNameField}\">Username</label><br>" +
-		$"<input id=\"{Globals.browserLoginUserNameField}\" name=\"{Globals.browserLoginUserNameField}\" autocomplete=\"username\" required><br><br>" +
-		$"<label for=\"{Globals.browserLoginPasswordField}\">Password</label><br>" +
-		$"<input id=\"{Globals.browserLoginPasswordField}\" name=\"{Globals.browserLoginPasswordField}\" type=\"password\" autocomplete=\"current-password\" required><br><br>" +
-		"<button type=\"submit\">Sign in</button>" +
-		"</form>" +
-		"</main>" +
-		"</body>" +
-		"</html>";
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"login.html");
 
-	return Results.Content(loginPage, "text/html");
+	return Results.File(path, "text/html");
+});
+
+app.MapGet($"/{Globals.forgotUsernameEndpointSegment}", () =>
+{
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"forgot-username.html");
+
+	return Results.File(path, "text/html");
+});
+
+app.MapGet($"/{Globals.forgotPasswordEndpointSegment}", () =>
+{
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"forgot-password.html");
+
+	return Results.File(path, "text/html");
+});
+
+app.MapPost($"/{Globals.forgotUsernameEndpointSegment}", async (
+	HttpContext context,
+	IAccountService accountService,
+	CancellationToken cancellationToken) =>
+{
+	var form = await context.Request.ReadFormAsync(cancellationToken);
+	var email = form["email"].FirstOrDefault() ?? string.Empty;
+
+	var result = await accountService.ForgotUsernameAsync(
+		new ForgotUsernameRequest(email),
+		cancellationToken);
+
+	var encodedMessage = Uri.EscapeDataString(result.Message ?? string.Empty);
+	var status = result.Succeeded ? "success" : "error";
+
+	return Results.Redirect(
+		$"/{Globals.forgotUsernameEndpointSegment}?status={status}&message={encodedMessage}");
+});
+
+app.MapPost($"/{Globals.forgotPasswordEndpointSegment}", async (
+	HttpContext context,
+	IAccountService accountService,
+	CancellationToken cancellationToken) =>
+{
+	var form = await context.Request.ReadFormAsync(cancellationToken);
+	var usernameOrEmail = form["usernameOrEmail"].FirstOrDefault() ?? string.Empty;
+
+	var result = await accountService.ForgotPasswordAsync(
+		new ForgotPasswordRequest(usernameOrEmail),
+		cancellationToken);
+
+	var encodedMessage = Uri.EscapeDataString(result.Message ?? string.Empty);
+	var status = result.Succeeded ? "success" : "error";
+
+	return Results.Redirect(
+		$"/{Globals.forgotPasswordEndpointSegment}?status={status}&message={encodedMessage}");
 });
 
 // add login form post endpoint
@@ -260,7 +325,7 @@ app.MapPost(Globals.browserLoginRoute, async (
 			Value: { Account: not null } loginResponse
 		})
 	{
-		return Results.Redirect(Globals.browserLoginRoute);
+		return Results.Redirect($"{Globals.browserLoginRoute}?error=1");
 	}
 
 	var claims = new List<Claim>

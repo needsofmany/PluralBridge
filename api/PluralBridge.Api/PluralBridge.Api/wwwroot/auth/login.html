@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>PluralBridge Sign In</title>
+	<link rel="stylesheet" href="/auth/auth.css">
+</head>
+<body data-auth-page="login">
+	<main class="auth-card">
+		<h1 class="auth-title">PluralBridge sign in</h1>
+		<p class="auth-subtitle">Private Phase SysModel Update engineering proof.</p>
+
+		<form method="post" action="/login">
+			<label class="auth-label" for="userName">Username or email</label>
+			<input
+				class="auth-input"
+				id="userName"
+				name="userName"
+				autocomplete="username"
+				required>
+
+			<label class="auth-label" for="password">Password</label>
+			<div class="auth-input-wrap">
+				<input
+					class="auth-input auth-input-password"
+					id="password"
+					name="password"
+					type="password"
+					autocomplete="current-password"
+					required>
+				<button
+					class="auth-password-toggle"
+					type="button"
+					data-password-toggle
+					data-toggle-target="password"
+					aria-label="Show password"
+					aria-pressed="false">
+					<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+						<path d="M12 5c-4.6 0-8.4 2.9-10 7 1.6 4.1 5.4 7 10 7s8.4-2.9 10-7c-1.6-4.1-5.4-7-10-7Zm0 12c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"></path>
+					</svg>
+				</button>
+			</div>
+
+			<button class="auth-submit" type="submit">Sign in</button>
+		</form>
+
+		<div class="auth-links">
+			<a class="auth-link" href="/forgot-username">Forgot username</a>
+			<a class="auth-link" href="/forgot-password">Forgot password</a>
+		</div>
+
+		<p id="authStatus" class="auth-status" hidden></p>
+	</main>
+
+	<script src="/auth/auth-pages.js"></script>
+</body>
+</html>

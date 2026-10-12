@@ -2159,11 +2159,26 @@ async function getProofSystemId() {
 
   const payload = await fetchJson("/api/me");
 
-  if (!payload || !payload.proofSystem || !payload.proofSystem.systemId) {
-    throw new Error("No proof system was returned by /api/me.");
+  const currentSystemId =
+    payload &&
+    payload.currentSystem &&
+    payload.currentSystem.systemId
+      ? payload.currentSystem.systemId
+      : null;
+
+  const proofSystemId =
+    payload &&
+    payload.proofSystem &&
+    payload.proofSystem.systemId
+      ? payload.proofSystem.systemId
+      : null;
+
+  if (!currentSystemId && !proofSystemId) {
+    throw new Error("No system context was returned by /api/me.");
   }
 
-  selectedSystemId = payload.proofSystem.systemId;
+  // The account's current-system membership context is the authoritative route scope.
+  selectedSystemId = currentSystemId || proofSystemId;
   return selectedSystemId;
 }
 

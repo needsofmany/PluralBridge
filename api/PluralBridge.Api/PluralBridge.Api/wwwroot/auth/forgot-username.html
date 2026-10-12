@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Forgot Username</title>
+	<link rel="stylesheet" href="/auth/auth.css">
+</head>
+<body data-auth-page="forgot-username">
+	<main class="auth-card">
+		<h1 class="auth-title">Forgot username</h1>
+		<p class="auth-subtitle">Enter your account email to request username recovery instructions.</p>
+
+		<form method="post" action="/forgot-username">
+			<label class="auth-label" for="email">Email</label>
+			<input
+				class="auth-input"
+				id="email"
+				name="email"
+				type="email"
+				autocomplete="email"
+				required>
+
+			<button class="auth-submit" type="submit">Send username recovery</button>
+		</form>
+
+		<div class="auth-links">
+			<a class="auth-link" href="/login">Back to sign in</a>
+		</div>
+
+		<p id="authStatus" class="auth-status" hidden></p>
+	</main>
+
+	<script src="/auth/auth-pages.js"></script>
+</body>
+</html>
