@@ -138,7 +138,10 @@ var allowedBrowserCssFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCas
 	"layout.css",
 	"members.css",
 	"developer-tools.css",
-	"legacy-app.css"
+	"legacy-app.css",
+	"account-screens.css",
+	"members-mobile.css",
+	"shell.css"
 };
 
 var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -147,7 +150,9 @@ var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase
 	"api-client.js",
 	"members.js",
 	"developer-tools.js",
-	"legacy-app.js"
+	"legacy-app.js",
+	"account-screens.js",
+	"shell.js"
 };
 
 // require login for the browser button app files

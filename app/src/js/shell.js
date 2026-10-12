@@ -27,43 +27,6 @@ window.PluralBridge.shell = (function () {
         "importMetadata"
     ]);
 
-    const placeholderScreens = {
-        fronting: {
-            title: "Fronting",
-            message: "Current Fronting functionality has not yet been implemented."
-        },
-
-        groups: {
-            title: "Groups",
-            message: "Groups functionality has not yet been implemented."
-        },
-
-        import: {
-            title: "Import",
-            message: "Import functionality has not yet been implemented."
-        },
-
-        "manage-fields": {
-            title: "Manage Fields",
-            message: "Field-definition management has not yet been implemented."
-        },
-
-        history: {
-            title: "Fronting History",
-            message: "Fronting History functionality has not yet been implemented."
-        },
-
-        "saved-views": {
-            title: "Saved Views",
-            message: "Saved Views functionality has not yet been implemented."
-        },
-
-        audit: {
-            title: "Audit",
-            message: "Audit functionality has not yet been implemented."
-        }
-    };
-
     let currentRoute = null;
     let phoneMenuOpen = false;
 
@@ -73,6 +36,22 @@ window.PluralBridge.shell = (function () {
 
     function queryAll(selector) {
         return document.querySelectorAll(selector);
+    }
+
+    function getEventTargetElement(event) {
+        if (!event) {
+            return null;
+        }
+
+        if (event.target instanceof Element) {
+            return event.target;
+        }
+
+        if (event.target && event.target.parentElement instanceof Element) {
+            return event.target.parentElement;
+        }
+
+        return null;
     }
 
     function getOutput() {
@@ -165,24 +144,20 @@ window.PluralBridge.shell = (function () {
         return output;
     }
 
-    function renderPlaceholder(screenKey) {
-
-        const screen = placeholderScreens[screenKey];
+    function renderSelectionMessage(labelText) {
         const output = clearOutput();
 
-        if (!screen || !output) {
+        if (!output) {
             return;
         }
 
         const wrapper = createElement("section", "member-list");
-        wrapper.dataset.shellScreen = screenKey;
+
+        const normalizedLabel =
+            String(labelText || "").trim() || "Item";
 
         wrapper.appendChild(
-            createElement("h2", "output-heading", screen.title)
-        );
-
-        wrapper.appendChild(
-            createElement("p", "output-note", screen.message)
+            createElement("p", "output-note", normalizedLabel + " selected.")
         );
 
         output.appendChild(wrapper);
@@ -206,7 +181,7 @@ window.PluralBridge.shell = (function () {
         return false;
     }
 
-    function handleResolvedRoute(route) {
+    function handleResolvedRoute(route, selectedLabel) {
 
         setActiveRoute(route);
         closePhoneMenu();
@@ -223,13 +198,16 @@ window.PluralBridge.shell = (function () {
             return;
         }
 
-        renderPlaceholder(route);
+        renderSelectionMessage(selectedLabel);
     }
 
     function handleNavigationClick(event) {
 
+        const targetElement = getEventTargetElement(event);
         const button =
-            event.target.closest(selectors.navigationButton);
+            targetElement
+                ? targetElement.closest(selectors.navigationButton)
+                : null;
 
         if (!button) {
             return;
@@ -245,7 +223,9 @@ window.PluralBridge.shell = (function () {
             return;
         }
 
-        handleResolvedRoute(route);
+        const selectedLabel = button.textContent;
+
+        handleResolvedRoute(route, selectedLabel);
     }
 
     function showMain() {

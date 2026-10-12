@@ -65,6 +65,21 @@ function renderPayload(payload) {
     updateSessionStatus();
 }
 
+function renderSelectionNote(labelText) {
+    clearOutput();
+
+    const wrapper = document.createElement("section");
+    wrapper.className = "member-list";
+
+    const note = document.createElement("p");
+    note.className = "output-note";
+    note.textContent = (labelText || "Item") + " selected.";
+
+    wrapper.appendChild(note);
+    output.appendChild(wrapper);
+    updateSessionStatus();
+}
+
 function getSourceSystemsFromPayload(payload) {
     if (Array.isArray(payload)) {
         return payload;
@@ -2164,6 +2179,22 @@ function setSessionButtonState(selectedAction) {
   });
 }
 
+function getEventTargetElement(event) {
+  if (!event) {
+    return null;
+  }
+
+  if (event.target instanceof Element) {
+    return event.target;
+  }
+
+  if (event.target && event.target.parentElement instanceof Element) {
+    return event.target.parentElement;
+  }
+
+  return null;
+}
+
 async function allowMemberProfileLeave() {
     const guard = window.PluralBridge && window.PluralBridge.memberProfileGuard
         ? window.PluralBridge.memberProfileGuard
@@ -2286,7 +2317,33 @@ if (loginForm) {
 }
 
 document.addEventListener("click", async function (event) {
-    const contractButton = event.target.closest("[data-contract]");
+    const targetElement = getEventTargetElement(event);
+    const placeholderButton = targetElement
+        ? targetElement.closest("[data-shell-placeholder]")
+        : null;
+
+    if (placeholderButton) {
+        const placeholderRoute = placeholderButton.dataset.shellPlaceholder || "";
+        const accountScreens =
+            window.PluralBridge && window.PluralBridge.accountScreens
+                ? window.PluralBridge.accountScreens
+                : null;
+
+        if (
+            accountScreens &&
+            typeof accountScreens.render === "function" &&
+            accountScreens.render(placeholderRoute)
+        ) {
+            return;
+        }
+
+        renderSelectionNote((placeholderButton.textContent || "").trim());
+        return;
+    }
+
+    const contractButton = targetElement
+        ? targetElement.closest("[data-contract]")
+        : null;
 
     if (contractButton) {
         event.preventDefault();
@@ -2301,7 +2358,9 @@ document.addEventListener("click", async function (event) {
         return;
     }
 
-    const sessionButton = event.target.closest("[data-session-action]");
+    const sessionButton = targetElement
+        ? targetElement.closest("[data-session-action]")
+        : null;
 
     if (sessionButton) {
         event.preventDefault();
