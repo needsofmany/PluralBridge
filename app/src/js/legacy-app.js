@@ -2686,6 +2686,17 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
 }
 
 function renderMembers(payload) {
+    const membersUiState = getMembersUiState();
+    ensureMembersUiStateLoaded(membersUiState, function () {
+        renderMembers(payload);
+    });
+
+    // Keep the initial static loading shell visible until saved state is loaded.
+    if (!membersUiStorageLoaded) {
+        updateSessionStatus();
+        return;
+    }
+
     clearOutput();
 
     const sourceMembers = getMembersFromPayload(payload);
@@ -2706,11 +2717,6 @@ function renderMembers(payload) {
     logo.alt = "PluralBridge logo";
     logo.addEventListener("error", function () {
         logo.hidden = true;
-    });
-
-    const membersUiState = getMembersUiState();
-    ensureMembersUiStateLoaded(membersUiState, function () {
-        renderMembers(payload);
     });
 
     const payloadSystemId =
@@ -3305,12 +3311,15 @@ async function renderContract(key) {
     return;
   }
 
-  renderPayload({
-    phase: "Phase 2B",
-    canWrite: false,
-    action: key,
-    status: "loading"
-  });
+  // Keep loading payload hidden during normal use; enable only for explicit debugging.
+  if (window.PluralBridge && window.PluralBridge.showDebugLoading === true) {
+    renderPayload({
+      phase: "Phase 2B",
+      canWrite: false,
+      action: key,
+      status: "loading"
+    });
+  }
 
   try {
       const endpoint = await endpointBuilder();

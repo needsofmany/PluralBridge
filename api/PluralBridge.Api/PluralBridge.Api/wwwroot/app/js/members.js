@@ -103,9 +103,7 @@ window.PluralBridge.members = (function () {
         const path = document.createElementNS(svgNamespace, "path");
         path.setAttribute("fill", "currentColor");
 
-        if (iconName === "groups") {
-            path.setAttribute("d", "M4 5h6l2 2h8v12H4V5zm2 4v8h12V9H6z");
-        } else if (iconName === "systems") {
+        if (iconName === "systems") {
             path.setAttribute("d", "M3 4h8v4H3V4zm10 0h8v4h-8V4zM3 10h8v4H3v-4zm10 0h8v4h-8v-4zM3 16h8v4H3v-4zm10 0h8v4h-8v-4z");
         } else if (iconName === "add") {
             path.setAttribute("d", "M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4z");
@@ -225,11 +223,6 @@ window.PluralBridge.members = (function () {
                     options.toggleSystemPanel();
                 }
             }
-        }));
-
-        primaryGroup.appendChild(createToolbarButton("groups", "Groups", {
-            disabled: true,
-            title: "Groups view planned"
         }));
 
         primaryGroup.appendChild(createAddMenu(options));

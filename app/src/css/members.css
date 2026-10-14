@@ -265,14 +265,14 @@
 		margin: 0 0 0.15rem;
 		font-size: 1.35rem;
 		line-height: 1.1;
-		max-width: calc(100% - clamp(14.5rem, 35vw, 22.5rem));
+		max-width: calc(100% - 17rem);
 	}
 
 	.member-list > .output-note {
 		flex: 0 0 auto;
 		margin: 0 0 0.3rem;
 		line-height: 1.2;
-		max-width: calc(100% - clamp(14.5rem, 35vw, 22.5rem));
+		max-width: calc(100% - 17rem);
 	}
 
 .member-focus-note {
@@ -285,7 +285,7 @@
 	gap: 0.25rem;
 	margin: 0 0 0.3rem;
 	min-height: 2.55rem;
-	max-width: calc(100% - clamp(14.5rem, 35vw, 22.5rem));
+	max-width: calc(100% - 17rem);
 }
 
 .member-focus-notes .member-focus-note {
@@ -300,13 +300,15 @@
 	position: absolute;
 	top: 0;
 	right: 0;
-	width: clamp(14rem, 34vw, 22rem);
-	height: clamp(5.8rem, 15vw, 8.4rem);
-	object-fit: contain;
-	object-position: center;
+	z-index: 1;
+	height: 6.25rem;
+	width: auto;
+	max-width: 16rem;
+	display: block;
+	border: none;
+	background: transparent;
 	border-radius: 0.65rem;
-	border: 1px solid rgba(168, 199, 255, 0.2);
-	background: #070a0d;
+	pointer-events: none;
 }
 
 /* Member toolbar */
@@ -330,6 +332,10 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.35rem;
+}
+
+.member-toolbar-group:not(.member-toolbar-view-group) {
+	gap: 0.75rem;
 }
 
 .member-toolbar-add-menu {
