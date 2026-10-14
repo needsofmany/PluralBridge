@@ -75,9 +75,189 @@
 .member-list {
 	display: flex;
 	flex-direction: column;
+	position: relative;
 	min-height: 0;
 	max-height: none;
 	overflow: visible;
+	padding-right: 0;
+}
+
+.member-workspace {
+	position: relative;
+	display: flex;
+	min-height: 0;
+}
+
+.member-content-stack {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.member-systems-panel {
+	width: min(22rem, calc(100% - 1rem));
+	max-width: 100%;
+	max-height: 42rem;
+	overflow: auto;
+	margin: 0 0.5rem 0 0;
+	padding: 0.6rem;
+	border: 1px solid rgba(168, 199, 255, 0.24);
+	border-radius: 0.75rem;
+	background: rgba(7, 10, 13, 0.95);
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+.member-systems-panel.is-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 5;
+}
+
+.member-systems-panel.is-pinned {
+	position: relative;
+}
+
+.member-systems-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.6rem;
+	margin-bottom: 0.45rem;
+}
+
+.member-systems-title {
+	margin: 0;
+	color: #edf4ff;
+	font-size: 0.98rem;
+	font-weight: 800;
+}
+
+.member-systems-pin-button {
+	width: 2.1rem;
+	height: 2.1rem;
+	padding: 0;
+	display: inline-grid;
+	place-items: center;
+	border: 1px solid rgba(168, 199, 255, 0.25);
+	border-radius: 0.45rem;
+	color: #d8e1ed;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.member-systems-pin-button:hover,
+.member-systems-pin-button:focus-visible {
+	background: rgba(168, 199, 255, 0.16);
+	outline: none;
+}
+
+.member-systems-pin-icon {
+	width: 1rem;
+	height: 1rem;
+}
+
+.member-systems-pin-icon.is-unpinned {
+	transform: scaleX(-1) rotate(-35deg);
+	opacity: 0.78;
+}
+
+.member-systems-tree {
+	display: grid;
+	gap: 0.08rem;
+}
+
+.member-system-node-row {
+	display: grid;
+	grid-template-columns: 1.15rem minmax(0, 1fr);
+	align-items: center;
+	gap: 0.35rem;
+	min-height: 1.75rem;
+	padding: 0.12rem 0.35rem;
+	border-radius: 0.45rem;
+	margin-left: calc(var(--system-node-level, 0) * 0.8rem);
+}
+
+.member-system-node-row:hover {
+	background: rgba(168, 199, 255, 0.1);
+}
+
+.member-system-tree-toggle {
+	width: 1.15rem;
+	height: 1.15rem;
+	padding: 0;
+	border: 1px solid rgba(168, 199, 255, 0.3);
+	border-radius: 0.32rem;
+	color: #d8e1ed;
+	background: rgba(255, 255, 255, 0.04);
+	font-size: 0.85rem;
+	font-weight: 800;
+	line-height: 1;
+}
+
+.member-system-tree-spacer {
+	display: inline-block;
+	width: 1.15rem;
+	height: 1.15rem;
+}
+
+.member-system-node-label {
+	color: #d8e1ed;
+	font-size: 0.82rem;
+	line-height: 1.15;
+	overflow-wrap: anywhere;
+}
+
+.member-system-node-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	width: 100%;
+	padding: 0.18rem 0.28rem;
+	border: 1px solid transparent;
+	border-radius: 0.38rem;
+	color: #d8e1ed;
+	background: transparent;
+	font-size: 0.82rem;
+	line-height: 1.15;
+	text-align: left;
+	cursor: pointer;
+}
+
+.member-tree-node-content {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-width: 0;
+}
+
+.member-tree-node-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 0.9rem;
+	min-width: 0.9rem;
+	color: #a8c7ff;
+	font-size: 0.78rem;
+	line-height: 1;
+}
+
+.member-tree-node-text {
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.member-system-node-button:hover,
+.member-system-node-button:focus-visible {
+	background: rgba(168, 199, 255, 0.16);
+	outline: none;
+}
+
+.member-system-node-button.is-active {
+	border-color: rgba(168, 199, 255, 0.45);
+	background: rgba(168, 199, 255, 0.22);
+	color: #edf4ff;
+	font-weight: 800;
 }
 
 	.member-list > .output-heading {
@@ -85,13 +265,49 @@
 		margin: 0 0 0.15rem;
 		font-size: 1.35rem;
 		line-height: 1.1;
+		max-width: calc(100% - clamp(14.5rem, 35vw, 22.5rem));
 	}
 
 	.member-list > .output-note {
 		flex: 0 0 auto;
 		margin: 0 0 0.3rem;
 		line-height: 1.2;
+		max-width: calc(100% - clamp(14.5rem, 35vw, 22.5rem));
 	}
+
+.member-focus-note {
+	color: #a8c7ff;
+	font-weight: 700;
+}
+
+.member-focus-notes {
+	display: grid;
+	gap: 0.25rem;
+	margin: 0 0 0.3rem;
+	min-height: 2.55rem;
+	max-width: calc(100% - clamp(14.5rem, 35vw, 22.5rem));
+}
+
+.member-focus-notes .member-focus-note {
+	margin: 0;
+}
+
+.member-focus-note.is-placeholder {
+	visibility: hidden;
+}
+
+.member-brand-logo {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: clamp(14rem, 34vw, 22rem);
+	height: clamp(5.8rem, 15vw, 8.4rem);
+	object-fit: contain;
+	object-position: center;
+	border-radius: 0.65rem;
+	border: 1px solid rgba(168, 199, 255, 0.2);
+	background: #070a0d;
+}
 
 /* Member toolbar */
 
@@ -114,6 +330,10 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.35rem;
+}
+
+.member-toolbar-add-menu {
+	position: relative;
 }
 
 .member-toolbar-button {
@@ -149,6 +369,70 @@
 
 .member-toolbar-label {
 	font-size: 0.78rem;
+}
+
+.member-toolbar-add-trigger {
+	list-style: none;
+}
+
+.member-toolbar-add-trigger::-webkit-details-marker {
+	display: none;
+}
+
+.member-toolbar-add-trigger.is-primary {
+	color: #101418;
+	background: #a8c7ff;
+}
+
+.member-toolbar-add-chevron {
+	font-size: 0.72rem;
+	font-weight: 900;
+	line-height: 1;
+}
+
+.member-toolbar-add-menu[open] > .member-toolbar-add-trigger {
+	color: #101418;
+	background: #a8c7ff;
+}
+
+.member-toolbar-add-popover {
+	position: absolute;
+	top: calc(100% + 0.35rem);
+	left: 0;
+	z-index: 7;
+	display: grid;
+	gap: 0.25rem;
+	min-width: 8.5rem;
+	padding: 0.45rem;
+	border: 1px solid rgba(168, 199, 255, 0.24);
+	border-radius: 0.6rem;
+	background: rgba(7, 10, 13, 0.97);
+	box-shadow: 0 12px 22px rgba(0, 0, 0, 0.4);
+}
+
+.member-toolbar-add-option {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	padding: 0.38rem 0.52rem;
+	border: 1px solid rgba(168, 199, 255, 0.2);
+	border-radius: 0.45rem;
+	color: #d8e1ed;
+	background: rgba(255, 255, 255, 0.04);
+	font-size: 0.79rem;
+	font-weight: 700;
+}
+
+.member-toolbar-add-option:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.member-toolbar-add-option:not(:disabled):hover,
+.member-toolbar-add-option:not(:disabled):focus-visible {
+	color: #101418;
+	background: #a8c7ff;
+	outline: none;
 }
 
 /* Add/edit form panels */

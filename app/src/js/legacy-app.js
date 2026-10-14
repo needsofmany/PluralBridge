@@ -1,6 +1,10 @@
 ﻿const apiBaseUrl = "";
 
 let selectedSystemId = null;
+const membersUiStorageKeyPrefix = "pb.membersUiState.";
+let membersUiStorageKey = null;
+let membersUiStorageLoaded = false;
+let membersUiStorageLoading = false;
 
 const output = document.getElementById("appOutput");
 const contractButtons = document.querySelectorAll("[data-contract]");
@@ -78,6 +82,141 @@ function renderSelectionNote(labelText) {
     wrapper.appendChild(note);
     output.appendChild(wrapper);
     updateSessionStatus();
+}
+
+function readMembersUiStateFromStorage(storageKey) {
+    if (!storageKey || typeof window.localStorage === "undefined") {
+        return null;
+    }
+
+    try {
+        const raw = window.localStorage.getItem(storageKey);
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function writeMembersUiStateToStorage(state) {
+    if (!membersUiStorageKey || typeof window.localStorage === "undefined") {
+        return;
+    }
+
+    const snapshot = {
+        version: 3,
+        systemPanelPinned: Boolean(state.systemPanelPinned),
+        systemPanelOpen: Boolean(state.systemPanelOpen),
+        preferredSelectionKind: state.preferredSelectionKind || "system",
+        preferredSystemId: state.preferredSystemId || null,
+        preferredGroupKey: state.preferredGroupKey || null,
+        expandedSystemTreeNodes: state.expandedSystemTreeNodes || {}
+    };
+
+    try {
+        window.localStorage.setItem(
+            membersUiStorageKey,
+            JSON.stringify(snapshot)
+        );
+    } catch (error) {
+        // Ignore storage write failures in restricted environments.
+    }
+}
+
+function applyPersistedMembersUiState(state, persistedState) {
+    if (!persistedState || typeof persistedState !== "object") {
+        return;
+    }
+
+    const persistedVersion =
+        typeof persistedState.version === "number"
+            ? persistedState.version
+            : 0;
+
+    if (persistedVersion >= 3) {
+        if (typeof persistedState.systemPanelPinned === "boolean") {
+            state.systemPanelPinned = persistedState.systemPanelPinned;
+        }
+
+        if (typeof persistedState.systemPanelOpen === "boolean") {
+            state.systemPanelOpen = persistedState.systemPanelOpen;
+        } else if (state.systemPanelPinned) {
+            state.systemPanelOpen = true;
+        }
+    }
+
+    if (typeof persistedState.preferredSystemId === "string") {
+        state.preferredSystemId = persistedState.preferredSystemId;
+    }
+
+    if (
+        persistedState.preferredSelectionKind === "group" ||
+        persistedState.preferredSelectionKind === "system"
+    ) {
+        state.preferredSelectionKind = persistedState.preferredSelectionKind;
+    }
+
+    if (typeof persistedState.preferredGroupKey === "string") {
+        state.preferredGroupKey = persistedState.preferredGroupKey;
+    }
+
+    if (
+        persistedState.expandedSystemTreeNodes &&
+        typeof persistedState.expandedSystemTreeNodes === "object"
+    ) {
+        state.expandedSystemTreeNodes = Object.assign(
+            {
+                "systems-root": true
+            },
+            persistedState.expandedSystemTreeNodes
+        );
+    }
+}
+
+function ensureMembersUiStateLoaded(state, rerender) {
+    if (membersUiStorageLoaded || membersUiStorageLoading) {
+        return;
+    }
+
+    const apiClient =
+        window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+
+    if (!apiClient || typeof apiClient.fetchJson !== "function") {
+        membersUiStorageLoaded = true;
+        return;
+    }
+
+    membersUiStorageLoading = true;
+
+    apiClient.fetchJson("/api/me")
+        .then(function (payload) {
+            const accountId =
+                payload &&
+                payload.currentAccount &&
+                payload.currentAccount.accountId
+                    ? String(payload.currentAccount.accountId)
+                    : "anonymous";
+
+            membersUiStorageKey =
+                membersUiStorageKeyPrefix + accountId.toLowerCase();
+
+            const persistedState =
+                readMembersUiStateFromStorage(membersUiStorageKey);
+
+            applyPersistedMembersUiState(state, persistedState);
+        })
+        .catch(function () {
+            membersUiStorageKey = membersUiStorageKeyPrefix + "anonymous";
+        })
+        .finally(function () {
+            membersUiStorageLoading = false;
+            membersUiStorageLoaded = true;
+
+            if (typeof rerender === "function") {
+                rerender();
+            }
+        });
 }
 
 function getSourceSystemsFromPayload(payload) {
@@ -1201,6 +1340,27 @@ function getMemberDescription(member) {
 }
 
 function createMemberAccordion(member) {
+    function hashStringToInt(value) {
+        let hash = 0;
+
+        for (let index = 0; index < value.length; index++) {
+            hash = (hash * 31 + value.charCodeAt(index)) | 0;
+        }
+
+        return Math.abs(hash);
+    }
+
+    function getAvatarColorSeed() {
+        if (member && member.memberId) {
+            return String(member.memberId);
+        }
+
+        if (member && member.displayName) {
+            return String(member.displayName);
+        }
+
+        return "member";
+    }
     function createMemberActionIcon(iconName) {
         const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -1751,12 +1911,13 @@ function createMemberAccordion(member) {
     avatarPlaceholder.className = "member-avatar-placeholder";
     avatarPlaceholder.setAttribute("aria-hidden", "true");
 
-    const red = Math.floor(Math.random() * 256);
-    const green = Math.floor(Math.random() * 256);
-    const blue = Math.floor(Math.random() * 256);
+    const colorHash = hashStringToInt(getAvatarColorSeed());
+    const hue = colorHash % 360;
+    const avatarFill = "hsl(" + hue + " 52% 28%)";
+    const avatarBorder = "hsl(" + hue + " 56% 48%)";
 
-    avatarPlaceholder.style.backgroundColor = "rgb(" + red + ", " + green + ", " + blue + ")";
-    avatarPlaceholder.style.borderColor = "rgba(" + red + ", " + green + ", " + blue + ", 0.85)";
+    avatarPlaceholder.style.backgroundColor = avatarFill;
+    avatarPlaceholder.style.borderColor = avatarBorder;
 
     const identity = document.createElement("span");
     identity.className = "member-identity";
@@ -1931,10 +2092,603 @@ function createMemberAccordion(member) {
     return cardDetails;
 }
 
+function getMembersUiState() {
+    window.PluralBridge = window.PluralBridge || {};
+
+    if (!window.PluralBridge.membersUiState) {
+        window.PluralBridge.membersUiState = {
+            systemPanelOpen: true,
+            systemPanelPinned: true,
+            expandedSystemTreeNodes: {
+                "systems-root": true
+            },
+            activeSystemId: null,
+            activeGroupKey: null,
+            activeGroupMemberIds: [],
+            preferredSystemId: null,
+            preferredSelectionKind: "system",
+            preferredGroupKey: null,
+            restorePreferredSystemAttempted: false,
+            systemNameById: {},
+            groupByKey: {},
+            systemTreeData: null,
+            systemTreeLoading: false,
+            systemTreeError: null
+        };
+    }
+
+    return window.PluralBridge.membersUiState;
+}
+
+function getSystemsFromPayloadForTree(payload) {
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+
+    if (payload && Array.isArray(payload.systems)) {
+        return payload.systems;
+    }
+
+    return [];
+}
+
+function getSystemParentId(system) {
+    if (!system) {
+        return null;
+    }
+
+    if (system.parentSystemId) {
+        return String(system.parentSystemId);
+    }
+
+    if (system.systemParentId) {
+        return String(system.systemParentId);
+    }
+
+    if (system.parentId) {
+        return String(system.parentId);
+    }
+
+    if (system.parentSystem && system.parentSystem.systemId) {
+        return String(system.parentSystem.systemId);
+    }
+
+    return null;
+}
+
+function getSystemName(system) {
+    if (system && system.systemName) {
+        return system.systemName;
+    }
+
+    return "(unnamed system)";
+}
+
+function getSystemGroups(system) {
+    if (system && Array.isArray(system.groups)) {
+        return system.groups;
+    }
+
+    if (system && Array.isArray(system.systemGroups)) {
+        return system.systemGroups;
+    }
+
+    return [];
+}
+
+function getGroupName(group) {
+    if (group && group.groupName) {
+        return group.groupName;
+    }
+
+    if (group && group.name) {
+        return group.name;
+    }
+
+    return "(unnamed group)";
+}
+
+function getGroupParentId(group) {
+    if (!group) {
+        return null;
+    }
+
+    if (group.parentGroupId) {
+        return String(group.parentGroupId);
+    }
+
+    if (group.parentId) {
+        return String(group.parentId);
+    }
+
+    return null;
+}
+
+function getGroupSourceId(group) {
+    if (group && group.sourceGroupId) {
+        return String(group.sourceGroupId);
+    }
+
+    return null;
+}
+
+function getGroupParentSourceId(group) {
+    if (group && group.parentSourceGroupId) {
+        return String(group.parentSourceGroupId);
+    }
+
+    return null;
+}
+
+function getGroupMemberIds(group) {
+    if (group && Array.isArray(group.memberIds)) {
+        return group.memberIds.map(function (memberId) {
+            return String(memberId).toLowerCase();
+        });
+    }
+
+    if (group && Array.isArray(group.members)) {
+        return group.members.map(function (member) {
+            if (member && member.memberId) {
+                return String(member.memberId).toLowerCase();
+            }
+
+            return String(member).toLowerCase();
+        });
+    }
+
+    return [];
+}
+
+function toGroupSelectionKey(systemId, groupId) {
+    return String(systemId).toLowerCase() + ":" + String(groupId).toLowerCase();
+}
+
+function ensureDefaultMembersTreeExpansion(state, activeSystemId) {
+    if (!state || !state.systemTreeData) {
+        return false;
+    }
+
+    if (!state.expandedSystemTreeNodes || typeof state.expandedSystemTreeNodes !== "object") {
+        state.expandedSystemTreeNodes = {};
+    }
+
+    let changed = false;
+
+    if (state.expandedSystemTreeNodes["systems-root"] !== true) {
+        state.expandedSystemTreeNodes["systems-root"] = true;
+        changed = true;
+    }
+
+    function expandDefaults(node) {
+        if (!node) {
+            return;
+        }
+
+        const children = Array.isArray(node.children) ? node.children : [];
+        if (children.length > 0 && !(node.id in state.expandedSystemTreeNodes)) {
+            state.expandedSystemTreeNodes[node.id] = true;
+            changed = true;
+        }
+
+        children.forEach(function (childNode) {
+            expandDefaults(childNode);
+        });
+    }
+
+    expandDefaults(state.systemTreeData);
+
+    if (activeSystemId) {
+        const systemExpansionKey = String(activeSystemId);
+        if (!(systemExpansionKey in state.expandedSystemTreeNodes)) {
+            state.expandedSystemTreeNodes[systemExpansionKey] = true;
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+function sortSystemTreeNodes(nodes) {
+    nodes.sort(function (left, right) {
+        return left.name.localeCompare(right.name);
+    });
+
+    nodes.forEach(function (node) {
+        if (Array.isArray(node.children) && node.children.length > 0) {
+            sortSystemTreeNodes(node.children);
+        }
+    });
+}
+
+function buildMembersSystemTree(systems) {
+    const nodeById = new Map();
+    const systemNameById = {};
+    const groupByKey = {};
+
+    systems.forEach(function (system) {
+        if (!system || !system.systemId) {
+            return;
+        }
+
+        const nodeId = String(system.systemId);
+        const nodeName = getSystemName(system);
+        systemNameById[nodeId.toLowerCase()] = nodeName;
+
+        nodeById.set(nodeId, {
+            id: nodeId,
+            type: "system",
+            name: nodeName,
+            system: system,
+            children: []
+        });
+    });
+
+    const roots = [];
+
+    systems.forEach(function (system) {
+        if (!system || !system.systemId) {
+            return;
+        }
+
+        const nodeId = String(system.systemId);
+        const node = nodeById.get(nodeId);
+        const parentId = getSystemParentId(system);
+
+        if (parentId && nodeById.has(parentId)) {
+            nodeById.get(parentId).children.push(node);
+        } else {
+            roots.push(node);
+        }
+
+        const groups = getSystemGroups(system);
+        if (groups.length === 0) {
+            return;
+        }
+
+        const groupNodeById = new Map();
+        const groupIdBySourceId = new Map();
+        const rootGroups = [];
+
+        groups.forEach(function (group) {
+            if (!group || !group.groupId) {
+                return;
+            }
+
+            const groupId = String(group.groupId);
+            const sourceGroupId = getGroupSourceId(group);
+            if (sourceGroupId) {
+                groupIdBySourceId.set(sourceGroupId.toLowerCase(), groupId);
+            }
+        });
+
+        groups.forEach(function (group) {
+            if (!group || !group.groupId) {
+                return;
+            }
+
+            const groupId = String(group.groupId);
+            const normalizedGroupId = groupId.toLowerCase();
+            const groupSelectionKey = toGroupSelectionKey(nodeId, groupId);
+
+            const groupNode = {
+                id: "group:" + groupSelectionKey,
+                type: "group",
+                name: getGroupName(group),
+                groupId: groupId,
+                systemId: nodeId,
+                groupSelectionKey: groupSelectionKey,
+                memberIds: getGroupMemberIds(group),
+                children: []
+            };
+
+            groupNodeById.set(normalizedGroupId, groupNode);
+            groupByKey[groupSelectionKey] = groupNode;
+        });
+
+        groups.forEach(function (group) {
+            if (!group || !group.groupId) {
+                return;
+            }
+
+            const groupId = String(group.groupId);
+            const normalizedGroupId = groupId.toLowerCase();
+            const groupNode = groupNodeById.get(normalizedGroupId);
+            if (!groupNode) {
+                return;
+            }
+            let parentGroupId = getGroupParentId(group);
+
+            if (!parentGroupId) {
+                const parentSourceGroupId = getGroupParentSourceId(group);
+                if (parentSourceGroupId) {
+                    parentGroupId = groupIdBySourceId.get(parentSourceGroupId.toLowerCase()) || null;
+                }
+            }
+
+            const normalizedParentGroupId = parentGroupId
+                ? String(parentGroupId).toLowerCase()
+                : null;
+
+            if (normalizedParentGroupId && groupNodeById.has(normalizedParentGroupId)) {
+                groupNodeById.get(normalizedParentGroupId).children.push(groupNode);
+            } else {
+                rootGroups.push(groupNode);
+            }
+        });
+
+        sortSystemTreeNodes(rootGroups);
+
+        rootGroups.forEach(function (groupNode) {
+            node.children.push(groupNode);
+        });
+    });
+
+    sortSystemTreeNodes(roots);
+
+    return {
+        id: "systems-root",
+        type: "root",
+        name: "Systems",
+        systemNameById: systemNameById,
+        groupByKey: groupByKey,
+        children: roots
+    };
+}
+
+function requestMembersSystemTree(state, onComplete) {
+    if (state.systemTreeData || state.systemTreeLoading) {
+        return;
+    }
+
+    const apiClient =
+        window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+
+    if (!apiClient || typeof apiClient.fetchJson !== "function") {
+        state.systemTreeError = "System list could not be loaded in this session.";
+        return;
+    }
+
+    state.systemTreeLoading = true;
+    state.systemTreeError = null;
+
+    apiClient.fetchJson("/api/systems")
+        .then(function (payload) {
+            const systems = getSystemsFromPayloadForTree(payload);
+            state.systemTreeData = buildMembersSystemTree(systems);
+            state.systemNameById = state.systemTreeData.systemNameById || {};
+            state.groupByKey = state.systemTreeData.groupByKey || {};
+            state.systemTreeLoading = false;
+
+            if (typeof onComplete === "function") {
+                onComplete();
+            }
+        })
+        .catch(function (error) {
+            state.systemTreeLoading = false;
+            state.systemTreeError = error && error.message
+                ? "System list could not be loaded right now (" + error.message + ")."
+                : "System list could not be loaded right now.";
+
+            if (typeof onComplete === "function") {
+                onComplete();
+            }
+        });
+}
+
+function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGroup) {
+    const panel = document.createElement("aside");
+    panel.className = "member-systems-panel";
+
+    const isVisible = state.systemPanelPinned || state.systemPanelOpen;
+
+    panel.hidden = !isVisible;
+
+    if (!state.systemPanelPinned) {
+        panel.classList.add("is-overlay");
+    } else {
+        panel.classList.add("is-pinned");
+    }
+
+    const header = document.createElement("div");
+    header.className = "member-systems-header";
+
+    const heading = document.createElement("h3");
+    heading.className = "member-systems-title";
+    heading.textContent = "System navigator";
+
+    function createPinIcon(isPinned) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-systems-pin-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        if (!isPinned) {
+            svg.classList.add("is-unpinned");
+        }
+
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("fill", "currentColor");
+        path.setAttribute("d", "M16 3c.6 0 1 .4 1 1v1.5l1.7 1.7c.4.4.4 1 0 1.4L17 10.3V14l2 2v1H13v4l-1 1-1-1v-4H5v-1l2-2v-3.7L5.3 8.6a1 1 0 0 1 0-1.4L7 5.5V4c0-.6.4-1 1-1h8z");
+        svg.appendChild(path);
+
+        return svg;
+    }
+
+    const pinButton = document.createElement("button");
+    pinButton.type = "button";
+    pinButton.className = "member-systems-pin-button";
+    pinButton.setAttribute("aria-pressed", String(state.systemPanelPinned));
+    pinButton.setAttribute("aria-label", state.systemPanelPinned ? "Unpin panel" : "Pin panel");
+    pinButton.title = state.systemPanelPinned ? "Unpin panel" : "Pin panel";
+    pinButton.appendChild(createPinIcon(state.systemPanelPinned));
+
+    pinButton.addEventListener("click", function () {
+        if (state.systemPanelPinned) {
+            state.systemPanelPinned = false;
+            state.systemPanelOpen = false;
+        } else {
+            state.systemPanelPinned = true;
+            state.systemPanelOpen = true;
+        }
+        writeMembersUiStateToStorage(state);
+        rerenderMembers();
+    });
+
+    header.appendChild(heading);
+    header.appendChild(pinButton);
+    panel.appendChild(header);
+
+    const tree = document.createElement("div");
+    tree.className = "member-systems-tree";
+
+    if (state.systemTreeLoading) {
+        const loading = document.createElement("p");
+        loading.className = "output-note";
+        loading.textContent = "Loading systems.";
+        tree.appendChild(loading);
+        panel.appendChild(tree);
+        return panel;
+    }
+
+    if (state.systemTreeError) {
+        const error = document.createElement("p");
+        error.className = "output-note";
+        error.textContent = state.systemTreeError;
+        tree.appendChild(error);
+        panel.appendChild(tree);
+        return panel;
+    }
+
+    if (!state.systemTreeData) {
+        const empty = document.createElement("p");
+        empty.className = "output-note";
+        empty.textContent = "No system structure available yet.";
+        tree.appendChild(empty);
+        panel.appendChild(tree);
+        return panel;
+    }
+
+    function createNodeLabel(iconText, labelText) {
+        const wrapper = document.createElement("span");
+        wrapper.className = "member-tree-node-content";
+
+        const icon = document.createElement("span");
+        icon.className = "member-tree-node-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = iconText;
+
+        const label = document.createElement("span");
+        label.className = "member-tree-node-text";
+        label.textContent = labelText;
+
+        wrapper.appendChild(icon);
+        wrapper.appendChild(label);
+        return wrapper;
+    }
+
+    function appendNode(node, level) {
+        const row = document.createElement("div");
+        row.className = "member-system-node-row";
+        row.style.setProperty("--system-node-level", String(level));
+
+        const children = Array.isArray(node.children) ? node.children : [];
+        const hasChildren = children.length > 0;
+        const isExpanded = Boolean(state.expandedSystemTreeNodes[node.id]);
+
+        if (hasChildren) {
+            const expandButton = document.createElement("button");
+            expandButton.type = "button";
+            expandButton.className = "member-system-tree-toggle";
+            expandButton.setAttribute("aria-expanded", String(isExpanded));
+            expandButton.textContent = isExpanded ? "−" : "+";
+
+            expandButton.addEventListener("click", function () {
+                state.expandedSystemTreeNodes[node.id] = !isExpanded;
+                writeMembersUiStateToStorage(state);
+                rerenderMembers();
+            });
+
+            row.appendChild(expandButton);
+        } else {
+            const spacer = document.createElement("span");
+            spacer.className = "member-system-tree-spacer";
+            spacer.textContent = "";
+            row.appendChild(spacer);
+        }
+
+        if (node.type === "system" && node.id !== "systems-root") {
+            const selectButton = document.createElement("button");
+            selectButton.type = "button";
+            selectButton.className = "member-system-node-button";
+            selectButton.appendChild(createNodeLabel("◈", node.name));
+
+            if (
+                !state.activeGroupKey &&
+                state.activeSystemId &&
+                String(state.activeSystemId).toLowerCase() === String(node.id).toLowerCase()
+            ) {
+                selectButton.classList.add("is-active");
+                selectButton.setAttribute("aria-current", "true");
+            }
+
+            if (typeof selectSystem === "function") {
+                selectButton.addEventListener("click", function () {
+                    selectSystem(node.id);
+                });
+            }
+
+            row.appendChild(selectButton);
+        } else if (node.type === "group") {
+            const selectButton = document.createElement("button");
+            selectButton.type = "button";
+            selectButton.className = "member-system-node-button member-group-node-button";
+            selectButton.appendChild(createNodeLabel("▣", node.name));
+
+            if (
+                state.activeGroupKey &&
+                String(state.activeGroupKey).toLowerCase() === String(node.groupSelectionKey).toLowerCase()
+            ) {
+                selectButton.classList.add("is-active");
+                selectButton.setAttribute("aria-current", "true");
+            }
+
+            if (typeof selectGroup === "function") {
+                selectButton.addEventListener("click", function () {
+                    selectGroup(node.groupSelectionKey);
+                });
+            }
+
+            row.appendChild(selectButton);
+        } else {
+            const label = document.createElement("span");
+            label.className = "member-system-node-label";
+            label.appendChild(createNodeLabel("☰", node.name));
+            row.appendChild(label);
+        }
+
+        tree.appendChild(row);
+
+        if (hasChildren && isExpanded) {
+            children.forEach(function (childNode) {
+                appendNode(childNode, level + 1);
+            });
+        }
+    }
+
+    appendNode(state.systemTreeData, 0);
+    panel.appendChild(tree);
+    return panel;
+}
+
 function renderMembers(payload) {
     clearOutput();
 
-    const members = getMembersFromPayload(payload);
+    const sourceMembers = getMembersFromPayload(payload);
 
     const wrapper = document.createElement("section");
     wrapper.className = "member-list";
@@ -1945,10 +2699,189 @@ function renderMembers(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
+
+    const logo = document.createElement("img");
+    logo.className = "member-brand-logo";
+    logo.src = "/app/images/pluralbridge-about-logo-smaller.png";
+    logo.alt = "PluralBridge logo";
+    logo.addEventListener("error", function () {
+        logo.hidden = true;
+    });
+
+    const membersUiState = getMembersUiState();
+    ensureMembersUiStateLoaded(membersUiState, function () {
+        renderMembers(payload);
+    });
+
+    const payloadSystemId =
+        payload && payload.systemId
+            ? String(payload.systemId)
+            : null;
+
+    if (payloadSystemId) {
+        membersUiState.activeSystemId = payloadSystemId;
+    }
+
+    const payloadSelectionKind =
+        payload && payload.selectionKind === "group" ? "group" : "system";
+    const payloadGroupKey =
+        payload && payload.groupSelectionKey
+            ? String(payload.groupSelectionKey).toLowerCase()
+            : null;
+    const payloadGroupMemberIds = Array.isArray(payload && payload.groupMemberIds)
+        ? payload.groupMemberIds.map(function (memberId) {
+            return String(memberId).toLowerCase();
+        })
+        : null;
+
+    if (payloadSelectionKind === "group" && payloadGroupKey) {
+        membersUiState.activeGroupKey = payloadGroupKey;
+        membersUiState.preferredSelectionKind = "group";
+        membersUiState.preferredGroupKey = payloadGroupKey;
+    } else if (payloadSelectionKind === "system") {
+        membersUiState.activeGroupKey = null;
+    }
+
+    if (
+        membersUiStorageLoaded &&
+        !membersUiState.restorePreferredSystemAttempted &&
+        membersUiState.preferredSelectionKind === "group" &&
+        membersUiState.preferredGroupKey
+    ) {
+        const preferredGroupKey = String(membersUiState.preferredGroupKey).toLowerCase();
+        const hasPreferredGroupNode =
+            membersUiState.groupByKey &&
+            membersUiState.groupByKey[preferredGroupKey];
+
+        if (hasPreferredGroupNode) {
+            membersUiState.restorePreferredSystemAttempted = true;
+            selectMembersGroup(preferredGroupKey);
+            return;
+        }
+
+        if (
+            !membersUiState.systemTreeData &&
+            !membersUiState.systemTreeLoading &&
+            !membersUiState.systemTreeError
+        ) {
+            requestMembersSystemTree(membersUiState, function () {
+                renderMembers(payload);
+            });
+            return;
+        }
+
+        membersUiState.restorePreferredSystemAttempted = true;
+        if (membersUiState.preferredSystemId) {
+            selectMembersSystem(membersUiState.preferredSystemId);
+            return;
+        }
+
+        return;
+    }
+
+    if (
+        membersUiStorageLoaded &&
+        !membersUiState.restorePreferredSystemAttempted &&
+        membersUiState.preferredSelectionKind !== "group" &&
+        membersUiState.preferredSystemId &&
+        payloadSystemId &&
+        membersUiState.preferredSystemId.toLowerCase() !== payloadSystemId.toLowerCase()
+    ) {
+        membersUiState.restorePreferredSystemAttempted = true;
+        selectMembersSystem(membersUiState.preferredSystemId);
+        return;
+    }
+
+    if (
+        membersUiStorageLoaded &&
+        payloadSystemId &&
+        !membersUiState.preferredSystemId
+    ) {
+        membersUiState.preferredSystemId = payloadSystemId;
+        writeMembersUiStateToStorage(membersUiState);
+    }
+
+    let members = sourceMembers;
+
+    if (payloadSelectionKind === "group" && payloadGroupMemberIds) {
+        const selectedMemberIdSet = new Set(payloadGroupMemberIds);
+        members = sourceMembers.filter(function (member) {
+            return (
+                member &&
+                member.memberId &&
+                selectedMemberIdSet.has(String(member.memberId).toLowerCase())
+            );
+        });
+    }
+
     note.textContent = members.length + " members returned.";
+
+    const focusedSystemId = payloadSystemId || membersUiState.activeSystemId || null;
+    const focusedSystemName =
+        focusedSystemId && membersUiState.systemNameById
+            ? membersUiState.systemNameById[String(focusedSystemId).toLowerCase()] || "(unknown system)"
+            : null;
+    const focusedGroupName =
+        payloadSelectionKind === "group" &&
+        payloadGroupKey &&
+        membersUiState.groupByKey &&
+        membersUiState.groupByKey[payloadGroupKey]
+            ? membersUiState.groupByKey[payloadGroupKey].name || "(unnamed group)"
+            : null;
+
+    const focusNotes = document.createElement("div");
+    focusNotes.className = "member-focus-notes";
+
+    const focusSystemNote = document.createElement("p");
+    focusSystemNote.className = "output-note member-focus-note";
+    focusSystemNote.textContent = focusedSystemName
+        ? "Focused system: " + focusedSystemName
+        : "Focused system:";
+    if (!focusedSystemName) {
+        focusSystemNote.classList.add("is-placeholder");
+    }
+    focusNotes.appendChild(focusSystemNote);
+
+    const focusGroupNote = document.createElement("p");
+    focusGroupNote.className = "output-note member-focus-note";
+    focusGroupNote.textContent = focusedGroupName
+        ? "Focused group: " + focusedGroupName
+        : "Focused group:";
+    if (!focusedGroupName) {
+        focusGroupNote.classList.add("is-placeholder");
+    }
+    focusNotes.appendChild(focusGroupNote);
+
+    const showSystemsPanel =
+        membersUiState.systemPanelPinned ||
+        membersUiState.systemPanelOpen;
+
+    if (
+        showSystemsPanel &&
+        !membersUiState.systemTreeData &&
+        !membersUiState.systemTreeLoading &&
+        !membersUiState.systemTreeError
+    ) {
+        requestMembersSystemTree(membersUiState, function () {
+            renderMembers(payload);
+        });
+    }
+
+    if (membersUiState.systemTreeData) {
+        const expansionChanged = ensureDefaultMembersTreeExpansion(
+            membersUiState,
+            payloadSystemId || membersUiState.activeSystemId
+        );
+
+        if (expansionChanged) {
+            writeMembersUiStateToStorage(membersUiState);
+        }
+    }
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
+    wrapper.appendChild(logo);
+    wrapper.appendChild(focusNotes);
 
     const memberAddContainer = document.createElement("div");
     memberAddContainer.className = "member-add-container";
@@ -1958,6 +2891,101 @@ function renderMembers(payload) {
         return window.PluralBridge.apiClient.readMembers()
             .then(function (payload) {
                 renderMembers(payload);
+                return payload;
+            });
+    }
+
+    function setMembersSystemContext(systemId) {
+        selectedSystemId = systemId;
+
+        if (
+            window.PluralBridge &&
+            window.PluralBridge.apiClient &&
+            typeof window.PluralBridge.apiClient.setCurrentSystemId === "function"
+        ) {
+            window.PluralBridge.apiClient.setCurrentSystemId(systemId);
+        }
+
+        membersUiState.activeSystemId = String(systemId);
+    }
+
+    function selectMembersSystem(systemId) {
+        if (!systemId) {
+            return;
+        }
+
+        setMembersSystemContext(systemId);
+
+        if (!membersUiState.systemPanelPinned) {
+            membersUiState.systemPanelOpen = false;
+        }
+
+        writeMembersUiStateToStorage(membersUiState);
+
+        refreshMembersFromApi()
+            .then(function (membersPayload) {
+                renderMembers(Object.assign({}, membersPayload, {
+                    selectionKind: "system"
+                }));
+            })
+            .catch(function (error) {
+                renderPayload({
+                    phase: "Phase 2B",
+                    canWrite: false,
+                    action: "members",
+                    error: error && error.name ? error.name : "Error",
+                    message: error && error.message ? error.message : "System switch failed."
+                });
+            });
+    }
+
+    function selectMembersGroup(groupSelectionKey) {
+        if (!groupSelectionKey || !membersUiState.groupByKey) {
+            return;
+        }
+
+        const normalizedGroupKey = String(groupSelectionKey).toLowerCase();
+        const groupNode = membersUiState.groupByKey[normalizedGroupKey];
+
+        if (!groupNode || !groupNode.systemId) {
+            return;
+        }
+
+        const normalizedSystemId = String(groupNode.systemId);
+        const groupMemberIds = Array.isArray(groupNode.memberIds)
+            ? groupNode.memberIds
+            : [];
+
+        setMembersSystemContext(normalizedSystemId);
+        membersUiState.activeGroupKey = normalizedGroupKey;
+        membersUiState.activeGroupMemberIds = groupMemberIds;
+        membersUiState.preferredSystemId = normalizedSystemId;
+        membersUiState.preferredSelectionKind = "group";
+        membersUiState.preferredGroupKey = normalizedGroupKey;
+        membersUiState.restorePreferredSystemAttempted = true;
+
+        if (!membersUiState.systemPanelPinned) {
+            membersUiState.systemPanelOpen = false;
+        }
+
+        writeMembersUiStateToStorage(membersUiState);
+
+        refreshMembersFromApi()
+            .then(function (membersPayload) {
+                renderMembers(Object.assign({}, membersPayload, {
+                    selectionKind: "group",
+                    groupSelectionKey: normalizedGroupKey,
+                    groupMemberIds: groupMemberIds
+                }));
+            })
+            .catch(function (error) {
+                renderPayload({
+                    phase: "Phase 2B",
+                    canWrite: false,
+                    action: "members",
+                    error: error && error.name ? error.name : "Error",
+                    message: error && error.message ? error.message : "Group switch failed."
+                });
             });
     }
 
@@ -1974,8 +3002,26 @@ function renderMembers(payload) {
         window.PluralBridge.members &&
         typeof window.PluralBridge.members.createMemberToolbar === "function"
     ) {
+        function rerenderMembers() {
+            renderMembers(payload);
+        }
+
+        function toggleSystemPanel() {
+            if (membersUiState.systemPanelPinned) {
+                membersUiState.systemPanelPinned = false;
+                membersUiState.systemPanelOpen = false;
+            } else {
+                membersUiState.systemPanelOpen = !membersUiState.systemPanelOpen;
+            }
+
+            writeMembersUiStateToStorage(membersUiState);
+            rerenderMembers();
+        }
+
         wrapper.appendChild(window.PluralBridge.members.createMemberToolbar({
-            toggleAddMember: toggleAddMemberForm
+            toggleAddMember: toggleAddMemberForm,
+            toggleSystemPanel: toggleSystemPanel,
+            isSystemPanelOpen: showSystemsPanel
         }));
     }
 
@@ -1988,8 +3034,6 @@ function renderMembers(payload) {
             refreshMembers: refreshMembersFromApi,
             cancelAddMember: hideAddMemberForm
         }));
-
-        wrapper.appendChild(memberAddContainer);
     }
 
     const memberScrollList = document.createElement("div");
@@ -2006,7 +3050,26 @@ function renderMembers(payload) {
         });
     }
 
-    wrapper.appendChild(memberScrollList);
+    const membersWorkspace = document.createElement("div");
+    membersWorkspace.className = "member-workspace";
+
+    const memberContent = document.createElement("div");
+    memberContent.className = "member-content-stack";
+    memberContent.appendChild(memberAddContainer);
+    memberContent.appendChild(memberScrollList);
+
+    membersWorkspace.appendChild(
+        createMembersSystemPanel(
+            membersUiState,
+            function () {
+                renderMembers(payload);
+            },
+            selectMembersSystem,
+            selectMembersGroup
+        )
+    );
+    membersWorkspace.appendChild(memberContent);
+    wrapper.appendChild(membersWorkspace);
 
     output.appendChild(wrapper);
     updateSessionStatus();

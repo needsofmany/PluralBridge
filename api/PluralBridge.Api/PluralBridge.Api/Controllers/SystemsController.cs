@@ -174,6 +174,8 @@ public sealed class SystemsController(
 			return [];
 		}
 
+		var systemIdInClause = BuildSystemIdInClause(systemIds);
+
 		var sql = new StringBuilder(
 			"""
 			SELECT
@@ -190,19 +192,9 @@ public sealed class SystemsController(
 			    UpdatedAtUtc
 			FROM dbo.pb_systems
 			WHERE SystemId IN (
-			""");
-
-		for (var index = 0; index < systemIds.Length; index++)
-		{
-			if (index > 0)
-			{
-				sql.Append(", ");
-			}
-
-			sql.Append("@SystemId").Append(index);
-		}
-
-		sql.AppendLine(")")
+			""")
+			.Append(systemIdInClause)
+			.AppendLine(")")
 			.AppendLine("ORDER BY CreatedAtUtc, SystemId;");
 
 		var systems = new List<SystemRecord>();
@@ -214,25 +206,179 @@ public sealed class SystemsController(
 			command.Parameters.AddWithValue($"@SystemId{index}", systemIds[index]);
 		}
 
-		await using var reader = await command.ExecuteReaderAsync();
-
-		while (await reader.ReadAsync())
+		await using (var reader = await command.ExecuteReaderAsync())
 		{
-			systems.Add(new SystemRecord(
-				reader.GetGuid(0),
-				reader.IsDBNull(1) ? null : reader.GetString(1),
-				reader.IsDBNull(2) ? null : reader.GetString(2),
-				reader.IsDBNull(3) ? null : reader.GetString(3),
-				reader.IsDBNull(4) ? null : reader.GetString(4),
-				reader.IsDBNull(5) ? null : reader.GetString(5),
-				reader.IsDBNull(6) ? null : reader.GetInt64(6),
-				reader.IsDBNull(7) ? null : reader.GetInt64(7),
-				reader.GetDateTime(8),
-				reader.GetDateTime(9),
-				reader.IsDBNull(10) ? null : reader.GetDateTime(10)));
+			while (await reader.ReadAsync())
+			{
+				systems.Add(new SystemRecord(
+					reader.GetGuid(0),
+					reader.IsDBNull(1) ? null : reader.GetString(1),
+					reader.IsDBNull(2) ? null : reader.GetString(2),
+					reader.IsDBNull(3) ? null : reader.GetString(3),
+					reader.IsDBNull(4) ? null : reader.GetString(4),
+					reader.IsDBNull(5) ? null : reader.GetString(5),
+					reader.IsDBNull(6) ? null : reader.GetInt64(6),
+					reader.IsDBNull(7) ? null : reader.GetInt64(7),
+					reader.GetDateTime(8),
+					reader.GetDateTime(9),
+					reader.IsDBNull(10) ? null : reader.GetDateTime(10),
+					[]));
+			}
 		}
 
-		return systems;
+		var groupsBySystemId = await ReadGroupsBySystemIdAsync(connection, systemIds);
+
+		return systems
+			.Select(system =>
+				system with
+				{
+					Groups = groupsBySystemId.TryGetValue(system.SystemId, out var groups)
+						? groups
+						: []
+				})
+			.ToList();
+	}
+
+	private static string BuildSystemIdInClause(Guid[] systemIds)
+	{
+		var idListBuilder = new StringBuilder();
+
+		for (var index = 0; index < systemIds.Length; index++)
+		{
+			if (index > 0)
+			{
+				idListBuilder.Append(", ");
+			}
+
+			idListBuilder.Append("@SystemId").Append(index);
+		}
+
+		return idListBuilder.ToString();
+	}
+
+	private static async Task<Dictionary<Guid, IReadOnlyList<GroupRecord>>> ReadGroupsBySystemIdAsync(
+		SqlConnection connection,
+		Guid[] systemIds)
+	{
+		if (systemIds.Length == 0)
+		{
+			return [];
+		}
+
+		var hasGroupsTable = await TableExistsAsync(connection, "dbo.pb_groups");
+		if (!hasGroupsTable)
+		{
+			return [];
+		}
+
+		var systemIdInClause = BuildSystemIdInClause(systemIds);
+		var memberIdsByGroup = new Dictionary<(Guid SystemId, Guid GroupId), List<Guid>>();
+
+		var hasGroupMembersTable = await TableExistsAsync(connection, "dbo.pb_group_members");
+		if (hasGroupMembersTable)
+		{
+			var membershipsSql =
+				$"""
+				  SELECT
+				      SystemId,
+				      GroupId,
+				      MemberId
+				  FROM dbo.pb_group_members
+				  WHERE SystemId IN ({systemIdInClause});
+				  """;
+
+			await using var membershipCommand = new SqlCommand(membershipsSql, connection);
+			for (var index = 0; index < systemIds.Length; index++)
+			{
+				membershipCommand.Parameters.AddWithValue($"@SystemId{index}", systemIds[index]);
+			}
+
+			await using var membershipReader = await membershipCommand.ExecuteReaderAsync();
+			while (await membershipReader.ReadAsync())
+			{
+				var key = (membershipReader.GetGuid(0), membershipReader.GetGuid(1));
+				if (!memberIdsByGroup.TryGetValue(key, out var memberIds))
+				{
+					memberIds = [];
+					memberIdsByGroup[key] = memberIds;
+				}
+
+				memberIds.Add(membershipReader.GetGuid(2));
+			}
+		}
+
+		var groupsSql =
+			$"""
+			  SELECT
+			      GroupId,
+			      SystemId,
+			      SourceGroupId,
+			      ParentGroupId,
+			      ParentSourceGroupId,
+			      GroupName
+			  FROM dbo.pb_groups
+			  WHERE SystemId IN ({systemIdInClause})
+			  ORDER BY SystemId, GroupName, GroupId;
+			  """;
+
+		var groupsBySystemId = new Dictionary<Guid, List<GroupRecord>>();
+
+		await using (var groupCommand = new SqlCommand(groupsSql, connection))
+		{
+			for (var index = 0; index < systemIds.Length; index++)
+			{
+				groupCommand.Parameters.AddWithValue($"@SystemId{index}", systemIds[index]);
+			}
+
+			await using var groupReader = await groupCommand.ExecuteReaderAsync();
+			while (await groupReader.ReadAsync())
+			{
+				var groupId = groupReader.GetGuid(0);
+				var systemId = groupReader.GetGuid(1);
+				var key = (systemId, groupId);
+
+				var group = new GroupRecord(
+					groupId,
+					systemId,
+					groupReader.IsDBNull(2) ? null : groupReader.GetString(2),
+					groupReader.IsDBNull(3) ? null : groupReader.GetGuid(3),
+					groupReader.IsDBNull(4) ? null : groupReader.GetString(4),
+					groupReader.GetString(5),
+					memberIdsByGroup.TryGetValue(key, out var memberIds)
+						? memberIds
+						: []);
+
+				if (!groupsBySystemId.TryGetValue(systemId, out var groups))
+				{
+					groups = [];
+					groupsBySystemId[systemId] = groups;
+				}
+
+				groups.Add(group);
+			}
+		}
+
+		return groupsBySystemId.ToDictionary(
+			entry => entry.Key,
+			entry => (IReadOnlyList<GroupRecord>)entry.Value);
+	}
+
+	private static async Task<bool> TableExistsAsync(SqlConnection connection, string tableName)
+	{
+		const string sql = """
+		                   SELECT CASE WHEN OBJECT_ID(@TableName, 'U') IS NULL THEN 0 ELSE 1 END;
+		                   """;
+		await using var command = new SqlCommand(sql, connection);
+		command.Parameters.AddWithValue("@TableName", tableName);
+		var result = await command.ExecuteScalarAsync();
+
+		return result switch
+		{
+			int asInt => asInt == 1,
+			long asLong => asLong == 1,
+			decimal asDecimal => asDecimal == 1,
+			_ => false
+		};
 	}
 
 	private sealed record SystemRecord(
@@ -246,5 +392,15 @@ public sealed class SystemsController(
 		long? LastOperationTimeMs,
 		DateTime ImportedAtUtc,
 		DateTime CreatedAtUtc,
-		DateTime? UpdatedAtUtc);
+		DateTime? UpdatedAtUtc,
+		IReadOnlyList<GroupRecord> Groups);
+
+	private sealed record GroupRecord(
+		Guid GroupId,
+		Guid SystemId,
+		string? SourceGroupId,
+		Guid? ParentGroupId,
+		string? ParentSourceGroupId,
+		string GroupName,
+		IReadOnlyList<Guid> MemberIds);
 }

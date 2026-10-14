@@ -62,6 +62,10 @@ window.PluralBridge.apiClient = (function () {
         return await fetchJson("/api/systems/" + encodeURIComponent(systemId) + "/members");
     }
 
+    function setCurrentSystemId(systemId) {
+        currentSystemId = systemId || null;
+    }
+
     async function addMember(memberRequest) {
         const systemId = await getCurrentSystemId();
 
@@ -92,6 +96,7 @@ window.PluralBridge.apiClient = (function () {
 
     client.fetchJson = fetchJson;
     client.getCurrentSystemId = getCurrentSystemId;
+    client.setCurrentSystemId = setCurrentSystemId;
     client.readMembers = readMembers;
     client.addMember = addMember;
     client.editMember = editMember;

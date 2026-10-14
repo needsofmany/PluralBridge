@@ -105,6 +105,10 @@ window.PluralBridge.members = (function () {
 
         if (iconName === "groups") {
             path.setAttribute("d", "M4 5h6l2 2h8v12H4V5zm2 4v8h12V9H6z");
+        } else if (iconName === "systems") {
+            path.setAttribute("d", "M3 4h8v4H3V4zm10 0h8v4h-8V4zM3 10h8v4H3v-4zm10 0h8v4h-8v-4zM3 16h8v4H3v-4zm10 0h8v4h-8v-4z");
+        } else if (iconName === "add") {
+            path.setAttribute("d", "M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4z");
         } else if (iconName === "addGroup") {
             path.setAttribute("d", "M4 5h6l2 2h8v5h-2V9H6v8h6v2H4V5zm13 8h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3z");
         } else if (iconName === "addMember") {
@@ -150,6 +154,59 @@ window.PluralBridge.members = (function () {
         return button;
     }
 
+    function createAddMenu(options) {
+        const details = document.createElement("details");
+        details.className = "member-toolbar-add-menu";
+
+        const summary = document.createElement("summary");
+        summary.className = "member-toolbar-button member-toolbar-add-trigger is-primary";
+        summary.appendChild(createToolbarIcon("add"));
+
+        const label = document.createElement("span");
+        label.className = "member-toolbar-label";
+        label.textContent = "Add";
+        summary.appendChild(label);
+
+        const chevron = document.createElement("span");
+        chevron.className = "member-toolbar-add-chevron";
+        chevron.textContent = "v";
+        summary.appendChild(chevron);
+
+        const popover = document.createElement("div");
+        popover.className = "member-toolbar-add-popover";
+
+        function createAddOption(labelText, isEnabled, clickHandler) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "member-toolbar-add-option";
+            button.textContent = labelText;
+
+            if (!isEnabled) {
+                button.disabled = true;
+                button.title = labelText + " planned";
+            } else if (typeof clickHandler === "function") {
+                button.addEventListener("click", function () {
+                    clickHandler();
+                    details.open = false;
+                });
+            }
+
+            return button;
+        }
+
+        popover.appendChild(createAddOption("System", false, null));
+        popover.appendChild(createAddOption("Member", true, function () {
+            if (options && typeof options.toggleAddMember === "function") {
+                options.toggleAddMember();
+            }
+        }));
+        popover.appendChild(createAddOption("Group", false, null));
+
+        details.appendChild(summary);
+        details.appendChild(popover);
+        return details;
+    }
+
     function createMemberToolbar(options) {
         const toolbar = document.createElement("div");
         toolbar.className = "member-toolbar";
@@ -161,23 +218,21 @@ window.PluralBridge.members = (function () {
         const viewGroup = document.createElement("div");
         viewGroup.className = "member-toolbar-group member-toolbar-view-group";
 
+        primaryGroup.appendChild(createToolbarButton("systems", "Systems", {
+            pressed: options && options.isSystemPanelOpen === true,
+            onClick: function () {
+                if (options && typeof options.toggleSystemPanel === "function") {
+                    options.toggleSystemPanel();
+                }
+            }
+        }));
+
         primaryGroup.appendChild(createToolbarButton("groups", "Groups", {
             disabled: true,
             title: "Groups view planned"
         }));
 
-        primaryGroup.appendChild(createToolbarButton("addGroup", "Add group", {
-            disabled: true,
-            title: "Add group planned"
-        }));
-
-        primaryGroup.appendChild(createToolbarButton("addMember", "Add member", {
-            onClick: function () {
-                if (options && typeof options.toggleAddMember === "function") {
-                    options.toggleAddMember();
-                }
-            }
-        }));
+        primaryGroup.appendChild(createAddMenu(options));
 
         viewGroup.appendChild(createToolbarButton("expanded", "Expanded", {
             disabled: true,

@@ -123,7 +123,7 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Reads all active system memberships for one account.
+		/// Reads all active system object memberships for one account.
 		/// </summary>
 		/// <param name="connection">The current database connection.</param>
 		/// <param name="accountId">The account identifier.</param>
@@ -135,21 +135,28 @@ namespace PluralBridge.Api.Controllers
 			const string sql = """
                        SELECT
                            m.SystemMembershipId,
-                           m.AccountId,
-                           m.SystemId,
-                           m.MembershipStatusId,
+                           om.AccountId,
+                           TRY_CONVERT(uniqueidentifier, om.ObjectId) AS SystemId,
+                           om.MembershipStatusId,
                            s.StatusName,
                            s.StatusDesc,
                            s.DisplayOrder,
                            s.IsActive,
-                           m.CreatedAtUtc,
-                           m.UpdatedAtUtc
-                       FROM dbo.pb_system_memberships AS m
+                           om.CreatedAtUtc,
+                           om.UpdatedAtUtc
+                       FROM dbo.pb_object_memberships AS om
                        INNER JOIN dbo.pb_system_membership_statuses AS s
-                           ON s.MembershipStatusId = m.MembershipStatusId
-                       WHERE m.AccountId = @AccountId
+                           ON s.MembershipStatusId = om.MembershipStatusId
+                       INNER JOIN dbo.pb_system_memberships AS m
+                           ON m.AccountId = om.AccountId
+                          AND m.SystemId = TRY_CONVERT(uniqueidentifier, om.ObjectId)
+                          AND m.MembershipStatusId = om.MembershipStatusId
+                          AND m.CreatedAtUtc = om.CreatedAtUtc
+                       WHERE om.AccountId = @AccountId
+                         AND om.ObjectType = 'system'
+                         AND TRY_CONVERT(uniqueidentifier, om.ObjectId) IS NOT NULL
                          AND s.StatusName = 'Active'
-                       ORDER BY m.CreatedAtUtc, m.SystemMembershipId;
+                       ORDER BY om.CreatedAtUtc, m.SystemMembershipId;
                        """;
 
 			await using var command = new SqlCommand(sql, connection);

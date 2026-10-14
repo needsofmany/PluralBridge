@@ -155,6 +155,12 @@ var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase
 	"shell.js"
 };
 
+var allowedBrowserImageFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+	"pluralbridge-about-logo-smaller.png",
+	"pluralbridge-about-logo-small.png"
+};
+
 // require login for the browser button app files
 app.MapGet(Globals.browserAppRoute, () =>
 {
@@ -206,6 +212,29 @@ app.MapGet("/app/js/{fileName}", (string fileName) =>
 	var path = Path.Combine(app.Environment.WebRootPath!, "app", "js", fileName);
 
 	return Results.File(path, "text/javascript");
+}).RequireAuthorization();
+
+app.MapGet("/app/images/{fileName}", (string fileName) =>
+{
+	if (!allowedBrowserImageFiles.Contains(fileName))
+	{
+		return Results.NotFound();
+	}
+
+	var path = Path.Combine(app.Environment.WebRootPath!, "app", "images", fileName);
+	var extension = Path.GetExtension(fileName);
+	var contentType = extension.ToLowerInvariant() switch
+	{
+		".png" => "image/png",
+		".jpg" => "image/jpeg",
+		".jpeg" => "image/jpeg",
+		".gif" => "image/gif",
+		".webp" => "image/webp",
+		".svg" => "image/svg+xml",
+		_ => "application/octet-stream"
+	};
+
+	return Results.File(path, contentType);
 }).RequireAuthorization();
 
 var authAssetFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
