@@ -1,0 +1,271 @@
+{
+  "pluralBridgeExport": {
+    "exportVersion": "0.1-draft",
+    "exportKind": "self-contained-pluralbridge-example",
+    "exampleId": "example-011",
+    "exampleName": "Place Collection of Systems",
+    "modelingNote": "Synthetic PluralBridge example using flattened top-level collections. A top-level place contains two systems, and one system contains a nested place."
+  },
+  "accounts": [
+    {
+      "accountId": "account-011",
+      "displayName": "Example 11",
+      "username": "example-11",
+      "email": "example-11@pluralbridge.org",
+      "status": "Active"
+    }
+  ],
+  "memberships": [
+    {
+      "membershipId": "membership-001",
+      "accountId": "account-011",
+      "systemId": "system-001",
+      "status": "Active",
+      "roles": ["Owner"]
+    },
+    {
+      "membershipId": "membership-002",
+      "accountId": "account-011",
+      "systemId": "system-002",
+      "status": "Active",
+      "roles": ["Owner"]
+    }
+  ],
+  "systems": [
+    {
+      "systemId": "system-001",
+      "name": "The Harbor",
+      "description": "System under Central Hub place.",
+      "color": "#8367ea"
+    },
+    {
+      "systemId": "system-002",
+      "name": "Main House",
+      "description": "System under Central Hub place containing nested Waiting Room place.",
+      "color": "#4a90e2"
+    }
+  ],
+  "systemRelationships": [
+    {
+      "relationshipId": "relationship-001",
+      "systemId": "system-001",
+      "relationshipType": "root",
+      "parentSystemId": null,
+      "targetSystemId": null,
+      "rank": 1
+    },
+    {
+      "relationshipId": "relationship-002",
+      "systemId": "system-002",
+      "relationshipType": "root",
+      "parentSystemId": null,
+      "targetSystemId": null,
+      "rank": 2
+    }
+  ],
+  "accountObjectLinks": [
+    {
+      "linkId": "account-link-001",
+      "accountId": "account-011",
+      "objectType": "place",
+      "objectId": "place-001",
+      "linkRole": "account-structure-root"
+    },
+    {
+      "linkId": "account-link-002",
+      "accountId": "account-011",
+      "objectType": "system",
+      "objectId": "system-001",
+      "linkRole": "scoped-to-account"
+    },
+    {
+      "linkId": "account-link-003",
+      "accountId": "account-011",
+      "objectType": "system",
+      "objectId": "system-002",
+      "linkRole": "scoped-to-account"
+    },
+    {
+      "linkId": "account-link-004",
+      "accountId": "account-011",
+      "objectType": "place",
+      "objectId": "place-002",
+      "linkRole": "scoped-to-account"
+    },
+    {
+      "linkId": "account-link-005",
+      "accountId": "account-011",
+      "objectType": "note",
+      "objectId": "note-001",
+      "linkRole": "account-note"
+    },
+    {
+      "linkId": "account-link-006",
+      "accountId": "account-011",
+      "objectType": "frontHistory",
+      "objectId": "front-001",
+      "linkRole": "fronting-context"
+    }
+  ],
+  "accountObjectPlacements": [
+    {
+      "placementId": "account-placement-001",
+      "accountId": "account-011",
+      "objectType": "place",
+      "objectId": "place-001",
+      "parentObjectType": "account",
+      "parentObjectId": "account-011",
+      "placementRole": "container-child",
+      "rank": 1
+    },
+    {
+      "placementId": "account-placement-002",
+      "accountId": "account-011",
+      "objectType": "system",
+      "objectId": "system-001",
+      "parentObjectType": "place",
+      "parentObjectId": "place-001",
+      "placementRole": "container-child",
+      "rank": 1
+    },
+    {
+      "placementId": "account-placement-003",
+      "accountId": "account-011",
+      "objectType": "system",
+      "objectId": "system-002",
+      "parentObjectType": "place",
+      "parentObjectId": "place-001",
+      "placementRole": "container-child",
+      "rank": 2
+    },
+    {
+      "placementId": "account-placement-004",
+      "accountId": "account-011",
+      "objectType": "place",
+      "objectId": "place-002",
+      "parentObjectType": "system",
+      "parentObjectId": "system-002",
+      "placementRole": "container-child",
+      "rank": 1
+    }
+  ],
+  "systemObjectLinks": [
+    {
+      "linkId": "sys-link-001",
+      "systemId": "system-001",
+      "objectType": "member",
+      "objectId": "member-001",
+      "linkRole": "scoped-to-system"
+    },
+    {
+      "linkId": "sys-link-002",
+      "systemId": "system-001",
+      "objectType": "member",
+      "objectId": "member-002",
+      "linkRole": "scoped-to-system"
+    }
+  ],
+  "systemObjectPlacements": [],
+  "members": [
+    {
+      "memberId": "member-001",
+      "displayName": "Popeye",
+      "pronouns": "he/him",
+      "description": "Synthetic member in The Harbor.",
+      "color": "#69d563",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-002",
+      "displayName": "Gilligan",
+      "pronouns": "he/him",
+      "description": "Synthetic member in The Harbor.",
+      "color": "#4a90e2",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-003",
+      "displayName": "Mickey",
+      "pronouns": "he/him",
+      "description": "Synthetic member in Waiting Room place.",
+      "color": "#f5a623",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-004",
+      "displayName": "Minnie",
+      "pronouns": "she/her",
+      "description": "Synthetic member in Waiting Room place.",
+      "color": "#bd10e0",
+      "isArchived": false
+    }
+  ],
+  "groups": [],
+  "groupMemberships": [],
+  "places": [
+    {
+      "placeId": "place-001",
+      "name": "Central Hub",
+      "description": "Top-level place containing two systems.",
+      "color": "#cccccc"
+    },
+    {
+      "placeId": "place-002",
+      "name": "Waiting Room",
+      "description": "Nested place under Main House.",
+      "color": "#b8e986"
+    }
+  ],
+  "placeMemberships": [
+    {
+      "placeMembershipId": "place-membership-001",
+      "placeId": "place-002",
+      "memberId": "member-003",
+      "rank": 1
+    },
+    {
+      "placeMembershipId": "place-membership-002",
+      "placeId": "place-002",
+      "memberId": "member-004",
+      "rank": 2
+    }
+  ],
+  "notes": [
+    {
+      "noteId": "note-001",
+      "title": "Example 11 note",
+      "body": "Synthetic account-level note for Place Collection of Systems.",
+      "supportsMarkdown": true
+    }
+  ],
+  "frontHistory": [
+    {
+      "frontHistoryId": "front-001",
+      "memberIds": ["member-001"],
+      "startedAt": "2026-01-01T12:00:00Z",
+      "endedAt": null,
+      "isLive": true,
+      "status": null
+    }
+  ],
+  "customFields": [],
+  "privacyBuckets": [],
+  "visibilityScopes": [],
+  "provenance": {
+    "source": "synthetic",
+    "sourceGenerator": "plural-synthetic-compatible-draft",
+    "sourceIdsPreserved": true,
+    "lossyMappings": []
+  },
+  "audit": {
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  "lookups": {
+    "roles": ["Owner"],
+    "membershipStatuses": ["Active"],
+    "relationshipTypes": ["root"],
+    "accountObjectTypes": ["place", "system", "note", "frontHistory"],
+    "placementRoles": ["container-child"]
+  }
+}
