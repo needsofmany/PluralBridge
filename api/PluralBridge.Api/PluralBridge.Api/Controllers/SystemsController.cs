@@ -80,16 +80,6 @@ public sealed class SystemsController(
 				});
 			}
 
-			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext))
-			{
-				requestTrace.LogStage(
-					logger,
-					nameof(LogStageParts.error_path),
-					nameof(LogStageParts.reached));
-
-				return Forbid();
-			}
-
 			var dataAccessStopwatch = Stopwatch.StartNew();
 
 			requestTrace.LogStage(
@@ -134,7 +124,7 @@ public sealed class SystemsController(
 				phase = Globals.projectPhase,
 				endpoint = Globals.systemsEndpointRoot,
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = accessContext.CurrentSystem?.SystemId,
 				count = systems.Count,
 				systems
 			});

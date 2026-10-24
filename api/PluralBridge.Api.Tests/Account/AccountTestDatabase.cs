@@ -92,6 +92,14 @@ internal static class AccountTestDatabase
 					FROM @RuntimeSystems
 				);
 
+			DELETE objectMemberships
+			FROM dbo.pb_object_memberships AS objectMemberships
+			WHERE objectMemberships.AccountId IN
+				(
+					SELECT AccountId
+					FROM @RuntimeAccounts
+				);
+
 			DELETE memberships
 			FROM dbo.pb_system_memberships AS memberships
 			WHERE memberships.AccountId IN
@@ -225,19 +233,40 @@ internal static class AccountTestDatabase
 				@SystemName
 			);
 
+			DECLARE @CreatedAtUtc datetime2(3) = SYSUTCDATETIME();
+
 			INSERT INTO dbo.pb_system_memberships
 			(
 				SystemMembershipId,
 				AccountId,
 				SystemId,
-				MembershipStatusId
+				MembershipStatusId,
+				CreatedAtUtc
 			)
 			VALUES
 			(
 				@SystemMembershipId,
 				@AccountId,
 				@SystemId,
-				@ActiveMembershipStatusId
+				@ActiveMembershipStatusId,
+				@CreatedAtUtc
+			);
+
+			INSERT INTO dbo.pb_object_memberships
+			(
+				AccountId,
+				ObjectType,
+				ObjectId,
+				MembershipStatusId,
+				CreatedAtUtc
+			)
+			VALUES
+			(
+				@AccountId,
+				N'system',
+				CONVERT(nvarchar(128), @SystemId),
+				@ActiveMembershipStatusId,
+				@CreatedAtUtc
 			);
 
 			INSERT INTO dbo.pb_system_membership_roles

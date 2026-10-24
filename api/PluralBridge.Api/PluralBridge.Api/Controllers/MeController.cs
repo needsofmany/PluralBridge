@@ -87,25 +87,6 @@ public sealed class MeController(
 			var membershipAccess = accessContext.MembershipAccess;
 			var currentSystem = accessContext.CurrentSystem;
 
-			// Check whether the current account has an active membership for the current system.
-			var isAuthorizedForCurrentSystem = AccessContextHelper.IsAuthorizedForCurrentSystem(
-				accessContext,
-				requestTrace,
-				logger);
-
-			if (!isAuthorizedForCurrentSystem)
-			{
-				requestTrace.LogStage(
-					logger,
-					nameof(LogStageParts.error_path),
-					nameof(LogStageParts.reached));
-
-				return Problem(
-					title: Globals.currentSystemNoAuth,
-					detail: Globals.noActiveMembershipAccess,
-					statusCode: StatusCodes.Status403Forbidden);
-			}
-
 			var dataAccessStopwatch = Stopwatch.StartNew();
 
 			requestTrace.LogStage(

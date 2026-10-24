@@ -78,7 +78,8 @@ public sealed class SourceSystemsController(
 				});
 			}
 
-			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext))
+			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
+			    || accessContext.CurrentSystem is not { } currentSystem)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -133,7 +134,7 @@ public sealed class SourceSystemsController(
 				phase = Globals.projectPhase,
 				endpoint = Globals.sourceSystemsEndpoint,
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				count = sourceSystems.Count,
 				sourceSystems
 			});

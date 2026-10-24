@@ -265,7 +265,7 @@ namespace PluralBridge.Api.Controllers
 		/// <param name="connection">The current database connection.</param>
 		/// <param name="requestTrace">The optional Level 1 diagnostic trace context for the current request spine.</param>
 		/// <param name="logger">The optional logger used to emit safe Level 1 diagnostic trace facts.</param>
-		/// <returns>The resolved access context, or null when the current account or current system cannot be resolved.</returns>
+		/// <returns>The resolved access context, or null when the current account cannot be resolved.</returns>
 		internal static async Task<AccessContext?> ResolveCurrentAccessAsync(
 			SqlConnection connection,
 			ClaimsPrincipal user,
@@ -301,17 +301,33 @@ namespace PluralBridge.Api.Controllers
 				"membership_resolution",
 				"started");
 
-			var membershipAccess = await ResolveMembershipAccessAsync(
-				connection,
-				currentAccount);
+			IReadOnlyList<SystemMembership> membershipAccess;
+			try
+			{
+				membershipAccess = await ResolveMembershipAccessAsync(
+					connection,
+					currentAccount);
 
-			membershipStopwatch.Stop();
+				membershipStopwatch.Stop();
 
-			requestTrace?.LogStage(
-				logger!,
-				"membership_resolution",
-				membershipAccess.Count == 0 ? "failed" : "completed",
-				membershipStopwatch.Elapsed);
+				requestTrace?.LogStage(
+					logger!,
+					"membership_resolution",
+					"completed",
+					membershipStopwatch.Elapsed);
+			}
+			catch
+			{
+				membershipStopwatch.Stop();
+
+				requestTrace?.LogStage(
+					logger!,
+					"membership_resolution",
+					"failed",
+					membershipStopwatch.Elapsed);
+
+				throw;
+			}
 
 			var currentSystemStopwatch = Stopwatch.StartNew();
 
@@ -333,13 +349,17 @@ namespace PluralBridge.Api.Controllers
 				currentSystem is null ? "failed" : "completed",
 				currentSystemStopwatch.Elapsed);
 
-			if (currentSystem is null)
-			{
-				return null;
-			}
+			CurrentObject? currentObject = currentSystem is null
+				? null
+				: new CurrentObject(
+					"system",
+					currentSystem.SystemId.ToString(),
+					currentSystem.SystemName);
+
 			return new AccessContext(
 				currentAccount,
 				membershipAccess,
+				currentObject,
 				currentSystem);
 		}
 
@@ -388,9 +408,11 @@ namespace PluralBridge.Api.Controllers
 				"authorization_check",
 				"started");
 
-			var isAuthorized = accessContext.MembershipAccess.Any(membership =>
-				membership.SystemId == accessContext.CurrentSystem.SystemId
-				&& membership.SystemMembershipId == accessContext.CurrentSystem.SystemMembershipId
+			var currentSystem = accessContext.CurrentSystem;
+			var isAuthorized = currentSystem is not null
+				&& accessContext.MembershipAccess.Any(membership =>
+				membership.SystemId == currentSystem.SystemId
+				&& membership.SystemMembershipId == currentSystem.SystemMembershipId
 				&& membership.MembershipStatus.IsActive
 				&& string.Equals(
 					membership.MembershipStatus.StatusName,
@@ -427,9 +449,11 @@ namespace PluralBridge.Api.Controllers
 				"member_write_authorization_check",
 				"started");
 
-			var isAuthorized = accessContext.MembershipAccess.Any(membership =>
-				membership.SystemId == accessContext.CurrentSystem.SystemId
-				&& membership.SystemMembershipId == accessContext.CurrentSystem.SystemMembershipId
+			var currentSystem = accessContext.CurrentSystem;
+			var isAuthorized = currentSystem is not null
+				&& accessContext.MembershipAccess.Any(membership =>
+				membership.SystemId == currentSystem.SystemId
+				&& membership.SystemMembershipId == currentSystem.SystemMembershipId
 				&& membership.MembershipStatus.IsActive
 				&& string.Equals(
 					membership.MembershipStatus.StatusName,
@@ -531,14 +555,28 @@ namespace PluralBridge.Api.Controllers
 		}
 
 		/// <summary>
-		/// Holds the current account, its membership list, and the current system.
+		/// Holds the current account, its membership list, and optional focus.
 		/// </summary>
 		/// <param name="CurrentAccount"></param>
 		/// <param name="MembershipAccess">The system memberships available to the current account.</param>
+		/// <param name="CurrentObject">The focused object, or null when none is resolved.</param>
+		/// <param name="CurrentSystem">The system projection of focus, or null when none is resolved.</param>
 		internal sealed record AccessContext(
 			Account CurrentAccount,
 			IReadOnlyList<SystemMembership> MembershipAccess,
-			CurrentSystem CurrentSystem);
+			CurrentObject? CurrentObject,
+			CurrentSystem? CurrentSystem);
+
+		/// <summary>
+		/// Represents the focused object for the request as an open type and id.
+		/// </summary>
+		/// <param name="ObjectType"></param>
+		/// <param name="ObjectId"></param>
+		/// <param name="DisplayName"></param>
+		internal sealed record CurrentObject(
+			string ObjectType,
+			string ObjectId,
+			string? DisplayName);
 
 		/// <summary>
 		/// Represents one account status row.
