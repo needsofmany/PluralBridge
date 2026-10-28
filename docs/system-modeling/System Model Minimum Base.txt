@@ -1,3 +1,35 @@
+PLURALBRIDGE — TERMINOLOGY DICTIONARY (abbreviated for this document)
+---------------------------------------------------------------------
+
+TERMS
+
+Plural
+A person or collective whose plural structure is represented by a plural map.
+
+Plural map
+The overall structure representing a plural’s objects and their relationships.
+
+Object
+An entity represented in the plural map, including a system, group, place, or member.
+
+Anchor
+An object that provides context for operations. Systems, groups, and places are anchors.
+
+Placement
+A relationship recording where an object appears in the plural map, including its parent anchor and ordering. An object may have multiple placements.
+
+Structural membership
+A relationship expressing that a member belongs to an anchor.
+
+Access membership
+A relationship associating an account with an object for access purposes.
+
+Role
+The function or authority associated with participation in a relationship.
+
+CANONICAL SYSTEM EXAMPLES
+-------------------------
+
 1. Simple Single-System Model
 A person signs in and has one System.
 
@@ -89,7 +121,7 @@ Account
 This could represent shared history, partial overlap, a past structure, or a loosely connected internal organization.
 
 6. Subsystem Model
-A member, group, or internal cluster may have its own structure.
+A member, anchor, or internal cluster may have its own structure.
 
 Account
 ├── System: The Harbor
@@ -175,7 +207,7 @@ This breaks the ordinary tree assumption. The structure becomes a graph of relat
 
 10. Group Collection of Systems
 A top level group that contains two Systems
-This allows us to make a Group the same class as a System
+This allows us to make a Group the same class as a System i.e. a different kind of anchor
 
 Account
 ├── Group: Household
@@ -194,7 +226,7 @@ Account
 This allows us to make a Group the same class as a System
 
 11. 'Place' Collection of Systems
-A top level named object that contains two Systems and another named object
+A top level plural map that contains two Systems and an anchor
 
 Account
 ├── Place: Central Hub
@@ -209,16 +241,39 @@ Account
 └── Front history
 This gives plurals a more fluid way of describing themselves
 
+12. Collection of non-System anchors
+A top level plural map that contains no Systems and only other anchors (currently Group and Place)
+
+Account
+├── Place: Central Hub
+│   ├── Group: The Harbor
+│   │   ├── Member: Popeye
+│   │   └── Member: Gilligan
+│   └── Group: Main House
+│       └── Place: Waiting Room
+│           ├── Member: Mickey
+│           └── Member: Minnie
+├── Notes
+└── Front history
+This gives plurals an even more fluid way of describing themselves
+
+
 Design Notes
 These examples imply several important PluralBridge design rules:
 
-A root System means a System with no parent relationship.
-There can be more than one root System.
-Parent / child, sibling, related, subsystem, archived, and unknown relationships describe structure.
-Structural relationships should not automatically grant access, authority, or visibility.
-Access should come from explicit membership, consent, permission, or policy.
-The active working context should be handled through focus.
-Fronting should be modeled inside the focused System context.
-The default user experience can remain simple while the underlying model stays flexible.
-Therapist-facing views should be user-controlled and privacy-aware.
-Professional input can improve safety without overriding lived experience.
+- Operations such as adding members require an anchor.
+- Object identity consists of object type + object ID.
+- Placement describes location; structural membership describes belonging.
+- Access membership and its associated authority govern access.
+- Placements never grant access.
+- Audit policy governs recording of activity.
+- A root anchor means an anchor with no parent relationship.
+- There can be more than one root anchor.
+- Parent / child, sibling, related, subsystem, archived, and unknown relationships describe structure.
+- Structural relationships should not automatically grant access, authority, or visibility.
+- Access should come from explicit membership, consent, permission, or policy.
+- The active working context should be handled through focus.
+- Fronting should be modeled inside the focused anchor context.
+- The default user experience can remain simple while the underlying model stays flexible.
+- Therapist-facing views should be user-controlled and privacy-aware.
+- Professional input can improve safety without overriding lived experience.
