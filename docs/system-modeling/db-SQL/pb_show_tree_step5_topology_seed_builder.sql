@@ -19,8 +19,6 @@ BEGIN
         RETURN;
     END;
 
-    IF OBJECT_ID('tempdb..##LegacySystemRoots') IS NOT NULL DROP TABLE ##LegacySystemRoots;
-    IF OBJECT_ID('tempdb..##LegacySystemHierarchy') IS NOT NULL DROP TABLE ##LegacySystemHierarchy;
     IF OBJECT_ID('tempdb..##TopologyEdges') IS NOT NULL DROP TABLE ##TopologyEdges;
     IF OBJECT_ID('tempdb..##SystemEdgeLabels') IS NOT NULL DROP TABLE ##SystemEdgeLabels;
 
@@ -38,7 +36,7 @@ BEGIN
     SELECT
         sm.SystemId AS ObjectId,
         100000 + ROW_NUMBER() OVER (ORDER BY s.SystemName, sm.SystemId) AS SortRank
-    INTO ##LegacySystemRoots
+    INTO #SeedLegacySystemRoots
     FROM dbo.pb_system_memberships sm
     JOIN dbo.pb_system_membership_statuses sms
       ON sms.MembershipStatusId = sm.MembershipStatusId
@@ -51,13 +49,13 @@ BEGIN
         child.ObjectId AS ChildSystemId,
         parent.ObjectId AS ParentSystemId,
         ISNULL(r.RelationshipRank, 5000) AS EdgeRank
-    INTO ##LegacySystemHierarchy
-    FROM ##LegacySystemRoots child
+    INTO #SeedLegacySystemHierarchy
+    FROM #SeedLegacySystemRoots child
     JOIN dbo.pb_system_relationships r
       ON r.SystemId = child.ObjectId
      AND r.TargetSystemId IS NULL
      AND r.ParentSystemId IS NOT NULL
-    JOIN ##LegacySystemRoots parent
+    JOIN #SeedLegacySystemRoots parent
       ON parent.ObjectId = r.ParentSystemId;
 
     CREATE TABLE ##TopologyEdges
@@ -99,7 +97,7 @@ BEGIN
         h.ChildSystemId,
         h.EdgeRank,
         N'system-relationship'
-    FROM ##LegacySystemHierarchy h
+    FROM #SeedLegacySystemHierarchy h
     WHERE NOT EXISTS
     (
         SELECT 1
@@ -171,7 +169,7 @@ BEGIN
                         ).value('.', 'nvarchar(max)')
                     ,1,2,N'')
                 ,N'')
-        FROM ##LegacySystemRoots src
+        FROM #SeedLegacySystemRoots src
     )
     INSERT INTO ##SystemEdgeLabels (SystemId, EdgeLabel)
     SELECT
@@ -198,11 +196,11 @@ BEGIN
             l.ObjectId,
             l.SortRank,
             N'legacy-membership'
-        FROM ##LegacySystemRoots l
+        FROM #SeedLegacySystemRoots l
         WHERE NOT EXISTS
         (
             SELECT 1
-            FROM ##LegacySystemHierarchy h
+            FROM #SeedLegacySystemHierarchy h
             WHERE h.ChildSystemId = l.ObjectId
         )
         AND NOT EXISTS
