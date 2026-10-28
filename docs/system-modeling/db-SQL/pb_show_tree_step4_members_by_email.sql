@@ -36,8 +36,6 @@ BEGIN
 
     IF OBJECT_ID('tempdb..##TopologyEdges') IS NOT NULL DROP TABLE ##TopologyEdges;
     IF OBJECT_ID('tempdb..##WalkTopology') IS NOT NULL DROP TABLE ##WalkTopology;
-    IF OBJECT_ID('tempdb..##ScopedSystems') IS NOT NULL DROP TABLE ##ScopedSystems;
-    IF OBJECT_ID('tempdb..##GroupResolved') IS NOT NULL DROP TABLE ##GroupResolved;
     IF OBJECT_ID('tempdb..##GraphEdges') IS NOT NULL DROP TABLE ##GraphEdges;
     IF OBJECT_ID('tempdb..##WalkGraph') IS NOT NULL DROP TABLE ##WalkGraph;
     IF OBJECT_ID('tempdb..##GraphNodes') IS NOT NULL DROP TABLE ##GraphNodes;
