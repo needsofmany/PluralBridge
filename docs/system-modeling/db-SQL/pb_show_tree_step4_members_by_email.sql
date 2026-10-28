@@ -43,7 +43,6 @@ BEGIN
     IF OBJECT_ID('tempdb..#WalkGraph') IS NOT NULL DROP TABLE #WalkGraph;
     IF OBJECT_ID('tempdb..#GraphNodes') IS NOT NULL DROP TABLE #GraphNodes;
 
-    IF OBJECT_ID('tempdb..##WalkTopology') IS NOT NULL DROP TABLE ##WalkTopology;
     IF OBJECT_ID('tempdb..##GraphEdges') IS NOT NULL DROP TABLE ##GraphEdges;
     IF OBJECT_ID('tempdb..##WalkGraph') IS NOT NULL DROP TABLE ##WalkGraph;
     IF OBJECT_ID('tempdb..##GraphNodes') IS NOT NULL DROP TABLE ##GraphNodes;
@@ -53,6 +52,17 @@ BEGIN
     --------------------------------------------------------------------------------
     EXEC dbo.pb_show_tree_step5_topology_seed_builder
         @AccountId = @AccountId;
+
+    IF OBJECT_ID('tempdb..#WalkTopology') IS NOT NULL DROP TABLE #WalkTopology;
+    CREATE TABLE #WalkTopology
+    (
+        ParentObjectType NVARCHAR(32) NOT NULL,
+        ParentObjectId UNIQUEIDENTIFIER NOT NULL,
+        ObjectType NVARCHAR(32) NOT NULL,
+        ObjectId UNIQUEIDENTIFIER NOT NULL,
+        Depth INT NOT NULL,
+        PathKey NVARCHAR(MAX) NOT NULL
+    );
 
     --------------------------------------------------------------------------------
     -- Step 3: topology walker (refactored)

@@ -47,8 +47,6 @@ BEGIN
         FROM ##TopologyEdges;
     END;
 
-    IF OBJECT_ID('tempdb..##WalkTopology') IS NOT NULL DROP TABLE ##WalkTopology;
-
     ;WITH Walk AS
     (
         SELECT
@@ -121,8 +119,8 @@ BEGIN
          AND e.ParentObjectId = w.ObjectId
         WHERE w.Visited NOT LIKE N'%|' + e.ChildObjectType + N':' + CONVERT(NVARCHAR(36), e.ChildObjectId) + N'|%'
     )
+    INSERT INTO #WalkTopology (ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey)
     SELECT ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey
-    INTO ##WalkTopology
     FROM Walk
     OPTION (MAXRECURSION 200);
 END;
