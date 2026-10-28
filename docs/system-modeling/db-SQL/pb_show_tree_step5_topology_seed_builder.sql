@@ -19,7 +19,6 @@ BEGIN
         RETURN;
     END;
 
-    IF OBJECT_ID('tempdb..##TopologyEdges') IS NOT NULL DROP TABLE ##TopologyEdges;
     IF OBJECT_ID('tempdb..##SystemEdgeLabels') IS NOT NULL DROP TABLE ##SystemEdgeLabels;
 
     SELECT
@@ -58,23 +57,13 @@ BEGIN
     JOIN #SeedLegacySystemRoots parent
       ON parent.ObjectId = r.ParentSystemId;
 
-    CREATE TABLE ##TopologyEdges
-    (
-        ParentObjectType NVARCHAR(32) NOT NULL,
-        ParentObjectId UNIQUEIDENTIFIER NOT NULL,
-        ChildObjectType NVARCHAR(32) NOT NULL,
-        ChildObjectId UNIQUEIDENTIFIER NOT NULL,
-        EdgeRank INT NOT NULL,
-        EdgeSource NVARCHAR(64) NOT NULL
-    );
-
     CREATE TABLE ##SystemEdgeLabels
     (
         SystemId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
         EdgeLabel NVARCHAR(MAX) NULL
     );
 
-    INSERT INTO ##TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    INSERT INTO #TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
         p.ParentObjectType,
         TRY_CONVERT(uniqueidentifier, p.ParentObjectId),
@@ -89,7 +78,7 @@ BEGIN
       AND TRY_CONVERT(uniqueidentifier, p.ParentObjectId) IS NOT NULL
       AND TRY_CONVERT(uniqueidentifier, p.ChildObjectId) IS NOT NULL;
 
-    INSERT INTO ##TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    INSERT INTO #TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
         N'system',
         h.ParentSystemId,
@@ -101,7 +90,7 @@ BEGIN
     WHERE NOT EXISTS
     (
         SELECT 1
-        FROM ##TopologyEdges e
+        FROM #TopologyEdges e
         WHERE e.ParentObjectType = N'system'
           AND e.ParentObjectId = h.ParentSystemId
           AND e.ChildObjectType = N'system'
@@ -188,7 +177,7 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM #SeedPlacementRoots)
     BEGIN
-        INSERT INTO ##TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+        INSERT INTO #TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
         SELECT
             N'account',
             @AccountId,
@@ -206,7 +195,7 @@ BEGIN
         AND NOT EXISTS
         (
             SELECT 1
-            FROM ##TopologyEdges e
+            FROM #TopologyEdges e
             WHERE e.ParentObjectType = N'account'
               AND e.ParentObjectId = @AccountId
               AND e.ChildObjectType = N'system'

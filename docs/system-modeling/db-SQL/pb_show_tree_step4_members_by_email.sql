@@ -30,11 +30,19 @@ BEGIN
     -- Cleanup temp objects for repeatable runs
     --------------------------------------------------------------------------------
     IF OBJECT_ID('tempdb..#TopologyEdges') IS NOT NULL DROP TABLE #TopologyEdges;
+    CREATE TABLE #TopologyEdges
+    (
+        ParentObjectType NVARCHAR(32) NOT NULL,
+        ParentObjectId UNIQUEIDENTIFIER NOT NULL,
+        ChildObjectType NVARCHAR(32) NOT NULL,
+        ChildObjectId UNIQUEIDENTIFIER NOT NULL,
+        EdgeRank INT NOT NULL,
+        EdgeSource NVARCHAR(64) NOT NULL
+    );
     IF OBJECT_ID('tempdb..#GraphEdges') IS NOT NULL DROP TABLE #GraphEdges;
     IF OBJECT_ID('tempdb..#WalkGraph') IS NOT NULL DROP TABLE #WalkGraph;
     IF OBJECT_ID('tempdb..#GraphNodes') IS NOT NULL DROP TABLE #GraphNodes;
 
-    IF OBJECT_ID('tempdb..##TopologyEdges') IS NOT NULL DROP TABLE ##TopologyEdges;
     IF OBJECT_ID('tempdb..##WalkTopology') IS NOT NULL DROP TABLE ##WalkTopology;
     IF OBJECT_ID('tempdb..##GraphEdges') IS NOT NULL DROP TABLE ##GraphEdges;
     IF OBJECT_ID('tempdb..##WalkGraph') IS NOT NULL DROP TABLE ##WalkGraph;
