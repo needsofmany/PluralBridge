@@ -19,8 +19,6 @@ BEGIN
         RETURN;
     END;
 
-    IF OBJECT_ID('tempdb..##SystemEdgeLabels') IS NOT NULL DROP TABLE ##SystemEdgeLabels;
-
     SELECT
         p.ChildObjectType AS ObjectType,
         TRY_CONVERT(uniqueidentifier, p.ChildObjectId) AS ObjectId,
@@ -56,12 +54,6 @@ BEGIN
      AND r.ParentSystemId IS NOT NULL
     JOIN #SeedLegacySystemRoots parent
       ON parent.ObjectId = r.ParentSystemId;
-
-    CREATE TABLE ##SystemEdgeLabels
-    (
-        SystemId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        EdgeLabel NVARCHAR(MAX) NULL
-    );
 
     INSERT INTO #TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
@@ -160,7 +152,7 @@ BEGIN
                 ,N'')
         FROM #SeedLegacySystemRoots src
     )
-    INSERT INTO ##SystemEdgeLabels (SystemId, EdgeLabel)
+    INSERT INTO #SystemEdgeLabels (SystemId, EdgeLabel)
     SELECT
         lp.SystemId,
         NULLIF(

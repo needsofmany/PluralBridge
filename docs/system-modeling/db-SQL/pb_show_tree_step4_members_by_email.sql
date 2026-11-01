@@ -47,6 +47,13 @@ BEGIN
     IF OBJECT_ID('tempdb..##WalkGraph') IS NOT NULL DROP TABLE ##WalkGraph;
     IF OBJECT_ID('tempdb..##GraphNodes') IS NOT NULL DROP TABLE ##GraphNodes;
 
+    IF OBJECT_ID('tempdb..#SystemEdgeLabels') IS NOT NULL DROP TABLE #SystemEdgeLabels;
+    CREATE TABLE #SystemEdgeLabels
+    (
+        SystemId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EdgeLabel NVARCHAR(MAX) NULL
+    );
+
     --------------------------------------------------------------------------------
     -- Step 1+2: topology seed builder (refactored)
     --------------------------------------------------------------------------------
