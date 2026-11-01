@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -156,6 +157,99 @@ public sealed class MeController(
 				detail: Globals.currConfiguredAccount,
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
+	}
+
+	[HttpGet("plural-map")]
+	public async Task<IActionResult> GetPluralMap(CancellationToken cancellationToken)
+	{
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+				? correlationId.ToString()
+				: null);
+
+		try
+		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using SqlConnection connection = new(connectionString);
+			await connection.OpenAsync(cancellationToken);
+
+			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
+			if (account is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint = "/api/me/plural-map",
+					canWrite = false,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			await using var command = new SqlCommand(
+				"dbo.pb_show_tree_step4_members_by_email",
+				connection)
+			{
+				CommandType = CommandType.StoredProcedure
+			};
+			command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = account.Email;
+
+			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			var resultSets = await PluralMapReader.ReadAllAsync(reader, cancellationToken);
+			var map = PluralMapReader.Map(resultSets, account.AccountId);
+			if (map is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return PluralMapProblem();
+			}
+
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.endpoint),
+				nameof(LogStageParts.completed));
+
+			return Ok(map);
+		}
+		catch (Exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
+			return PluralMapProblem();
+		}
+	}
+
+	private ObjectResult PluralMapProblem()
+	{
+		return Problem(
+			title: Globals.requestFailed,
+			detail: "The plural map could not be read.",
+			statusCode: StatusCodes.Status500InternalServerError);
 	}
 
 	/// <summary>

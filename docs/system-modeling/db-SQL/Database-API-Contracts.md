@@ -70,31 +70,32 @@ The following is a **starting inventory**, not a verified enumeration of all sto
 
 | Contract ID | SQL Server implementation | Responsibility | Status |
 | --- | --- | --- | --- |
-| `navigator.resolve-tree` | `dbo.pb_show_tree_step4_members_by_email` | Resolve account/anchor context and produce navigator-related graph/hierarchy data | Draft; source verification required |
+| `navigator.resolve-tree` | `dbo.pb_show_tree_step4_members_by_email` | Resolve account/anchor context and produce navigator-related graph/hierarchy data | SQL Server binding verified; local binding unresolved |
 | `navigator.build-topology-seed` | `dbo.pb_show_tree_step5_topology_seed_builder` | Build topology data used by the navigator pipeline | Internal/dependency candidate; determine whether it belongs in the public contract catalog |
 
-### 4.1 `navigator.resolve-tree` — draft contract
+### 4.1 `navigator.resolve-tree` — SQL Server contract
 
-**Purpose:** Resolve the relevant account context and construct the information required to populate the left-hand navigator, including anchor-based structures.
+**Purpose:** Resolve the signed-in account and return the four navigator result sets produced by the current show-tree entry procedure.
 
+**HTTP binding:** `GET /api/me/plural-map`  
 **SQL Server binding:** `dbo.pb_show_tree_step4_members_by_email`  
-**Source candidate:** `docs/system-modeling/db-SQL/pb_show_tree_step4_members_by_email.sql`  
+**Source:** `docs/system-modeling/db-SQL/pb_show_tree_step4_members_by_email.sql`  
 **Local binding:** TBD  
-**Read/write:** Expected read-oriented; verify implementation and temporary-table effects  
-**Status:** Draft — not yet validated against current SQL definition
+**Read/write:** Read-only. The procedure does not persist rows.  
+**Status:** SQL Server response verified against the current procedure definition. The local database binding remains unresolved.
 
-**Inputs:** TBD. Extract exact parameter names, SQL types, defaults, nullability, and account/identity resolution rules from the procedure definition. Do not assume a parameter name based on the procedure's title.
+**Inputs:** The HTTP action takes no account selector. The API resolves `AccountId` from the authenticated `NameIdentifier` claim through `pb_accounts`, then passes that account's `Email` as `@Email NVARCHAR(320)`. The client does not supply `@Email`.
 
-**Known result-set labels from current navigator development:**
+**Result sets, in procedure order:**
 
-| Result set | Intended meaning | Column-level schema |
+| Result set | JSON array | Columns |
 | --- | --- | --- |
-| `Context` | Resolved account and navigation context | TBD |
-| `GraphNodeCounts` | Counts associated with graph nodes | TBD |
-| `GraphEdges` | Directed relationships used in navigation | TBD |
-| `HierarchyPreview` | Resolved hierarchy for navigation | TBD |
+| `Context` | `context` | `Section NVARCHAR`, `Email NVARCHAR`, `AccountId UNIQUEIDENTIFIER` |
+| `GraphNodeCounts` | `graphNodeCounts` | `Section NVARCHAR`, `ObjectType NVARCHAR`, `NodeCount INT` |
+| `GraphEdges` | `graphEdges` | `Section NVARCHAR`, `ParentObjectType NVARCHAR`, `ParentObjectId UNIQUEIDENTIFIER`, `ChildObjectType NVARCHAR`, `ChildObjectId UNIQUEIDENTIFIER`, `EdgeRank INT`, `EdgeSource NVARCHAR` |
+| `HierarchyPreview` | `hierarchyPreview` | `Section NVARCHAR`, `TreeLine NVARCHAR`, `PathKey NVARCHAR` |
 
-These labels are provisional until the actual returned result sets, ordering, and column types are verified. If this procedure is a diagnostic or development entry point rather than the production-facing database operation, define the production operation separately and mark this one internal.
+JSON names are camelCase (`pathKey` for `PathKey`). Property order inside each object is not part of the contract. Array order is the procedure's row order, including every `Section`, `TreeLine`, and `PathKey` value. Object types remain strings. `Context` is exactly one row, and its `AccountId` is the authenticated account. The later arrays may be empty when the account has no current system. A missing, malformed, extra, or account-mismatched result is rejected with no map payload.
 
 **Required behavior to test:**
 
@@ -106,7 +107,7 @@ These labels are provisional until the actual returned result sets, ordering, an
 - Correct account scoping and visibility, including absent or invalid context.
 - Deterministic output semantics where ordering affects the navigator.
 
-**Errors, authorization, ordering, and output columns:** TBD after source inspection.
+**Errors and authorization:** An unauthenticated request is rejected before the action. An authenticated request whose account cannot be resolved returns 401 and no map. A failed, incomplete, extra, malformed, or account-mismatched procedure result returns a generic 500 and no map. Responses do not include SQL text or connection secrets.
 
 ## 5. Cloud/local implementation bindings
 
