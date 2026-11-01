@@ -39,11 +39,9 @@ BEGIN
         EdgeRank INT NOT NULL,
         EdgeSource NVARCHAR(64) NOT NULL
     );
-    IF OBJECT_ID('tempdb..#GraphEdges') IS NOT NULL DROP TABLE #GraphEdges;
     IF OBJECT_ID('tempdb..#WalkGraph') IS NOT NULL DROP TABLE #WalkGraph;
     IF OBJECT_ID('tempdb..#GraphNodes') IS NOT NULL DROP TABLE #GraphNodes;
 
-    IF OBJECT_ID('tempdb..##GraphEdges') IS NOT NULL DROP TABLE ##GraphEdges;
     IF OBJECT_ID('tempdb..##WalkGraph') IS NOT NULL DROP TABLE ##WalkGraph;
     IF OBJECT_ID('tempdb..##GraphNodes') IS NOT NULL DROP TABLE ##GraphNodes;
 
@@ -77,22 +75,22 @@ BEGIN
     EXEC dbo.pb_show_tree_step5_topology_walker
         @AccountId = @AccountId;
 
+    IF OBJECT_ID('tempdb..#GraphEdges') IS NOT NULL DROP TABLE #GraphEdges;
+    CREATE TABLE #GraphEdges
+    (
+        ParentObjectType NVARCHAR(32) NOT NULL,
+        ParentObjectId UNIQUEIDENTIFIER NOT NULL,
+        ChildObjectType NVARCHAR(32) NOT NULL,
+        ChildObjectId UNIQUEIDENTIFIER NOT NULL,
+        EdgeRank INT NOT NULL,
+        EdgeSource NVARCHAR(64) NOT NULL
+    );
+
     --------------------------------------------------------------------------------
     -- Step 4: graph expansion (refactored)
     --------------------------------------------------------------------------------
     EXEC dbo.pb_show_tree_step5_graph_expansion
         @AccountId = @AccountId;
-
-    IF OBJECT_ID('tempdb..#GraphEdges') IS NOT NULL DROP TABLE #GraphEdges;
-    SELECT
-        ge.ParentObjectType,
-        ge.ParentObjectId,
-        ge.ChildObjectType,
-        ge.ChildObjectId,
-        ge.EdgeRank,
-        ge.EdgeSource
-    INTO #GraphEdges
-    FROM ##GraphEdges ge;
 
     --------------------------------------------------------------------------------
     -- Step 5: final graph walk + node labeler (refactored)

@@ -71,8 +71,6 @@ BEGIN
         FROM ##TopologyEdges;
     END;
 
-    IF OBJECT_ID('tempdb..##GraphEdges') IS NOT NULL DROP TABLE ##GraphEdges;
-
     SELECT DISTINCT wt.ObjectId AS SystemId
     INTO #ExpansionScopedSystems
     FROM @SrcWalkTopology wt
@@ -91,6 +89,7 @@ BEGIN
       ON gp.SystemId = g.SystemId
      AND gp.SourceGroupId = g.ParentSourceGroupId;
 
+    INSERT INTO #GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT DISTINCT
         te.ParentObjectType,
         te.ParentObjectId,
@@ -98,10 +97,9 @@ BEGIN
         te.ChildObjectId,
         te.EdgeRank,
         te.EdgeSource
-    INTO ##GraphEdges
     FROM @SrcTopologyEdges te;
 
-    INSERT INTO ##GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    INSERT INTO #GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
         N'system',
         gr.SystemId,
@@ -115,14 +113,14 @@ BEGIN
       AND NOT EXISTS
       (
           SELECT 1
-          FROM ##GraphEdges e
+          FROM #GraphEdges e
           WHERE e.ParentObjectType = N'system'
             AND e.ParentObjectId = gr.SystemId
             AND e.ChildObjectType = N'group'
             AND e.ChildObjectId = gr.GroupId
       );
 
-    INSERT INTO ##GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    INSERT INTO #GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
         N'group',
         gr.ResolvedParentGroupId,
@@ -136,7 +134,7 @@ BEGIN
       AND NOT EXISTS
       (
           SELECT 1
-          FROM ##GraphEdges e
+          FROM #GraphEdges e
           WHERE e.ParentObjectType = N'group'
             AND e.ParentObjectId = gr.ResolvedParentGroupId
             AND e.ChildObjectType = N'group'
@@ -146,14 +144,14 @@ BEGIN
     ;WITH GroupNodes AS
     (
         SELECT DISTINCT ge.ChildObjectId AS GroupId
-        FROM ##GraphEdges ge
+        FROM #GraphEdges ge
         WHERE ge.ChildObjectType = N'group'
         UNION
         SELECT DISTINCT ge.ParentObjectId AS GroupId
-        FROM ##GraphEdges ge
+        FROM #GraphEdges ge
         WHERE ge.ParentObjectType = N'group'
     )
-    INSERT INTO ##GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    INSERT INTO #GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
         N'group',
         gn.GroupId,
@@ -169,14 +167,14 @@ BEGIN
     WHERE NOT EXISTS
     (
         SELECT 1
-        FROM ##GraphEdges e
+        FROM #GraphEdges e
         WHERE e.ParentObjectType = N'group'
           AND e.ParentObjectId = gn.GroupId
           AND e.ChildObjectType = N'member'
           AND e.ChildObjectId = m.MemberId
     );
 
-    INSERT INTO ##GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    INSERT INTO #GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
         N'system',
         s.ObjectId,
@@ -190,7 +188,7 @@ BEGIN
     WHERE NOT EXISTS
     (
         SELECT 1
-        FROM ##GraphEdges e
+        FROM #GraphEdges e
         WHERE e.ParentObjectType = N'system'
           AND e.ParentObjectId = s.ObjectId
           AND e.ChildObjectType = N'member'
@@ -199,7 +197,7 @@ BEGIN
     AND NOT EXISTS
     (
         SELECT 1
-        FROM ##GraphEdges pe
+        FROM #GraphEdges pe
         JOIN dbo.pb_place_members pm
           ON pm.PlaceId = pe.ChildObjectId
          AND pm.MemberId = m.MemberId
@@ -208,7 +206,7 @@ BEGIN
           AND pe.ChildObjectType = N'place'
     );
 
-    INSERT INTO ##GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    INSERT INTO #GraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
     SELECT
         N'place',
         p.ObjectId,
@@ -223,7 +221,7 @@ BEGIN
         WHERE wt.ObjectType = N'place'
         UNION
         SELECT DISTINCT ge.ChildObjectId
-        FROM ##GraphEdges ge
+        FROM #GraphEdges ge
         WHERE ge.ChildObjectType = N'place'
     ) p
     JOIN dbo.pb_place_members pm
@@ -233,7 +231,7 @@ BEGIN
     WHERE NOT EXISTS
     (
         SELECT 1
-        FROM ##GraphEdges e
+        FROM #GraphEdges e
         WHERE e.ParentObjectType = N'place'
           AND e.ParentObjectId = p.ObjectId
           AND e.ChildObjectType = N'member'
