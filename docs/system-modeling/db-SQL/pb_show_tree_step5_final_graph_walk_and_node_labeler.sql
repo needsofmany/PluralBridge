@@ -25,8 +25,6 @@ BEGIN
         RETURN;
     END;
 
-    IF OBJECT_ID('tempdb..##WalkGraph') IS NOT NULL DROP TABLE ##WalkGraph;
-    IF OBJECT_ID('tempdb..##GraphNodes') IS NOT NULL DROP TABLE ##GraphNodes;
     IF OBJECT_ID('tempdb..#SystemEdgeLabelsInput') IS NOT NULL DROP TABLE #SystemEdgeLabelsInput;
 
     CREATE TABLE #SystemEdgeLabelsInput
@@ -123,8 +121,8 @@ BEGIN
          AND e.ParentObjectId = w.ObjectId
         WHERE w.Visited NOT LIKE N'%|' + e.ChildObjectType + N':' + CONVERT(NVARCHAR(36), e.ChildObjectId) + N'|%'
     )
+    INSERT INTO #WalkGraph (ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey)
     SELECT ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey
-    INTO ##WalkGraph
     FROM Walk
     OPTION (MAXRECURSION 200);
 
@@ -136,6 +134,7 @@ BEGIN
         UNION
         SELECT ge.ChildObjectType, ge.ChildObjectId FROM #GraphEdges ge
     )
+    INSERT INTO #GraphNodes (ObjectType, ObjectId, NodeLabel)
     SELECT
         rn.ObjectType,
         rn.ObjectId,
@@ -168,7 +167,6 @@ BEGIN
                 WHEN rn.ObjectType = N'member'  THEN N'Member: ' + ISNULL(m.DisplayName, N'(missing member)')
                 ELSE rn.ObjectType + N': ' + CONVERT(NVARCHAR(36), rn.ObjectId)
             END
-    INTO ##GraphNodes
     FROM RawNodes rn
     LEFT JOIN dbo.pb_systems s
       ON rn.ObjectType = N'system' AND s.SystemId = rn.ObjectId
