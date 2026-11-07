@@ -1,0 +1,150 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Synthetic Data Generator — PluralBridge</title>
+    <meta name="description" content="How PluralBridge uses synthetic data and canonical models to develop and validate support for diverse plural structures, in collaboration with Joshua Reid's plural-synthetic project.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="Synthetic Data Generator — PluralBridge">
+    <meta property="og:description" content="Synthetic data, canonical models, and collaborative development with Joshua Reid's plural-synthetic project.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://thepluralbridge.org/synthetic-data-generator.html">
+    <meta property="og:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Synthetic Data Generator — PluralBridge">
+    <meta name="twitter:description" content="How synthetic data and canonical models help PluralBridge represent diverse plural structures.">
+    <meta name="twitter:image" content="https://thepluralbridge.org/images/background.jpg">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="canonical" href="https://thepluralbridge.org/synthetic-data-generator.html">
+</head>
+<body>
+    <header class="site-header"></header>
+
+    <div class="privacy-banner is-collapsed" role="note">
+        <div class="privacy-banner-text">
+            <strong>Privacy reminder:</strong>
+            PluralBridge development uses synthetic test data. Do not publish or share real exports, tokens, passwords, notes, avatars, member records, fronting history, or other private System data.
+        </div>
+        <button type="button" class="privacy-banner-toggle" aria-expanded="false">Show full reminder</button>
+    </div>
+
+    <main>
+        <section class="hero">
+            <p class="eyebrow">Projects / Synthetic Data Generator</p>
+            <h1>Synthetic Data Generator</h1>
+            <p class="lede">
+                Building and testing PluralBridge against the diversity of real-world plural structures requires examples that are reproducible, inspectable, and safe to share.
+            </p>
+            <p>
+                Our work with Joshua Reid's open-source
+                <a href="https://github.com/JoshuaR06/plural-synthetic">plural-synthetic</a>
+                generator provides synthetic examples for developing, testing, and refining the PluralBridge data model.
+            </p>
+            <div class="actions">
+                <a class="button primary" href="https://github.com/JoshuaR06/plural-synthetic">Original generator repository</a>
+                <a class="button" href="https://github.com/needsofmany/plural-synthetic">PluralBridge fork</a>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Why synthetic data matters</h2>
+            <p>
+                Plural systems can have very different internal structures. A single flat list of members or a simple parent-child hierarchy cannot adequately represent every configuration.
+            </p>
+            <p>
+                Synthetic data allows developers to examine these structures without exposing anyone's private information. Each generated example provides a repeatable test case that can be reviewed, imported, and compared against expected behavior.
+            </p>
+            <p>
+                These examples help us identify assumptions in application logic, database relationships, importers, and user interfaces before those assumptions affect real users.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>The canonical models</h2>
+            <p>
+                PluralBridge has developed eleven canonical models to exercise different ways plural structures can be organized and related.
+            </p>
+            <p>
+                These models cover configurations involving Systems, Groups, Places, Members, and relationships among them. A System is not required to be the root of every structure.
+            </p>
+            <p>
+                The examples help validate structural relationships, placements, memberships, and the separation between how a plural structure is organized and who has permission to access or modify its information.
+            </p>
+            <p>
+                The generator provides consistent input data, allowing us to test behavior across increasingly complex configurations while keeping the examples publicly shareable.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>Example 012: An important architectural discovery</h2>
+            <p>
+                During our collaboration, Joshua proposed an additional example that challenged assumptions in the existing PluralBridge design.
+            </p>
+            <p>
+                Example 012 prompted a broader examination of how the database represents structures whose top-level anchors may be Systems, Groups, or Places.
+            </p>
+            <p>
+                That investigation exposed technical debt and helped motivate changes to the database architecture, including the handling of object placements, structural relationships, and navigation context.
+            </p>
+            <p>
+                The request proved considerably more valuable than we initially anticipated. It provided a concrete test of architectural assumptions and a useful direction for the continuing development of the canonical models.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>How we use the generator</h2>
+            <ul>
+                <li><strong>Model validation:</strong> Test different combinations of Systems, Groups, Places, Members, and relationships.</li>
+                <li><strong>Importer testing:</strong> Check that generated structures are translated into the intended PluralBridge records.</li>
+                <li><strong>Database development:</strong> Exercise structural memberships, object placements, and relationship representations.</li>
+                <li><strong>UI development:</strong> Provide reproducible examples for navigation and display of simple and complex plural structures.</li>
+                <li><strong>Regression testing:</strong> Reuse known examples to detect changes in expected behavior as the application evolves.</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2>Collaboration and acknowledgments</h2>
+            <p>
+                We want to recognize <strong>Joshua Reid</strong>, developer of
+                <a href="https://github.com/JoshuaR06/plural-synthetic">plural-synthetic</a>
+                and associated with Lighthouse DID Hub, for his work on the generator and his contributions to our technical discussions.
+            </p>
+            <p>
+                His proposal for Example 012 helped us discover limitations in our architectural approach and encouraged a more general representation of plural structures.
+            </p>
+            <p>
+                PluralBridge is developed by Needs of the Many. We value collaboration with other developers and projects working to improve software for plural communities, including Lighthouse DID Hub.
+            </p>
+            <p>
+                The original generator and the PluralBridge fork remain available for developers interested in examining the work or contributing improvements.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>Repositories and further information</h2>
+            <p>
+                The original generator and the PluralBridge-related fork are available on GitHub.
+            </p>
+            <div class="actions">
+                <a class="button primary" href="https://github.com/JoshuaR06/plural-synthetic">Joshua's plural-synthetic repository</a>
+                <a class="button" href="https://github.com/needsofmany/plural-synthetic">Needs of the Many fork</a>
+                <a class="button" href="https://github.com/needsofmany/PluralBridge">PluralBridge source repository</a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <p>PluralBridge is an independent project by Needs of the Many.</p>
+            <p>PluralBridge is not affiliated with Simply Plural or Apparyllis.</p>
+        </div>
+    </footer>
+
+    <script src="privacy-banner.js"></script>
+    <script src="site-menu.js"></script>
+</body>
+</html>
