@@ -106,6 +106,7 @@ The stored procedure still returns only those three preview columns. The API der
 | `objectId` | Guid in that segment, accepted only by `Guid.TryParseExact` format `D`. |
 | `parentPathKey` | The path before the final `.`, or null for a single segment. A group whose parent segment is `system` is then attached to that occurrence's `15\|000000\|groups\|00000000-0000-0000-0000-000000000000` row when that exact row is present. |
 | `header` | True only when the last segment is that Groups header. |
+| `anchorName` | Stored name for a `system`, `group`, or `place` row: `pb_systems.SystemName`, `pb_groups.GroupName`, or `pb_places.PlaceName`, matched by that row's `objectType` and `objectId`. The lookup runs only after the procedure reader is closed and only for distinct anchor ids already in the mapped response. Repeated occurrences share one stored name. The value is null for members, synthetic headers, missing rows, and a null `SystemName`. `nodeLabel` is unchanged, including any edge-label suffix. |
 
 A path that does not match this encoding keeps `section`, `treeLine`, and `pathKey`, with null identity and `header` false. `pathKey` remains the opaque occurrence key. The browser matches `parentPathKey` to it and does not split it. Repeated occurrences stay separate rows. The local database binding remains unresolved and must produce this same HTTP shape.
 

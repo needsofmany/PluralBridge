@@ -1339,7 +1339,8 @@ function getMemberDescription(member) {
     return member && member.description ? member.description : "No description available.";
 }
 
-function createMemberAccordion(member) {
+function createMemberAccordion(member, options) {
+    const allowProfileEditing = !options || options.allowProfileEditing !== false;
     function hashStringToInt(value) {
         let hash = 0;
 
@@ -1448,7 +1449,9 @@ function createMemberAccordion(member) {
     }
 
     function updateSummaryPreview() {
-        name.textContent = getProfileDisplayText("displayName");
+        name.textContent = allowProfileEditing
+            ? getProfileDisplayText("displayName")
+            : (draftValues.displayName || "");
         pronouns.textContent = draftValues.pronouns || "";
     }
 
@@ -1459,7 +1462,9 @@ function createMemberAccordion(member) {
             return;
         }
 
-        rowInfo.value.textContent = getProfileDisplayText(fieldName);
+        rowInfo.value.textContent = allowProfileEditing
+            ? getProfileDisplayText(fieldName)
+            : (draftValues[fieldName] || "");
         rowInfo.value.dataset.draftValue = draftValues[fieldName] || "";
     }
 
@@ -1594,7 +1599,9 @@ function createMemberAccordion(member) {
         value.dataset.memberProfileValue = fieldName;
         value.dataset.persistedValue = rawValue || "";
         value.dataset.draftValue = rawValue || "";
-        value.textContent = rawValue || getProfilePlaceholder(fieldName);
+        value.textContent = allowProfileEditing
+            ? (rawValue || getProfilePlaceholder(fieldName))
+            : (rawValue || "");
 
         if (isLongText) {
             value.classList.add("member-profile-field-value-long");
@@ -1615,7 +1622,9 @@ function createMemberAccordion(member) {
 
         row.appendChild(label);
         row.appendChild(value);
-        row.appendChild(editButton);
+        if (allowProfileEditing) {
+            row.appendChild(editButton);
+        }
 
         fieldRows[fieldName] = {
             row: row,
@@ -1924,7 +1933,9 @@ function createMemberAccordion(member) {
 
     const name = document.createElement("span");
     name.className = "member-name";
-    name.textContent = getProfileDisplayText("displayName");
+    name.textContent = allowProfileEditing
+        ? getProfileDisplayText("displayName")
+        : (draftValues.displayName || "");
 
     const pronouns = document.createElement("span");
     pronouns.className = "member-pronouns";
@@ -2000,8 +2011,10 @@ function createMemberAccordion(member) {
     const profileActions = document.createElement("div");
     profileActions.className = "member-profile-action-row";
 
-    const saveButton = createProfileSaveButton();
-    profileActions.appendChild(saveButton);
+    const saveButton = allowProfileEditing ? createProfileSaveButton() : null;
+    if (saveButton) {
+        profileActions.appendChild(saveButton);
+    }
 
     const profileStatus = document.createElement("p");
     profileStatus.className = "member-form-status";
@@ -2048,7 +2061,9 @@ function createMemberAccordion(member) {
 
     profilePanel.appendChild(profileHeading);
     profilePanel.appendChild(profileFields);
-    profilePanel.appendChild(profileActions);
+    if (allowProfileEditing) {
+        profilePanel.appendChild(profileActions);
+    }
     profilePanel.appendChild(profileStatus);
     profilePanel.appendChild(guardDialog);
 
@@ -2091,6 +2106,9 @@ function createMemberAccordion(member) {
 
     return cardDetails;
 }
+
+window.PluralBridge = window.PluralBridge || {};
+window.PluralBridge.createMemberAccordion = createMemberAccordion;
 
 function getMembersUiState() {
     window.PluralBridge = window.PluralBridge || {};

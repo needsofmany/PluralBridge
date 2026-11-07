@@ -337,6 +337,50 @@ public sealed class PluralMapEndpointTests
 	}
 
 	[Fact]
+	public void ApplyAnchorNames_UsesStoredNamesAndKeepsPreviewOrder()
+	{
+		var systemId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var repeatedSystemId = systemId;
+		var groupId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+		var placeId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+		var memberId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		var unnamedSystemId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+		var rows = new[]
+		{
+			NamedPreview("system", systemId, "30|000001|system|" + systemId.ToString("D"), "System: Harbor (partner)", null, false),
+			NamedPreview("member", memberId, "10|000001|member|" + memberId.ToString("D"), "Member: Ada", null, false),
+			NamedPreview("groups", Guid.Empty, "15|000000|groups|00000000-0000-0000-0000-000000000000", "Groups", "parent", true),
+			NamedPreview("group", groupId, "20|002001|group|" + groupId.ToString("D"), "Group: Dancers (east)", "parent", false),
+			NamedPreview("place", placeId, "40|000001|place|" + placeId.ToString("D"), "Place: Shore (north)", null, false),
+			NamedPreview("system", repeatedSystemId, "30|000002|system|" + repeatedSystemId.ToString("D"), "Child System: Harbor (partner)", null, false),
+			NamedPreview("system", unnamedSystemId, "30|000003|system|" + unnamedSystemId.ToString("D"), "System: (missing system)", null, false)
+		};
+
+		var names = new Dictionary<PluralMapReader.AnchorNameKey, string?>
+		{
+			[new PluralMapReader.AnchorNameKey("system", systemId)] = "Harbor (west)",
+			[new PluralMapReader.AnchorNameKey("group", groupId)] = "Dancers (east)",
+			[new PluralMapReader.AnchorNameKey("place", placeId)] = "Shore (north)",
+			[new PluralMapReader.AnchorNameKey("system", unnamedSystemId)] = null,
+			[new PluralMapReader.AnchorNameKey("group", systemId)] = "Not the system name"
+		};
+
+		var named = PluralMapReader.ApplyAnchorNames(rows, names);
+
+		Assert.Equal(rows.Select(row => row.PathKey), named.Select(row => row.PathKey));
+		Assert.Equal(rows.Select(row => row.NodeLabel), named.Select(row => row.NodeLabel));
+		Assert.Equal(rows.Select(row => row.TreeLine), named.Select(row => row.TreeLine));
+		Assert.Equal(rows.Select(row => row.Section), named.Select(row => row.Section));
+		Assert.Equal(rows.Select(row => row.ObjectType), named.Select(row => row.ObjectType));
+		Assert.Equal(rows.Select(row => row.ObjectId), named.Select(row => row.ObjectId));
+		Assert.Equal(rows.Select(row => row.ParentPathKey), named.Select(row => row.ParentPathKey));
+		Assert.Equal(rows.Select(row => row.Header), named.Select(row => row.Header));
+		Assert.Equal(
+			["Harbor (west)", null, null, "Dancers (east)", "Shore (north)", "Harbor (west)", null],
+			named.Select(row => row.AnchorName));
+	}
+
+	[Fact]
 	public void Map_RejectsMismatchedAccountId()
 	{
 		var sets = CreateResultSets(Guid.NewGuid(), [], [], []);
@@ -567,6 +611,26 @@ public sealed class PluralMapEndpointTests
 		};
 	}
 
+	private static PluralMapPreviewRow NamedPreview(
+		string objectType,
+		Guid objectId,
+		string pathKey,
+		string nodeLabel,
+		string? parentPathKey,
+		bool header)
+	{
+		return new PluralMapPreviewRow(
+			"HierarchyPreview",
+			nodeLabel,
+			pathKey,
+			nodeLabel,
+			objectType,
+			objectId,
+			parentPathKey,
+			header,
+			null);
+	}
+
 	private static PluralMapPreviewRow Preview(string treeLine, string pathKey)
 	{
 		return new PluralMapPreviewRow(
@@ -577,7 +641,8 @@ public sealed class PluralMapEndpointTests
 			null,
 			null,
 			null,
-			false);
+			false,
+			null);
 	}
 
 	private static PluralMapRawColumn Column(string name, string sqlTypeName = "nvarchar")

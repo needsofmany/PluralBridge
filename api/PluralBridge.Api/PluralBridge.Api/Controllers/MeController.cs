@@ -213,9 +213,13 @@ public sealed class MeController(
 			};
 			command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = account.Email;
 
-			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-			var resultSets = await PluralMapReader.ReadAllAsync(reader, cancellationToken);
-			var map = PluralMapReader.Map(resultSets, account.AccountId);
+			PluralMapResponse? map;
+			await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+			{
+				var resultSets = await PluralMapReader.ReadAllAsync(reader, cancellationToken);
+				map = PluralMapReader.Map(resultSets, account.AccountId);
+			}
+
 			if (map is null)
 			{
 				requestTrace.LogStage(
@@ -225,6 +229,15 @@ public sealed class MeController(
 
 				return PluralMapProblem();
 			}
+
+			var anchorNames = await PluralMapReader.ReadAnchorNamesAsync(
+				connection,
+				map.HierarchyPreview,
+				cancellationToken);
+			map = map with
+			{
+				HierarchyPreview = PluralMapReader.ApplyAnchorNames(map.HierarchyPreview, anchorNames)
+			};
 
 			requestTrace.LogStage(
 				logger,
@@ -249,6 +262,168 @@ public sealed class MeController(
 		return Problem(
 			title: Globals.requestFailed,
 			detail: "The plural map could not be read.",
+			statusCode: StatusCodes.Status500InternalServerError);
+	}
+
+	private const string AnchorMemberProfilesEndpoint = "/api/me/anchor-member-profiles";
+
+	[HttpGet("anchor-member-profiles")]
+	public async Task<IActionResult> GetAnchorMemberProfiles(
+		[FromQuery] string? objectType,
+		[FromQuery] string? anchorName,
+		CancellationToken cancellationToken)
+	{
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+				? correlationId.ToString()
+				: null);
+
+		if (string.IsNullOrWhiteSpace(objectType) || string.IsNullOrWhiteSpace(anchorName))
+		{
+			return AnchorProfileBadRequest("Anchor object type and anchor name are required.");
+		}
+
+		if (objectType is not ("system" or "group" or "place"))
+		{
+			return AnchorProfileBadRequest("Anchor object type must be system, group, or place.");
+		}
+
+		if (anchorName.Length > 510)
+		{
+			return AnchorProfileBadRequest("Anchor name must be 510 characters or fewer.");
+		}
+
+		try
+		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using SqlConnection connection = new(connectionString);
+			await connection.OpenAsync(cancellationToken);
+
+			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
+			if (account is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint = AnchorMemberProfilesEndpoint,
+					canWrite = false,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			await using var command = new SqlCommand(
+				"dbo.pb_get_anchor_member_profiles_by_email",
+				connection)
+			{
+				CommandType = CommandType.StoredProcedure
+			};
+			command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = account.Email;
+			command.Parameters.Add("@AnchorObjectType", SqlDbType.NVarChar, 64).Value = objectType;
+			command.Parameters.Add("@AnchorName", SqlDbType.NVarChar, 510).Value = anchorName;
+
+			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			var profiles = await AnchorMemberProfileReader.ReadAsync(reader, cancellationToken);
+			if (profiles is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return AnchorProfileProblem();
+			}
+
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.endpoint),
+				nameof(LogStageParts.completed));
+
+			return Ok(profiles);
+		}
+		catch (SqlException exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
+			return MapAnchorProfileProcedureError(exception.Number);
+		}
+		catch (Exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
+			return AnchorProfileProblem();
+		}
+	}
+
+	private IActionResult MapAnchorProfileProcedureError(int errorNumber)
+	{
+		return errorNumber switch
+		{
+			50001 => AnchorProfileBadRequest("Anchor object type and anchor name are required."),
+			50002 => AnchorProfileBadRequest("Anchor object type must be system, group, or place."),
+			50004 => AnchorProfileNotFound(),
+			50005 => AnchorProfileBadRequest("More than one anchor matches that type and name."),
+			50006 => Forbid(),
+			50007 => AnchorProfileBadRequest("More than one access membership matches this anchor."),
+			50008 => Forbid(),
+			_ => AnchorProfileProblem()
+		};
+	}
+
+	private BadRequestObjectResult AnchorProfileBadRequest(string error)
+	{
+		return BadRequest(new
+		{
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = AnchorMemberProfilesEndpoint,
+			canWrite = false,
+			error
+		});
+	}
+
+	private NotFoundObjectResult AnchorProfileNotFound()
+	{
+		return NotFound(new
+		{
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = AnchorMemberProfilesEndpoint,
+			canWrite = false,
+			error = "The requested anchor was not found."
+		});
+	}
+
+	private ObjectResult AnchorProfileProblem()
+	{
+		return Problem(
+			title: Globals.requestFailed,
+			detail: "The anchor member profiles could not be read.",
 			statusCode: StatusCodes.Status500InternalServerError);
 	}
 

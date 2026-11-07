@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System.Data;
+using System.Globalization;
 using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Controllers;
@@ -38,7 +40,8 @@ internal sealed record PluralMapPreviewRow(
 	string? ObjectType,
 	Guid? ObjectId,
 	string? ParentPathKey,
-	bool Header);
+	bool Header,
+	string? AnchorName);
 
 internal sealed class PluralMapRawResultSet
 {
@@ -241,6 +244,96 @@ internal static class PluralMapReader
 		return children;
 	}
 
+	internal readonly record struct AnchorNameKey(string ObjectType, Guid ObjectId);
+
+	internal static IReadOnlyList<PluralMapPreviewRow> ApplyAnchorNames(
+		IReadOnlyList<PluralMapPreviewRow> rows,
+		IReadOnlyDictionary<AnchorNameKey, string?> names)
+	{
+		var named = new List<PluralMapPreviewRow>(rows.Count);
+		foreach (var row in rows)
+		{
+			if (row.ObjectId is Guid objectId
+				&& IsAnchorType(row.ObjectType)
+				&& row.ObjectType is string objectType
+				&& names.TryGetValue(new AnchorNameKey(objectType, objectId), out var anchorName))
+			{
+				named.Add(row with { AnchorName = anchorName });
+				continue;
+			}
+
+			named.Add(row with { AnchorName = null });
+		}
+
+		return named;
+	}
+
+	internal static async Task<IReadOnlyDictionary<AnchorNameKey, string?>> ReadAnchorNamesAsync(
+		SqlConnection connection,
+		IReadOnlyList<PluralMapPreviewRow> rows,
+		CancellationToken cancellationToken)
+	{
+		var names = new Dictionary<AnchorNameKey, string?>();
+		await ReadAnchorNameBatchAsync(connection, rows, "system", names, cancellationToken);
+		await ReadAnchorNameBatchAsync(connection, rows, "group", names, cancellationToken);
+		await ReadAnchorNameBatchAsync(connection, rows, "place", names, cancellationToken);
+		return names;
+	}
+
+	private static async Task ReadAnchorNameBatchAsync(
+		SqlConnection connection,
+		IReadOnlyList<PluralMapPreviewRow> rows,
+		string objectType,
+		Dictionary<AnchorNameKey, string?> names,
+		CancellationToken cancellationToken)
+	{
+		var ids = rows
+			.Where(row => string.Equals(row.ObjectType, objectType, StringComparison.Ordinal) && row.ObjectId is Guid)
+			.Select(row => row.ObjectId!.Value)
+			.Distinct()
+			.ToArray();
+
+		if (ids.Length == 0)
+		{
+			return;
+		}
+
+		var (tableName, idColumn, nameColumn) = objectType switch
+		{
+			"system" => ("dbo.pb_systems", "SystemId", "SystemName"),
+			"group" => ("dbo.pb_groups", "GroupId", "GroupName"),
+			"place" => ("dbo.pb_places", "PlaceId", "PlaceName"),
+			_ => throw new ArgumentOutOfRangeException(nameof(objectType))
+		};
+
+		const int batchSize = 500;
+		for (var offset = 0; offset < ids.Length; offset += batchSize)
+		{
+			var count = Math.Min(batchSize, ids.Length - offset);
+			await using var command = connection.CreateCommand();
+			var parameterNames = new string[count];
+			for (var index = 0; index < count; index++)
+			{
+				var parameterName = "@id" + index.ToString(CultureInfo.InvariantCulture);
+				parameterNames[index] = parameterName;
+				var parameter = command.Parameters.Add(parameterName, SqlDbType.UniqueIdentifier);
+				parameter.Value = ids[offset + index];
+			}
+
+			command.CommandText =
+				"SELECT " + idColumn + ", " + nameColumn +
+				" FROM " + tableName +
+				" WHERE " + idColumn + " IN (" + string.Join(", ", parameterNames) + ")";
+
+			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			while (await reader.ReadAsync(cancellationToken))
+			{
+				names[new AnchorNameKey(objectType, reader.GetGuid(0))] =
+					reader.IsDBNull(1) ? null : reader.GetString(1);
+			}
+		}
+	}
+
 	private static bool ColumnsMatch(
 		PluralMapRawResultSet resultSet,
 		IReadOnlyList<PluralMapRawColumn> expected)
@@ -339,7 +432,8 @@ internal static class PluralMapReader
 				null,
 				null,
 				null,
-				false);
+				false,
+				null);
 			return true;
 		}
 

@@ -19,7 +19,8 @@ window.PluralBridge.apiClient = (function () {
             headers: Object.assign({
                 Accept: "application/json"
             }, headers),
-            body: requestOptions.body
+            body: requestOptions.body,
+            signal: requestOptions.signal
         });
 
         const responseText = await response.text();
@@ -78,6 +79,16 @@ window.PluralBridge.apiClient = (function () {
         });
     }
 
+    async function readAnchorMemberProfiles(objectType, anchorName, signal) {
+        const query = new URLSearchParams();
+        query.set("objectType", objectType);
+        query.set("anchorName", anchorName);
+
+        return await fetchJson("/api/me/anchor-member-profiles?" + query.toString(), {
+            signal: signal
+        });
+    }
+
     async function editMember(memberId, memberRequest) {
         const systemId = await getCurrentSystemId();
 
@@ -98,6 +109,7 @@ window.PluralBridge.apiClient = (function () {
     client.getCurrentSystemId = getCurrentSystemId;
     client.setCurrentSystemId = setCurrentSystemId;
     client.readMembers = readMembers;
+    client.readAnchorMemberProfiles = readAnchorMemberProfiles;
     client.addMember = addMember;
     client.editMember = editMember;
 

@@ -72,6 +72,13 @@
 	overflow: visible;
 }
 
+.application-content:has(.member-workspace) {
+	width: 100%;
+	max-width: none;
+	margin-right: 0;
+	margin-left: 0;
+}
+
 .member-list {
 	display: flex;
 	flex-direction: column;
@@ -99,8 +106,9 @@
 }
 
 .member-systems-panel {
-	width: min(22rem, calc(100% - 1rem));
-	max-width: 100%;
+	flex: 0 0 min(22rem, 100%);
+	width: min(22rem, 100%);
+	max-width: 22rem;
 	max-height: 42rem;
 	overflow: auto;
 	margin: 0 0.5rem 0 0;
@@ -137,7 +145,9 @@
 	font-weight: 800;
 }
 
-.member-systems-pin-button {
+.member-systems-pin-button,
+.member-systems-pin-button[aria-pressed="true"],
+.member-systems-pin-button[aria-pressed="false"] {
 	width: 1.7rem;
 	height: 1.7rem;
 	padding: 0;
@@ -145,24 +155,31 @@
 	place-items: center;
 	border: 1px solid rgba(168, 199, 255, 0.25);
 	border-radius: 0.45rem;
-	color: #d8e1ed;
+	color: #edf4ff;
 	background: rgba(255, 255, 255, 0.06);
 }
 
 .member-systems-pin-button:hover,
-.member-systems-pin-button:focus-visible {
-	background: rgba(168, 199, 255, 0.16);
-	outline: none;
+.member-systems-pin-button:focus-visible,
+.member-systems-pin-button[aria-pressed="true"]:hover,
+.member-systems-pin-button[aria-pressed="true"]:focus-visible,
+.member-systems-pin-button[aria-pressed="false"]:hover,
+.member-systems-pin-button[aria-pressed="false"]:focus-visible {
+	color: #edf4ff;
+	background: rgba(168, 199, 255, 0.28);
+	outline: 2px solid #d6e4ff;
+	outline-offset: 2px;
 }
 
 .member-systems-pin-icon {
 	width: 0.9rem;
 	height: 0.9rem;
+	opacity: 1;
 }
 
 .member-systems-pin-icon.is-unpinned {
 	transform: scaleX(-1) rotate(-35deg);
-	opacity: 0.78;
+	opacity: 1;
 }
 
 .member-systems-tree {
@@ -574,6 +591,17 @@
 
 	.member-scroll-list .member-card {
 		margin-top: 0.28rem;
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.member-scroll-list .member-name,
+	.member-scroll-list .member-pronouns,
+	.member-scroll-list .member-profile-field-value,
+	.member-scroll-list .member-json {
+		min-width: 0;
+		max-width: 100%;
+		overflow-wrap: anywhere;
 	}
 
 		.member-scroll-list .member-card:first-child {
