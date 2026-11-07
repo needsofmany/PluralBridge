@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PluralBridge Working DB Schema Format (Observed) — PluralBridge Documentation</title>
+  <meta name="description" content="PluralBridge Working DB Schema Format (Observed). PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="pluralbridge-working-db-schema-format-observed">PluralBridge Working DB Schema Format (Observed)</h1>
+<h2 id="scope">Scope</h2>
+<p>This documents the working SQL schema for:</p>
+<ul>
+<li><code>PluralBridgeChap2SafeSpine</code>
+</li>
+</ul>
+<p>Source snapshot came from the exported schema script you provided (<code>script.sql</code>).</p>
+<h2 id="record-tree-key">Record Tree Key</h2>
+<ul>
+<li>🟢 <strong>Core table</strong>: primary domain table.
+</li>
+<li>🟠 <strong>Link/join table</strong>: relationship/association table.
+</li>
+<li>🟡 <strong>Constraint note</strong>: table participates in an important policy/model caveat.
+</li>
+</ul>
+<h2 id="schema-tree">Schema Tree</h2>
+<pre><code class="language-text">PluralBridgeChap2SafeSpine
+├─ Account + Auth
+│  ├─ 🟢 pb_accounts
+│  ├─ 🟢 pb_account_statuses
+│  ├─ 🟢 pb_account_credentials
+│  ├─ 🟢 pb_account_codes
+│  ├─ 🟢 pb_account_code_delivery_outbox
+│  └─ 🟢 pb_account_audit_events
+├─ System + Membership + Roles
+│  ├─ 🟢 pb_systems
+│  ├─ 🟢 pb_system_memberships
+│  ├─ 🟢 pb_system_membership_statuses
+│  ├─ 🟢 pb_roles
+│  ├─ 🟠 pb_system_membership_roles
+│  └─ 🟡 pb_system_relationships (single-root index conflict with multi-root goal)
+├─ Member + Fronting + Privacy
+│  ├─ 🟢 pb_members
+│  ├─ 🟢 pb_front_history
+│  ├─ 🟢 pb_custom_fields
+│  ├─ 🟢 pb_privacy_buckets
+│  ├─ 🟢 pb_visibility_scopes
+│  └─ 🟠 pb_visibility_scope_members
+├─ Groups
+│  ├─ 🟢 pb_groups
+│  └─ 🟠 pb_group_members
+├─ Import + Source Fidelity
+│  ├─ 🟢 pb_source_systems
+│  ├─ 🟢 pb_import_batches
+│  ├─ 🟢 pb_source_records
+│  └─ 🟠 pb_source_id_map
+└─ Member Write Audit
+   └─ 🟢 pb_member_write_audit</code></pre>
+<h2 id="table-types">Table Types</h2>
+<h3 id="pb-account-audit-events">[🟢] pb_account_audit_events</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>AccountAuditEventId</code></td>
+<td>uniqueidentifier</td>
+<td>Audit event identifier (PK).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Event timestamp.</td>
+</tr>
+<tr>
+<td><code>EventName</code></td>
+<td>nvarchar(100)</td>
+<td>Event name constrained by allowed values.</td>
+</tr>
+<tr>
+<td><code>Outcome</code></td>
+<td>nvarchar(30)</td>
+<td>Outcome code (<code>succeeded</code>, <code>rejected</code>, etc.).</td>
+</tr>
+<tr>
+<td><code>ReasonCode</code></td>
+<td>nvarchar(80)</td>
+<td>Reason code (<code>validation_failed</code>, etc.).</td>
+</tr>
+<tr>
+<td><code>ActorAccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Acting account (nullable FK).</td>
+</tr>
+<tr>
+<td><code>TargetAccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Target account (nullable FK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Related system (nullable).</td>
+</tr>
+<tr>
+<td><code>MembershipId</code></td>
+<td>uniqueidentifier</td>
+<td>Related membership (nullable).</td>
+</tr>
+<tr>
+<td><code>CorrelationId</code></td>
+<td>nvarchar(100)</td>
+<td>Correlation key for operation traceability.</td>
+</tr>
+<tr>
+<td><code>Source</code></td>
+<td>nvarchar(30)</td>
+<td>Source channel (<code>api</code>, <code>browser</code>, etc.).</td>
+</tr>
+<tr>
+<td><code>SafeSubject</code></td>
+<td>nvarchar(100)</td>
+<td>Safe subject label.</td>
+</tr>
+<tr>
+<td><code>SafeDetailJson</code></td>
+<td>nvarchar(max)</td>
+<td>Safe JSON detail payload (JSON constrained).</td>
+</tr>
+<tr>
+<td><code>SchemaVersion</code></td>
+<td>int</td>
+<td>Audit schema version (currently fixed to 1).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-account-code-delivery-outbox">[🟢] pb_account_code_delivery_outbox</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>OutboxId</code></td>
+<td>uniqueidentifier</td>
+<td>Outbox row identifier (PK).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(7)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>AccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Account receiving code.</td>
+</tr>
+<tr>
+<td><code>CodePurpose</code></td>
+<td>nvarchar(100)</td>
+<td>Purpose (<code>registration_verification</code>, etc.).</td>
+</tr>
+<tr>
+<td><code>DestinationType</code></td>
+<td>nvarchar(50)</td>
+<td>Destination kind (email).</td>
+</tr>
+<tr>
+<td><code>DestinationNormalized</code></td>
+<td>nvarchar(320)</td>
+<td>Normalized destination value.</td>
+</tr>
+<tr>
+<td><code>PlaintextCode</code></td>
+<td>nvarchar(50)</td>
+<td>Test/development plaintext code.</td>
+</tr>
+<tr>
+<td><code>CorrelationId</code></td>
+<td>nvarchar(100)</td>
+<td>Correlation key.</td>
+</tr>
+<tr>
+<td><code>ConsumedForTestAtUtc</code></td>
+<td>datetime2(7)</td>
+<td>Marker for test consumption (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-account-codes">[🟢] pb_account_codes</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>AccountCodeId</code></td>
+<td>uniqueidentifier</td>
+<td>Account code identifier (PK).</td>
+</tr>
+<tr>
+<td><code>AccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Account reference (nullable FK).</td>
+</tr>
+<tr>
+<td><code>CodePurpose</code></td>
+<td>nvarchar(50)</td>
+<td>Code purpose (constrained set).</td>
+</tr>
+<tr>
+<td><code>DestinationType</code></td>
+<td>nvarchar(50)</td>
+<td>Destination type (email).</td>
+</tr>
+<tr>
+<td><code>DestinationNormalized</code></td>
+<td>nvarchar(320)</td>
+<td>Normalized destination value.</td>
+</tr>
+<tr>
+<td><code>CodeHash</code></td>
+<td>varbinary(256)</td>
+<td>Hashed code value.</td>
+</tr>
+<tr>
+<td><code>CodeHashAlgorithm</code></td>
+<td>nvarchar(50)</td>
+<td>Hash algorithm.</td>
+</tr>
+<tr>
+<td><code>CodeHashVersion</code></td>
+<td>int</td>
+<td>Hash version.</td>
+</tr>
+<tr>
+<td><code>ExpiresAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Code expiration timestamp.</td>
+</tr>
+<tr>
+<td><code>ConsumedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Consumption timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>AttemptCount</code></td>
+<td>int</td>
+<td>Attempt counter.</td>
+</tr>
+<tr>
+<td><code>MaxAttempts</code></td>
+<td>int</td>
+<td>Maximum allowed attempts.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>IssuedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Code issuance timestamp.</td>
+</tr>
+<tr>
+<td><code>LastAttemptAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last attempt timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>CorrelationId</code></td>
+<td>nvarchar(100)</td>
+<td>Correlation key.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-account-credentials">[🟢] pb_account_credentials</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>AccountCredentialId</code></td>
+<td>uniqueidentifier</td>
+<td>Credential row identifier (PK).</td>
+</tr>
+<tr>
+<td><code>AccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Account FK (unique index: one credential row per account).</td>
+</tr>
+<tr>
+<td><code>PasswordHash</code></td>
+<td>varbinary(256)</td>
+<td>Password hash bytes.</td>
+</tr>
+<tr>
+<td><code>PasswordHashAlgorithm</code></td>
+<td>nvarchar(50)</td>
+<td>Hash algorithm name.</td>
+</tr>
+<tr>
+<td><code>PasswordHashVersion</code></td>
+<td>int</td>
+<td>Hash version.</td>
+</tr>
+<tr>
+<td><code>PasswordChangedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Password change timestamp.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-account-statuses">[🟢] pb_account_statuses</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>AccountStatusId</code></td>
+<td>int</td>
+<td>Account status identifier (PK).</td>
+</tr>
+<tr>
+<td><code>StatusName</code></td>
+<td>nvarchar(64)</td>
+<td>Status name (unique).</td>
+</tr>
+<tr>
+<td><code>StatusDesc</code></td>
+<td>nvarchar(500)</td>
+<td>Status description.</td>
+</tr>
+<tr>
+<td><code>DisplayOrder</code></td>
+<td>int</td>
+<td>Display/order rank (positive).</td>
+</tr>
+<tr>
+<td><code>IsActive</code></td>
+<td>bit</td>
+<td>Whether status is active.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-accounts">[🟢] pb_accounts</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>AccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Account identifier (PK).</td>
+</tr>
+<tr>
+<td><code>Email</code></td>
+<td>nvarchar(320)</td>
+<td>Account email (unique, non-blank).</td>
+</tr>
+<tr>
+<td><code>DisplayName</code></td>
+<td>nvarchar(255)</td>
+<td>Account display name (nullable).</td>
+</tr>
+<tr>
+<td><code>AccountStatusId</code></td>
+<td>int</td>
+<td>Account status FK.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>Username</code></td>
+<td>nvarchar(100)</td>
+<td>Username (nullable).</td>
+</tr>
+<tr>
+<td><code>NormalizedUsername</code></td>
+<td>nvarchar(100)</td>
+<td>Normalized username (nullable, unique filtered).</td>
+</tr>
+<tr>
+<td><code>NormalizedEmail</code></td>
+<td>nvarchar(320)</td>
+<td>Normalized email (nullable, unique filtered).</td>
+</tr>
+<tr>
+<td><code>IsEmailVerified</code></td>
+<td>bit</td>
+<td>Email verification state.</td>
+</tr>
+<tr>
+<td><code>LastLoginAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last login timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-custom-fields">[🟢] pb_custom_fields</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>CustomFieldId</code></td>
+<td>uniqueidentifier</td>
+<td>Custom field identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Owning system FK.</td>
+</tr>
+<tr>
+<td><code>FieldName</code></td>
+<td>nvarchar(510)</td>
+<td>Field display name.</td>
+</tr>
+<tr>
+<td><code>Description</code></td>
+<td>nvarchar(max)</td>
+<td>Field description (nullable).</td>
+</tr>
+<tr>
+<td><code>FieldTypeCode</code></td>
+<td>int</td>
+<td>Field type code (nullable).</td>
+</tr>
+<tr>
+<td><code>DisplayOrderText</code></td>
+<td>nvarchar(128)</td>
+<td>Source/order text (nullable).</td>
+</tr>
+<tr>
+<td><code>SupportsMarkdown</code></td>
+<td>bit</td>
+<td>Markdown support flag (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import timestamp.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-front-history">[🟢] pb_front_history</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>FrontHistoryId</code></td>
+<td>uniqueidentifier</td>
+<td>Front history row identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Owning system FK.</td>
+</tr>
+<tr>
+<td><code>MemberId</code></td>
+<td>uniqueidentifier</td>
+<td>Member FK.</td>
+</tr>
+<tr>
+<td><code>StartTimeMs</code></td>
+<td>bigint</td>
+<td>Start timestamp (ms).</td>
+</tr>
+<tr>
+<td><code>EndTimeMs</code></td>
+<td>bigint</td>
+<td>End timestamp (ms, nullable).</td>
+</tr>
+<tr>
+<td><code>IsLive</code></td>
+<td>bit</td>
+<td>Live/active flag (nullable).</td>
+</tr>
+<tr>
+<td><code>IsCustom</code></td>
+<td>bit</td>
+<td>Custom front flag (nullable).</td>
+</tr>
+<tr>
+<td><code>CustomStatus</code></td>
+<td>nvarchar(510)</td>
+<td>Custom front status text (nullable).</td>
+</tr>
+<tr>
+<td><code>LastOperationTimeMs</code></td>
+<td>bigint</td>
+<td>Source operation timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import timestamp.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-group-members">[🟠] pb_group_members</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>GroupMemberId</code></td>
+<td>uniqueidentifier</td>
+<td>Group-member link identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Owning system FK.</td>
+</tr>
+<tr>
+<td><code>GroupId</code></td>
+<td>uniqueidentifier</td>
+<td>Group FK.</td>
+</tr>
+<tr>
+<td><code>MemberId</code></td>
+<td>uniqueidentifier</td>
+<td>Member FK.</td>
+</tr>
+<tr>
+<td><code>SourceGroupId</code></td>
+<td>nvarchar(128)</td>
+<td>Source group identifier (nullable).</td>
+</tr>
+<tr>
+<td><code>SourceMemberId</code></td>
+<td>nvarchar(128)</td>
+<td>Source member identifier (nullable).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Link creation timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-groups">[🟢] pb_groups</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>GroupId</code></td>
+<td>uniqueidentifier</td>
+<td>Group identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Owning system FK.</td>
+</tr>
+<tr>
+<td><code>SourceGroupId</code></td>
+<td>nvarchar(128)</td>
+<td>Source group identifier (nullable).</td>
+</tr>
+<tr>
+<td><code>ParentGroupId</code></td>
+<td>uniqueidentifier</td>
+<td>Parent group FK (nullable).</td>
+</tr>
+<tr>
+<td><code>ParentSourceGroupId</code></td>
+<td>nvarchar(128)</td>
+<td>Parent source group id (nullable).</td>
+</tr>
+<tr>
+<td><code>GroupName</code></td>
+<td>nvarchar(200)</td>
+<td>Group display name.</td>
+</tr>
+<tr>
+<td><code>GroupColor</code></td>
+<td>nvarchar(32)</td>
+<td>Group color (nullable).</td>
+</tr>
+<tr>
+<td><code>GroupDesc</code></td>
+<td>nvarchar(max)</td>
+<td>Group description (nullable).</td>
+</tr>
+<tr>
+<td><code>GroupEmoji</code></td>
+<td>nvarchar(64)</td>
+<td>Group emoji (nullable).</td>
+</tr>
+<tr>
+<td><code>SupportsDescMarkdown</code></td>
+<td>bit</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>SourceExists</code></td>
+<td>bit</td>
+<td>Source-existence marker.</td>
+</tr>
+<tr>
+<td><code>LastOperationTimeUnixMs</code></td>
+<td>bigint</td>
+<td>Source operation timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>LastOperationAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Source operation timestamp UTC (nullable).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-import-batches">[🟢] pb_import_batches</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>ImportBatchId</code></td>
+<td>uniqueidentifier</td>
+<td>Import batch identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SourceSystemCode</code></td>
+<td>nvarchar(64)</td>
+<td>Source system code FK.</td>
+</tr>
+<tr>
+<td><code>ImportStartedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import start timestamp.</td>
+</tr>
+<tr>
+<td><code>ImportCompletedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import completion timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportToolName</code></td>
+<td>nvarchar(510)</td>
+<td>Import tool name (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportToolVersion</code></td>
+<td>nvarchar(128)</td>
+<td>Import tool version (nullable).</td>
+</tr>
+<tr>
+<td><code>SourceExportName</code></td>
+<td>nvarchar(1000)</td>
+<td>Source export name (nullable).</td>
+</tr>
+<tr>
+<td><code>SourceExportSha256</code></td>
+<td>varbinary(32)</td>
+<td>Source export hash (nullable).</td>
+</tr>
+<tr>
+<td><code>Notes</code></td>
+<td>nvarchar(max)</td>
+<td>Import notes (nullable).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-member-write-audit">[🟢] pb_member_write_audit</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>MemberWriteAuditId</code></td>
+<td>uniqueidentifier</td>
+<td>Member write audit row id (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>System FK.</td>
+</tr>
+<tr>
+<td><code>AccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Account FK.</td>
+</tr>
+<tr>
+<td><code>SystemMembershipId</code></td>
+<td>uniqueidentifier</td>
+<td>Membership FK (nullable).</td>
+</tr>
+<tr>
+<td><code>MemberId</code></td>
+<td>uniqueidentifier</td>
+<td>Member FK.</td>
+</tr>
+<tr>
+<td><code>Operation</code></td>
+<td>nvarchar(32)</td>
+<td>Operation (<code>member.add</code> or <code>member.edit</code>).</td>
+</tr>
+<tr>
+<td><code>RequestTraceId</code></td>
+<td>nvarchar(100)</td>
+<td>Request trace/correlation value (nullable).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(7)</td>
+<td>Audit timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-members">[🟢] pb_members</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>MemberId</code></td>
+<td>uniqueidentifier</td>
+<td>Member identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Owning system FK.</td>
+</tr>
+<tr>
+<td><code>DisplayName</code></td>
+<td>nvarchar(510)</td>
+<td>Member display name.</td>
+</tr>
+<tr>
+<td><code>Pronouns</code></td>
+<td>nvarchar(510)</td>
+<td>Pronouns text (nullable).</td>
+</tr>
+<tr>
+<td><code>Description</code></td>
+<td>nvarchar(max)</td>
+<td>Description text (nullable).</td>
+</tr>
+<tr>
+<td><code>Color</code></td>
+<td>nvarchar(64)</td>
+<td>Color value (nullable).</td>
+</tr>
+<tr>
+<td><code>IsArchived</code></td>
+<td>bit</td>
+<td>Archived flag (nullable).</td>
+</tr>
+<tr>
+<td><code>ArchivedReason</code></td>
+<td>nvarchar(max)</td>
+<td>Archive reason text (nullable).</td>
+</tr>
+<tr>
+<td><code>IsPrivate</code></td>
+<td>bit</td>
+<td>Private visibility flag (nullable).</td>
+</tr>
+<tr>
+<td><code>PreventTrusted</code></td>
+<td>bit</td>
+<td>Prevent trusted visibility flag (nullable).</td>
+</tr>
+<tr>
+<td><code>PreventsFrontNotifications</code></td>
+<td>bit</td>
+<td>Front notification suppression flag (nullable).</td>
+</tr>
+<tr>
+<td><code>ReceiveMessageBoardNotifications</code></td>
+<td>bit</td>
+<td>Message board notification flag (nullable).</td>
+</tr>
+<tr>
+<td><code>SupportsDescriptionMarkdown</code></td>
+<td>bit</td>
+<td>Markdown support flag (nullable).</td>
+</tr>
+<tr>
+<td><code>LastOperationTimeMs</code></td>
+<td>bigint</td>
+<td>Source operation timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import timestamp.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-privacy-buckets">[🟢] pb_privacy_buckets</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>PrivacyBucketId</code></td>
+<td>uniqueidentifier</td>
+<td>Privacy bucket identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Owning system FK.</td>
+</tr>
+<tr>
+<td><code>BucketName</code></td>
+<td>nvarchar(510)</td>
+<td>Bucket display name.</td>
+</tr>
+<tr>
+<td><code>Description</code></td>
+<td>nvarchar(max)</td>
+<td>Bucket description (nullable).</td>
+</tr>
+<tr>
+<td><code>Color</code></td>
+<td>nvarchar(64)</td>
+<td>Bucket color (nullable).</td>
+</tr>
+<tr>
+<td><code>Icon</code></td>
+<td>nvarchar(510)</td>
+<td>Bucket icon (nullable).</td>
+</tr>
+<tr>
+<td><code>RankText</code></td>
+<td>nvarchar(128)</td>
+<td>Source rank/order text (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import timestamp.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-roles">[🟢] pb_roles</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RoleId</code></td>
+<td>int</td>
+<td>Role identifier (PK).</td>
+</tr>
+<tr>
+<td><code>RoleName</code></td>
+<td>nvarchar(64)</td>
+<td>Role name (unique).</td>
+</tr>
+<tr>
+<td><code>RoleDesc</code></td>
+<td>nvarchar(500)</td>
+<td>Role description.</td>
+</tr>
+<tr>
+<td><code>DisplayOrder</code></td>
+<td>int</td>
+<td>Role display order (positive).</td>
+</tr>
+<tr>
+<td><code>IsActive</code></td>
+<td>bit</td>
+<td>Role active flag.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-source-id-map">[🟠] pb_source_id_map</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SourceIdMapId</code></td>
+<td>uniqueidentifier</td>
+<td>Mapping row identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SourceSystemCode</code></td>
+<td>nvarchar(64)</td>
+<td>Source system code FK.</td>
+</tr>
+<tr>
+<td><code>SourceEntityTypeCode</code></td>
+<td>nvarchar(128)</td>
+<td>Source entity type code.</td>
+</tr>
+<tr>
+<td><code>SourceId</code></td>
+<td>nvarchar(256)</td>
+<td>Source entity id.</td>
+</tr>
+<tr>
+<td><code>PluralBridgeEntityTypeCode</code></td>
+<td>nvarchar(128)</td>
+<td>PB entity type code.</td>
+</tr>
+<tr>
+<td><code>PluralBridgeId</code></td>
+<td>uniqueidentifier</td>
+<td>PB entity id.</td>
+</tr>
+<tr>
+<td><code>ImportBatchId</code></td>
+<td>uniqueidentifier</td>
+<td>Import batch FK.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Mapping creation timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-source-records">[🟢] pb_source_records</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SourceRecordId</code></td>
+<td>uniqueidentifier</td>
+<td>Source record identifier (PK).</td>
+</tr>
+<tr>
+<td><code>ImportBatchId</code></td>
+<td>uniqueidentifier</td>
+<td>Import batch FK.</td>
+</tr>
+<tr>
+<td><code>SourceSystemCode</code></td>
+<td>nvarchar(64)</td>
+<td>Source system code FK.</td>
+</tr>
+<tr>
+<td><code>SourceEntityTypeCode</code></td>
+<td>nvarchar(128)</td>
+<td>Source entity type code.</td>
+</tr>
+<tr>
+<td><code>SourceId</code></td>
+<td>nvarchar(256)</td>
+<td>Source record id (nullable).</td>
+</tr>
+<tr>
+<td><code>SourceEndpoint</code></td>
+<td>nvarchar(2000)</td>
+<td>Source endpoint/route (nullable).</td>
+</tr>
+<tr>
+<td><code>RawJson</code></td>
+<td>nvarchar(max)</td>
+<td>Raw source JSON payload (nullable).</td>
+</tr>
+<tr>
+<td><code>RawJsonSha256</code></td>
+<td>varbinary(32)</td>
+<td>Raw JSON hash (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-source-systems">[🟢] pb_source_systems</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SourceSystemCode</code></td>
+<td>nvarchar(64)</td>
+<td>Source system code (PK).</td>
+</tr>
+<tr>
+<td><code>DisplayName</code></td>
+<td>nvarchar(510)</td>
+<td>Source system display name.</td>
+</tr>
+<tr>
+<td><code>Description</code></td>
+<td>nvarchar(max)</td>
+<td>Source description (nullable).</td>
+</tr>
+<tr>
+<td><code>ApiBaseUrl</code></td>
+<td>nvarchar(2000)</td>
+<td>Source API base URL (nullable).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-system-membership-roles">[🟠] pb_system_membership_roles</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SystemMembershipId</code></td>
+<td>uniqueidentifier</td>
+<td>Membership FK (composite PK part).</td>
+</tr>
+<tr>
+<td><code>RoleId</code></td>
+<td>int</td>
+<td>Role FK (composite PK part).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Assignment timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-system-membership-statuses">[🟢] pb_system_membership_statuses</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>MembershipStatusId</code></td>
+<td>int</td>
+<td>Membership status identifier (PK).</td>
+</tr>
+<tr>
+<td><code>StatusName</code></td>
+<td>nvarchar(64)</td>
+<td>Status name (unique).</td>
+</tr>
+<tr>
+<td><code>StatusDesc</code></td>
+<td>nvarchar(500)</td>
+<td>Status description.</td>
+</tr>
+<tr>
+<td><code>DisplayOrder</code></td>
+<td>int</td>
+<td>Display/order rank (positive).</td>
+</tr>
+<tr>
+<td><code>IsActive</code></td>
+<td>bit</td>
+<td>Status active flag.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-system-memberships">[🟢] pb_system_memberships</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SystemMembershipId</code></td>
+<td>uniqueidentifier</td>
+<td>Membership identifier (PK).</td>
+</tr>
+<tr>
+<td><code>AccountId</code></td>
+<td>uniqueidentifier</td>
+<td>Account FK.</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>System FK.</td>
+</tr>
+<tr>
+<td><code>MembershipStatusId</code></td>
+<td>int</td>
+<td>Membership status FK.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-system-relationships">[🟡] pb_system_relationships</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SystemRelationshipId</code></td>
+<td>uniqueidentifier</td>
+<td>Relationship row identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Child/subject system FK (unique per system).</td>
+</tr>
+<tr>
+<td><code>ParentSystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Parent system FK (nullable).</td>
+</tr>
+<tr>
+<td><code>RelationshipRank</code></td>
+<td>int</td>
+<td>Relationship ordering rank (&gt;=1).</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp.</td>
+</tr>
+</tbody></table>
+<p>Constraint note:</p>
+<ul>
+<li>Filtered unique index <code>UX_pb_system_relationships_SingleRoot</code> on <code>ParentSystemId IS NULL</code> enforces only one root row at a time, conflicting with planned multi-root support.
+</li>
+</ul>
+<h3 id="pb-systems">[🟢] pb_systems</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>System identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemName</code></td>
+<td>nvarchar(510)</td>
+<td>System name (nullable).</td>
+</tr>
+<tr>
+<td><code>Description</code></td>
+<td>nvarchar(max)</td>
+<td>System description (nullable).</td>
+</tr>
+<tr>
+<td><code>Color</code></td>
+<td>nvarchar(64)</td>
+<td>System color (nullable).</td>
+</tr>
+<tr>
+<td><code>AvatarUrl</code></td>
+<td>nvarchar(2000)</td>
+<td>System avatar URL (nullable).</td>
+</tr>
+<tr>
+<td><code>AvatarUuid</code></td>
+<td>nvarchar(128)</td>
+<td>System avatar reference (nullable).</td>
+</tr>
+<tr>
+<td><code>SourceCreatedAtMs</code></td>
+<td>bigint</td>
+<td>Source creation timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>LastOperationTimeMs</code></td>
+<td>bigint</td>
+<td>Source operation timestamp (nullable).</td>
+</tr>
+<tr>
+<td><code>ImportedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Import timestamp.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(3)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h3 id="pb-visibility-scope-members">[🟠] pb_visibility_scope_members</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>VisibilityScopeMemberId</code></td>
+<td>uniqueidentifier</td>
+<td>Scope-member link identifier (PK).</td>
+</tr>
+<tr>
+<td><code>VisibilityScopeId</code></td>
+<td>uniqueidentifier</td>
+<td>Visibility scope FK.</td>
+</tr>
+<tr>
+<td><code>MemberId</code></td>
+<td>uniqueidentifier</td>
+<td>Member FK.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(7)</td>
+<td>Link creation timestamp.</td>
+</tr>
+</tbody></table>
+<h3 id="pb-visibility-scopes">[🟢] pb_visibility_scopes</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>VisibilityScopeId</code></td>
+<td>uniqueidentifier</td>
+<td>Visibility scope identifier (PK).</td>
+</tr>
+<tr>
+<td><code>SystemId</code></td>
+<td>uniqueidentifier</td>
+<td>Owning system FK.</td>
+</tr>
+<tr>
+<td><code>ScopeName</code></td>
+<td>nvarchar(100)</td>
+<td>Scope name (unique per system).</td>
+</tr>
+<tr>
+<td><code>ScopeDesc</code></td>
+<td>nvarchar(500)</td>
+<td>Scope description (nullable).</td>
+</tr>
+<tr>
+<td><code>IsSystemDefault</code></td>
+<td>bit</td>
+<td>System default scope flag.</td>
+</tr>
+<tr>
+<td><code>IsActive</code></td>
+<td>bit</td>
+<td>Scope active flag.</td>
+</tr>
+<tr>
+<td><code>CreatedAtUtc</code></td>
+<td>datetime2(7)</td>
+<td>Row creation timestamp.</td>
+</tr>
+<tr>
+<td><code>UpdatedAtUtc</code></td>
+<td>datetime2(7)</td>
+<td>Last update timestamp (nullable).</td>
+</tr>
+</tbody></table>
+<h2 id="notes">Notes</h2>
+<ul>
+<li>This file is a format reference, not a migration script.
+</li>
+<li>Use this with import/recovery docs and domain guardrails to avoid conflating source shape with authorization semantics.
+</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

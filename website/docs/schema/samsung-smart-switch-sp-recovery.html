@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simply Plural from a Samsung backup — importer roadmap — PluralBridge Documentation</title>
+  <meta name="description" content="Simply Plural from a Samsung backup — importer roadmap. PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="simply-plural-from-a-samsung-backup-importer-roadmap">Simply Plural from a Samsung backup — importer roadmap</h1>
+<p>When Simply Plural’s servers shut down on <strong>1 July 2026</strong>, anyone who had not already used <strong>Settings → Export</strong> was left without the supported export path. We set out to find out whether the data still stored locally on a user’s phone could be recovered.</p>
+<p>We found that it could. The phone still retained the same System data, including members, front history, and privacy information.</p>
+<p>We created this roadmap for developers who already support Simply Plural exports, as well as developers who want to add that capability to an app they are building. The goal is to provide another way to salvage user data after the Simply Plural shutdown.</p>
+<p>Our first successful recovery was from one <strong>personal</strong> Samsung Galaxy S24+. File counts and sizes in this document are <strong>example numbers from that one backup</strong>, not typical values and not a complete phone dump. Other devices and other Smart Switch selections will differ. Reuse the layout and file types; do not treat these quantities as a spec.</p>
+<p>We recognize that this represents only a subset of Android devices, but we hope much of the technical and architectural information we uncovered will also help with recovery work on other Android phones, including devices such as the Pixel.</p>
+<p>This is a living document. We are sharing it with the developer community in the hope that the work can benefit the larger Plural community.</p>
+<p>This recovery path is not a replacement for importing an official Simply Plural export. The official export format should remain the source of truth and the reference point for sanity-checking any alternate recovery method.</p>
+<p>In addition to this roadmap, we are providing the following schema documents:</p>
+<ul>
+<li><code>simply-plural-export-format.md</code> — official export JSON
+</li>
+<li><code>samsung-smart-switch-simply-db-format.md</code> — phone <code>simply.db</code> JSON
+</li>
+</ul>
+<p>---</p>
+<h2 id="why-this-path-exists">Why this path exists</h2>
+<p>Before shutdown, Apparyllis provided an official export as the supported method for retrieving Simply Plural data. After the service shut down, that export path was no longer available.</p>
+<p>The Android app (<code>com.saltypandastudios.frontime</code>, displayed as Simply Plural) nevertheless retained a local offline copy of System data.</p>
+<p>On a stock Samsung device, Android’s application sandbox prevents that private data from being retrieved with <code>adb pull</code>. Samsung Smart Switch provides another route because Simply Plural was configured with <code>allowBackup=true</code>.</p>
+<p>What we actually recovered from that backup:</p>
+<ul>
+<li><strong>System data</strong> — <code>simply.db</code>, which is JSON despite the name
+</li>
+</ul>
+<p>A product that already supports Simply Plural exports can reuse much of the same import pipeline for recovered data.</p>
+<p>The recovered <code>simply.db</code> can be normalized into the product’s existing internal model. Member records include avatar references (<code>avatarUuid</code> / <code>avatarUrl</code>). The app’s cached avatar files are not in this backup. <strong>In-app Settings → Export is a dead end</strong> after shutdown.</p>
+<p>Users who still have an official Simply Plural export should continue to use that as the preferred source.</p>
+<p>For users who do not have an export, the Smart Switch recovery path provides an alternative that has been confirmed on the Samsung Galaxy S24+.</p>
+<p>---</p>
+<h2 id="roadmap-if-you-are-adding-this-alongside-an-export-importer">Roadmap if you are adding this alongside an export importer</h2>
+<ol>
+<li><strong>Keep the export importer.</strong> Preserve the same contracts and the same tests. This recovery path is additive.</li>
+<li><strong>Accept a Smart Switch backup folder</strong> or a pre-extracted <code>simply.db</code>. If <code>.noedata</code> is plaintext, as it was in the case we proved, do not require the user to decrypt Samsung <code>.data</code>.</li>
+<li><strong>Parse <code>simply.db</code> as JSON with duplicate keys preserved.</strong> Standard <code>json.load</code> / <code>ConvertFrom-Json</code> will drop <code>Users</code> vs <code>users</code>, along with the other case-sensitive pairs. The sibling simply.db note contains the field map. Do not assume the file is SQLite.</li>
+<li><strong>Do not expect avatar image files in <code>simply.db</code>.</strong> Member records contain <code>avatarUuid</code> / <code>avatarUrl</code>. The Flutter cache index (<code>images.db</code>) may list URLs, but the <code>.bin</code> files are usually missing because Android omits <code>cache/</code> from backup. In-app Settings → Export is a dead end after shutdown.</li>
+<li><strong>Ship Samsung support first.</strong> This backup is selective EasyMover data, not a full-phone dump. iOS recovery using an unencrypted iTunes/Finder backup and non-Samsung Android recovery are separate work.</li>
+<li><strong>Never ingest secrets into product logs or a repository.</strong> <code>shared_prefs</code> can contain access and refresh keys. They are not required to read <code>simply.db</code>.</li>
+</ol>
+<p>If you only need to pull one backup apart by hand, the next section documents the extraction process we actually used.</p>
+<p>A production importer should automate this process rather than require every user to run Python manually.</p>
+<p>---</p>
+<h2 id="if-you-just-need-the-files-off-one-phone">If you just need the files off one phone</h2>
+<p>Leave the app installed. Do not clear its storage.</p>
+<p>Use Smart Switch to back up the Galaxy to a PC, and include <strong>Simply Plural</strong>.</p>
+<p>You are looking for the System data:</p>
+<table><thead><tr>
+<th>What</th>
+<th>Where</th>
+<th>What it actually is</th>
+</tr></thead><tbody>
+<tr>
+<td>Members, fronts, and the rest of the System</td>
+<td><code>.noedata</code> → <code>simply.db</code></td>
+<td>JSON</td>
+</tr>
+</tbody></table>
+<p>Cached avatar <code>.bin</code> files are not in this backup. In-app Settings → Export is a dead end after shutdown.</p>
+<p>This process requires no root access, no <code>adb</code> access into <code>/data/data</code>, no SQLCipher, and no server.</p>
+<h3 id="find-the-backup">Find the backup</h3>
+<p>The backup root is usually:</p>
+<p><code>...\Samsung\SmartSwitch\backup\&lt;model&gt;\&lt;session&gt;\&lt;timestamp&gt;\</code></p>
+<p>The file you want is:</p>
+<p><code>APKFILE\data\com.saltypandastudios.frontime\com.saltypandastudios.frontime.noedata</code></p>
+<p>Copy it. Leave the original untouched.</p>
+<h3 id="check-the-header">Check the header</h3>
+<p>The first four lines should be:</p>
+<pre><code class="language-text">ANDROID BACKUP
+5
+0
+none</code></pre>
+<p><code>none</code> means this file can be unpacked using the process described here.</p>
+<p>If the header says <code>AES-256</code>, you are looking at a different container. Stop there; this procedure does not apply to that file.</p>
+<h3 id="skip-the-first-24-bytes-treat-the-remainder-as-a-tar-archive-and-extract-simply-db">Skip the first 24 bytes, treat the remainder as a tar archive, and extract <code>simply.db</code></h3>
+<pre><code class="language-powershell">python -c &quot;from pathlib import Path; p=Path(r&#x27;C:\SP-Recovery\com.saltypandastudios.frontime.noedata&#x27;); Path(r&#x27;C:\SP-Recovery\simplyplural.tar&#x27;).write_bytes(p.read_bytes()[24:])&quot;
+tar -tf C:\SP-Recovery\simplyplural.tar
+tar -xf C:\SP-Recovery\simplyplural.tar -C C:\SP-Recovery apps/com.saltypandastudios.frontime/r/app_flutter/simply.db</code></pre>
+<p>You should now have:</p>
+<p><code>C:\SP-Recovery\apps\com.saltypandastudios.frontime\r\app_flutter\simply.db</code></p>
+<p>The file begins with:</p>
+<pre><code class="language-text">{&quot;private&quot;:{...</code></pre>
+<p>Keep the recovered file as-is.</p>
+<p>If you want a copy with a <code>.json</code> extension, copy the bytes directly:</p>
+<pre><code class="language-powershell">Copy-Item simply.db simply.json</code></pre>
+<p>Do not pretty-print the file through a normal JSON parser.</p>
+<h3 id="avatars">Avatars</h3>
+<p>This Smart Switch payload does not contain the app’s cached avatar files. Android does not back up <code>cache/</code>. <code>simply.db</code> and <code>images.db</code> may still contain URL or uuid references.</p>
+<p><strong>In-app Settings → Export is a dead end</strong> for this recovery: it is not available in the local app after shutdown.</p>
+<p>If avatars still render in the local member list, the image files are still on the phone in the app cache. They are not in the Smart Switch copy.</p>
+<p>The overall path looks like this:</p>
+<pre><code class="language-text">phone, with the app still installed
+  → Smart Switch
+  → .noedata
+  → simply.db JSON</code></pre>
+<p>---</p>
+<h2 id="what-smart-switch-puts-on-disk">What Smart Switch puts on disk</h2>
+<p>The tree and counts in this section are from <strong>one personal Galaxy S24+ backup</strong>. They are an example of what that transfer contained, not a template every importer should expect.</p>
+<p>This backup was a selection, not a complete phone backup.</p>
+<p>Samsung offered 226 packages on that device. The only app transferred in that sample was Simply Plural, identified as Frontime 1.11.5.</p>
+<h3 id="color-key">Color key</h3>
+<ul>
+<li><strong>Green</strong> — use this for import
+</li>
+<li><strong>Cyan</strong> — useful for matching; not the data itself
+</li>
+<li><strong>Orange</strong> — encrypted or opaque; skip for Simply Plural
+</li>
+<li><strong>Red</strong> — noise, failed, or missing
+</li>
+</ul>
+<h3 id="backup-tree">Backup tree</h3>
+<p>Counts in this tree are from that one personal S24+ sample.</p>
+<pre><code class="language-text">&lt;timestamp&gt;\
+├─ backupHistoryInfo.xml
+├─ ReqItemsInfo.json
+├─ SmartSwitchBackup.json            (same hash as *_back.json)
+├─ SmartSwitchBackup_back.json
+│
+├─ APKFILE\                          Simply Plural 1.11.5
+│  ├─ AppList.json / AppList.bk
+│  ├─ *.penc                         encrypted APK; you do not need it
+│  ├─ *.png, *_split_config.*.apk
+│  └─ data\com.saltypandastudios.frontime\
+│       └─ *.noedata                 ANDROID BACKUP / 5 / 0 / none
+│            tar data begins at byte 24
+│            apps/.../frontime\
+│            ├─ r/app_flutter\
+│            │  ├─ simply.db         JSON, ~117 KB; import this
+│            │  ├─ messages_*.db     JSON
+│            │  ├─ pendingRequests.db, logs.db, events.db
+│            ├─ f\images.db          SQLite URL index, no image blobs
+│            ├─ db\                  Google telemetry; ignore
+│            └─ sp\                  preferences / tokens; do not commit
+│
+└─ (other Smart Switch categories)   media / gallery / Samsung DBs; not SP; skip</code></pre>
+<p>Approximate size on disk <strong>for that personal S24+ sample</strong>:</p>
+<table><thead><tr>
+<th>Area</th>
+<th>Size</th>
+</tr></thead><tbody>
+<tr>
+<td>APKFILE</td>
+<td>~45 MB</td>
+</tr>
+<tr>
+<td>SECMP</td>
+<td>~56 MB</td>
+</tr>
+<tr>
+<td>MEDIASEARCH</td>
+<td>~19 MB</td>
+</tr>
+</tbody></table>
+<p>---</p>
+<h2 id="how-the-pieces-fit-together">How the pieces fit together</h2>
+<p>Smart Switch, also called EasyMover, creates one folder per backup category along with a collection of manifests.</p>
+<p>The XML is not always reliable about filenames and sizes. Trust the files on disk over what the metadata claims.</p>
+<h3 id="why-noedata-matters">Why <code>.noedata</code> matters</h3>
+<p>The application directory <code>/data/user/0/com.saltypandastudios.frontime/</code> is sandboxed.</p>
+<p>On Android 12 and later, <code>adb backup</code> produces only a stub for this app.</p>
+<p>Smart Switch, however, still created an Android Backup stream.</p>
+<p>Inside that backup, <code>r/</code> contains the remaining application tree, including Flutter’s <code>app_flutter</code> directory. That is where Apparyllis’s SDK writes <code>simply.db</code> using <code>jsonEncode</code>.</p>
+<p>That is why the useful System data appears as JSON under <code>r/app_flutter/</code> rather than as SQLite beneath <code>db/</code>.</p>
+<h3 id="the-other-db-files">The other <code>.db</code> files</h3>
+<p>The other <code>*.db</code> files alongside <code>simply.db</code> are JSON as well, including <code>pendingRequests</code>, <code>logs</code>, <code>events</code>, and <code>messages</code>.</p>
+<p><code>f/images.db</code> is the exception.</p>
+<p>That file is actual SQLite and belongs to Flutter Cache Manager. In this personal S24+ sample, its <code>cacheObject</code> table contains 57 rows, with most URLs pointing beneath <code>spaces.apparyllis.com/avatars/</code>.</p>
+<p>The actual cached image files are gone. Android does not back up <code>cache/</code>.</p>
+<h3 id="avatar-references">Avatar references</h3>
+<p>The combination of <code>uid</code> + <code>avatarUuid</code> previously corresponded to <code>spaces.apparyllis.com/avatars/&lt;uid&gt;/…</code>.</p>
+<p>That is a CDN path relationship in <code>simply.db</code> / <code>images.db</code>. Those URLs are dead after shutdown. Do not put full avatar URLs into Git.</p>
+<h3 id="the-rest-of-the-backup">The rest of the backup</h3>
+<p><code>*.penc</code> is the encrypted APK. The APK splits are ordinary zip files.</p>
+<p>Other Smart Switch categories (Samsung media DBs, gallery catalogs, denylists) are not Simply Plural. Skip them.</p>
+<p>---</p>
+<h2 id="details-that-can-cause-problems">Details that can cause problems</h2>
+<h3 id="official-export-vs-this-recovery-path">Official export vs this recovery path</h3>
+<p><strong>Dead end:</strong> in-app Settings → Export is not available in the local app after shutdown. Do not use it as an avatar-recovery step.</p>
+<p>If the user already has JSON matching <code>simply-plural-export-format.md</code> from an export made before shutdown, along with an avatar zip if that export included one, that remains the preferred import source. This guide applies specifically to phone → Smart Switch recovery of System JSON.</p>
+<h3 id="package-information">Package information</h3>
+<p>Package: <code>com.saltypandastudios.frontime</code></p>
+<p>This package has been used since approximately 2021.</p>
+<p>For the backup described here:</p>
+<ul>
+<li>Simply Plural / Frontime version: 1.11.5 / 384
+</li>
+<li>Source: Play Store
+</li>
+<li><code>AllowBackup</code>: true
+</li>
+<li>Android 16
+</li>
+<li>One UI 8
+</li>
+<li>Smart Switch 3.7.72.6 on the phone
+</li>
+</ul>
+<h3 id="noedata-vs-data"><code>.noedata</code> vs <code>.data</code></h3>
+<p>The file we successfully unpacked was plaintext <code>.noedata</code>.</p>
+<p>An earlier backup on the same PC reportedly included an AES-256 <code>.data</code> file alongside it.</p>
+<p>If the header says <code>AES-256</code>, do not skip 24 bytes and assume the same process will work.</p>
+<h3 id="adb-backup"><code>adb backup</code></h3>
+<p><code>adb backup</code> is the wrong tool for this recovery path.</p>
+<p>Smart Switch is what worked.</p>
+<h3 id="tokens">Tokens</h3>
+<p><code>FlutterSharedPreferences</code> / <code>FlutterSecureStorage</code> can contain <code>access_key</code>, <code>refresh_key</code>, <code>pkAPI</code>, and <code>uid</code>.</p>
+<p>You do not need these values to read <code>simply.db</code>.</p>
+<p>After shutdown, they may no longer work anyway.</p>
+<p>Do not commit them.</p>
+<h3 id="duplicate-keys">Duplicate keys</h3>
+<p>Duplicate keys in <code>simply.db</code> are real.</p>
+<p>Pretty-printing through a normal JSON parser can cause data loss.</p>
+<p>See the separate simply.db note for details.</p>
+<h3 id="not-in-this-tree">Not in this tree</h3>
+<p><code>com.apparyllis.simplyplural</code>, official export JSON, SMS/contacts, Chap2 SQL, cache <code>.bin</code> avatars, and iPhone.</p>
+<h3 id="keep-out-of-git">Keep out of git</h3>
+<p>The backup itself, signed URLs, personal filenames, member names, tokens, IMEI, accounts, and phone numbers.</p>
+<p>---</p>
+<p>Current location: private <code>Working\Architecture\schema\</code>. Public <code>docs/</code> was not changed. If this later becomes user-facing recovery docs, that is a separate migrate.</p>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>

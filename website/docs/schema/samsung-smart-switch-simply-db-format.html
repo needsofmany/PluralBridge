@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Samsung Smart Switch simply.db JSON Format (Observed) — PluralBridge Documentation</title>
+  <meta name="description" content="Samsung Smart Switch simply.db JSON Format (Observed). PluralBridge documentation published by Needs of the Many.">
+  <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/prism/prism.css">
+<link rel="stylesheet" href="/vendor/prism/pluralbridge-code-theme.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page">
+  <article class="card doc-page">
+<h1 id="samsung-smart-switch-simply-db-json-format-observed">Samsung Smart Switch simply.db JSON Format (Observed)</h1>
+<h2 id="scope">Scope</h2>
+<p>This documents the <strong>phone-recovered Simply Plural <code>simply.db</code> JSON</strong> shape observed from:</p>
+<ul>
+<li><code>samsung_smart_switch_simply_db.inferred.schema.json</code>
+</li>
+</ul>
+<p>This is a source-shape reference for recovery/import planning, not a PluralBridge ontology.</p>
+<h2 id="record-tree-key">Record Tree Key</h2>
+<ul>
+<li>🟢 <strong>Documented record type</strong>: item shape is documented with a 3-column table.
+</li>
+<li>🟡 <strong>Observed variant/special case</strong>: duplicate family by case/pluralization.
+</li>
+<li>🟠 <strong>Known container/sub-structure</strong>: nested object or map container.
+</li>
+<li>🔴 <strong>Unknown/empty shape</strong>: object exists but internal fields were not observed.
+</li>
+</ul>
+<h2 id="record-tree">Record Tree</h2>
+<pre><code class="language-text">simply.db JSON (object)
+├─ 🟡 Channels (map) -&gt; ChannelsMapOrObject
+│  └─ 🟢 dynamic key -&gt; channel entry object
+├─ 🟡 FrontHistory (map) -&gt; FrontHistoryMapOrObject
+│  └─ 🟢 dynamic key -&gt; front history entry object
+├─ 🟡 Members (map) -&gt; MembersMapOrObject
+│  └─ 🟢 dynamic key -&gt; member entry object
+├─ 🟡 Privates (map) -&gt; PrivatesMapOrObject
+│  └─ 🟢 dynamic key -&gt; private entry object
+├─ 🟡 Users (map) -&gt; UsersMapOrObject
+│  └─ 🟢 dynamic key -&gt; user entry object
+├─ 🟡 channels (map) -&gt; channelsMapOrObject
+│  └─ 🟢 dynamic key -&gt; channel entry object
+├─ 🟢 chatcategories (map) -&gt; chatcategoriesMapOrObject
+│  └─ 🟢 dynamic key -&gt; chat category entry object
+├─ 🟢 customfields (map) -&gt; customfieldsMapOrObject
+│  └─ 🟢 dynamic key -&gt; custom field entry object
+├─ 🟢 friends (map) -&gt; friendsMapOrObject
+│  └─ 🟢 dynamic key -&gt; friend entry object
+├─ 🟢 friendssettings (map) -&gt; friendssettingsMapOrObject
+│  └─ 🟢 dynamic key -&gt; friend settings entry object
+├─ 🟡 fronthistory (map) -&gt; fronthistoryMapOrObject
+│  └─ 🟢 dynamic key -&gt; front history entry object
+├─ 🟡 members (map) -&gt; membersMapOrObject
+│  └─ 🟢 dynamic key -&gt; member entry object
+├─ 🟢 privacybuckets (map) -&gt; privacybucketsMapOrObject
+│  └─ 🟢 dynamic key -&gt; privacy bucket entry object
+├─ 🟡 private (map) -&gt; privateMapOrObject
+│  └─ 🟢 dynamic key -&gt; private entry object
+│     └─ 🟠 defaultPrivacy (object)
+│        ├─ 🔴 customFields[] (unknown item shape)
+│        ├─ 🔴 customFronts[] (unknown item shape)
+│        ├─ 🔴 groups[] (unknown item shape)
+│        └─ 🔴 members[] (unknown item shape)
+├─ 🟡 privates (map) -&gt; privatesMapOrObject
+│  └─ 🟢 dynamic key -&gt; private summary object
+└─ 🟡 users (map) -&gt; usersMapOrObject
+   └─ 🟢 dynamic key -&gt; user entry object
+      ├─ 🟠 fields (dynamic map keyed by field id)
+      │  └─ 🟢 dynamic key -&gt; field config object
+      └─ 🟠 frame (object, observed empty shape)</code></pre>
+<h2 id="record-types">Record Types</h2>
+<h3 id="channelsmaporobject">[🟢] ChannelsMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Channel entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.name</code></td>
+<td>string</td>
+<td>Channel name.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Channel description.</td>
+</tr>
+</tbody></table>
+<h3 id="fronthistorymaporobject">[🟢] FrontHistoryMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Front history entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.custom</code></td>
+<td>boolean</td>
+<td>Custom front state flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.customStatus</code></td>
+<td>string</td>
+<td>Custom front state text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.endTime</code></td>
+<td>integer</td>
+<td>End timestamp/value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.id</code></td>
+<td>string</td>
+<td>Source row identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.live</code></td>
+<td>boolean</td>
+<td>Live/current entry flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.member</code></td>
+<td>string</td>
+<td>Linked member identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.startTime</code></td>
+<td>integer</td>
+<td>Start timestamp/value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.type</code></td>
+<td>string</td>
+<td>Source type label.</td>
+</tr>
+</tbody></table>
+<h3 id="membersmaporobject">[🟢] MembersMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Member entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.archived</code></td>
+<td>boolean</td>
+<td>Archived state flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.archivedReason</code></td>
+<td>string</td>
+<td>Archive reason text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.avatarUuid</code></td>
+<td>string</td>
+<td>Avatar UUID/reference.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.color</code></td>
+<td>string</td>
+<td>Member color value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Member description text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.frame</code></td>
+<td>object</td>
+<td>Frame styling object (<code>bgClip</code>, <code>bgEndColor</code>, <code>bgShape</code>, <code>bgStartColor</code>).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.info</code></td>
+<td>object</td>
+<td>Dynamic map of field id to string value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.name</code></td>
+<td>string</td>
+<td>Member display name.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.pkId</code></td>
+<td>string</td>
+<td>Source primary-key-like identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.preventTrusted</code></td>
+<td>boolean</td>
+<td>Prevent trusted visibility flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.preventsFrontNotifs</code></td>
+<td>boolean</td>
+<td>Front notification prevention flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.private</code></td>
+<td>boolean</td>
+<td>Private visibility flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.pronouns</code></td>
+<td>string</td>
+<td>Pronoun text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.receiveMessageBoardNotifs</code></td>
+<td>boolean</td>
+<td>Message board notification flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+</tbody></table>
+<h3 id="privatesmaporobject">[🟢] PrivatesMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Private entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.notificationToken</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Notification token values (sensitive).</td>
+</tr>
+</tbody></table>
+<h3 id="usersmaporobject">[🟢] UsersMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>User entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.color</code></td>
+<td>string</td>
+<td>Color value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Description text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.frame</code></td>
+<td>object</td>
+<td>Frame object (observed empty shape).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+</tbody></table>
+<h3 id="channelsmaporobject">[🟢] channelsMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Lowercase variant of channel entry map.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.name</code></td>
+<td>string</td>
+<td>Channel name.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Channel description.</td>
+</tr>
+</tbody></table>
+<h3 id="chatcategoriesmaporobject">[🟢] chatcategoriesMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Chat category entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.channels</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Channel identifiers in category.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Category description.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.name</code></td>
+<td>string</td>
+<td>Category name.</td>
+</tr>
+</tbody></table>
+<h3 id="customfieldsmaporobject">[🟢] customfieldsMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Custom field entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.buckets</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Linked privacy bucket identifiers.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.name</code></td>
+<td>string</td>
+<td>Field name.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.order</code></td>
+<td>string</td>
+<td>Source order value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.type</code></td>
+<td>integer</td>
+<td>Source field type code.</td>
+</tr>
+</tbody></table>
+<h3 id="friendsmaporobject">[🟢] friendsMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Friend entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.color</code></td>
+<td>string</td>
+<td>Color value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Description text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.frame</code></td>
+<td>object</td>
+<td>Frame object (observed empty shape).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.isAsystem</code></td>
+<td>boolean</td>
+<td>System indicator flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.username</code></td>
+<td>string</td>
+<td>Username text.</td>
+</tr>
+</tbody></table>
+<h3 id="friendssettingsmaporobject">[🟢] friendssettingsMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Friend settings entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.buckets</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Linked bucket identifiers.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.frienduid</code></td>
+<td>string</td>
+<td>Friend identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.getFrontNotif</code></td>
+<td>boolean</td>
+<td>Receive front notifications flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.getTheirFrontNotif</code></td>
+<td>boolean</td>
+<td>Receive their front notifications flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.seeFront</code></td>
+<td>boolean</td>
+<td>Front visibility permission flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.seeMembers</code></td>
+<td>boolean</td>
+<td>Member visibility permission flag.</td>
+</tr>
+</tbody></table>
+<h3 id="fronthistorymaporobject">[🟢] fronthistoryMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Lowercase variant of front history entry map.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.custom</code></td>
+<td>boolean</td>
+<td>Custom front state flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.customStatus</code></td>
+<td>string</td>
+<td>Custom front state text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.endTime</code></td>
+<td>integer</td>
+<td>End timestamp/value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.live</code></td>
+<td>boolean</td>
+<td>Live/current entry flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.member</code></td>
+<td>string</td>
+<td>Linked member identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.startTime</code></td>
+<td>integer</td>
+<td>Start timestamp/value.</td>
+</tr>
+</tbody></table>
+<h3 id="membersmaporobject">[🟢] membersMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Lowercase variant of member entry map.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.archived</code></td>
+<td>boolean</td>
+<td>Archived state flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.archivedReason</code></td>
+<td>string</td>
+<td>Archive reason text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.avatarUuid</code></td>
+<td>string</td>
+<td>Avatar UUID/reference.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.buckets</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Linked privacy bucket identifiers.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.color</code></td>
+<td>string</td>
+<td>Member color value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Member description text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.frame</code></td>
+<td>object</td>
+<td>Frame styling object (<code>bgClip</code>, <code>bgEndColor</code>, <code>bgShape</code>, <code>bgStartColor</code>).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.info</code></td>
+<td>object</td>
+<td>Dynamic map of field id to string value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.name</code></td>
+<td>string</td>
+<td>Member display name.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.pkId</code></td>
+<td>string</td>
+<td>Source primary-key-like identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.preventsFrontNotifs</code></td>
+<td>boolean</td>
+<td>Front notification prevention flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.pronouns</code></td>
+<td>string</td>
+<td>Pronoun text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.receiveMessageBoardNotifs</code></td>
+<td>boolean</td>
+<td>Message board notification flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+</tbody></table>
+<h3 id="privacybucketsmaporobject">[🟢] privacybucketsMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Privacy bucket entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.color</code></td>
+<td>string</td>
+<td>Bucket color value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Bucket description text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.icon</code></td>
+<td>string</td>
+<td>Bucket icon value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.name</code></td>
+<td>string</td>
+<td>Bucket name.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.rank</code></td>
+<td>string</td>
+<td>Bucket ranking/order value.</td>
+</tr>
+</tbody></table>
+<h3 id="privatemaporobject">[🟢] privateMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Private settings entry keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.auditContentChanges</code></td>
+<td>boolean</td>
+<td>Audit-content flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.auditRetention</code></td>
+<td>integer</td>
+<td>Audit retention value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.categories</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Category list.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.defaultPrivacy</code></td>
+<td>object</td>
+<td>Default privacy object (<code>customFields</code>, <code>customFronts</code>, <code>groups</code>, <code>members</code>).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.hideAudits</code></td>
+<td>boolean</td>
+<td>Hide-audits flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.latestVersion</code></td>
+<td>integer</td>
+<td>Source version indicator.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.location</code></td>
+<td>string</td>
+<td>Location/region text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.notificationToken</code></td>
+<td>array\&lt;string&gt;</td>
+<td>Notification token values (sensitive).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.termsOfServiceAccepted</code></td>
+<td>boolean</td>
+<td>Terms acceptance flag.</td>
+</tr>
+</tbody></table>
+<h3 id="privatesmaporobject">[🟢] privatesMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Minimal private settings variant keyed by source identifier.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.latestVersion</code></td>
+<td>integer</td>
+<td>Source version indicator.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.location</code></td>
+<td>string</td>
+<td>Location/region text.</td>
+</tr>
+</tbody></table>
+<h3 id="usersmaporobject">[🟢] usersMapOrObject</h3>
+<table><thead><tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>&lt;dynamic key&gt;</code></td>
+<td>object</td>
+<td>Lowercase variant of user entry map.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.avatarUrl</code></td>
+<td>string</td>
+<td>Avatar URL.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.color</code></td>
+<td>string</td>
+<td>Color value.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.desc</code></td>
+<td>string</td>
+<td>Description text.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.fields</code></td>
+<td>object</td>
+<td>Dynamic map keyed by field id to field config object (<code>name</code>, <code>order</code>, <code>preventTrusted</code>, <code>private</code>, <code>type</code>).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.frame</code></td>
+<td>object</td>
+<td>Frame object (observed empty shape).</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.isAsystem</code></td>
+<td>boolean</td>
+<td>System indicator flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.supportDescMarkdown</code></td>
+<td>boolean</td>
+<td>Markdown support flag.</td>
+</tr>
+<tr>
+<td><code>&lt;dynamic key&gt;.username</code></td>
+<td>string</td>
+<td>Username text.</td>
+</tr>
+</tbody></table>
+<h2 id="notes">Notes</h2>
+<ul>
+<li>This source is a recovery/discovery path, not the official export format.
+</li>
+<li>Mixed case and duplicate families are source facts and should be normalized during import parsing.
+</li>
+<li>Dynamic-key maps should be treated as dictionaries, not fixed-property objects.
+</li>
+<li>Sensitive token-like values should never be emitted in logs or unsafe outputs.
+</li>
+</ul>
+  </article>
+</main>
+<script src="/vendor/prism/prism.js"></script>
+<script src="/vendor/prism/prism-autoloader.js"></script>
+<script src="/site-menu.js"></script>
+<script src="/roadmap-accordion.js"></script>
+<script src="/api-endpoint-table-toggle.js"></script>
+<script>
+if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+    window.Prism.plugins.autoloader.languages_path = "/vendor/prism/components/";
+}
+</script>
+</body>
+</html>
