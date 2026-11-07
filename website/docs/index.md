@@ -1,3 +1,4 @@
+
 # PluralBridge Documentation
 
 PluralBridge is a preservation and continuity project for Simply Plural data.
@@ -23,13 +24,15 @@ PluralBridge is independent and has no affiliation with Simply Plural, Apparylli
 - [PluralBridge working DB schema format (observed)](schema/pluralbridge-db-schema-format.md)
 - [SQL schema snapshot (script.sql)](schema/script.sql)
 - [PluralBridge DB schema diagram](schema/PluralBridge-DB-Schema.png)
+- [Updated export format notes](schema/simply-plural-export-format-updated-from-pluralkit.md)
+
+## Mobile Data Recovery & Forensics
+
 - [Samsung Smart Switch simply.db format (observed)](schema/samsung-smart-switch-simply-db-format.md)
 - [Samsung Smart Switch simply.db inferred schema JSON](schema/samsung_smart_switch_simply_db.inferred.schema.json)
 - [Samsung Smart Switch backup layout (sanitized)](schema/samsung-smart-switch-backup-layout.md)
 - [Samsung Smart Switch PHOTO_INFO format (sanitized)](schema/samsung-smart-switch-photo-info-format.md)
 - [Samsung Smart Switch SP recovery notes (sanitized)](schema/samsung-smart-switch-sp-recovery.md)
-- [Updated export format notes](schema/simply-plural-export-format-updated-from-pluralkit.md)
-
 
 ## System Modeling
 

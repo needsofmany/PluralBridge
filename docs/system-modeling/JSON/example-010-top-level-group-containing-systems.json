@@ -1,0 +1,304 @@
+{
+  "pluralBridgeExport": {
+    "exportVersion": "0.1-draft",
+    "exportKind": "self-contained-pluralbridge-example",
+    "exampleId": "example-010",
+    "exampleName": "Top-Level Group Containing Systems",
+    "modelingNote": "Synthetic PluralBridge example using flattened top-level collections. Account-level structure is represented by explicit account object-link and placement records so a group can act as a top-level container for systems."
+  },
+  "accounts": [
+    {
+      "accountId": "account-010",
+      "displayName": "Example 10",
+      "username": "example-10",
+      "email": "example-10@pluralbridge.org",
+      "status": "Active"
+    }
+  ],
+  "memberships": [
+    {
+      "membershipId": "membership-001",
+      "accountId": "account-010",
+      "systemId": "system-001",
+      "status": "Active",
+      "roles": ["Owner"]
+    },
+    {
+      "membershipId": "membership-002",
+      "accountId": "account-010",
+      "systemId": "system-002",
+      "status": "Active",
+      "roles": ["Owner"]
+    }
+  ],
+  "systems": [
+    {
+      "systemId": "system-001",
+      "name": "The Harbor",
+      "description": "Synthetic system contained within the Household group.",
+      "color": "#8367ea"
+    },
+    {
+      "systemId": "system-002",
+      "name": "Main House",
+      "description": "Second synthetic system contained within the Household group.",
+      "color": "#4a90e2"
+    }
+  ],
+  "systemRelationships": [
+    {
+      "relationshipId": "relationship-001",
+      "systemId": "system-001",
+      "relationshipType": "root",
+      "parentSystemId": null,
+      "targetSystemId": null,
+      "rank": 1
+    },
+    {
+      "relationshipId": "relationship-002",
+      "systemId": "system-002",
+      "relationshipType": "root",
+      "parentSystemId": null,
+      "targetSystemId": null,
+      "rank": 2
+    }
+  ],
+  "accountObjectLinks": [
+    {
+      "linkId": "account-link-001",
+      "accountId": "account-010",
+      "objectType": "group",
+      "objectId": "group-001",
+      "linkRole": "account-structure-root"
+    },
+    {
+      "linkId": "account-link-002",
+      "accountId": "account-010",
+      "objectType": "system",
+      "objectId": "system-001",
+      "linkRole": "scoped-to-account"
+    },
+    {
+      "linkId": "account-link-003",
+      "accountId": "account-010",
+      "objectType": "system",
+      "objectId": "system-002",
+      "linkRole": "scoped-to-account"
+    },
+    {
+      "linkId": "account-link-004",
+      "accountId": "account-010",
+      "objectType": "note",
+      "objectId": "note-001",
+      "linkRole": "account-note"
+    },
+    {
+      "linkId": "account-link-005",
+      "accountId": "account-010",
+      "objectType": "frontHistory",
+      "objectId": "front-001",
+      "linkRole": "fronting-context"
+    }
+  ],
+  "accountObjectPlacements": [
+    {
+      "placementId": "account-placement-001",
+      "accountId": "account-010",
+      "objectType": "group",
+      "objectId": "group-001",
+      "parentObjectType": "account",
+      "parentObjectId": "account-010",
+      "placementRole": "container-child",
+      "rank": 1
+    },
+    {
+      "placementId": "account-placement-002",
+      "accountId": "account-010",
+      "objectType": "system",
+      "objectId": "system-001",
+      "parentObjectType": "group",
+      "parentObjectId": "group-001",
+      "placementRole": "container-child",
+      "rank": 1
+    },
+    {
+      "placementId": "account-placement-003",
+      "accountId": "account-010",
+      "objectType": "system",
+      "objectId": "system-002",
+      "parentObjectType": "group",
+      "parentObjectId": "group-001",
+      "placementRole": "container-child",
+      "rank": 2
+    }
+  ],
+  "systemObjectLinks": [
+    {
+      "linkId": "sys-link-001",
+      "systemId": "system-001",
+      "objectType": "member",
+      "objectId": "member-005",
+      "linkRole": "scoped-to-system"
+    },
+    {
+      "linkId": "sys-link-002",
+      "systemId": "system-001",
+      "objectType": "member",
+      "objectId": "member-007",
+      "linkRole": "scoped-to-system"
+    },
+    {
+      "linkId": "sys-link-003",
+      "systemId": "system-002",
+      "objectType": "member",
+      "objectId": "member-006",
+      "linkRole": "scoped-to-system"
+    },
+    {
+      "linkId": "sys-link-004",
+      "systemId": "system-002",
+      "objectType": "member",
+      "objectId": "member-008",
+      "linkRole": "scoped-to-system"
+    }
+  ],
+  "systemObjectPlacements": [],
+  "members": [
+    {
+      "memberId": "member-001",
+      "displayName": "A",
+      "pronouns": "she/her",
+      "description": "Synthetic household member A.",
+      "color": "#69d563",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-002",
+      "displayName": "E",
+      "pronouns": "they/them",
+      "description": "Synthetic household member E.",
+      "color": "#4a90e2",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-003",
+      "displayName": "I",
+      "pronouns": "she/they",
+      "description": "Synthetic household member I.",
+      "color": "#f5a623",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-004",
+      "displayName": "O",
+      "pronouns": "he/they",
+      "description": "Synthetic household member O.",
+      "color": "#7ed321",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-005",
+      "displayName": "W",
+      "pronouns": "they/them",
+      "description": "Synthetic member in The Harbor.",
+      "color": "#bd10e0",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-006",
+      "displayName": "X",
+      "pronouns": "she/her",
+      "description": "Synthetic member in Main House.",
+      "color": "#50e3c2",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-007",
+      "displayName": "Y",
+      "pronouns": "he/him",
+      "description": "Synthetic member in The Harbor.",
+      "color": "#b8e986",
+      "isArchived": false
+    },
+    {
+      "memberId": "member-008",
+      "displayName": "Z",
+      "pronouns": "they/them",
+      "description": "Synthetic member in Main House.",
+      "color": "#9013fe",
+      "isArchived": false
+    }
+  ],
+  "groups": [
+    {
+      "groupId": "group-001",
+      "name": "Household",
+      "description": "Top-level account group containing two systems.",
+      "color": "#cccccc"
+    }
+  ],
+  "groupMemberships": [
+    {
+      "groupMembershipId": "group-membership-001",
+      "groupId": "group-001",
+      "memberId": "member-001",
+      "rank": 1
+    },
+    {
+      "groupMembershipId": "group-membership-002",
+      "groupId": "group-001",
+      "memberId": "member-002",
+      "rank": 2
+    },
+    {
+      "groupMembershipId": "group-membership-003",
+      "groupId": "group-001",
+      "memberId": "member-003",
+      "rank": 3
+    },
+    {
+      "groupMembershipId": "group-membership-004",
+      "groupId": "group-001",
+      "memberId": "member-004",
+      "rank": 4
+    }
+  ],
+  "notes": [
+    {
+      "noteId": "note-001",
+      "title": "Example 10 note",
+      "body": "Synthetic account-level note for Group Collection of Systems.",
+      "supportsMarkdown": true
+    }
+  ],
+  "frontHistory": [
+    {
+      "frontHistoryId": "front-001",
+      "memberIds": ["member-001"],
+      "startedAt": "2026-01-01T12:00:00Z",
+      "endedAt": null,
+      "isLive": true,
+      "status": null
+    }
+  ],
+  "customFields": [],
+  "privacyBuckets": [],
+  "visibilityScopes": [],
+  "provenance": {
+    "source": "synthetic",
+    "sourceGenerator": "plural-synthetic-compatible-draft",
+    "sourceIdsPreserved": true,
+    "lossyMappings": []
+  },
+  "audit": {
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  "lookups": {
+    "roles": ["Owner"],
+    "membershipStatuses": ["Active"],
+    "relationshipTypes": ["root"],
+    "accountObjectTypes": ["group", "system", "note", "frontHistory"],
+    "placementRoles": ["container-child"]
+  }
+}
