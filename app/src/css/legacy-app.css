@@ -172,11 +172,6 @@ button[aria-pressed="true"] {
   color: #cbd5e1;
 }
 
-.member-list {
-  display: grid;
-  gap: 0.75rem;
-}
-
 .member-card {
   border: 1px solid rgba(168, 199, 255, 0.28);
   border-radius: 0.85rem;

@@ -181,6 +181,162 @@ public sealed class PluralMapEndpointTests
 	}
 
 	[Fact]
+	public void DerivePreview_ReadsLabelsAndAttachesDirectSystemGroupToItsHeader()
+	{
+		var systemId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var memberId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		var groupId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+		var systemPath = "30|000001|system|" + systemId.ToString("D").ToUpperInvariant();
+		var headerPath = systemPath + ".15|000000|groups|00000000-0000-0000-0000-000000000000";
+		var groupPath = systemPath + ".20|002001|group|" + groupId.ToString("D").ToUpperInvariant();
+		var memberPath = systemPath + ".10|000001|member|" + memberId.ToString("D").ToUpperInvariant();
+
+		var derived = PluralMapReader.DerivePreview(
+		[
+			Preview("\u251c\u2500\u2500 System: Harbor", systemPath),
+			Preview("    \u251c\u2500\u2500 Member: Alex", memberPath),
+			Preview("    \u2514\u2500\u2500 Groups", headerPath),
+			Preview("        \u251c\u2500\u2500 Group: Dancers", groupPath)
+		]);
+
+		Assert.Equal(
+			[systemPath, memberPath, headerPath, groupPath],
+			derived.Select(row => row.PathKey));
+		Assert.Equal("System: Harbor", derived[0].NodeLabel);
+		Assert.Equal("system", derived[0].ObjectType);
+		Assert.Equal(systemId, derived[0].ObjectId);
+		Assert.Null(derived[0].ParentPathKey);
+		Assert.False(derived[0].Header);
+
+		Assert.Equal("Member: Alex", derived[1].NodeLabel);
+		Assert.Equal("member", derived[1].ObjectType);
+		Assert.Equal(memberId, derived[1].ObjectId);
+		Assert.Equal(systemPath, derived[1].ParentPathKey);
+
+		Assert.Equal("Groups", derived[2].NodeLabel);
+		Assert.Equal("groups", derived[2].ObjectType);
+		Assert.Equal(Guid.Empty, derived[2].ObjectId);
+		Assert.Equal(systemPath, derived[2].ParentPathKey);
+		Assert.True(derived[2].Header);
+
+		Assert.Equal("Group: Dancers", derived[3].NodeLabel);
+		Assert.Equal("group", derived[3].ObjectType);
+		Assert.Equal(groupId, derived[3].ObjectId);
+		Assert.Equal(headerPath, derived[3].ParentPathKey);
+		Assert.False(derived[3].Header);
+	}
+
+	[Fact]
+	public void DerivePreview_KeepsRepeatedAppearancesOnTheirOwnParentOccurrence()
+	{
+		var systemId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var groupId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+		var memberId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		var firstSystem = "30|000001|system|" + systemId.ToString("D").ToUpperInvariant();
+		var secondSystem = "30|000002|system|" + systemId.ToString("D").ToUpperInvariant();
+		var firstHeader = firstSystem + ".15|000000|groups|00000000-0000-0000-0000-000000000000";
+		var secondHeader = secondSystem + ".15|000000|groups|00000000-0000-0000-0000-000000000000";
+		var firstGroup = firstSystem + ".20|002001|group|" + groupId.ToString("D").ToUpperInvariant();
+		var secondGroup = secondSystem + ".20|002001|group|" + groupId.ToString("D").ToUpperInvariant();
+		var nestedMember = firstGroup + ".10|000001|member|" + memberId.ToString("D").ToUpperInvariant();
+
+		var derived = PluralMapReader.DerivePreview(
+		[
+			Preview("\u251c\u2500\u2500 System: Harbor", firstSystem),
+			Preview("    \u2514\u2500\u2500 Groups", firstHeader),
+			Preview("        \u251c\u2500\u2500 Group: Dancers", firstGroup),
+			Preview("            \u2514\u2500\u2500 Member: Alex", nestedMember),
+			Preview("\u2514\u2500\u2500 System: Harbor", secondSystem),
+			Preview("    \u2514\u2500\u2500 Groups", secondHeader),
+			Preview("        \u2514\u2500\u2500 Group: Dancers", secondGroup)
+		]);
+
+		var first = derived.Single(row => row.PathKey == firstGroup);
+		var second = derived.Single(row => row.PathKey == secondGroup);
+		var member = derived.Single(row => row.PathKey == nestedMember);
+
+		Assert.NotEqual(first.PathKey, second.PathKey);
+		Assert.Equal(groupId, first.ObjectId);
+		Assert.Equal(groupId, second.ObjectId);
+		Assert.Equal(firstHeader, first.ParentPathKey);
+		Assert.Equal(secondHeader, second.ParentPathKey);
+		Assert.Equal(firstGroup, member.ParentPathKey);
+	}
+
+	[Fact]
+	public void SelectFirstAnchor_ChoosesTheFirstTopLevelAnchorInReturnedOrder()
+	{
+		var placeId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+		var systemId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var memberId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		var placePath = "40|000001|place|" + placeId.ToString("D").ToUpperInvariant();
+		var systemPath = "30|000001|system|" + systemId.ToString("D").ToUpperInvariant();
+		var memberPath = "10|000001|member|" + memberId.ToString("D").ToUpperInvariant();
+
+		var derived = PluralMapReader.DerivePreview(
+		[
+			Preview("\u251c\u2500\u2500 Member: Alex", memberPath),
+			Preview("\u251c\u2500\u2500 Place: Shore", placePath),
+			Preview("\u2514\u2500\u2500 System: Harbor", systemPath)
+		]);
+
+		var selected = PluralMapReader.SelectFirstAnchor(derived);
+
+		Assert.NotNull(selected);
+		Assert.Equal(placePath, selected.PathKey);
+		Assert.Equal("place", selected.ObjectType);
+		Assert.Equal("Place: Shore", selected.NodeLabel);
+	}
+
+	[Fact]
+	public void ImmediateChildren_MatchTheSelectedAnchorInReturnedOrder()
+	{
+		var placeId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+		var memberId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		var groupId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+		var placePath = "40|000001|place|" + placeId.ToString("D").ToUpperInvariant();
+		var memberPath = placePath + ".10|000001|member|" + memberId.ToString("D").ToUpperInvariant();
+		var groupPath = placePath + ".20|002001|group|" + groupId.ToString("D").ToUpperInvariant();
+
+		var derived = PluralMapReader.DerivePreview(
+		[
+			Preview("\u2514\u2500\u2500 Place: Shore", placePath),
+			Preview("    \u251c\u2500\u2500 Member: Ada", memberPath),
+			Preview("    \u2514\u2500\u2500 Group: House", groupPath)
+		]);
+		var selected = PluralMapReader.SelectFirstAnchor(derived);
+		Assert.NotNull(selected);
+
+		var children = PluralMapReader.ImmediateChildren(derived, selected.PathKey);
+
+		Assert.Equal("place", selected.ObjectType);
+		Assert.Equal("Place: Shore", selected.NodeLabel);
+		Assert.Equal(["Member: Ada", "Group: House"], children.Select(row => row.NodeLabel));
+		Assert.Equal(["member", "group"], children.Select(row => row.ObjectType));
+		Assert.Equal([memberPath, groupPath], children.Select(row => row.PathKey));
+	}
+
+	[Fact]
+	public void DerivePreview_LeavesUnrecognizedPathsWithoutIdentity()
+	{
+		var derived = PluralMapReader.DerivePreview(
+		[
+			Preview("first-line", "groups|00000000-0000-0000-0000-000000000000"),
+			Preview("second-line", "tt|000001|Place|66666666-7777-8888-9999-aaaaaaaaaaaa")
+		]);
+
+		Assert.All(derived, row =>
+		{
+			Assert.Null(row.NodeLabel);
+			Assert.Null(row.ObjectType);
+			Assert.Null(row.ObjectId);
+			Assert.Null(row.ParentPathKey);
+			Assert.False(row.Header);
+		});
+		Assert.Null(PluralMapReader.SelectFirstAnchor(derived));
+	}
+
+	[Fact]
 	public void Map_RejectsMismatchedAccountId()
 	{
 		var sets = CreateResultSets(Guid.NewGuid(), [], [], []);
@@ -409,6 +565,19 @@ public sealed class PluralMapEndpointTests
 			Columns = columns,
 			Rows = rows.Select(static row => (IReadOnlyList<object>)row).ToArray()
 		};
+	}
+
+	private static PluralMapPreviewRow Preview(string treeLine, string pathKey)
+	{
+		return new PluralMapPreviewRow(
+			"HierarchyPreview",
+			treeLine,
+			pathKey,
+			null,
+			null,
+			null,
+			null,
+			false);
 	}
 
 	private static PluralMapRawColumn Column(string name, string sqlTypeName = "nvarchar")

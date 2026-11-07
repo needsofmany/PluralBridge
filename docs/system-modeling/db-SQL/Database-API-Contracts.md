@@ -97,6 +97,18 @@ The following is a **starting inventory**, not a verified enumeration of all sto
 
 JSON names are camelCase (`pathKey` for `PathKey`). Property order inside each object is not part of the contract. Array order is the procedure's row order, including every `Section`, `TreeLine`, and `PathKey` value. Object types remain strings. `Context` is exactly one row, and its `AccountId` is the authenticated account. The later arrays may be empty when the account has no current system. A missing, malformed, extra, or account-mismatched result is rejected with no map payload.
 
+The stored procedure still returns only those three preview columns. The API derives the following JSON properties from the verified walk encoding and does not change row order:
+
+| JSON property | Derivation |
+| --- | --- |
+| `nodeLabel` | `TreeLine` after one leading indent of four-space groups and one `├── ` or `└── ` prefix. The type prefix inside the label, such as `System: `, stays. A line without that drawing prefix has a null label. |
+| `objectType` | Type text in the last `PathKey` segment. A segment is `typeCode\|rank\|type\|guid`. |
+| `objectId` | Guid in that segment, accepted only by `Guid.TryParseExact` format `D`. |
+| `parentPathKey` | The path before the final `.`, or null for a single segment. A group whose parent segment is `system` is then attached to that occurrence's `15\|000000\|groups\|00000000-0000-0000-0000-000000000000` row when that exact row is present. |
+| `header` | True only when the last segment is that Groups header. |
+
+A path that does not match this encoding keeps `section`, `treeLine`, and `pathKey`, with null identity and `header` false. `pathKey` remains the opaque occurrence key. The browser matches `parentPathKey` to it and does not split it. Repeated occurrences stay separate rows. The local database binding remains unresolved and must produce this same HTTP shape.
+
 **Required behavior to test:**
 
 - A plural with a conventional System anchor.

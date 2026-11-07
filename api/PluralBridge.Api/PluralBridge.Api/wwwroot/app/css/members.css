@@ -75,6 +75,8 @@
 .member-list {
 	display: flex;
 	flex-direction: column;
+	align-items: stretch;
+	gap: 0.75rem;
 	position: relative;
 	min-height: 0;
 	max-height: none;
@@ -82,9 +84,12 @@
 	padding-right: 0;
 }
 
-.member-workspace {
+.member-list > .member-workspace {
 	position: relative;
 	display: flex;
+	flex: 1 1 auto;
+	width: 100%;
+	min-width: 0;
 	min-height: 0;
 }
 
@@ -133,8 +138,8 @@
 }
 
 .member-systems-pin-button {
-	width: 2.1rem;
-	height: 2.1rem;
+	width: 1.7rem;
+	height: 1.7rem;
 	padding: 0;
 	display: inline-grid;
 	place-items: center;
@@ -151,8 +156,8 @@
 }
 
 .member-systems-pin-icon {
-	width: 1rem;
-	height: 1rem;
+	width: 0.9rem;
+	height: 0.9rem;
 }
 
 .member-systems-pin-icon.is-unpinned {
@@ -260,20 +265,32 @@
 	font-weight: 800;
 }
 
-	.member-list > .output-heading {
-		flex: 0 0 auto;
-		margin: 0 0 0.15rem;
-		font-size: 1.35rem;
-		line-height: 1.1;
-		max-width: calc(100% - 17rem);
-	}
+.member-screen-header {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	width: 100%;
+	min-width: 0;
+	min-height: 4.5rem;
+	position: relative;
+	overflow: hidden;
+}
 
-	.member-list > .output-note {
-		flex: 0 0 auto;
-		margin: 0 0 0.3rem;
-		line-height: 1.2;
-		max-width: calc(100% - 17rem);
-	}
+.member-screen-header .output-heading {
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0;
+	font-size: 1.35rem;
+	line-height: 1.1;
+}
+
+.member-list > .output-note {
+	flex: 0 0 auto;
+	margin: 0;
+	line-height: 1.2;
+}
 
 .member-focus-note {
 	color: #a8c7ff;
@@ -283,9 +300,8 @@
 .member-focus-notes {
 	display: grid;
 	gap: 0.25rem;
-	margin: 0 0 0.3rem;
+	margin: 0;
 	min-height: 2.55rem;
-	max-width: calc(100% - 17rem);
 }
 
 .member-focus-notes .member-focus-note {
@@ -296,19 +312,24 @@
 	visibility: hidden;
 }
 
-.member-brand-logo {
-	position: absolute;
-	top: 0;
-	right: 0;
-	z-index: 1;
-	height: 6.25rem;
+.member-screen-header > .member-brand-logo {
+	position: static;
+	top: auto;
+	right: auto;
+	float: none;
+	flex: 0 0 auto;
+	height: 4.5rem;
+	max-height: 4.5rem;
 	width: auto;
-	max-width: 16rem;
+	max-width: min(16rem, 42%);
 	display: block;
+	object-fit: contain;
+	object-position: right center;
 	border: none;
 	background: transparent;
 	border-radius: 0.65rem;
 	pointer-events: none;
+	z-index: auto;
 }
 
 /* Member toolbar */
@@ -320,7 +341,10 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.35rem;
-	margin: 0 0 0.35rem;
+	width: 100%;
+	margin: 0;
+	position: relative;
+	z-index: 1;
 	padding: 0.35rem 0.45rem;
 	border: 1px solid rgba(168, 199, 255, 0.22);
 	border-radius: 0.75rem;

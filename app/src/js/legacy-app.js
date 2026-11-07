@@ -2535,6 +2535,22 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
             state.systemPanelPinned = true;
             state.systemPanelOpen = true;
         }
+        if (state.pluralMapNavigator) {
+            const visible = state.systemPanelPinned || state.systemPanelOpen;
+            panel.hidden = !visible;
+            panel.classList.toggle("is-pinned", state.systemPanelPinned);
+            panel.classList.toggle("is-overlay", !state.systemPanelPinned);
+            pinButton.setAttribute("aria-pressed", String(state.systemPanelPinned));
+            pinButton.setAttribute("aria-label", state.systemPanelPinned ? "Unpin panel" : "Pin panel");
+            pinButton.title = state.systemPanelPinned ? "Unpin panel" : "Pin panel";
+            pinButton.replaceChildren(createPinIcon(state.systemPanelPinned));
+            const systemsButton = document.querySelector(".member-toolbar .member-toolbar-button");
+            if (systemsButton) {
+                systemsButton.setAttribute("aria-pressed", String(visible));
+            }
+            return;
+        }
+
         writeMembersUiStateToStorage(state);
         rerenderMembers();
     });
@@ -2545,6 +2561,11 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
 
     const tree = document.createElement("div");
     tree.className = "member-systems-tree";
+
+    if (state.pluralMapNavigator) {
+        panel.appendChild(tree);
+        return panel;
+    }
 
     if (state.systemTreeLoading) {
         const loading = document.createElement("p");
@@ -2685,22 +2706,7 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
     return panel;
 }
 
-function renderMembers(payload) {
-    const membersUiState = getMembersUiState();
-    ensureMembersUiStateLoaded(membersUiState, function () {
-        renderMembers(payload);
-    });
-
-    // Keep the initial static loading shell visible until saved state is loaded.
-    if (!membersUiStorageLoaded) {
-        updateSessionStatus();
-        return;
-    }
-
-    clearOutput();
-
-    const sourceMembers = getMembersFromPayload(payload);
-
+function createMembersScreenFrame() {
     const wrapper = document.createElement("section");
     wrapper.className = "member-list";
 
@@ -2718,6 +2724,64 @@ function renderMembers(payload) {
     logo.addEventListener("error", function () {
         logo.hidden = true;
     });
+
+    const header = document.createElement("div");
+    header.className = "member-screen-header";
+    header.appendChild(heading);
+    header.appendChild(logo);
+
+    const memberAddContainer = document.createElement("div");
+    memberAddContainer.className = "member-add-container";
+    memberAddContainer.hidden = true;
+
+    const memberScrollList = document.createElement("div");
+    memberScrollList.className = "member-scroll-list";
+
+    const membersWorkspace = document.createElement("div");
+    membersWorkspace.className = "member-workspace";
+
+    const memberContent = document.createElement("div");
+    memberContent.className = "member-content-stack";
+    memberContent.appendChild(memberAddContainer);
+    memberContent.appendChild(memberScrollList);
+    membersWorkspace.appendChild(memberContent);
+
+    return {
+        wrapper: wrapper,
+        header: header,
+        heading: heading,
+        note: note,
+        logo: logo,
+        memberAddContainer: memberAddContainer,
+        memberScrollList: memberScrollList,
+        membersWorkspace: membersWorkspace,
+        memberContent: memberContent
+    };
+}
+
+function renderMembers(payload) {
+    const membersUiState = getMembersUiState();
+    membersUiState.pluralMapNavigator = false;
+    ensureMembersUiStateLoaded(membersUiState, function () {
+        renderMembers(payload);
+    });
+
+    // Keep the initial static loading shell visible until saved state is loaded.
+    if (!membersUiStorageLoaded) {
+        updateSessionStatus();
+        return;
+    }
+
+    clearOutput();
+
+    const sourceMembers = getMembersFromPayload(payload);
+    const screen = createMembersScreenFrame();
+    const wrapper = screen.wrapper;
+    const note = screen.note;
+    const memberAddContainer = screen.memberAddContainer;
+    const memberScrollList = screen.memberScrollList;
+    const membersWorkspace = screen.membersWorkspace;
+    const memberContent = screen.memberContent;
 
     const payloadSystemId =
         payload && payload.systemId
@@ -2884,14 +2948,9 @@ function renderMembers(payload) {
         }
     }
 
-    wrapper.appendChild(heading);
+    wrapper.appendChild(screen.header);
     wrapper.appendChild(note);
-    wrapper.appendChild(logo);
     wrapper.appendChild(focusNotes);
-
-    const memberAddContainer = document.createElement("div");
-    memberAddContainer.className = "member-add-container";
-    memberAddContainer.hidden = true;
 
     function refreshMembersFromApi() {
         return window.PluralBridge.apiClient.readMembers()
@@ -3042,9 +3101,6 @@ function renderMembers(payload) {
         }));
     }
 
-    const memberScrollList = document.createElement("div");
-    memberScrollList.className = "member-scroll-list";
-
     if (members.length === 0) {
         const empty = document.createElement("p");
         empty.className = "output-note";
@@ -3056,15 +3112,7 @@ function renderMembers(payload) {
         });
     }
 
-    const membersWorkspace = document.createElement("div");
-    membersWorkspace.className = "member-workspace";
-
-    const memberContent = document.createElement("div");
-    memberContent.className = "member-content-stack";
-    memberContent.appendChild(memberAddContainer);
-    memberContent.appendChild(memberScrollList);
-
-    membersWorkspace.appendChild(
+    membersWorkspace.insertBefore(
         createMembersSystemPanel(
             membersUiState,
             function () {
@@ -3072,9 +3120,9 @@ function renderMembers(payload) {
             },
             selectMembersSystem,
             selectMembersGroup
-        )
+        ),
+        memberContent
     );
-    membersWorkspace.appendChild(memberContent);
     wrapper.appendChild(membersWorkspace);
 
     output.appendChild(wrapper);
@@ -3295,11 +3343,109 @@ async function allowMemberProfileLeave() {
     return await guard.requestLeave();
 }
 
+function clearPluralMapDisplay() {
+    const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+        ? window.PluralBridge.navigator
+        : null;
+
+    if (navigatorView && typeof navigatorView.clear === "function") {
+        navigatorView.clear();
+    }
+}
+
+function showMembersWorkspace() {
+    const membersUiState = getMembersUiState();
+    membersUiState.pluralMapNavigator = true;
+    setContractButtonState("members");
+    setSessionButtonState(null);
+    clearPluralMapDisplay();
+    clearOutput();
+
+    const screen = createMembersScreenFrame();
+    screen.note.hidden = true;
+
+    const panel = createMembersSystemPanel(
+        membersUiState,
+        function () {},
+        null,
+        null
+    );
+    const tree = panel.querySelector(".member-systems-tree");
+    screen.membersWorkspace.insertBefore(panel, screen.memberContent);
+
+    let systemsButton = null;
+    let toolbar = null;
+    if (
+        window.PluralBridge &&
+        window.PluralBridge.members &&
+        typeof window.PluralBridge.members.createMemberToolbar === "function"
+    ) {
+        function toggleSystemPanel() {
+            if (membersUiState.systemPanelPinned) {
+                membersUiState.systemPanelPinned = false;
+                membersUiState.systemPanelOpen = false;
+            } else {
+                membersUiState.systemPanelOpen = !membersUiState.systemPanelOpen;
+            }
+
+            const visible = membersUiState.systemPanelPinned || membersUiState.systemPanelOpen;
+            panel.hidden = !visible;
+            panel.classList.toggle("is-pinned", membersUiState.systemPanelPinned);
+            panel.classList.toggle("is-overlay", !membersUiState.systemPanelPinned);
+
+            if (systemsButton) {
+                systemsButton.setAttribute("aria-pressed", String(visible));
+            }
+        }
+
+        toolbar = window.PluralBridge.members.createMemberToolbar({
+            toggleSystemPanel: toggleSystemPanel,
+            isSystemPanelOpen: membersUiState.systemPanelPinned || membersUiState.systemPanelOpen,
+            memberActionsEnabled: false
+        });
+        systemsButton = toolbar.querySelector(".member-toolbar-button");
+    }
+
+    screen.wrapper.appendChild(screen.header);
+    if (toolbar) {
+        screen.wrapper.appendChild(toolbar);
+    }
+    screen.wrapper.appendChild(screen.membersWorkspace);
+    output.appendChild(screen.wrapper);
+    updateSessionStatus();
+
+    const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+        ? window.PluralBridge.navigator
+        : null;
+
+    if (!navigatorView || typeof navigatorView.mount !== "function" || !tree) {
+        if (tree) {
+            const unavailable = document.createElement("p");
+            unavailable.className = "navigator-status navigator-status-error";
+            unavailable.textContent = "The plural map display is not available.";
+            tree.appendChild(unavailable);
+        }
+        return;
+    }
+
+    navigatorView.mount({
+        tree: tree,
+        detail: screen.memberScrollList
+    });
+}
+
 async function renderContract(key) {
   const endpointBuilder = endpointBuilders[key];
 
   setContractButtonState(key);
   setSessionButtonState(null);
+
+  if (key === "members") {
+      showMembersWorkspace();
+      return;
+  }
+
+  clearPluralMapDisplay();
 
   if (!endpointBuilder) {
     renderPayload({
@@ -3373,6 +3519,8 @@ function renderFrozenSessionAction(action) {
 }
 
 async function logout() {
+  clearPluralMapDisplay();
+
   try {
     const response = await fetch("/logout", {
       method: "POST",
@@ -3410,6 +3558,8 @@ document.addEventListener("click", async function (event) {
         : null;
 
     if (placeholderButton) {
+        clearPluralMapDisplay();
+
         const placeholderRoute = placeholderButton.dataset.shellPlaceholder || "";
         const accountScreens =
             window.PluralBridge && window.PluralBridge.accountScreens

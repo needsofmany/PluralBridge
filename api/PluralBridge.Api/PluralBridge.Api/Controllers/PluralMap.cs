@@ -33,7 +33,12 @@ internal sealed record PluralMapEdgeRow(
 internal sealed record PluralMapPreviewRow(
 	string Section,
 	string TreeLine,
-	string PathKey);
+	string PathKey,
+	string? NodeLabel,
+	string? ObjectType,
+	Guid? ObjectId,
+	string? ParentPathKey,
+	bool Header);
 
 internal sealed class PluralMapRawResultSet
 {
@@ -168,7 +173,72 @@ internal static class PluralMapReader
 			preview.Add(previewRow);
 		}
 
-		return new PluralMapResponse([context], nodeCounts, edges, preview);
+		return new PluralMapResponse([context], nodeCounts, edges, DerivePreview(preview));
+	}
+
+	internal static IReadOnlyList<PluralMapPreviewRow> DerivePreview(
+		IReadOnlyList<PluralMapPreviewRow> rows)
+	{
+		var derived = new List<PluralMapPreviewRow>(rows.Count);
+		foreach (var row in rows)
+		{
+			derived.Add(DerivePreviewRow(row));
+		}
+
+		var pathKeys = new HashSet<string>(derived.Select(row => row.PathKey), StringComparer.Ordinal);
+		for (var index = 0; index < derived.Count; index++)
+		{
+			var row = derived[index];
+			if (row.Header
+				|| row.ParentPathKey is null
+				|| !string.Equals(row.ObjectType, "group", StringComparison.Ordinal)
+				|| !TryParsePath(row.PathKey, out var segments, out _)
+				|| segments.Length < 2
+				|| !string.Equals(segments[^2].ObjectType, "system", StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			var headerPathKey = row.ParentPathKey + "." + GroupsHeaderSegment;
+			if (pathKeys.Contains(headerPathKey))
+			{
+				derived[index] = row with { ParentPathKey = headerPathKey };
+			}
+		}
+
+		return derived;
+	}
+
+	internal static PluralMapPreviewRow? SelectFirstAnchor(
+		IReadOnlyList<PluralMapPreviewRow> rows)
+	{
+		foreach (var row in rows)
+		{
+			if (!row.Header
+				&& row.ParentPathKey is null
+				&& IsAnchorType(row.ObjectType))
+			{
+				return row;
+			}
+		}
+
+		return null;
+	}
+
+	internal static IReadOnlyList<PluralMapPreviewRow> ImmediateChildren(
+		IReadOnlyList<PluralMapPreviewRow> rows,
+		string pathKey)
+	{
+		var children = new List<PluralMapPreviewRow>();
+		foreach (var row in rows)
+		{
+			if (string.Equals(row.ParentPathKey, pathKey, StringComparison.Ordinal))
+			{
+				children.Add(row);
+			}
+		}
+
+		return children;
 	}
 
 	private static bool ColumnsMatch(
@@ -261,7 +331,15 @@ internal static class PluralMapReader
 			&& TryText(row, 1, out var treeLine)
 			&& TryText(row, 2, out var pathKey))
 		{
-			preview = new PluralMapPreviewRow(section, treeLine, pathKey);
+			preview = new PluralMapPreviewRow(
+				section,
+				treeLine,
+				pathKey,
+				null,
+				null,
+				null,
+				null,
+				false);
 			return true;
 		}
 
@@ -312,5 +390,128 @@ internal static class PluralMapReader
 
 		value = 0;
 		return false;
+	}
+
+	private const string GroupsHeaderSegment =
+		"15|000000|groups|00000000-0000-0000-0000-000000000000";
+
+	private readonly record struct PathSegment(
+		string TypeCode,
+		string Rank,
+		string ObjectType,
+		Guid ObjectId);
+
+	private static PluralMapPreviewRow DerivePreviewRow(PluralMapPreviewRow row)
+	{
+		var nodeLabel = ReadNodeLabel(row.TreeLine);
+		if (!TryParsePath(row.PathKey, out var segments, out var parentPathKey))
+		{
+			return row with
+			{
+				NodeLabel = nodeLabel,
+				ObjectType = null,
+				ObjectId = null,
+				ParentPathKey = null,
+				Header = false
+			};
+		}
+
+		var identity = segments[^1];
+		var header = identity.TypeCode == "15"
+			&& identity.Rank == "000000"
+			&& string.Equals(identity.ObjectType, "groups", StringComparison.Ordinal)
+			&& identity.ObjectId == Guid.Empty;
+
+		return row with
+		{
+			NodeLabel = nodeLabel,
+			ObjectType = identity.ObjectType,
+			ObjectId = identity.ObjectId,
+			ParentPathKey = parentPathKey,
+			Header = header
+		};
+	}
+
+	private static bool TryParsePath(
+		string pathKey,
+		out PathSegment[] segments,
+		out string? parentPathKey)
+	{
+		var parts = pathKey.Split('.');
+		segments = new PathSegment[parts.Length];
+		for (var index = 0; index < parts.Length; index++)
+		{
+			if (!TryParseSegment(parts[index], out segments[index]))
+			{
+				parentPathKey = null;
+				return false;
+			}
+		}
+
+		parentPathKey = parts.Length == 1
+			? null
+			: string.Join('.', parts[..^1]);
+		return parts.Length > 0;
+	}
+
+	private static bool TryParseSegment(string segment, out PathSegment parsed)
+	{
+		var parts = segment.Split('|');
+		if (parts.Length == 4
+			&& parts[0].Length == 2
+			&& IsDigits(parts[0])
+			&& parts[1].Length == 6
+			&& IsDigits(parts[1])
+			&& parts[2].Length > 0
+			&& Guid.TryParseExact(parts[3], "D", out var objectId))
+		{
+			parsed = new PathSegment(parts[0], parts[1], parts[2], objectId);
+			return true;
+		}
+
+		parsed = default;
+		return false;
+	}
+
+	private static bool IsDigits(string value)
+	{
+		foreach (var character in value)
+		{
+			if (character < '0' || character > '9')
+			{
+				return false;
+			}
+		}
+
+		return value.Length > 0;
+	}
+
+	private static string? ReadNodeLabel(string treeLine)
+	{
+		const string branch = "\u251c\u2500\u2500 ";
+		const string last = "\u2514\u2500\u2500 ";
+		var index = 0;
+		while (index + 4 <= treeLine.Length
+			&& treeLine.AsSpan(index, 4).SequenceEqual("    "))
+		{
+			index += 4;
+		}
+
+		if (treeLine.AsSpan(index).StartsWith(branch))
+		{
+			return treeLine[(index + branch.Length)..];
+		}
+
+		if (treeLine.AsSpan(index).StartsWith(last))
+		{
+			return treeLine[(index + last.Length)..];
+		}
+
+		return null;
+	}
+
+	private static bool IsAnchorType(string? objectType)
+	{
+		return objectType is "system" or "group" or "place";
 	}
 }

@@ -192,8 +192,9 @@ window.PluralBridge.members = (function () {
             return button;
         }
 
+        const memberAddEnabled = !(options && options.memberActionsEnabled === false);
         popover.appendChild(createAddOption("System", false, null));
-        popover.appendChild(createAddOption("Member", true, function () {
+        popover.appendChild(createAddOption("Member", memberAddEnabled, function () {
             if (options && typeof options.toggleAddMember === "function") {
                 options.toggleAddMember();
             }

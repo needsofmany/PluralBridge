@@ -1,0 +1,49 @@
+.navigator-status {
+	margin: 0.2rem 0;
+	color: #d8e1ed;
+	line-height: 1.35;
+}
+
+.navigator-status-error {
+	color: #ffb4b4;
+}
+
+.member-systems-tree .member-system-node-button:focus-visible,
+.member-systems-tree .member-system-tree-toggle:focus-visible {
+	outline: 2px solid #a8c7ff;
+	outline-offset: 2px;
+}
+
+.member-map-detail {
+	display: grid;
+	gap: 0.35rem;
+}
+
+.member-map-detail .output-heading {
+	margin: 0;
+	font-size: 1.15rem;
+}
+
+.member-map-children {
+	list-style: none;
+	margin: 0.2rem 0 0;
+	padding: 0;
+	display: grid;
+	gap: 0.28rem;
+}
+
+.member-map-child {
+	display: grid;
+	gap: 0.1rem;
+	padding: 0.28rem 0.4rem;
+	border-radius: 0.4rem;
+	color: #d8e1ed;
+	background: rgba(168, 199, 255, 0.08);
+}
+
+.member-map-child-type {
+	color: #a8c7ff;
+	font-size: 0.75rem;
+	font-weight: 800;
+	text-transform: lowercase;
+}
