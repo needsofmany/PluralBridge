@@ -15,6 +15,9 @@ window.PluralBridge.navigator = (function () {
     let detail = null;
     let rows = [];
     let expandedPathKeys = {};
+    let expandedAccountId = null;
+    let heldExpansion = null;
+    let heldAccountId = null;
     let selectedPathKey = null;
 
     function isAnchor(row) {
@@ -48,6 +51,128 @@ window.PluralBridge.navigator = (function () {
         return sourceRows.filter(function (row) {
             return row.parentPathKey === pathKey;
         });
+    }
+
+    function mapAccountId(payload) {
+        const context = payload && Array.isArray(payload.context) ? payload.context : [];
+        const row = context.length > 0 ? context[0] : null;
+        if (!row || !row.accountId) {
+            return "";
+        }
+
+        return String(row.accountId).toLowerCase();
+    }
+
+    function expandAllOccurrences(sourceRows) {
+        const expanded = {};
+        sourceRows.forEach(function (row) {
+            if (row && row.parentPathKey) {
+                expanded[row.parentPathKey] = true;
+            }
+        });
+        return expanded;
+    }
+
+    function cloneExpansion(source) {
+        const copy = {};
+        const keys = source || {};
+        Object.keys(keys).forEach(function (pathKey) {
+            copy[pathKey] = keys[pathKey] === true;
+        });
+        return copy;
+    }
+
+    function holdExpansion() {
+        heldExpansion = cloneExpansion(expandedPathKeys);
+        heldAccountId = expandedAccountId;
+    }
+
+    function initializeExpansionForAccount(accountId, sourceRows) {
+        if (accountId === expandedAccountId) {
+            return;
+        }
+
+        expandedPathKeys = expandAllOccurrences(sourceRows);
+        expandedAccountId = accountId;
+        heldExpansion = null;
+        heldAccountId = null;
+        holdExpansion();
+    }
+
+    function restoreHeldExpansion() {
+        if (heldExpansion && heldAccountId === expandedAccountId) {
+            expandedPathKeys = cloneExpansion(heldExpansion);
+        }
+
+        if (tree && rows.length > 0) {
+            renderTree();
+        }
+    }
+
+    function allOccurrencesExpanded() {
+        const expanded = expandAllOccurrences(rows);
+        const pathKeys = Object.keys(expanded);
+        for (let index = 0; index < pathKeys.length; index += 1) {
+            if (expandedPathKeys[pathKeys[index]] !== true) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function createTreeChevron(expanded) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-tree-chevron" + (expanded ? " is-expanded" : ""));
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", "currentColor");
+        path.setAttribute("stroke-width", "1.75");
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+        svg.appendChild(path);
+        return svg;
+    }
+
+    function syncExpandAllButton() {
+        if (!tree || !tree.parentElement) {
+            return;
+        }
+
+        const button = tree.parentElement.querySelector(".member-systems-expand-all");
+        if (!button) {
+            return;
+        }
+
+        const collapseAll = allOccurrencesExpanded();
+        const label = collapseAll ? "Collapse all" : "Expand all";
+        button.setAttribute("aria-label", label);
+        button.title = label;
+
+        let icon = button.querySelector(".member-tree-chevron");
+        if (!icon) {
+            button.replaceChildren(createTreeChevron(collapseAll));
+            return;
+        }
+
+        icon.classList.toggle("is-expanded", collapseAll);
+    }
+
+    function toggleAllExpansion() {
+        if (allOccurrencesExpanded()) {
+            expandedPathKeys = {};
+        } else {
+            expandedPathKeys = expandAllOccurrences(rows);
+        }
+
+        holdExpansion();
+        renderTree();
     }
 
     function beginRequest() {
@@ -302,15 +427,58 @@ window.PluralBridge.navigator = (function () {
             });
     }
 
-    function createNodeLabel(iconText, labelText) {
+    function appendShape(svg, tagName, attributes) {
+        const shape = document.createElementNS("http://www.w3.org/2000/svg", tagName);
+        Object.keys(attributes).forEach(function (name) {
+            shape.setAttribute(name, attributes[name]);
+        });
+        svg.appendChild(shape);
+    }
+
+    function createObjectIcon(objectType) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-tree-node-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "2.5");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        if (objectType === "system") {
+            appendShape(svg, "rect", { x: "16", y: "16", width: "6", height: "6", rx: "1" });
+            appendShape(svg, "rect", { x: "2", y: "16", width: "6", height: "6", rx: "1" });
+            appendShape(svg, "rect", { x: "9", y: "2", width: "6", height: "6", rx: "1" });
+            appendShape(svg, "path", { d: "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" });
+            appendShape(svg, "path", { d: "M12 12V8" });
+        } else if (objectType === "group") {
+            appendShape(svg, "path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" });
+            appendShape(svg, "circle", { cx: "9", cy: "7", r: "4" });
+            appendShape(svg, "path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" });
+            appendShape(svg, "path", { d: "M16 3.13a4 4 0 0 1 0 7.75" });
+        } else if (objectType === "place") {
+            appendShape(svg, "path", { d: "M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" });
+            appendShape(svg, "path", { d: "M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" });
+        } else if (objectType === "member") {
+            appendShape(svg, "path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" });
+            appendShape(svg, "circle", { cx: "12", cy: "7", r: "4" });
+        } else {
+            return null;
+        }
+
+        return svg;
+    }
+
+    function createNodeLabel(objectType, labelText) {
         const wrapper = document.createElement("span");
         wrapper.className = "member-tree-node-content";
-
-        if (iconText) {
-            const icon = document.createElement("span");
-            icon.className = "member-tree-node-icon";
-            icon.setAttribute("aria-hidden", "true");
-            icon.textContent = iconText;
+        const icon = createObjectIcon(objectType);
+        if (icon) {
             wrapper.appendChild(icon);
         }
 
@@ -322,16 +490,12 @@ window.PluralBridge.navigator = (function () {
     }
 
     function iconFor(row) {
-        if (row.objectType === "system") {
-            return "◈";
+        if (!row) {
+            return "";
         }
 
-        if (row.objectType === "group") {
-            return "▣";
-        }
-
-        if (row.objectType === "place") {
-            return "⌂";
+        if (row.objectType === "system" || row.objectType === "group" || row.objectType === "place" || row.objectType === "member") {
+            return row.objectType;
         }
 
         return "";
@@ -351,10 +515,19 @@ window.PluralBridge.navigator = (function () {
             expandButton.className = "member-system-tree-toggle";
             expandButton.setAttribute("aria-expanded", String(isExpanded));
             expandButton.setAttribute("aria-label", isExpanded ? "Collapse" : "Expand");
-            expandButton.textContent = isExpanded ? "−" : "+";
+            expandButton.appendChild(createTreeChevron(isExpanded));
             expandButton.addEventListener("click", function () {
-                expandedPathKeys[row.pathKey] = !isExpanded;
-                renderTree();
+                const expanded = !isExpanded;
+                expandedPathKeys[row.pathKey] = expanded;
+                holdExpansion();
+                const chevron = expandButton.querySelector(".member-tree-chevron");
+                if (chevron) {
+                    chevron.classList.toggle("is-expanded", expanded);
+                }
+                const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                window.setTimeout(function () {
+                    renderTree();
+                }, reduceMotion ? 0 : 150);
             });
             nodeRow.appendChild(expandButton);
         } else {
@@ -406,6 +579,7 @@ window.PluralBridge.navigator = (function () {
                 appendNode(row, 0);
             }
         });
+        syncExpandAllButton();
     }
 
     async function selectAnchor(row) {
@@ -435,7 +609,6 @@ window.PluralBridge.navigator = (function () {
         beginRequest();
         activeController = null;
         rows = [];
-        expandedPathKeys = {};
         selectedPathKey = null;
         clearDetail();
 
@@ -449,7 +622,6 @@ window.PluralBridge.navigator = (function () {
         tree = containers && containers.tree ? containers.tree : null;
         detail = containers && containers.detail ? containers.detail : null;
         rows = [];
-        expandedPathKeys = {};
         selectedPathKey = null;
         clearDetail();
 
@@ -486,10 +658,12 @@ window.PluralBridge.navigator = (function () {
                 }
 
                 rows = payload.hierarchyPreview;
+                initializeExpansionForAccount(mapAccountId(payload), rows);
                 if (rows.length === 0) {
                     selectedPathKey = null;
                     clearDetail();
                     renderStatus("No plural map rows were returned.");
+                    syncExpandAllButton();
                     return;
                 }
 
@@ -517,6 +691,9 @@ window.PluralBridge.navigator = (function () {
 
     return {
         mount: mount,
-        clear: clear
+        clear: clear,
+        toggleAllExpansion: toggleAllExpansion,
+        holdExpansion: holdExpansion,
+        restoreHeldExpansion: restoreHeldExpansion
     };
 }());

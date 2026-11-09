@@ -55,6 +55,13 @@ function updateSessionStatus() {
 }
 
 function clearOutput() {
+    const membersApi = window.PluralBridge && window.PluralBridge.members
+        ? window.PluralBridge.members
+        : null;
+    if (membersApi && typeof membersApi.releaseAddMenuHandlers === "function") {
+        membersApi.releaseAddMenuHandlers();
+    }
+
     output.replaceChildren();
 }
 
@@ -2562,9 +2569,12 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
             pinButton.setAttribute("aria-label", state.systemPanelPinned ? "Unpin panel" : "Pin panel");
             pinButton.title = state.systemPanelPinned ? "Unpin panel" : "Pin panel";
             pinButton.replaceChildren(createPinIcon(state.systemPanelPinned));
-            const systemsButton = document.querySelector(".member-toolbar .member-toolbar-button");
-            if (systemsButton) {
-                systemsButton.setAttribute("aria-pressed", String(visible));
+            const systemsButton = document.querySelector(".member-toolbar .member-toolbar-tree-toggle");
+            const membersApi = window.PluralBridge && window.PluralBridge.members
+                ? window.PluralBridge.members
+                : null;
+            if (systemsButton && membersApi && typeof membersApi.setTreeToggleVisible === "function") {
+                membersApi.setTreeToggleVisible(systemsButton, visible);
             }
             return;
         }
@@ -2574,7 +2584,43 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
     });
 
     header.appendChild(heading);
-    header.appendChild(pinButton);
+
+    const headerActions = document.createElement("div");
+    headerActions.className = "member-systems-header-actions";
+
+    if (state.pluralMapNavigator) {
+        const expandAllButton = document.createElement("button");
+        expandAllButton.type = "button";
+        expandAllButton.className = "member-systems-expand-all";
+        expandAllButton.setAttribute("aria-label", "Expand all");
+        expandAllButton.title = "Expand all";
+        const initialIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        initialIcon.setAttribute("class", "member-tree-chevron");
+        initialIcon.setAttribute("viewBox", "0 0 24 24");
+        initialIcon.setAttribute("aria-hidden", "true");
+        initialIcon.setAttribute("focusable", "false");
+        const initialPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        initialPath.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+        initialPath.setAttribute("fill", "none");
+        initialPath.setAttribute("stroke", "currentColor");
+        initialPath.setAttribute("stroke-width", "1.75");
+        initialPath.setAttribute("stroke-linecap", "round");
+        initialPath.setAttribute("stroke-linejoin", "round");
+        initialIcon.appendChild(initialPath);
+        expandAllButton.appendChild(initialIcon);
+        expandAllButton.addEventListener("click", function () {
+            const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+                ? window.PluralBridge.navigator
+                : null;
+            if (navigatorView && typeof navigatorView.toggleAllExpansion === "function") {
+                navigatorView.toggleAllExpansion();
+            }
+        });
+        headerActions.appendChild(expandAllButton);
+    }
+
+    headerActions.appendChild(pinButton);
+    header.appendChild(headerActions);
     panel.appendChild(header);
 
     const tree = document.createElement("div");
@@ -2644,7 +2690,21 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
             expandButton.type = "button";
             expandButton.className = "member-system-tree-toggle";
             expandButton.setAttribute("aria-expanded", String(isExpanded));
-            expandButton.textContent = isExpanded ? "−" : "+";
+            expandButton.setAttribute("aria-label", isExpanded ? "Collapse" : "Expand");
+            const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            chevron.setAttribute("class", "member-tree-chevron" + (isExpanded ? " is-expanded" : ""));
+            chevron.setAttribute("viewBox", "0 0 24 24");
+            chevron.setAttribute("aria-hidden", "true");
+            chevron.setAttribute("focusable", "false");
+            const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            chevronPath.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+            chevronPath.setAttribute("fill", "none");
+            chevronPath.setAttribute("stroke", "currentColor");
+            chevronPath.setAttribute("stroke-width", "1.75");
+            chevronPath.setAttribute("stroke-linecap", "round");
+            chevronPath.setAttribute("stroke-linejoin", "round");
+            chevron.appendChild(chevronPath);
+            expandButton.appendChild(chevron);
 
             expandButton.addEventListener("click", function () {
                 state.expandedSystemTreeNodes[node.id] = !isExpanded;
@@ -3090,11 +3150,14 @@ function renderMembers(payload) {
         }
 
         function toggleSystemPanel() {
-            if (membersUiState.systemPanelPinned) {
+            const treeWasVisible = Boolean(
+                membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
+            );
+            if (treeWasVisible) {
                 membersUiState.systemPanelPinned = false;
                 membersUiState.systemPanelOpen = false;
             } else {
-                membersUiState.systemPanelOpen = !membersUiState.systemPanelOpen;
+                membersUiState.systemPanelOpen = true;
             }
 
             writeMembersUiStateToStorage(membersUiState);
@@ -3399,20 +3462,51 @@ function showMembersWorkspace() {
         typeof window.PluralBridge.members.createMemberToolbar === "function"
     ) {
         function toggleSystemPanel() {
-            if (membersUiState.systemPanelPinned) {
+            const treeWasVisible = Boolean(
+                membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
+            );
+            const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+                ? window.PluralBridge.navigator
+                : null;
+            if (treeWasVisible) {
+                if (navigatorView && typeof navigatorView.holdExpansion === "function") {
+                    navigatorView.holdExpansion();
+                }
                 membersUiState.systemPanelPinned = false;
                 membersUiState.systemPanelOpen = false;
+                writeMembersUiStateToStorage(membersUiState);
             } else {
-                membersUiState.systemPanelOpen = !membersUiState.systemPanelOpen;
+                membersUiState.systemPanelOpen = true;
             }
 
-            const visible = membersUiState.systemPanelPinned || membersUiState.systemPanelOpen;
+            const visible = Boolean(
+                membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
+            );
             panel.hidden = !visible;
-            panel.classList.toggle("is-pinned", membersUiState.systemPanelPinned);
-            panel.classList.toggle("is-overlay", !membersUiState.systemPanelPinned);
+            panel.classList.toggle("is-pinned", membersUiState.systemPanelPinned === true);
+            panel.classList.toggle("is-overlay", membersUiState.systemPanelPinned !== true);
 
-            if (systemsButton) {
-                systemsButton.setAttribute("aria-pressed", String(visible));
+            const pinButton = panel.querySelector(".member-systems-pin-button");
+            if (pinButton) {
+                const pinned = membersUiState.systemPanelPinned === true;
+                pinButton.setAttribute("aria-pressed", String(pinned));
+                pinButton.setAttribute("aria-label", pinned ? "Unpin panel" : "Pin panel");
+                pinButton.title = pinned ? "Unpin panel" : "Pin panel";
+                const pinIcon = pinButton.querySelector(".member-systems-pin-icon");
+                if (pinIcon) {
+                    pinIcon.classList.toggle("is-unpinned", !pinned);
+                }
+            }
+
+            const membersApi = window.PluralBridge && window.PluralBridge.members
+                ? window.PluralBridge.members
+                : null;
+            if (systemsButton && membersApi && typeof membersApi.setTreeToggleVisible === "function") {
+                membersApi.setTreeToggleVisible(systemsButton, visible);
+            }
+
+            if (!treeWasVisible && navigatorView && typeof navigatorView.restoreHeldExpansion === "function") {
+                navigatorView.restoreHeldExpansion();
             }
         }
 
@@ -3421,7 +3515,7 @@ function showMembersWorkspace() {
             isSystemPanelOpen: membersUiState.systemPanelPinned || membersUiState.systemPanelOpen,
             memberActionsEnabled: false
         });
-        systemsButton = toolbar.querySelector(".member-toolbar-button");
+        systemsButton = toolbar.querySelector(".member-toolbar-tree-toggle");
     }
 
     screen.wrapper.appendChild(screen.header);

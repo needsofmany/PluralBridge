@@ -103,8 +103,8 @@ window.PluralBridge.members = (function () {
         const path = document.createElementNS(svgNamespace, "path");
         path.setAttribute("fill", "currentColor");
 
-        if (iconName === "systems") {
-            path.setAttribute("d", "M3 4h8v4H3V4zm10 0h8v4h-8V4zM3 10h8v4H3v-4zm10 0h8v4h-8v-4zM3 16h8v4H3v-4zm10 0h8v4h-8v-4z");
+        if (iconName === "tree") {
+            path.setAttribute("d", "M4 3h7v3.5H4V3zm2.6 3.5h1.4V10H6.6V6.5zM6.6 9h5v1.4h-5V9zM11.2 7.2H20v3.6h-8.8V7.2zM6.6 10.4h1.4V15H6.6v-4.6zM6.6 13.8h5v1.4h-5v-1.4zM11.2 12.4H20v3.6h-8.8v-3.6z");
         } else if (iconName === "add") {
             path.setAttribute("d", "M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4z");
         } else if (iconName === "addGroup") {
@@ -131,6 +131,12 @@ window.PluralBridge.members = (function () {
         if (options && options.disabled) {
             button.disabled = true;
             button.title = options.title || labelText + " planned";
+        } else if (options && options.title) {
+            button.title = options.title;
+        }
+
+        if (options && options.ariaLabel) {
+            button.setAttribute("aria-label", options.ariaLabel);
         }
 
         if (options && options.pressed !== undefined) {
@@ -152,12 +158,48 @@ window.PluralBridge.members = (function () {
         return button;
     }
 
+    function treeToggleLabel(isVisible) {
+        return isVisible ? "Hide Tree" : "Show Tree";
+    }
+
+    let addMenuController = null;
+
+    function releaseAddMenuHandlers() {
+        if (addMenuController) {
+            addMenuController.abort();
+            addMenuController = null;
+        }
+    }
+
+    function setTreeToggleVisible(button, isVisible) {
+        if (!button) {
+            return;
+        }
+
+        const labelText = treeToggleLabel(isVisible);
+        const label = button.querySelector(".member-toolbar-label");
+
+        button.setAttribute("aria-pressed", String(isVisible));
+        button.setAttribute("aria-label", labelText);
+        button.title = labelText;
+
+        if (label) {
+            label.textContent = labelText;
+        }
+    }
+
     function createAddMenu(options) {
+        releaseAddMenuHandlers();
+        const controller = new AbortController();
+        addMenuController = controller;
+        const signal = controller.signal;
+
         const details = document.createElement("details");
         details.className = "member-toolbar-add-menu";
 
         const summary = document.createElement("summary");
         summary.className = "member-toolbar-button member-toolbar-add-trigger is-primary";
+        summary.setAttribute("aria-expanded", "false");
         summary.appendChild(createToolbarIcon("add"));
 
         const label = document.createElement("span");
@@ -203,6 +245,58 @@ window.PluralBridge.members = (function () {
 
         details.appendChild(summary);
         details.appendChild(popover);
+
+        function syncExpanded() {
+            summary.setAttribute("aria-expanded", details.open ? "true" : "false");
+        }
+
+        function closeMenu() {
+            if (details.open) {
+                details.open = false;
+            }
+        }
+
+        details.addEventListener("toggle", syncExpanded, { signal: signal });
+
+        details.addEventListener("focusout", function () {
+            window.setTimeout(function () {
+                if (signal.aborted || !details.isConnected || !details.open) {
+                    return;
+                }
+
+                const active = document.activeElement;
+                if (active && details.contains(active)) {
+                    return;
+                }
+
+                closeMenu();
+            }, 0);
+        }, { signal: signal });
+
+        details.addEventListener("keydown", function (event) {
+            if (event.key !== "Escape" || !details.open) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            closeMenu();
+            summary.focus();
+        }, { signal: signal });
+
+        document.addEventListener("pointerdown", function (event) {
+            if (!details.isConnected) {
+                releaseAddMenuHandlers();
+                return;
+            }
+
+            if (details.contains(event.target)) {
+                return;
+            }
+
+            closeMenu();
+        }, { capture: true, signal: signal });
+
         return details;
     }
 
@@ -217,14 +311,22 @@ window.PluralBridge.members = (function () {
         const viewGroup = document.createElement("div");
         viewGroup.className = "member-toolbar-group member-toolbar-view-group";
 
-        primaryGroup.appendChild(createToolbarButton("systems", "Systems", {
-            pressed: options && options.isSystemPanelOpen === true,
+        const treeVisible = options && options.isSystemPanelOpen === true;
+        const treeButton = createToolbarButton("tree", treeToggleLabel(treeVisible), {
+            pressed: treeVisible,
+            title: treeToggleLabel(treeVisible),
+            ariaLabel: treeToggleLabel(treeVisible),
             onClick: function () {
                 if (options && typeof options.toggleSystemPanel === "function") {
                     options.toggleSystemPanel();
                 }
             }
-        }));
+        });
+        treeButton.classList.add("member-toolbar-tree-toggle");
+        treeButton.addEventListener("click", function () {
+            setTreeToggleVisible(treeButton, treeButton.getAttribute("aria-pressed") === "true");
+        });
+        primaryGroup.appendChild(treeButton);
 
         primaryGroup.appendChild(createAddMenu(options));
 
@@ -483,6 +585,8 @@ window.PluralBridge.members = (function () {
 
     return {
         createMemberToolbar: createMemberToolbar,
+        releaseAddMenuHandlers: releaseAddMenuHandlers,
+        setTreeToggleVisible: setTreeToggleVisible,
         createMemberAddForm: createMemberAddForm,
         createMemberEditForm: createMemberEditForm
     };
