@@ -61,6 +61,9 @@ function clearOutput() {
     if (membersApi && typeof membersApi.releaseAddMenuHandlers === "function") {
         membersApi.releaseAddMenuHandlers();
     }
+    if (membersApi && typeof membersApi.closeAddMemberDialog === "function") {
+        membersApi.closeAddMemberDialog();
+    }
 
     output.replaceChildren();
 }
@@ -3510,13 +3513,31 @@ function showMembersWorkspace() {
             }
         }
 
+        function openAddDialog(mode) {
+            const opener = document.activeElement;
+            if (typeof window.PluralBridge.members.openAddMemberDialog === "function") {
+                window.PluralBridge.members.openAddMemberDialog({
+                    opener: opener,
+                    mode: mode
+                });
+            }
+        }
+
         toolbar = window.PluralBridge.members.createMemberToolbar({
             toggleSystemPanel: toggleSystemPanel,
-            isSystemPanelOpen: membersUiState.systemPanelPinned || membersUiState.systemPanelOpen,
-            memberActionsEnabled: false
+            toggleAddMember: function () {
+                openAddDialog("member");
+            },
+            toggleAddGroup: function () {
+                openAddDialog("group");
+            },
+            isSystemPanelOpen: membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
         });
         systemsButton = toolbar.querySelector(".member-toolbar-tree-toggle");
     }
+
+    screen.memberAddContainer.hidden = true;
+    screen.memberAddContainer.replaceChildren();
 
     screen.wrapper.appendChild(screen.header);
     if (toolbar) {
@@ -3631,6 +3652,12 @@ function renderFrozenSessionAction(action) {
 }
 
 async function logout() {
+  const membersApi = window.PluralBridge && window.PluralBridge.members
+    ? window.PluralBridge.members
+    : null;
+  if (membersApi && typeof membersApi.closeAddMemberDialog === "function") {
+    membersApi.closeAddMemberDialog();
+  }
   clearPluralMapDisplay();
 
   try {

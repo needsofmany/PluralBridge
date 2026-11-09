@@ -63,6 +63,28 @@ window.PluralBridge.navigator = (function () {
         return String(row.accountId).toLowerCase();
     }
 
+    function getAccountId() {
+        return expandedAccountId ? String(expandedAccountId) : "";
+    }
+
+    function getMapSnapshot() {
+        return {
+            accountId: getAccountId(),
+            selectedPathKey: selectedPathKey ? String(selectedPathKey) : "",
+            rows: rows.map(function (row) {
+                return {
+                    pathKey: row && row.pathKey ? String(row.pathKey) : "",
+                    parentPathKey: row && row.parentPathKey ? String(row.parentPathKey) : null,
+                    objectType: row && row.objectType ? String(row.objectType) : "",
+                    objectId: row && row.objectId ? String(row.objectId) : "",
+                    anchorName: row && typeof row.anchorName === "string" ? row.anchorName : "",
+                    nodeLabel: row && row.nodeLabel ? String(row.nodeLabel) : "",
+                    header: Boolean(row && row.header === true)
+                };
+            })
+        };
+    }
+
     function expandAllOccurrences(sourceRows) {
         const expanded = {};
         sourceRows.forEach(function (row) {
@@ -692,6 +714,8 @@ window.PluralBridge.navigator = (function () {
     return {
         mount: mount,
         clear: clear,
+        getAccountId: getAccountId,
+        getMapSnapshot: getMapSnapshot,
         toggleAllExpansion: toggleAllExpansion,
         holdExpansion: holdExpansion,
         restoreHeldExpansion: restoreHeldExpansion

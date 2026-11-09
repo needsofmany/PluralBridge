@@ -215,11 +215,19 @@ window.PluralBridge.members = (function () {
         const popover = document.createElement("div");
         popover.className = "member-toolbar-add-popover";
 
-        function createAddOption(labelText, isEnabled, clickHandler) {
+        function createAddOption(labelText, iconType, isEnabled, clickHandler) {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "member-toolbar-add-option";
-            button.textContent = labelText;
+
+            const icon = dialogOutlineIcon(iconType);
+            if (icon) {
+                button.appendChild(icon);
+            }
+
+            const label = document.createElement("span");
+            label.textContent = labelText;
+            button.appendChild(label);
 
             if (!isEnabled) {
                 button.disabled = true;
@@ -235,13 +243,24 @@ window.PluralBridge.members = (function () {
         }
 
         const memberAddEnabled = !(options && options.memberActionsEnabled === false);
-        popover.appendChild(createAddOption("System", false, null));
-        popover.appendChild(createAddOption("Member", memberAddEnabled, function () {
+        popover.appendChild(createAddOption("Member", "member", memberAddEnabled, function () {
             if (options && typeof options.toggleAddMember === "function") {
                 options.toggleAddMember();
             }
         }));
-        popover.appendChild(createAddOption("Group", false, null));
+        popover.appendChild(createAddOption("Group", "group", Boolean(options && typeof options.toggleAddGroup === "function"), function () {
+            if (options && typeof options.toggleAddGroup === "function") {
+                options.toggleAddGroup();
+            }
+        }));
+        popover.appendChild(createAddOption("Place", "place", false, null));
+        popover.appendChild(createAddOption("System", "system", false, null));
+
+        const relationshipSeparator = document.createElement("div");
+        relationshipSeparator.className = "member-toolbar-add-separator";
+        relationshipSeparator.setAttribute("role", "separator");
+        popover.appendChild(relationshipSeparator);
+        popover.appendChild(createAddOption("Relationship", "relationship", false, null));
 
         details.appendChild(summary);
         details.appendChild(popover);
@@ -392,6 +411,115 @@ window.PluralBridge.members = (function () {
         return button;
     }
 
+    const memberPreviewsByAccount = {};
+
+    function databaseWritesAreDisabled() {
+        const tools = window.PluralBridge && window.PluralBridge.developerTools
+            ? window.PluralBridge.developerTools
+            : null;
+
+        return !tools || tools.databaseWritesDisabled !== false;
+    }
+
+    function currentAccountId() {
+        const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+            ? window.PluralBridge.navigator
+            : null;
+
+        if (!navigatorView || typeof navigatorView.getAccountId !== "function") {
+            return "";
+        }
+
+        const accountId = navigatorView.getAccountId();
+        return accountId ? String(accountId) : "";
+    }
+
+    function previewDestination(request) {
+        if (!request || !request.destination || typeof request.destination !== "object") {
+            return null;
+        }
+
+        return {
+            objectType: request.destination.objectType ? String(request.destination.objectType) : "",
+            objectId: request.destination.objectId ? String(request.destination.objectId) : "",
+            pathKey: request.destination.pathKey ? String(request.destination.pathKey) : "",
+            anchorName: typeof request.destination.anchorName === "string" ? request.destination.anchorName : ""
+        };
+    }
+
+    async function holdAccountPreview(kind, request) {
+        const isGroup = kind === "group";
+        const previewNoun = isGroup ? "group" : "member";
+
+        if (!databaseWritesAreDisabled()) {
+            return {
+                status: isGroup
+                    ? "Group creation is not connected to an anchor-specific save endpoint yet."
+                    : "Member creation is not connected to an anchor-specific save endpoint yet."
+            };
+        }
+
+        const accountId = currentAccountId();
+        if (!accountId) {
+            return {
+                status: "The signed-in account is not available, so this " + previewNoun + " preview was not stored."
+            };
+        }
+
+        await Promise.resolve();
+
+        if (currentAccountId() !== accountId) {
+            return {
+                status: "The signed-in account changed, so this " + previewNoun + " preview was not stored."
+            };
+        }
+
+        if (!memberPreviewsByAccount[accountId]) {
+            memberPreviewsByAccount[accountId] = [];
+        }
+
+        const destination = previewDestination(request);
+        const record = isGroup
+            ? {
+                previewKind: "group",
+                objectType: "group",
+                displayName: request.displayName,
+                color: request.color ? String(request.color) : "",
+                description: request.description || "",
+                destination: destination
+            }
+            : {
+                previewKind: "member",
+                objectType: "member",
+                displayName: request.displayName,
+                pronouns: request.pronouns || "",
+                description: request.description || "",
+                color: request.color ? String(request.color) : "",
+                fronting: request.fronting === true,
+                avatarObjectUrl: request.avatarObjectUrl ? String(request.avatarObjectUrl) : "",
+                destination: destination
+            };
+
+        memberPreviewsByAccount[accountId].push(record);
+
+        console.info(
+            isGroup
+                ? "Suppressed add-group database write. Group details were held in browser memory for the signed-in account. No profile fields were written to the log."
+                : "Suppressed add-member database write. Member details were held in browser memory for the signed-in account. No profile fields were written to the log."
+        );
+
+        return {
+            status: isGroup
+                ? "Preview only: group details held in browser memory. Nothing was saved to the database."
+                : "Preview only: member details held in browser memory. Nothing was saved to the database.",
+            reset: true
+        };
+    }
+
+    async function previewAddMember(request) {
+        return holdAccountPreview("member", request);
+    }
+
     function createMemberAddForm(options) {
         const section = document.createElement("section");
         section.className = "member-add-panel";
@@ -438,19 +566,38 @@ window.PluralBridge.members = (function () {
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
 
+            const request = buildMemberRequest(displayNameField.input, pronounsField.input, descriptionField.input);
+
+            if (!request.displayName) {
+                status.textContent = "Display name is required.";
+                return;
+            }
+
+            if (options && typeof options.submitMember === "function") {
+                setFormBusy(form, true);
+                status.textContent = "";
+
+                try {
+                    const outcome = await options.submitMember(request);
+                    if (outcome && outcome.reset) {
+                        form.reset();
+                    }
+                    status.textContent = outcome && outcome.status ? outcome.status : "";
+                } catch (error) {
+                    status.textContent = "Member could not be added. Confirm the API is running and try again.";
+                } finally {
+                    setFormBusy(form, false);
+                }
+
+                return;
+            }
+
             const apiClient = window.PluralBridge && window.PluralBridge.apiClient
                 ? window.PluralBridge.apiClient
                 : null;
 
             if (!apiClient || typeof apiClient.addMember !== "function") {
                 status.textContent = "Member add is not available in the current browser session.";
-                return;
-            }
-
-            const request = buildMemberRequest(displayNameField.input, pronounsField.input, descriptionField.input);
-
-            if (!request.displayName) {
-                status.textContent = "Display name is required.";
                 return;
             }
 
@@ -583,11 +730,844 @@ window.PluralBridge.members = (function () {
         return section;
     }
 
+    let addMemberDialogEpoch = 0;
+    let addMemberDialog = null;
+    let addMemberDialogController = null;
+    let addMemberDialogOpener = null;
+    let addMemberDialogOwnedUrls = [];
+    const addMemberDialogCommittedUrls = {};
+
+    function focusAddMemberOpener(opener) {
+        const details = opener && typeof opener.closest === "function"
+            ? opener.closest(".member-toolbar-add-menu")
+            : null;
+        const summary = details ? details.querySelector(".member-toolbar-add-trigger") : null;
+        if (summary && summary.isConnected) {
+            summary.focus();
+            return;
+        }
+
+        if (opener && opener.isConnected) {
+            opener.focus();
+        }
+    }
+
+    function revokeUncommittedAvatarUrls() {
+        addMemberDialogOwnedUrls.forEach(function (url) {
+            if (!addMemberDialogCommittedUrls[url]) {
+                URL.revokeObjectURL(url);
+            }
+        });
+        addMemberDialogOwnedUrls = [];
+    }
+
+    function destroyAddMemberDialog() {
+        if (addMemberDialogController) {
+            addMemberDialogController.abort();
+            addMemberDialogController = null;
+        }
+
+        revokeUncommittedAvatarUrls();
+
+        const dialog = addMemberDialog;
+        addMemberDialog = null;
+        if (!dialog) {
+            return;
+        }
+
+        if (dialog.open) {
+            dialog.close();
+        }
+        dialog.remove();
+    }
+
+    function closeAddMemberDialog() {
+        addMemberDialogEpoch += 1;
+        const opener = addMemberDialogOpener;
+        addMemberDialogOpener = null;
+        destroyAddMemberDialog();
+        focusAddMemberOpener(opener);
+    }
+
+    function readMapSnapshot() {
+        const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+            ? window.PluralBridge.navigator
+            : null;
+        if (!navigatorView || typeof navigatorView.getMapSnapshot !== "function") {
+            return {
+                accountId: "",
+                selectedPathKey: "",
+                rows: []
+            };
+        }
+
+        return navigatorView.getMapSnapshot();
+    }
+
+    function isDestinationAnchor(row) {
+        return Boolean(
+            row &&
+            row.header !== true &&
+            (row.objectType === "system" || row.objectType === "group" || row.objectType === "place")
+        );
+    }
+
+    function containingAnchor(snapshot) {
+        const byKey = {};
+        snapshot.rows.forEach(function (row) {
+            if (row.pathKey) {
+                byKey[row.pathKey] = row;
+            }
+        });
+
+        let row = snapshot.selectedPathKey ? byKey[snapshot.selectedPathKey] : null;
+        const seen = {};
+        while (row && row.pathKey && !seen[row.pathKey]) {
+            seen[row.pathKey] = true;
+            if (isDestinationAnchor(row)) {
+                return row;
+            }
+            row = row.parentPathKey ? byKey[row.parentPathKey] : null;
+        }
+
+        return null;
+    }
+
+    function destinationTypeLabel(objectType) {
+        if (objectType === "system") {
+            return "System";
+        }
+        if (objectType === "group") {
+            return "Group";
+        }
+        if (objectType === "place") {
+            return "Place";
+        }
+        return "";
+    }
+
+    function destinationDisplayName(row) {
+        if (row && row.anchorName) {
+            return row.anchorName;
+        }
+        return row && row.nodeLabel ? row.nodeLabel : "";
+    }
+
+    function dialogSvg(pathData) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("fill", "currentColor");
+        path.setAttribute("d", pathData);
+        svg.appendChild(path);
+        return svg;
+    }
+
+    function dialogOutlineIcon(objectType) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-tree-node-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "2.5");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        function shape(tagName, attributes) {
+            const node = document.createElementNS(svgNamespace, tagName);
+            Object.keys(attributes).forEach(function (name) {
+                node.setAttribute(name, attributes[name]);
+            });
+            svg.appendChild(node);
+        }
+
+        if (objectType === "system") {
+            shape("rect", { x: "16", y: "16", width: "6", height: "6", rx: "1" });
+            shape("rect", { x: "2", y: "16", width: "6", height: "6", rx: "1" });
+            shape("rect", { x: "9", y: "2", width: "6", height: "6", rx: "1" });
+            shape("path", { d: "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" });
+            shape("path", { d: "M12 12V8" });
+        } else if (objectType === "group") {
+            shape("path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" });
+            shape("circle", { cx: "9", cy: "7", r: "4" });
+            shape("path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" });
+            shape("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" });
+        } else if (objectType === "place") {
+            shape("path", { d: "M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" });
+            shape("path", { d: "M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" });
+        } else if (objectType === "member") {
+            shape("path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" });
+            shape("circle", { cx: "12", cy: "7", r: "4" });
+        } else if (objectType === "relationship") {
+            shape("path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" });
+            shape("path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" });
+        } else {
+            return null;
+        }
+
+        return svg;
+    }
+
+    function dialogChevron(expanded) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-tree-chevron" + (expanded ? " is-expanded" : ""));
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", "currentColor");
+        path.setAttribute("stroke-width", "1.75");
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+        svg.appendChild(path);
+        return svg;
+    }
+
+    function dialogPencil() {
+        const icon = dialogSvg("M4 17.3V21h3.7L18.8 9.9l-3.7-3.7L4 17.3zM20.7 8c.4-.4.4-1 0-1.4l-2.3-2.3c-.4-.4-1-.4-1.4 0l-1.2 1.2 3.7 3.7L20.7 8z");
+        icon.setAttribute("class", "member-add-dialog-pencil-icon");
+        icon.setAttribute("width", "16");
+        icon.setAttribute("height", "16");
+        return icon;
+    }
+
+    function dialogFrontingIcon(isFronting) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-add-dialog-fronting-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "1.8");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        const person = document.createElementNS(svgNamespace, "path");
+        person.setAttribute("d", "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4.5 19v-1.2A3.8 3.8 0 0 1 8.3 14h1.4a3.8 3.8 0 0 1 3.8 3.8V19");
+        const arrow = document.createElementNS(svgNamespace, "path");
+        arrow.setAttribute("d", isFronting ? "M17 19V8M14 11l3-3 3 3" : "M17 5v11M14 13l3 3 3-3");
+        svg.appendChild(person);
+        svg.appendChild(arrow);
+        return svg;
+    }
+
+    function presentAddMemberDialog(opener, addMode) {
+        const isGroup = addMode === "group";
+        const snapshot = readMapSnapshot();
+        const openedAccountId = snapshot.accountId || currentAccountId();
+        addMemberDialogOpener = opener;
+        const controller = new AbortController();
+        addMemberDialogController = controller;
+        const signal = controller.signal;
+        const expanded = {};
+        snapshot.rows.forEach(function (row) {
+            if (row.parentPathKey) {
+                expanded[row.parentPathKey] = true;
+            }
+        });
+
+        let selectedRow = containingAnchor(snapshot);
+        let fronting = false;
+        let draftAvatarUrl = "";
+
+        const dialog = document.createElement("dialog");
+        dialog.className = "member-add-dialog";
+        dialog.setAttribute("data-add-mode", isGroup ? "group" : "member");
+        dialog.setAttribute("aria-labelledby", "member-add-overlay-title");
+        addMemberDialog = dialog;
+
+        const title = document.createElement("h2");
+        title.id = "member-add-overlay-title";
+        title.className = "member-add-dialog-title";
+        title.textContent = isGroup ? "Add Group" : "Add Member";
+
+        const layout = document.createElement("div");
+        layout.className = "member-add-dialog-layout";
+
+        const side = document.createElement("div");
+        side.className = "member-add-dialog-side";
+
+        const sideHeading = document.createElement("div");
+        sideHeading.className = "member-add-dialog-side-heading";
+
+        const sideLabel = document.createElement("p");
+        sideLabel.className = "member-add-dialog-side-label";
+        sideLabel.textContent = isGroup ? "Add group to:" : "Add member to:";
+
+        const expandAllButton = document.createElement("button");
+        expandAllButton.type = "button";
+        expandAllButton.className = "member-add-dialog-expand-all member-systems-expand-all";
+        sideHeading.appendChild(sideLabel);
+        sideHeading.appendChild(expandAllButton);
+
+        const tree = document.createElement("div");
+        tree.className = "member-add-dialog-tree member-systems-tree";
+        tree.setAttribute("role", "group");
+        tree.setAttribute("aria-label", "Add member to");
+
+        const actions = document.createElement("div");
+        actions.className = "member-add-dialog-actions";
+
+        const saveButton = document.createElement("button");
+        saveButton.type = "submit";
+        saveButton.className = "member-add-dialog-save";
+        saveButton.textContent = "Save";
+
+        const cancelButton = document.createElement("button");
+        cancelButton.type = "button";
+        cancelButton.className = "member-add-dialog-cancel";
+        cancelButton.textContent = "Cancel";
+
+        actions.appendChild(saveButton);
+        actions.appendChild(cancelButton);
+        side.appendChild(sideHeading);
+        side.appendChild(tree);
+        side.appendChild(actions);
+
+        const main = document.createElement("div");
+        main.className = "member-add-dialog-main";
+
+        const toolbar = document.createElement("div");
+        toolbar.className = "member-add-dialog-toolbar";
+
+        const frontingButton = document.createElement("button");
+        frontingButton.type = "button";
+        frontingButton.className = "member-add-dialog-fronting member-add-dialog-member-only";
+
+        const closeButton = document.createElement("button");
+        closeButton.type = "button";
+        closeButton.className = "member-add-dialog-close";
+        closeButton.setAttribute("aria-label", "Close");
+        closeButton.textContent = "×";
+
+        toolbar.appendChild(frontingButton);
+        toolbar.appendChild(closeButton);
+
+        const typeLine = document.createElement("p");
+        typeLine.className = "member-add-dialog-type";
+        typeLine.appendChild(document.createTextNode("Type : "));
+        const typeValue = document.createElement("span");
+        typeLine.appendChild(typeValue);
+
+        const destinationName = document.createElement("div");
+        destinationName.className = "member-add-dialog-destination-name";
+
+        const media = document.createElement("div");
+        media.className = "member-add-dialog-media";
+
+        const colorField = document.createElement("div");
+        colorField.className = "member-add-dialog-field member-add-dialog-color-field";
+        const colorInput = document.createElement("input");
+        colorInput.type = "color";
+        colorInput.className = "member-add-dialog-color";
+        colorInput.value = "#3aa655";
+        colorInput.setAttribute("aria-label", "Select your color");
+        const colorCopy = document.createElement("span");
+        colorCopy.className = "member-add-dialog-color-label";
+        colorCopy.textContent = "Select your color";
+        const colorPencil = document.createElement("button");
+        colorPencil.type = "button";
+        colorPencil.className = "member-add-dialog-pencil";
+        colorPencil.setAttribute("aria-label", "Edit color");
+        colorPencil.appendChild(dialogPencil());
+        colorField.appendChild(colorInput);
+        colorField.appendChild(colorCopy);
+        colorField.appendChild(colorPencil);
+
+        const avatarField = document.createElement("div");
+        avatarField.className = "member-add-dialog-field member-add-dialog-avatar-field member-add-dialog-member-only";
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/*";
+        fileInput.tabIndex = -1;
+        fileInput.className = "member-add-dialog-file";
+        fileInput.setAttribute("aria-label", "Choose an avatar image");
+        const avatarFrame = document.createElement("div");
+        avatarFrame.className = "member-add-dialog-avatar";
+        const avatarPencil = document.createElement("button");
+        avatarPencil.type = "button";
+        avatarPencil.className = "member-add-dialog-pencil";
+        avatarPencil.setAttribute("aria-label", "Choose an avatar image");
+        avatarPencil.appendChild(dialogPencil());
+        avatarField.appendChild(avatarFrame);
+        avatarField.appendChild(avatarPencil);
+        avatarField.appendChild(fileInput);
+
+        media.appendChild(colorField);
+        media.appendChild(avatarField);
+
+        function labeledField(fieldId, labelText, control, fieldOptions) {
+            const field = document.createElement("div");
+            field.className = "member-add-dialog-field";
+            const label = document.createElement("label");
+            label.className = "member-add-dialog-label";
+            label.setAttribute("for", fieldId);
+            label.textContent = labelText;
+            const pencil = document.createElement("button");
+            pencil.type = "button";
+            pencil.className = "member-add-dialog-pencil";
+            pencil.setAttribute("aria-label", "Edit " + labelText);
+            pencil.appendChild(dialogPencil());
+            pencil.addEventListener("click", function () {
+                control.focus();
+            });
+            if (fieldOptions && fieldOptions.mode === "add") {
+                pencil.hidden = true;
+                pencil.tabIndex = -1;
+                pencil.setAttribute("aria-hidden", "true");
+            }
+            field.appendChild(label);
+            field.appendChild(control);
+            field.appendChild(pencil);
+            return field;
+        }
+
+        const nameInput = document.createElement("input");
+        nameInput.id = "member-add-overlay-name";
+        nameInput.type = "text";
+        nameInput.autocomplete = "off";
+        nameInput.placeholder = "Use @ for root";
+
+        const pronounsInput = document.createElement("input");
+        pronounsInput.id = "member-add-overlay-pronouns";
+        pronounsInput.type = "text";
+        pronounsInput.autocomplete = "off";
+        pronounsInput.placeholder = "Use @ for root";
+
+        const descriptionInput = document.createElement("textarea");
+        descriptionInput.id = "member-add-overlay-description";
+        descriptionInput.rows = 6;
+
+        const status = createStatusMessage();
+        status.classList.add("member-add-dialog-status");
+
+        function paintFronting() {
+            frontingButton.replaceChildren(dialogFrontingIcon(fronting));
+            const label = document.createElement("span");
+            label.textContent = fronting ? "Fronting" : "Not fronting";
+            frontingButton.appendChild(label);
+            frontingButton.setAttribute("aria-pressed", fronting ? "true" : "false");
+            frontingButton.setAttribute("aria-label", fronting ? "Fronting" : "Not fronting");
+        }
+
+        function paintAvatar() {
+            avatarFrame.replaceChildren();
+            if (!draftAvatarUrl) {
+                const empty = document.createElement("span");
+                empty.className = "member-add-dialog-avatar-empty";
+                empty.textContent = "No avatar selected";
+                avatarFrame.appendChild(empty);
+                return;
+            }
+
+            const image = document.createElement("img");
+            image.className = "member-add-dialog-avatar-image";
+            image.alt = "";
+            image.src = draftAvatarUrl;
+            avatarFrame.appendChild(image);
+        }
+
+        function currentDestination() {
+            return isDestinationAnchor(selectedRow) ? selectedRow : null;
+        }
+
+        function syncSave() {
+            saveButton.disabled = !currentDestination();
+        }
+
+        function expandablePathKeys() {
+            const keys = {};
+            snapshot.rows.forEach(function (row) {
+                if (row.parentPathKey) {
+                    keys[row.parentPathKey] = true;
+                }
+            });
+            return Object.keys(keys);
+        }
+
+        function allOccurrencesExpanded() {
+            const keys = expandablePathKeys();
+            for (let index = 0; index < keys.length; index += 1) {
+                if (expanded[keys[index]] !== true) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function syncExpandAll() {
+            const collapseAll = allOccurrencesExpanded();
+            const label = collapseAll ? "Collapse all" : "Expand all";
+            expandAllButton.setAttribute("aria-label", label);
+            expandAllButton.title = label;
+            let icon = expandAllButton.querySelector(".member-tree-chevron");
+            if (!icon) {
+                expandAllButton.replaceChildren(dialogChevron(collapseAll));
+                return;
+            }
+            icon.classList.toggle("is-expanded", collapseAll);
+        }
+
+        function paintDestination() {
+            const destination = currentDestination();
+            if (!destination) {
+                typeValue.textContent = "None";
+                destinationName.textContent = "Select a destination";
+                destinationName.classList.add("is-empty");
+                return;
+            }
+
+            typeValue.textContent = destinationTypeLabel(destination.objectType);
+            destinationName.textContent = destinationDisplayName(destination);
+            destinationName.classList.remove("is-empty");
+        }
+
+        function selectOccurrence(row) {
+            if (accountChanged()) {
+                return;
+            }
+            if (selectedRow && selectedRow.pathKey === row.pathKey) {
+                syncSave();
+                return;
+            }
+            selectedRow = row;
+            paintDestination();
+            syncSave();
+            paintTree();
+        }
+
+        function accountChanged() {
+            const now = currentAccountId();
+            if (openedAccountId && now !== openedAccountId) {
+                closeAddMemberDialog();
+                return true;
+            }
+            return false;
+        }
+
+        function childRows(pathKey) {
+            return snapshot.rows.filter(function (row) {
+                return row.parentPathKey === pathKey;
+            });
+        }
+
+        function appendChoice(row, level) {
+            const children = childRows(row.pathKey);
+            const hasChildren = children.length > 0;
+            const isExpanded = expanded[row.pathKey] === true;
+            const nodeRow = document.createElement("div");
+            nodeRow.className = "member-system-node-row";
+            nodeRow.style.setProperty("--system-node-level", String(level));
+
+            if (hasChildren) {
+                const expandButton = document.createElement("button");
+                expandButton.type = "button";
+                expandButton.className = "member-system-tree-toggle";
+                expandButton.setAttribute("data-path-key", row.pathKey);
+                expandButton.setAttribute("aria-expanded", String(isExpanded));
+                expandButton.setAttribute("aria-label", isExpanded ? "Collapse" : "Expand");
+                expandButton.appendChild(dialogChevron(isExpanded));
+                expandButton.addEventListener("click", function () {
+                    if (accountChanged()) {
+                        return;
+                    }
+                    expanded[row.pathKey] = !isExpanded;
+                    syncExpandAll();
+                    paintTree();
+                });
+                nodeRow.appendChild(expandButton);
+            } else {
+                const spacer = document.createElement("span");
+                spacer.className = "member-system-tree-spacer";
+                nodeRow.appendChild(spacer);
+            }
+
+            const iconType = row.objectType === "system" || row.objectType === "group" || row.objectType === "place" || row.objectType === "member"
+                ? row.objectType
+                : "";
+            const content = document.createElement("span");
+            content.className = "member-tree-node-content";
+            const icon = dialogOutlineIcon(iconType);
+            if (icon) {
+                content.appendChild(icon);
+            }
+            const text = document.createElement("span");
+            text.className = "member-tree-node-text";
+            text.textContent = row.nodeLabel || "";
+            content.appendChild(text);
+
+            const selectButton = document.createElement("button");
+            selectButton.type = "button";
+            selectButton.className = "member-system-node-button";
+            selectButton.setAttribute("data-path-key", row.pathKey);
+            if (selectedRow && selectedRow.pathKey === row.pathKey) {
+                selectButton.classList.add("is-active");
+            }
+            if (isDestinationAnchor(row)) {
+                if (selectedRow && selectedRow.pathKey === row.pathKey) {
+                    selectButton.setAttribute("aria-current", "true");
+                }
+            } else {
+                selectButton.classList.add("is-not-destination");
+                selectButton.title = row.header
+                    ? "This heading cannot be the destination."
+                    : "Members stay visible and cannot be the destination.";
+            }
+            selectButton.appendChild(content);
+            selectButton.addEventListener("focus", function () {
+                selectOccurrence(row);
+            });
+            selectButton.addEventListener("click", function () {
+                selectOccurrence(row);
+            });
+            nodeRow.appendChild(selectButton);
+
+            tree.appendChild(nodeRow);
+            if (hasChildren && isExpanded) {
+                children.forEach(function (child) {
+                    appendChoice(child, level + 1);
+                });
+            }
+        }
+
+        function paintTree() {
+            const scrollTop = tree.scrollTop;
+            const active = document.activeElement;
+            const restorePath = active && tree.contains(active) ? active.getAttribute("data-path-key") : "";
+            const restoreToggle = Boolean(active && active.classList.contains("member-system-tree-toggle"));
+            tree.replaceChildren();
+            if (snapshot.rows.length === 0) {
+                const empty = document.createElement("p");
+                empty.className = "member-add-dialog-tree-empty";
+                empty.textContent = "The signed-in account map is not available.";
+                tree.appendChild(empty);
+                syncExpandAll();
+                return;
+            }
+
+            snapshot.rows.forEach(function (row) {
+                if (row.parentPathKey == null) {
+                    appendChoice(row, 0);
+                }
+            });
+            tree.scrollTop = scrollTop;
+            syncExpandAll();
+            if (!restorePath) {
+                return;
+            }
+
+            const selector = restoreToggle
+                ? ".member-system-tree-toggle"
+                : ".member-system-node-button";
+            const buttons = tree.querySelectorAll(selector);
+            for (let index = 0; index < buttons.length; index += 1) {
+                if (buttons[index].getAttribute("data-path-key") === restorePath) {
+                    buttons[index].focus();
+                    break;
+                }
+            }
+        }
+
+        const form = document.createElement("form");
+        form.className = "member-add-dialog-form";
+        form.appendChild(title);
+        form.appendChild(layout);
+        layout.appendChild(side);
+        layout.appendChild(main);
+        const identity = document.createElement("div");
+        identity.className = "member-add-dialog-identity";
+        identity.appendChild(destinationName);
+        identity.appendChild(media);
+
+        main.appendChild(toolbar);
+        main.appendChild(typeLine);
+        main.appendChild(identity);
+        const nameField = labeledField("member-add-overlay-name", "Name", nameInput, { mode: "add" });
+        nameField.classList.add("member-add-dialog-name-field");
+        main.appendChild(nameField);
+        const pronounsField = labeledField("member-add-overlay-pronouns", "Pronouns", pronounsInput, { mode: "add" });
+        pronounsField.classList.add("member-add-dialog-member-only");
+        if (isGroup) {
+            pronounsField.hidden = true;
+            frontingButton.hidden = true;
+            avatarField.hidden = true;
+        }
+        main.appendChild(pronounsField);
+        const descriptionField = labeledField("member-add-overlay-description", "Description", descriptionInput, { mode: "add" });
+        descriptionField.classList.add("member-add-dialog-description-field");
+        main.appendChild(descriptionField);
+        main.appendChild(status);
+        dialog.appendChild(form);
+
+        paintFronting();
+        paintAvatar();
+        paintDestination();
+        syncSave();
+        paintTree();
+
+        expandAllButton.addEventListener("click", function () {
+            if (accountChanged()) {
+                return;
+            }
+            const keys = expandablePathKeys();
+            const expand = !allOccurrencesExpanded();
+            keys.forEach(function (pathKey) {
+                expanded[pathKey] = expand;
+            });
+            syncExpandAll();
+            paintTree();
+        }, { signal: signal });
+
+        frontingButton.addEventListener("click", function () {
+            if (accountChanged()) {
+                return;
+            }
+            fronting = !fronting;
+            paintFronting();
+        }, { signal: signal });
+
+        closeButton.addEventListener("click", function () {
+            closeAddMemberDialog();
+        }, { signal: signal });
+        cancelButton.addEventListener("click", function () {
+            closeAddMemberDialog();
+        }, { signal: signal });
+
+        colorPencil.addEventListener("click", function () {
+            colorInput.click();
+        }, { signal: signal });
+        avatarPencil.addEventListener("click", function () {
+            fileInput.click();
+        }, { signal: signal });
+        avatarFrame.addEventListener("click", function () {
+            fileInput.click();
+        }, { signal: signal });
+        fileInput.addEventListener("change", function () {
+            const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+            if (!file) {
+                return;
+            }
+            if (draftAvatarUrl) {
+                if (!addMemberDialogCommittedUrls[draftAvatarUrl]) {
+                    URL.revokeObjectURL(draftAvatarUrl);
+                }
+            }
+            draftAvatarUrl = URL.createObjectURL(file);
+            addMemberDialogOwnedUrls.push(draftAvatarUrl);
+            paintAvatar();
+        }, { signal: signal });
+
+        dialog.addEventListener("cancel", function (event) {
+            event.preventDefault();
+            closeAddMemberDialog();
+        }, { signal: signal });
+
+        window.addEventListener("focus", function () {
+            accountChanged();
+        }, { signal: signal });
+
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            if (accountChanged()) {
+                return;
+            }
+
+            const displayName = nameInput.value.trim();
+            if (!displayName) {
+                status.textContent = "Name is required.";
+                nameInput.focus();
+                return;
+            }
+
+            const destination = currentDestination();
+            if (!destination) {
+                status.textContent = isGroup
+                    ? "Select a system, group, or place before saving this group."
+                    : "Select a system, group, or place before saving this member.";
+                syncSave();
+                return;
+            }
+
+            if (!currentAccountId()) {
+                status.textContent = "The signed-in account is not available, so this " + (isGroup ? "group" : "member") + " preview was not stored.";
+                return;
+            }
+
+            saveButton.disabled = true;
+            const previewRequest = {
+                displayName: displayName,
+                description: descriptionInput.value.trim(),
+                color: colorInput.value,
+                destination: {
+                    objectType: destination.objectType,
+                    objectId: destination.objectId,
+                    pathKey: destination.pathKey,
+                    anchorName: destination.anchorName || ""
+                }
+            };
+            if (!isGroup) {
+                previewRequest.pronouns = pronounsInput.value.trim();
+                previewRequest.fronting = fronting;
+                previewRequest.avatarObjectUrl = draftAvatarUrl;
+            }
+            try {
+                const outcome = await holdAccountPreview(isGroup ? "group" : "member", previewRequest);
+                if (accountChanged()) {
+                    return;
+                }
+                if (outcome && outcome.reset && draftAvatarUrl) {
+                    addMemberDialogCommittedUrls[draftAvatarUrl] = true;
+                }
+                status.textContent = outcome && outcome.status ? outcome.status : "";
+            } finally {
+                if (saveButton.isConnected) {
+                    syncSave();
+                }
+            }
+        }, { signal: signal });
+
+        document.body.appendChild(dialog);
+        dialog.showModal();
+        if (currentDestination()) {
+            nameInput.focus();
+        }
+    }
+
+    function openAddMemberDialog(options) {
+        const opener = options && options.opener instanceof Element ? options.opener : null;
+        const mode = options && options.mode === "group" ? "group" : "member";
+        const scheduledEpoch = addMemberDialogEpoch;
+        window.setTimeout(function () {
+            if (scheduledEpoch !== addMemberDialogEpoch) {
+                return;
+            }
+            destroyAddMemberDialog();
+            presentAddMemberDialog(opener, mode);
+        }, 0);
+    }
+
     return {
         createMemberToolbar: createMemberToolbar,
         releaseAddMenuHandlers: releaseAddMenuHandlers,
         setTreeToggleVisible: setTreeToggleVisible,
         createMemberAddForm: createMemberAddForm,
+        openAddMemberDialog: openAddMemberDialog,
+        closeAddMemberDialog: closeAddMemberDialog,
+        previewAddMember: previewAddMember,
         createMemberEditForm: createMemberEditForm
     };
 })();
