@@ -295,6 +295,35 @@ window.PluralBridge.navigator = (function () {
         console.error(explanation);
     }
 
+    function memberCssColor(value) {
+        return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
+    }
+
+    function profileForCard(profile, memberId, accountId) {
+        const membersApi = window.PluralBridge && window.PluralBridge.members
+            ? window.PluralBridge.members
+            : null;
+        const preview = membersApi && typeof membersApi.readMemberProfilePreview === "function"
+            ? membersApi.readMemberProfilePreview(accountId, memberId)
+            : null;
+        const hasPreviewField = function (key) {
+            return Boolean(preview) && Object.prototype.hasOwnProperty.call(preview, key);
+        };
+
+        return {
+            memberId: profile ? profile.memberId : memberId,
+            displayName: preview ? preview.displayName : profile.displayName,
+            pronouns: preview ? preview.pronouns : profile.pronouns,
+            description: preview ? preview.description : profile.description,
+            color: hasPreviewField("color")
+                ? memberCssColor(preview.color)
+                : memberCssColor(profile && profile.color),
+            fronting: hasPreviewField("fronting") ? preview.fronting : null,
+            sharing: hasPreviewField("sharing") ? preview.sharing : null,
+            avatarObjectUrl: hasPreviewField("avatarObjectUrl") ? preview.avatarObjectUrl : null
+        };
+    }
+
     function renderProfiles(row, profiles) {
         if (!detail) {
             return;
@@ -325,6 +354,7 @@ window.PluralBridge.navigator = (function () {
         const missing = [];
         const list = document.createElement("div");
         list.className = "member-map-children";
+        const renderedAccountId = getAccountId();
         const memberChildren = children.filter(function (child) {
             return child.objectType === "member";
         });
@@ -344,8 +374,22 @@ window.PluralBridge.navigator = (function () {
             }
 
             matched[id] = true;
-            list.appendChild(createCard(profile, {
-                allowProfileEditing: false
+            list.appendChild(createCard(profileForCard(profile, id, renderedAccountId), {
+                allowProfileEditing: true,
+                previewHeader: true,
+                saveProfile: function (saveRequest) {
+                    const membersApi = window.PluralBridge && window.PluralBridge.members
+                        ? window.PluralBridge.members
+                        : null;
+                    if (!membersApi || typeof membersApi.saveMemberProfilePreview !== "function") {
+                        return {
+                            saved: false,
+                            status: "Member profile saving is not connected to an anchor-specific endpoint yet."
+                        };
+                    }
+
+                    return membersApi.saveMemberProfilePreview(renderedAccountId, id, saveRequest);
+                }
             }));
         });
 

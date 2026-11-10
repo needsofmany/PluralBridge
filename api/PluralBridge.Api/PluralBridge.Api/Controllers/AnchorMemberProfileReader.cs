@@ -9,7 +9,8 @@ internal sealed record AnchorMemberProfile(
 	Guid MemberId,
 	string DisplayName,
 	string? Pronouns,
-	string? Description);
+	string? Description,
+	string? Color);
 
 internal sealed class AnchorMemberProfileResultSet
 {
@@ -27,7 +28,8 @@ internal static class AnchorMemberProfileReader
 		new("MemberId", "uniqueidentifier"),
 		new("DisplayName", "nvarchar"),
 		new("Pronouns", "nvarchar"),
-		new("Description", "nvarchar")
+		new("Description", "nvarchar"),
+		new("Color", "nvarchar")
 	];
 
 	internal static async Task<IReadOnlyList<AnchorMemberProfile>?> ReadAsync(
@@ -118,9 +120,10 @@ internal static class AnchorMemberProfileReader
 			&& row[0] is Guid memberId
 			&& row[1] is string displayName
 			&& TryOptionalText(row[2], out var pronouns)
-			&& TryOptionalText(row[3], out var description))
+			&& TryOptionalText(row[3], out var description)
+			&& TryOptionalText(row[4], out var color))
 		{
-			profile = new AnchorMemberProfile(memberId, displayName, pronouns, description);
+			profile = new AnchorMemberProfile(memberId, displayName, pronouns, description, color);
 			return true;
 		}
 

@@ -412,6 +412,7 @@ window.PluralBridge.members = (function () {
     }
 
     const memberPreviewsByAccount = {};
+    const memberProfilePreviewsByAccount = {};
 
     function databaseWritesAreDisabled() {
         const tools = window.PluralBridge && window.PluralBridge.developerTools
@@ -518,6 +519,116 @@ window.PluralBridge.members = (function () {
 
     async function previewAddMember(request) {
         return holdAccountPreview("member", request);
+    }
+
+    function profilePreviewKey(value) {
+        return value ? String(value).toLowerCase() : "";
+    }
+
+    function explicitPreviewColor(value) {
+        return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
+    }
+
+    function explicitPreviewFronting(value) {
+        return value === true || value === false ? value : null;
+    }
+
+    function explicitPreviewSharing(value) {
+        if (value === "only-me" || value === "selected-people" || value === "all-connections") {
+            return value;
+        }
+
+        return null;
+    }
+
+    function explicitPreviewAvatar(value) {
+        return typeof value === "string" && value ? value : null;
+    }
+
+    function assignExplicitPreview(record, previous, fields, key, explicitValue) {
+        const source = fields && Object.prototype.hasOwnProperty.call(fields, key)
+            ? fields
+            : previous;
+        if (!source || !Object.prototype.hasOwnProperty.call(source, key)) {
+            return;
+        }
+
+        const value = explicitValue(source[key]);
+        if (value !== null) {
+            record[key] = value;
+        }
+    }
+
+    function readMemberProfilePreview(accountId, memberId) {
+        const accountKey = profilePreviewKey(accountId);
+        const memberKey = profilePreviewKey(memberId);
+        const accountPreviews = accountKey ? memberProfilePreviewsByAccount[accountKey] : null;
+        const preview = accountPreviews && memberKey ? accountPreviews[memberKey] : null;
+
+        if (!preview) {
+            return null;
+        }
+
+        const record = {
+            displayName: preview.displayName,
+            pronouns: preview.pronouns,
+            description: preview.description
+        };
+        assignExplicitPreview(record, preview, null, "color", explicitPreviewColor);
+        assignExplicitPreview(record, preview, null, "fronting", explicitPreviewFronting);
+        assignExplicitPreview(record, preview, null, "sharing", explicitPreviewSharing);
+        assignExplicitPreview(record, preview, null, "avatarObjectUrl", explicitPreviewAvatar);
+        return record;
+    }
+
+    async function saveMemberProfilePreview(accountId, memberId, fields) {
+        if (!databaseWritesAreDisabled()) {
+            return {
+                saved: false,
+                status: "Member profile saving is not connected to an anchor-specific endpoint yet."
+            };
+        }
+
+        const accountKey = profilePreviewKey(accountId);
+        const memberKey = profilePreviewKey(memberId);
+        if (!accountKey || !memberKey || currentAccountId() !== accountKey) {
+            return {
+                saved: false,
+                status: "The signed-in account is not available, so this member profile preview was not stored."
+            };
+        }
+
+        await Promise.resolve();
+
+        if (currentAccountId() !== accountKey) {
+            return {
+                saved: false,
+                status: "The signed-in account changed, so this member profile preview was not stored."
+            };
+        }
+
+        if (!memberProfilePreviewsByAccount[accountKey]) {
+            memberProfilePreviewsByAccount[accountKey] = {};
+        }
+
+        const previous = memberProfilePreviewsByAccount[accountKey][memberKey] || {};
+        const record = {
+            displayName: fields && fields.displayName ? String(fields.displayName) : "",
+            pronouns: fields && fields.pronouns ? String(fields.pronouns) : "",
+            description: fields && fields.description ? String(fields.description) : ""
+        };
+        assignExplicitPreview(record, previous, fields, "color", explicitPreviewColor);
+        assignExplicitPreview(record, previous, fields, "fronting", explicitPreviewFronting);
+        assignExplicitPreview(record, previous, fields, "sharing", explicitPreviewSharing);
+        assignExplicitPreview(record, previous, fields, "avatarObjectUrl", explicitPreviewAvatar);
+        memberProfilePreviewsByAccount[accountKey][memberKey] = record;
+
+        console.info("Suppressed member-profile database write. Profile details were held in browser memory for the signed-in account. No profile fields were written to the log.");
+
+        return {
+            saved: true,
+            status: "Preview only: member profile held in browser memory. Nothing was saved to the database."
+        };
     }
 
     function createMemberAddForm(options) {
@@ -1568,6 +1679,8 @@ window.PluralBridge.members = (function () {
         openAddMemberDialog: openAddMemberDialog,
         closeAddMemberDialog: closeAddMemberDialog,
         previewAddMember: previewAddMember,
+        readMemberProfilePreview: readMemberProfilePreview,
+        saveMemberProfilePreview: saveMemberProfilePreview,
         createMemberEditForm: createMemberEditForm
     };
 })();

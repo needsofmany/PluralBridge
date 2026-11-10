@@ -145,19 +145,20 @@ public sealed class AnchorMemberProfileEndpointTests
 					["MemberId", "uniqueidentifier"],
 					["DisplayName", "nvarchar"],
 					["Pronouns", "nvarchar"],
-					["Description", "nvarchar"]
+					["Description", "nvarchar"],
+					["Color", "nvarchar"]
 				],
 				[
-					[firstId, "Ada", DBNull.Value, "Shore guide"],
-					[secondId, "Bea", "they/them", DBNull.Value]
+					[firstId, "Ada", DBNull.Value, "Shore guide", "#336699"],
+					[secondId, "Bea", "they/them", DBNull.Value, DBNull.Value]
 				])
 		]);
 
 		Assert.NotNull(profiles);
 		Assert.Equal(
 			[
-				new AnchorMemberProfile(firstId, "Ada", null, "Shore guide"),
-				new AnchorMemberProfile(secondId, "Bea", "they/them", null)
+				new AnchorMemberProfile(firstId, "Ada", null, "Shore guide", "#336699"),
+				new AnchorMemberProfile(secondId, "Bea", "they/them", null, null)
 			],
 			profiles);
 	}
@@ -172,7 +173,8 @@ public sealed class AnchorMemberProfileEndpointTests
 					["MemberId", "uniqueidentifier"],
 					["DisplayName", "nvarchar"],
 					["Pronouns", "nvarchar"],
-					["Description", "nvarchar"]
+					["Description", "nvarchar"],
+					["Color", "nvarchar"]
 				],
 				[]),
 			ResultSet(
@@ -180,7 +182,8 @@ public sealed class AnchorMemberProfileEndpointTests
 					["MemberId", "uniqueidentifier"],
 					["DisplayName", "nvarchar"],
 					["Pronouns", "nvarchar"],
-					["Description", "nvarchar"]
+					["Description", "nvarchar"],
+					["Color", "nvarchar"]
 				],
 				[])
 		]);
@@ -198,6 +201,24 @@ public sealed class AnchorMemberProfileEndpointTests
 					["MemberId", "uniqueidentifier"],
 					["DisplayName", "nvarchar"],
 					["Pronouns", "nvarchar"]
+				],
+				[])
+		]);
+
+		Assert.Null(profiles);
+	}
+
+	[Fact]
+	public void Map_RejectsProfileResultWithoutColor()
+	{
+		var profiles = AnchorMemberProfileReader.Map(
+		[
+			ResultSet(
+				[
+					["MemberId", "uniqueidentifier"],
+					["DisplayName", "nvarchar"],
+					["Pronouns", "nvarchar"],
+					["Description", "nvarchar"]
 				],
 				[])
 		]);

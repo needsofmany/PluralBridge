@@ -71,6 +71,7 @@ The following is a **starting inventory**, not a verified enumeration of all sto
 | Contract ID | SQL Server implementation | Responsibility | Status |
 | --- | --- | --- | --- |
 | `navigator.resolve-tree` | `dbo.pb_show_tree_step4_members_by_email` | Resolve account/anchor context and produce navigator-related graph/hierarchy data | SQL Server binding verified; local binding unresolved |
+| `members.read-anchor-profiles` | `dbo.pb_get_anchor_member_profiles_by_email` | Read direct member profiles, including stored color, for one authorized anchor | Reader contract updated; procedure text is not in this repository |
 | `navigator.build-topology-seed` | `dbo.pb_show_tree_step5_topology_seed_builder` | Build topology data used by the navigator pipeline | Internal/dependency candidate; determine whether it belongs in the public contract catalog |
 
 ### 4.1 `navigator.resolve-tree` — SQL Server contract
@@ -121,6 +122,33 @@ A path that does not match this encoding keeps `section`, `treeLine`, and `pathK
 - Deterministic output semantics where ordering affects the navigator.
 
 **Errors and authorization:** An unauthenticated request is rejected before the action. An authenticated request whose account cannot be resolved returns 401 and no map. A failed, incomplete, extra, malformed, or account-mismatched procedure result returns a generic 500 and no map. Responses do not include SQL text or connection secrets.
+
+### 4.2 `members.read-anchor-profiles` — SQL Server contract
+
+**Purpose:** Return the direct member profiles for one anchor the authenticated account can access.
+
+**HTTP binding:** `GET /api/me/anchor-member-profiles?objectType=&anchorName=`  
+**SQL Server binding:** `dbo.pb_get_anchor_member_profiles_by_email`  
+**Source:** The procedure text is not stored in this repository. This entry describes the reader and HTTP contract only.  
+**Local binding:** TBD  
+**Read/write:** Read-only.  
+**Status:** HTTP and reader contract updated for the fifth column. The live procedure is not claimed to have been changed by this repository.
+
+**Inputs:** The client supplies `objectType` (`system`, `group`, or `place`) and `anchorName` (stored name, at most 510 characters). The API resolves the authenticated account and passes that account's email as `@Email NVARCHAR(320)`, plus `@AnchorObjectType NVARCHAR(64)` and `@AnchorName NVARCHAR(510)`. The client does not supply an email or account id.
+
+**Output:** Exactly one result set, in procedure row order. JSON property names are camelCase. Nulls are preserved.
+
+| Column | SQL type | JSON | Null |
+| --- | --- | --- | --- |
+| `MemberId` | `uniqueidentifier` | `memberId` | No |
+| `DisplayName` | `nvarchar` | `displayName` | No |
+| `Pronouns` | `nvarchar` | `pronouns` | Yes |
+| `Description` | `nvarchar` | `description` | Yes |
+| `Color` | `nvarchar(64)` | `color` | Yes |
+
+`Color` is the stored member color. Populated values use `#RRGGBB`. Null means no stored color. The reader rejects a different column list, a different column order, or more than one result set. An empty authorized anchor is `200` and `[]`.
+
+**Errors and authorization:** The authenticated account is resolved on the server. Procedure errors `50001` and `50002` are 400, `50004` is 404, `50005` and `50007` are 400, and `50006` and `50008` are 403. Any other SQL failure, or a result that does not match this contract, is a generic 500. Responses do not include SQL text or connection secrets.
 
 ## 5. Cloud/local implementation bindings
 

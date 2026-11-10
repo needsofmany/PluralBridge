@@ -1330,3 +1330,295 @@
 		margin-top: 0.35rem;
 	}
 }
+
+.member-card-preview > .member-summary {
+	display: grid;
+	grid-template-columns: 0.42rem minmax(8rem, 1fr) minmax(0, max-content);
+	align-items: stretch;
+	gap: 0.55rem;
+	min-height: 3.2rem;
+	padding: 1px 0.65rem 1px 0;
+}
+
+.member-color-strip,
+.member-color-swatch {
+	background: rgba(148, 163, 184, 0.38);
+}
+
+.member-color-strip {
+	grid-row: 1 / span 2;
+	width: 0.42rem;
+	border-radius: 0.7rem 0 0 0.7rem;
+}
+
+.member-color-strip.is-generated {
+	background-image: repeating-linear-gradient(
+		45deg,
+		#000 0,
+		#000 1px,
+		transparent 1px,
+		transparent 8px
+	);
+}
+
+.member-card-preview .member-summary-main {
+	align-items: stretch;
+	min-width: 0;
+	padding: 1px 0;
+}
+
+.member-avatar-wrap {
+	position: relative;
+	display: grid;
+	flex: 0 0 auto;
+	align-self: stretch;
+	height: calc(100% - 2px);
+	margin: 1px 0;
+	padding: 3px;
+}
+
+.member-card-preview .member-avatar-placeholder,
+.member-card-preview .member-avatar-image {
+	width: 2.75rem;
+	height: 100%;
+	min-height: 2.75rem;
+	border-radius: 0.65rem;
+	object-fit: cover;
+}
+
+.member-avatar-placeholder.is-neutral {
+	border-color: rgba(148, 163, 184, 0.7);
+	background: rgba(148, 163, 184, 0.38);
+}
+
+.member-avatar-pencil,
+.member-color-pencil {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.member-avatar-pencil {
+	position: absolute;
+	right: 1px;
+	bottom: 1px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.35rem;
+	height: 1.35rem;
+	padding: 0;
+	border-radius: 999px;
+	background: rgba(16, 20, 24, 0.82);
+	color: #edf4ff;
+}
+
+.member-avatar-wrap:hover .member-avatar-pencil,
+.member-avatar-wrap:focus-within .member-avatar-pencil,
+.member-profile-color-row:hover .member-color-pencil,
+.member-profile-color-row:focus-within .member-color-pencil,
+.member-avatar-pencil:focus-visible,
+.member-color-pencil:focus-visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.member-avatar-file,
+.member-color-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.member-summary-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.45rem 0.7rem;
+	min-width: 0;
+}
+
+.member-sharing-label {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35rem;
+	color: rgba(216, 225, 237, 0.78);
+	font-size: 0.92rem;
+}
+
+.member-sharing-control {
+	position: relative;
+}
+
+.member-card-preview .member-card-sharing,
+.member-card-preview .member-card-sharing:hover,
+.member-card-preview .member-card-sharing:focus-visible {
+	display: inline-flex;
+	flex: 0 0 15.5rem;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 15.5rem;
+	height: 2.75rem;
+	gap: 0.4rem;
+	padding: 0 0.7rem;
+	border: 1px solid rgba(168, 199, 255, 0.45);
+	border-radius: 0.7rem;
+	background: rgba(168, 199, 255, 0.16);
+	color: #edf4ff;
+	font: inherit;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.member-sharing-chevron {
+	display: inline-flex;
+	transform: rotate(90deg);
+}
+
+.member-sharing-chevron.is-open {
+	transform: rotate(270deg);
+}
+
+.member-sharing-list {
+	position: fixed;
+	z-index: 40;
+	display: grid;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0.25rem;
+	border: 1px solid rgba(168, 199, 255, 0.45);
+	border-radius: 0.7rem;
+	background: #172033;
+	box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.35);
+}
+
+.member-card-preview.is-sharing-open {
+	position: relative;
+	z-index: 30;
+	overflow: visible;
+}
+
+.member-sharing-list[hidden] {
+	display: none !important;
+}
+
+.member-sharing-option {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 2.4rem;
+	padding: 0 0.7rem;
+	border-radius: 0.45rem;
+	color: #edf4ff;
+	cursor: pointer;
+}
+
+.member-sharing-option.is-current,
+.member-sharing-option:focus,
+.member-sharing-option:hover {
+	background: rgba(168, 199, 255, 0.22);
+}
+
+.member-sharing-option:focus {
+	outline: none;
+}
+
+.member-sharing-option:focus-visible {
+	outline: 2px solid #a8c7ff;
+	outline-offset: 1px;
+}
+
+.member-sharing-icon {
+	flex: 0 0 auto;
+}
+
+.member-card-preview .member-name,
+.member-card-preview .member-pronouns {
+	overflow-wrap: anywhere;
+}
+
+.member-card-preview .member-card-fronting,
+.member-card-preview .member-card-fronting[aria-pressed="false"],
+.member-card-preview .member-card-fronting[aria-pressed="mixed"] {
+	display: inline-flex;
+	flex: 0 0 11.5rem;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 11.5rem;
+	height: 2.75rem;
+	gap: 0.4rem;
+	padding: 0 0.7rem;
+	border: 1px solid rgba(168, 199, 255, 0.45);
+	border-radius: 0.7rem;
+	background: rgba(168, 199, 255, 0.16);
+	color: #edf4ff;
+	white-space: nowrap;
+}
+
+.member-card-preview .member-card-fronting[aria-pressed="true"] {
+	background: #a8c7ff;
+	color: #101418;
+}
+
+.member-card-preview .member-card-expand-icon {
+	flex: 0 0 auto;
+	color: #a8c7ff;
+}
+
+.member-card-preview .member-profile-fields {
+	grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.member-card-preview .member-profile-field-row[data-member-profile-field="displayName"],
+.member-card-preview .member-profile-field-row[data-member-profile-field="description"] {
+	grid-column: 1 / -1;
+}
+
+.member-profile-color-row {
+	position: relative;
+	display: inline-flex;
+	grid-column: 2;
+	grid-row: 2;
+	align-items: center;
+	gap: 0.35rem;
+	align-self: center;
+}
+
+.member-color-swatch {
+	width: 1.7rem;
+	height: 1.7rem;
+	border: 1px solid rgba(148, 163, 184, 0.7);
+	border-radius: 0.35rem;
+	cursor: pointer;
+}
+
+.member-card-preview .member-profile-save-button {
+	box-sizing: border-box;
+	flex: 0 0 11.5rem;
+	width: 11.5rem;
+	height: 2.75rem;
+	white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+	.member-card-preview > .member-summary {
+		grid-template-columns: 0.42rem minmax(0, 1fr);
+	}
+
+	.member-card-preview .member-summary-controls {
+		grid-column: 2;
+		justify-content: flex-start;
+	}
+}
+
+@media (hover: none) {
+	.member-avatar-pencil {
+		opacity: 0;
+		pointer-events: none;
+	}
+}

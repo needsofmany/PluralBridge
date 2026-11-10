@@ -1372,6 +1372,56 @@ function createMemberAccordion(member, options) {
 
         return "member";
     }
+
+    function sharingOutlineIcon(kind) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-sharing-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "1.8");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        function addShape(tagName, attributes) {
+            const node = document.createElementNS(svgNamespace, tagName);
+            Object.keys(attributes).forEach(function (name) {
+                node.setAttribute(name, attributes[name]);
+            });
+            svg.appendChild(node);
+        }
+
+        if (kind === "only-me") {
+            addShape("path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" });
+            addShape("circle", { cx: "12", cy: "7", r: "4" });
+        } else if (kind === "selected-people") {
+            addShape("path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" });
+            addShape("circle", { cx: "9", cy: "7", r: "4" });
+            addShape("path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" });
+            addShape("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" });
+        } else if (kind === "all-connections") {
+            addShape("path", { d: "M8.59 13.51 15.42 17.49" });
+            addShape("path", { d: "M15.41 6.51 8.59 10.49" });
+            addShape("circle", { cx: "18", cy: "5", r: "3" });
+            addShape("circle", { cx: "6", cy: "12", r: "3" });
+            addShape("circle", { cx: "18", cy: "19", r: "3" });
+        } else if (kind === "chevron") {
+            svg.setAttribute("width", "16");
+            svg.setAttribute("height", "16");
+            svg.setAttribute("stroke-width", "1.75");
+            addShape("path", { d: "M9 5.5 16.5 12 9 18.5" });
+        } else {
+            addShape("circle", { cx: "12", cy: "12", r: "9" });
+            addShape("path", { d: "M8 12h8" });
+        }
+
+        return svg;
+    }
     function createMemberActionIcon(iconName) {
         const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -1427,7 +1477,11 @@ function createMemberAccordion(member, options) {
     function hasDirtyFields() {
         return draftValues.displayName !== persistedValues.displayName ||
             draftValues.pronouns !== persistedValues.pronouns ||
-            draftValues.description !== persistedValues.description;
+            draftValues.description !== persistedValues.description ||
+            draftValues.color !== persistedValues.color ||
+            draftValues.fronting !== persistedValues.fronting ||
+            draftValues.sharing !== persistedValues.sharing ||
+            draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl;
     }
 
     function setProfileStatus(message, statusType) {
@@ -1496,6 +1550,30 @@ function createMemberAccordion(member, options) {
 
         saveButton.disabled = isSaving || !isDirty;
         saveButton.title = isDirty ? "Save profile changes" : "No profile changes to save";
+
+        if (!previewHeader) {
+            return;
+        }
+
+        window.PluralBridge = window.PluralBridge || {};
+        const currentGuard = window.PluralBridge.memberProfileGuard;
+        if (isDirty) {
+            if (
+                currentGuard &&
+                currentGuard !== profileGuard &&
+                typeof currentGuard.hasDirtyChanges === "function" &&
+                currentGuard.hasDirtyChanges()
+            ) {
+                return;
+            }
+
+            window.PluralBridge.memberProfileGuard = profileGuard;
+            return;
+        }
+
+        if (!cardDetails.open && currentGuard === profileGuard) {
+            window.PluralBridge.memberProfileGuard = null;
+        }
     }
 
     function closeActiveEditor(applyChange) {
@@ -1697,6 +1775,10 @@ function createMemberAccordion(member, options) {
         persistedValues.displayName = draftValues.displayName;
         persistedValues.pronouns = draftValues.pronouns;
         persistedValues.description = draftValues.description;
+        persistedValues.color = draftValues.color;
+        persistedValues.fronting = draftValues.fronting;
+        persistedValues.sharing = draftValues.sharing;
+        persistedValues.avatarObjectUrl = draftValues.avatarObjectUrl;
 
         Object.keys(fieldRows).forEach(function (fieldName) {
             fieldRows[fieldName].value.dataset.persistedValue = persistedValues[fieldName] || "";
@@ -1708,12 +1790,19 @@ function createMemberAccordion(member, options) {
             member.displayName = persistedValues.displayName;
             member.pronouns = persistedValues.pronouns;
             member.description = persistedValues.description;
+            if (previewHeader) {
+                member.color = persistedValues.color;
+                member.fronting = persistedValues.fronting;
+                member.sharing = persistedValues.sharing;
+                member.avatarObjectUrl = persistedValues.avatarObjectUrl;
+            }
         }
 
         jsonBlock.textContent = JSON.stringify(member, null, 2);
 
         updateSummaryPreview();
         updateSaveButtonState();
+        paintPreviewControls();
     }
 
     async function saveProfileChanges() {
@@ -1731,20 +1820,52 @@ function createMemberAccordion(member, options) {
             return false;
         }
 
+        const request = buildMemberEditRequest();
+
+        if (!request.displayName) {
+            setProfileStatus("Name is required.", "error");
+            updateSaveButtonState();
+            return false;
+        }
+
+        if (options && typeof options.saveProfile === "function") {
+            setProfileBusy(true);
+            setProfileStatus("Saving member.");
+
+            try {
+                const outcome = await options.saveProfile(profilePreviewSaveRequest(memberId, request));
+
+                if (!cardDetails.isConnected) {
+                    return false;
+                }
+
+                if (!outcome || outcome.saved !== true) {
+                    setProfileStatus(
+                        outcome && outcome.status
+                            ? outcome.status
+                            : "Member could not be saved. Confirm the API is running and try again.",
+                        "error"
+                    );
+                    return false;
+                }
+
+                applySuccessfulSave();
+                setProfileStatus(outcome.status || "Member saved.", "success");
+                return true;
+            } catch (error) {
+                setProfileStatus("Member could not be saved. Confirm the API is running and try again.", "error");
+                return false;
+            } finally {
+                setProfileBusy(false);
+            }
+        }
+
         const apiClient = window.PluralBridge && window.PluralBridge.apiClient
             ? window.PluralBridge.apiClient
             : null;
 
         if (!apiClient || typeof apiClient.editMember !== "function") {
             setProfileStatus("Member edit is not available in the current browser session.", "error");
-            return false;
-        }
-
-        const request = buildMemberEditRequest();
-
-        if (!request.displayName) {
-            setProfileStatus("Name is required.", "error");
-            updateSaveButtonState();
             return false;
         }
 
@@ -1766,13 +1887,19 @@ function createMemberAccordion(member, options) {
 
     function discardProfileChanges() {
         closeActiveEditor(false);
+        releaseUnsavedAvatar();
 
         draftValues.displayName = persistedValues.displayName;
         draftValues.pronouns = persistedValues.pronouns;
         draftValues.description = persistedValues.description;
+        draftValues.color = persistedValues.color;
+        draftValues.fronting = persistedValues.fronting;
+        draftValues.sharing = persistedValues.sharing;
+        draftValues.avatarObjectUrl = persistedValues.avatarObjectUrl;
 
         setProfileStatus("");
         updateAllStaticFieldDisplays();
+        paintPreviewControls();
     }
 
     function showUnsavedDialog() {
@@ -1893,16 +2020,84 @@ function createMemberAccordion(member, options) {
         return button;
     }
 
+    const previewHeader = Boolean(options && options.previewHeader === true);
+
+    function nullablePreviewValue(value) {
+        if (value === true || value === false) {
+            return value;
+        }
+
+        if (value === undefined || value === null || value === "") {
+            return null;
+        }
+
+        return value;
+    }
+
+    function memberCssColor(value) {
+        return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
+    }
+
+    function generatedMemberColor() {
+        const hue = hashStringToInt(getAvatarColorSeed()) % 360;
+        return {
+            fill: "hsl(" + hue + " 52% 28%)",
+            border: "hsl(" + hue + " 56% 48%)"
+        };
+    }
+
+    function effectiveMemberColor() {
+        const explicit = memberCssColor(draftValues.color);
+        return explicit
+            ? { fill: explicit, border: explicit, explicit: true }
+            : Object.assign({ explicit: false }, generatedMemberColor());
+    }
+
+    function profilePreviewSaveRequest(memberId, request) {
+        const payload = {
+            memberId: memberId,
+            displayName: request.displayName,
+            pronouns: request.pronouns,
+            description: request.description
+        };
+
+        if (draftValues.color !== persistedValues.color) {
+            payload.color = draftValues.color;
+        }
+
+        if (draftValues.fronting !== persistedValues.fronting) {
+            payload.fronting = draftValues.fronting;
+        }
+
+        if (draftValues.sharing !== persistedValues.sharing) {
+            payload.sharing = draftValues.sharing;
+        }
+
+        if (draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl) {
+            payload.avatarObjectUrl = draftValues.avatarObjectUrl;
+        }
+
+        return payload;
+    }
+
     const draftValues = {
         displayName: member && member.displayName ? member.displayName : "",
         pronouns: member && member.pronouns ? member.pronouns : "",
-        description: member && member.description ? member.description : ""
+        description: member && member.description ? member.description : "",
+        color: memberCssColor(member && member.color),
+        fronting: member && (member.fronting === true || member.fronting === false) ? member.fronting : null,
+        sharing: nullablePreviewValue(member && member.sharing),
+        avatarObjectUrl: nullablePreviewValue(member && member.avatarObjectUrl)
     };
 
     const persistedValues = {
         displayName: draftValues.displayName,
         pronouns: draftValues.pronouns,
-        description: draftValues.description
+        description: draftValues.description,
+        color: draftValues.color,
+        fronting: draftValues.fronting,
+        sharing: draftValues.sharing,
+        avatarObjectUrl: draftValues.avatarObjectUrl
     };
 
     const fieldLabels = {
@@ -1918,7 +2113,7 @@ function createMemberAccordion(member, options) {
     let pendingLeaveAction = null;
 
     const cardDetails = document.createElement("details");
-    cardDetails.className = "member-card";
+    cardDetails.className = previewHeader ? "member-card member-card-preview" : "member-card";
 
     const summary = document.createElement("summary");
     summary.className = "member-summary";
@@ -1926,17 +2121,30 @@ function createMemberAccordion(member, options) {
     const summaryMain = document.createElement("span");
     summaryMain.className = "member-summary-main";
 
+    const colorStrip = document.createElement("span");
+    colorStrip.className = "member-color-strip";
+    colorStrip.setAttribute("aria-hidden", "true");
+
+    const avatarWrap = document.createElement("span");
+    avatarWrap.className = "member-avatar-wrap";
+
     const avatarPlaceholder = document.createElement("span");
     avatarPlaceholder.className = "member-avatar-placeholder";
     avatarPlaceholder.setAttribute("aria-hidden", "true");
 
-    const colorHash = hashStringToInt(getAvatarColorSeed());
-    const hue = colorHash % 360;
-    const avatarFill = "hsl(" + hue + " 52% 28%)";
-    const avatarBorder = "hsl(" + hue + " 56% 48%)";
+    const avatarPencil = document.createElement("button");
+    avatarPencil.type = "button";
+    avatarPencil.className = "member-avatar-pencil";
+    avatarPencil.setAttribute("aria-label", "Choose an avatar image");
+    avatarPencil.title = "Choose an avatar image";
+    avatarPencil.appendChild(createMemberActionIcon("edit"));
 
-    avatarPlaceholder.style.backgroundColor = avatarFill;
-    avatarPlaceholder.style.borderColor = avatarBorder;
+    const avatarFile = document.createElement("input");
+    avatarFile.type = "file";
+    avatarFile.accept = "image/*";
+    avatarFile.tabIndex = -1;
+    avatarFile.className = "member-avatar-file";
+    avatarFile.setAttribute("aria-label", "Choose an avatar image");
 
     const identity = document.createElement("span");
     identity.className = "member-identity";
@@ -1951,19 +2159,104 @@ function createMemberAccordion(member, options) {
     pronouns.className = "member-pronouns";
     pronouns.textContent = draftValues.pronouns || "";
 
+    const headerControls = document.createElement("span");
+    headerControls.className = "member-summary-controls";
+
+    const sharingChoices = [
+        { value: "", label: "Not loaded", icon: "unset" },
+        { value: "only-me", label: "Only me", icon: "only-me" },
+        { value: "selected-people", label: "Selected people", icon: "selected-people" },
+        { value: "all-connections", label: "All my connections", icon: "all-connections" }
+    ];
+    const sharingLabel = document.createElement("span");
+    sharingLabel.className = "member-sharing-label";
+    sharingLabel.appendChild(document.createTextNode("Visible to:"));
+
+    const sharingControl = document.createElement("span");
+    sharingControl.className = "member-sharing-control";
+    const sharingButton = document.createElement("button");
+    sharingButton.type = "button";
+    sharingButton.className = "member-card-sharing";
+    sharingButton.setAttribute("aria-haspopup", "listbox");
+    sharingButton.setAttribute("aria-expanded", "false");
+    const sharingList = document.createElement("div");
+    sharingList.className = "member-sharing-list";
+    sharingList.setAttribute("role", "listbox");
+    sharingList.hidden = true;
+    window.PluralBridge = window.PluralBridge || {};
+    window.PluralBridge.memberSharingSequence = (window.PluralBridge.memberSharingSequence || 0) + 1;
+    sharingList.id = "member-sharing-list-" + window.PluralBridge.memberSharingSequence;
+    sharingButton.setAttribute("aria-controls", sharingList.id);
+    const sharingOptions = sharingChoices.map(function (choice, index) {
+        const option = document.createElement("div");
+        option.className = "member-sharing-option";
+        option.setAttribute("role", "option");
+        option.tabIndex = -1;
+        option.id = sharingList.id + "-option-" + index;
+        option.dataset.sharingValue = choice.value;
+        option.dataset.sharingIndex = String(index);
+        option.appendChild(sharingOutlineIcon(choice.icon));
+        const optionLabel = document.createElement("span");
+        optionLabel.textContent = choice.label;
+        option.appendChild(optionLabel);
+        sharingList.appendChild(option);
+        return option;
+    });
+    sharingControl.appendChild(sharingButton);
+    sharingControl.appendChild(sharingList);
+
+    const frontingButton = document.createElement("button");
+    frontingButton.type = "button";
+    frontingButton.className = "member-card-fronting";
+
     const chevron = document.createElement("span");
-    chevron.className = "member-chevron";
+    chevron.className = "member-card-expand-icon member-tree-chevron";
     chevron.setAttribute("aria-hidden", "true");
-    chevron.textContent = "v";
+    const chevronSvgNamespace = "http://www.w3.org/2000/svg";
+    const chevronSvg = document.createElementNS(chevronSvgNamespace, "svg");
+    chevronSvg.setAttribute("viewBox", "0 0 24 24");
+    chevronSvg.setAttribute("width", "16");
+    chevronSvg.setAttribute("height", "16");
+    chevronSvg.setAttribute("aria-hidden", "true");
+    chevronSvg.setAttribute("focusable", "false");
+    const chevronPath = document.createElementNS(chevronSvgNamespace, "path");
+    chevronPath.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+    chevronPath.setAttribute("fill", "none");
+    chevronPath.setAttribute("stroke", "currentColor");
+    chevronPath.setAttribute("stroke-width", "1.75");
+    chevronPath.setAttribute("stroke-linecap", "round");
+    chevronPath.setAttribute("stroke-linejoin", "round");
+    chevronSvg.appendChild(chevronPath);
+    chevron.appendChild(chevronSvg);
+    if (!previewHeader) {
+        chevron.className = "member-chevron";
+        chevron.replaceChildren();
+        chevron.textContent = "v";
+    }
 
     identity.appendChild(name);
     identity.appendChild(pronouns);
-
-    summaryMain.appendChild(avatarPlaceholder);
+    avatarWrap.appendChild(avatarPlaceholder);
+    if (previewHeader) {
+        avatarWrap.appendChild(avatarPencil);
+        avatarWrap.appendChild(avatarFile);
+    }
+    summaryMain.appendChild(avatarWrap);
     summaryMain.appendChild(identity);
+    sharingLabel.appendChild(sharingControl);
+    headerControls.appendChild(sharingLabel);
+    headerControls.appendChild(frontingButton);
+    headerControls.appendChild(chevron);
 
+    if (previewHeader) {
+        summary.appendChild(colorStrip);
+    }
     summary.appendChild(summaryMain);
-    summary.appendChild(chevron);
+    if (previewHeader) {
+        summary.appendChild(headerControls);
+    } else {
+        summary.appendChild(chevron);
+    }
 
     summary.addEventListener("click", async function (event) {
         const currentGuard = window.PluralBridge && window.PluralBridge.memberProfileGuard
@@ -2017,6 +2310,32 @@ function createMemberAccordion(member, options) {
     profileFields.appendChild(createMemberProfileFieldRow("Name", "displayName", draftValues.displayName, false));
     profileFields.appendChild(createMemberProfileFieldRow("Pronouns", "pronouns", draftValues.pronouns, false));
     profileFields.appendChild(createMemberProfileFieldRow("Description", "description", draftValues.description, true));
+
+    const colorRow = document.createElement("div");
+    colorRow.className = "member-profile-color-row";
+    const colorLabel = document.createElement("span");
+    colorLabel.className = "member-profile-field-label";
+    colorLabel.textContent = "Color";
+    const colorSwatch = document.createElement("span");
+    colorSwatch.className = "member-color-swatch";
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.className = "member-color-input";
+    colorInput.value = "#94a3b8";
+    colorInput.setAttribute("aria-label", "Choose a member color");
+    const colorPencil = document.createElement("button");
+    colorPencil.type = "button";
+    colorPencil.className = "member-profile-field-edit-button member-color-pencil";
+    colorPencil.setAttribute("aria-label", "Edit color");
+    colorPencil.title = "Member color is not loaded. Choosing a color stores a preview only.";
+    colorPencil.appendChild(createMemberActionIcon("edit"));
+    colorRow.appendChild(colorLabel);
+    colorRow.appendChild(colorSwatch);
+    colorRow.appendChild(colorPencil);
+    colorRow.appendChild(colorInput);
+    if (previewHeader) {
+        profileFields.appendChild(colorRow);
+    }
 
     const profileActions = document.createElement("div");
     profileActions.className = "member-profile-action-row";
@@ -2101,6 +2420,9 @@ function createMemberAccordion(member, options) {
 
     cardDetails.addEventListener("toggle", function () {
         window.PluralBridge = window.PluralBridge || {};
+        if (previewHeader) {
+            chevron.classList.toggle("is-expanded", cardDetails.open);
+        }
 
         if (cardDetails.open) {
             window.PluralBridge.memberProfileGuard = profileGuard;
@@ -2112,6 +2434,360 @@ function createMemberAccordion(member, options) {
         }
     });
 
+    function releaseUnsavedAvatar() {
+        if (
+            draftValues.avatarObjectUrl &&
+            draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl &&
+            typeof URL.revokeObjectURL === "function"
+        ) {
+            URL.revokeObjectURL(draftValues.avatarObjectUrl);
+        }
+    }
+
+    function paintAvatar() {
+        const image = avatarWrap.querySelector(".member-avatar-image");
+        if (image) {
+            image.remove();
+        }
+
+        if (!previewHeader) {
+            const generated = generatedMemberColor();
+            avatarPlaceholder.hidden = false;
+            avatarPlaceholder.style.backgroundColor = generated.fill;
+            avatarPlaceholder.style.borderColor = generated.border;
+            return;
+        }
+
+        const appearance = effectiveMemberColor();
+        avatarPlaceholder.style.backgroundColor = appearance.fill;
+        avatarPlaceholder.style.borderColor = appearance.border;
+        avatarPlaceholder.classList.remove("is-neutral");
+        if (!draftValues.avatarObjectUrl) {
+            avatarPlaceholder.hidden = false;
+            return;
+        }
+
+        avatarPlaceholder.hidden = true;
+        const preview = document.createElement("img");
+        preview.className = "member-avatar-image";
+        preview.alt = "";
+        preview.src = draftValues.avatarObjectUrl;
+        avatarWrap.insertBefore(preview, avatarPencil);
+    }
+
+    function paintColor() {
+        const appearance = effectiveMemberColor();
+        colorStrip.style.backgroundColor = appearance.fill;
+        colorStrip.classList.toggle("is-generated", !appearance.explicit);
+        if (appearance.explicit) {
+            colorStrip.removeAttribute("title");
+            colorStrip.removeAttribute("aria-label");
+            colorStrip.setAttribute("aria-hidden", "true");
+        } else {
+            colorStrip.title = "Generated color—no member color assigned.";
+            colorStrip.setAttribute("aria-label", "Generated color—no member color assigned.");
+            colorStrip.removeAttribute("aria-hidden");
+        }
+        colorSwatch.style.backgroundColor = appearance.fill;
+        colorSwatch.style.borderColor = appearance.border;
+        colorSwatch.title = appearance.explicit
+            ? "Edit color"
+            : "No stored member color. This color is generated for display. Choosing a color stores a preview only.";
+        colorPencil.title = colorSwatch.title;
+        if (appearance.explicit) {
+            colorInput.value = appearance.fill;
+        }
+    }
+
+    function paintFronting() {
+        frontingButton.replaceChildren();
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "1.8");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("aria-hidden", "true");
+        const person = document.createElementNS(svgNamespace, "path");
+        person.setAttribute("d", "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4.5 19v-1.2A3.8 3.8 0 0 1 8.3 14h1.4a3.8 3.8 0 0 1 3.8 3.8V19");
+        const arrow = document.createElementNS(svgNamespace, "path");
+        arrow.setAttribute("d", draftValues.fronting === true ? "M17 19V8M14 11l3-3 3 3" : "M17 5v11M14 13l3 3 3-3");
+        svg.appendChild(person);
+        svg.appendChild(arrow);
+        frontingButton.appendChild(svg);
+        const label = document.createElement("span");
+        if (draftValues.fronting === null) {
+            label.textContent = "Not loaded";
+            frontingButton.setAttribute("aria-pressed", "mixed");
+            frontingButton.title = "Fronting is not loaded. Activate to mark this member as fronting in this preview.";
+        } else if (draftValues.fronting) {
+            label.textContent = "Fronting";
+            frontingButton.setAttribute("aria-pressed", "true");
+            frontingButton.title = "Fronting";
+        } else {
+            label.textContent = "Not fronting";
+            frontingButton.setAttribute("aria-pressed", "false");
+            frontingButton.title = "Not fronting";
+        }
+        frontingButton.setAttribute("aria-label", frontingButton.title);
+        frontingButton.appendChild(label);
+    }
+
+    function currentSharingChoice() {
+        const selected = sharingChoices.find(function (choice) {
+            return choice.value === (draftValues.sharing || "");
+        });
+        return selected || sharingChoices[0];
+    }
+
+    function paintSharing() {
+        const choice = currentSharingChoice();
+        const selectedIndex = sharingChoices.indexOf(choice);
+        sharingButton.replaceChildren();
+        sharingButton.appendChild(sharingOutlineIcon(choice.icon));
+        const value = document.createElement("span");
+        value.className = "member-sharing-value";
+        value.textContent = choice.label;
+        sharingButton.appendChild(value);
+        const menuChevron = document.createElement("span");
+        menuChevron.className = "member-sharing-chevron" + (sharingList.hidden ? "" : " is-open");
+        menuChevron.setAttribute("aria-hidden", "true");
+        menuChevron.appendChild(sharingOutlineIcon("chevron"));
+        sharingButton.appendChild(menuChevron);
+        sharingButton.title = choice.value
+            ? "Preview only. This does not change who can see the member."
+            : "Sharing is not loaded. Choosing a value stores a preview only.";
+        sharingButton.setAttribute("aria-label", "Visible to: " + choice.label);
+        sharingOptions.forEach(function (option, index) {
+            const selected = index === selectedIndex;
+            option.setAttribute("aria-selected", selected ? "true" : "false");
+            option.classList.toggle("is-current", selected);
+        });
+    }
+
+    function placeSharingList() {
+        if (sharingList.hidden) {
+            return;
+        }
+
+        const rect = sharingButton.getBoundingClientRect();
+        const listHeight = sharingList.offsetHeight;
+        let top = rect.bottom + 4;
+        if (top + listHeight > window.innerHeight - 8) {
+            top = Math.max(8, rect.top - listHeight - 4);
+        }
+        sharingList.style.left = Math.max(8, rect.left) + "px";
+        sharingList.style.top = top + "px";
+        sharingList.style.width = rect.width + "px";
+    }
+
+    function setSharingOpen(open) {
+        sharingList.hidden = !open;
+        sharingButton.setAttribute("aria-expanded", open ? "true" : "false");
+        cardDetails.classList.toggle("is-sharing-open", open);
+        paintSharing();
+        if (!open) {
+            sharingList.removeAttribute("aria-activedescendant");
+            return;
+        }
+
+        const selected = sharingOptions.findIndex(function (option) {
+            return option.dataset.sharingValue === (draftValues.sharing || "");
+        });
+        const index = selected < 0 ? 0 : selected;
+        sharingOptions[index].focus();
+        sharingList.setAttribute("aria-activedescendant", sharingOptions[index].id);
+        placeSharingList();
+    }
+
+    function chooseSharing(value) {
+        draftValues.sharing = value ? value : null;
+        setSharingOpen(false);
+        updateSaveButtonState();
+        sharingButton.focus();
+    }
+
+    function dismissSharing(event) {
+        if (sharingList.hidden || sharingControl.contains(event.target)) {
+            return;
+        }
+
+        setSharingOpen(false);
+    }
+
+    function paintPreviewControls() {
+        paintAvatar();
+        if (!previewHeader) {
+            return;
+        }
+        paintColor();
+        paintFronting();
+        paintSharing();
+    }
+
+    function keepHeaderClick(event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    if (previewHeader) {
+        avatarPencil.addEventListener("click", function (event) {
+            keepHeaderClick(event);
+            avatarFile.click();
+        });
+        avatarWrap.addEventListener("click", function (event) {
+            const coarsePointer = window.matchMedia && window.matchMedia("(hover: none), (pointer: coarse)").matches;
+            if (!coarsePointer || event.target === avatarPencil) {
+                return;
+            }
+            keepHeaderClick(event);
+            avatarFile.click();
+        });
+        avatarFile.addEventListener("click", function (event) {
+            event.stopPropagation();
+        });
+        avatarFile.addEventListener("change", function () {
+            const file = avatarFile.files && avatarFile.files[0] ? avatarFile.files[0] : null;
+            if (!file) {
+                return;
+            }
+            releaseUnsavedAvatar();
+            draftValues.avatarObjectUrl = URL.createObjectURL(file);
+            avatarFile.value = "";
+            paintAvatar();
+            updateSaveButtonState();
+        });
+        sharingLabel.addEventListener("mousedown", function (event) {
+            event.stopPropagation();
+        });
+        sharingLabel.addEventListener("click", function (event) {
+            event.stopPropagation();
+        });
+        sharingControl.addEventListener("mousedown", function (event) {
+            event.stopPropagation();
+        });
+        sharingControl.addEventListener("click", function (event) {
+            event.stopPropagation();
+        });
+        sharingButton.addEventListener("click", function (event) {
+            keepHeaderClick(event);
+            setSharingOpen(sharingList.hidden);
+        });
+        sharingButton.addEventListener("keydown", function (event) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                if (sharingList.hidden) {
+                    setSharingOpen(true);
+                }
+                return;
+            }
+
+            if (event.key === "Escape" && !sharingList.hidden) {
+                event.preventDefault();
+                event.stopPropagation();
+                setSharingOpen(false);
+            }
+        });
+        sharingOptions.forEach(function (option) {
+            option.addEventListener("mousedown", function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            });
+            option.addEventListener("click", function (event) {
+                keepHeaderClick(event);
+                chooseSharing(option.dataset.sharingValue || "");
+            });
+        });
+        sharingList.addEventListener("keydown", function (event) {
+            const current = Number(document.activeElement && document.activeElement.dataset
+                ? document.activeElement.dataset.sharingIndex
+                : NaN);
+            if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End") {
+                event.preventDefault();
+                event.stopPropagation();
+                let next = Number.isNaN(current) ? 0 : current;
+                if (event.key === "ArrowDown") {
+                    next = Math.min(sharingOptions.length - 1, next + 1);
+                } else if (event.key === "ArrowUp") {
+                    next = Math.max(0, next - 1);
+                } else if (event.key === "Home") {
+                    next = 0;
+                } else {
+                    next = sharingOptions.length - 1;
+                }
+                sharingOptions[next].focus();
+                sharingList.setAttribute("aria-activedescendant", sharingOptions[next].id);
+                return;
+            }
+
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                const active = document.activeElement;
+                chooseSharing(active && active.dataset ? active.dataset.sharingValue || "" : "");
+                return;
+            }
+
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                setSharingOpen(false);
+                sharingButton.focus();
+                return;
+            }
+
+            if (event.key === "Tab") {
+                setSharingOpen(false);
+            }
+        });
+        document.addEventListener("pointerdown", dismissSharing, true);
+        window.addEventListener("resize", placeSharingList);
+        window.addEventListener("scroll", placeSharingList, true);
+        frontingButton.addEventListener("mousedown", function (event) {
+            event.stopPropagation();
+        });
+        frontingButton.addEventListener("click", function (event) {
+            keepHeaderClick(event);
+            draftValues.fronting = draftValues.fronting === null ? true : !draftValues.fronting;
+            paintFronting();
+            updateSaveButtonState();
+        });
+        colorPencil.addEventListener("click", function () {
+            colorInput.click();
+        });
+        colorSwatch.addEventListener("click", function () {
+            colorInput.click();
+        });
+        colorInput.addEventListener("input", function () {
+            draftValues.color = memberCssColor(colorInput.value);
+            paintColor();
+            updateSaveButtonState();
+        });
+
+        queueMicrotask(function () {
+            if (!cardDetails.isConnected || !document.body) {
+                return;
+            }
+
+            const removalObserver = new MutationObserver(function () {
+                if (!cardDetails.isConnected) {
+                    releaseUnsavedAvatar();
+                    document.removeEventListener("pointerdown", dismissSharing, true);
+                    window.removeEventListener("resize", placeSharingList);
+                    window.removeEventListener("scroll", placeSharingList, true);
+                    removalObserver.disconnect();
+                }
+            });
+            removalObserver.observe(document.body, { childList: true, subtree: true });
+        });
+    }
+
+    paintPreviewControls();
     updateSaveButtonState();
 
     return cardDetails;
