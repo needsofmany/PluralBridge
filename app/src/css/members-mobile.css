@@ -12,10 +12,19 @@
     gap: 0.6rem;
 }
 
-.member-screen-header > .member-brand-logo {
+.member-screen-brand {
+    gap: 0.5rem;
+}
+
+.member-screen-header .member-brand-nameplate {
+    height: 2.15rem;
+    max-width: min(14rem, calc(100% - 7.25rem));
+}
+
+.member-screen-header .member-brand-logo {
     height: 3.25rem;
     max-height: 3.25rem;
-    max-width: 38%;
+    max-width: 34%;
 }
 
 .member-list > .member-workspace {

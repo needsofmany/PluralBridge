@@ -4,6 +4,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PluralBridge</title>
+    <script>
+        (function () {
+            var theme = "dark";
+            try {
+                var stored = window.localStorage.getItem("pluralbridge.theme");
+                if (stored === "light" || stored === "dark") {
+                    theme = stored;
+                }
+            } catch (error) {
+                theme = "dark";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+        })();
+    </script>
 
     <link rel="stylesheet" href="./app.css">
     <link rel="stylesheet" href="./css/shell.css">

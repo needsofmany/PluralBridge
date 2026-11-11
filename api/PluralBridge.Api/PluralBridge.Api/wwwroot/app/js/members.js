@@ -115,6 +115,14 @@ window.PluralBridge.members = (function () {
             path.setAttribute("d", "M4 5h16v4H4V5zm0 5.5h16v4H4v-4zM4 16h16v3H4v-3z");
         } else if (iconName === "compact") {
             path.setAttribute("d", "M5 6h14v2H5V6zm0 5h14v2H5v-2zm0 5h14v2H5v-2z");
+        } else if (iconName === "sun") {
+            path.setAttribute("fill", "none");
+            path.setAttribute("stroke", "currentColor");
+            path.setAttribute("stroke-width", "1.8");
+            path.setAttribute("stroke-linecap", "round");
+            path.setAttribute("d", "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2.5v2.2M12 19.3v2.2M4.8 4.8l1.6 1.6M17.6 17.6l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.8 19.2l1.6-1.6M17.6 6.4l1.6-1.6");
+        } else if (iconName === "moon") {
+            path.setAttribute("d", "M16.5 3.2a8.2 8.2 0 1 0 4.3 14.8A7 7 0 0 1 16.5 3.2z");
         } else {
             path.setAttribute("d", "M11 10h2v8h-2v-8zm0-4h2v2h-2V6zm1-4a10 10 0 1 0 0 20 10 10 0 0 0 0-20z");
         }
@@ -349,20 +357,65 @@ window.PluralBridge.members = (function () {
 
         primaryGroup.appendChild(createAddMenu(options));
 
-        viewGroup.appendChild(createToolbarButton("expanded", "Expanded", {
-            disabled: true,
-            title: "Expanded member view planned"
-        }));
-
-        viewGroup.appendChild(createToolbarButton("compact", "Compact", {
-            disabled: true,
-            title: "Compact member view planned"
-        }));
+        const presentation = "expanded";
+        const presentationButton = createToolbarButton(
+            presentation === "compact" ? "compact" : "expanded",
+            presentation === "compact" ? "Compact" : "Expanded",
+            {
+                disabled: true,
+                title: "Card presentation switching is planned"
+            }
+        );
+        presentationButton.classList.add("member-toolbar-presentation");
+        viewGroup.appendChild(presentationButton);
 
         viewGroup.appendChild(createToolbarButton("details", "Details", {
             disabled: true,
             title: "Member details view planned"
         }));
+
+        const themeButton = createToolbarButton("moon", "Dark", {
+            onClick: function () {
+                if (window.PluralBridge.theme && typeof window.PluralBridge.theme.toggle === "function") {
+                    window.PluralBridge.theme.toggle();
+                }
+            }
+        });
+        themeButton.classList.add("member-toolbar-theme");
+
+        function paintThemeButton() {
+            const active = window.PluralBridge.theme && typeof window.PluralBridge.theme.get === "function"
+                ? window.PluralBridge.theme.get()
+                : "dark";
+            const isLight = active === "light";
+            const label = themeButton.querySelector(".member-toolbar-label");
+            const icon = themeButton.querySelector(".member-toolbar-icon");
+            const nextIcon = createToolbarIcon(isLight ? "sun" : "moon");
+            const action = isLight ? "Switch to dark theme" : "Switch to light theme";
+            if (icon) {
+                icon.replaceWith(nextIcon);
+            } else {
+                themeButton.insertBefore(nextIcon, label);
+            }
+            if (label) {
+                label.textContent = isLight ? "Light" : "Dark";
+            }
+            themeButton.setAttribute("aria-label", action);
+            themeButton.title = action;
+        }
+
+        paintThemeButton();
+        if (window.PluralBridge.theme && typeof window.PluralBridge.theme.subscribe === "function") {
+            let unsubscribe = function () {};
+            unsubscribe = window.PluralBridge.theme.subscribe(function () {
+                if (!themeButton.isConnected) {
+                    unsubscribe();
+                    return;
+                }
+                paintThemeButton();
+            });
+        }
+        viewGroup.appendChild(themeButton);
 
         toolbar.appendChild(primaryGroup);
         toolbar.appendChild(viewGroup);
@@ -533,12 +586,25 @@ window.PluralBridge.members = (function () {
         return value === true || value === false ? value : null;
     }
 
-    function explicitPreviewSharing(value) {
-        if (value === "only-me" || value === "selected-people" || value === "all-connections") {
+    function canonicalVisibilityId(value) {
+        if (value === 1 || value === 2 || value === 3 || value === 4) {
             return value;
         }
 
         return null;
+    }
+
+    function assignVisibilityPreview(record, previous, fields) {
+        const incoming = Boolean(fields)
+            && Object.prototype.hasOwnProperty.call(fields, "visibilityTypeId");
+        const retained = !incoming && Boolean(previous) && previous.visibilityExplicit === true;
+        if (!incoming && !retained) {
+            return;
+        }
+
+        const source = incoming ? fields : previous;
+        record.visibilityExplicit = true;
+        record.visibilityTypeId = canonicalVisibilityId(source.visibilityTypeId);
     }
 
     function explicitPreviewAvatar(value) {
@@ -576,7 +642,7 @@ window.PluralBridge.members = (function () {
         };
         assignExplicitPreview(record, preview, null, "color", explicitPreviewColor);
         assignExplicitPreview(record, preview, null, "fronting", explicitPreviewFronting);
-        assignExplicitPreview(record, preview, null, "sharing", explicitPreviewSharing);
+        assignVisibilityPreview(record, preview, null);
         assignExplicitPreview(record, preview, null, "avatarObjectUrl", explicitPreviewAvatar);
         return record;
     }
@@ -619,7 +685,7 @@ window.PluralBridge.members = (function () {
         };
         assignExplicitPreview(record, previous, fields, "color", explicitPreviewColor);
         assignExplicitPreview(record, previous, fields, "fronting", explicitPreviewFronting);
-        assignExplicitPreview(record, previous, fields, "sharing", explicitPreviewSharing);
+        assignVisibilityPreview(record, previous, fields);
         assignExplicitPreview(record, previous, fields, "avatarObjectUrl", explicitPreviewAvatar);
         memberProfilePreviewsByAccount[accountKey][memberKey] = record;
 

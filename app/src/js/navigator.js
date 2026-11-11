@@ -299,6 +299,10 @@ window.PluralBridge.navigator = (function () {
         return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
     }
 
+    function canonicalVisibilityId(value) {
+        return value === 1 || value === 2 || value === 3 || value === 4 ? value : null;
+    }
+
     function profileForCard(profile, memberId, accountId) {
         const membersApi = window.PluralBridge && window.PluralBridge.members
             ? window.PluralBridge.members
@@ -318,8 +322,18 @@ window.PluralBridge.navigator = (function () {
             color: hasPreviewField("color")
                 ? memberCssColor(preview.color)
                 : memberCssColor(profile && profile.color),
-            fronting: hasPreviewField("fronting") ? preview.fronting : null,
-            sharing: hasPreviewField("sharing") ? preview.sharing : null,
+            fronting: hasPreviewField("fronting")
+                ? preview.fronting
+                : (profile && (profile.isFronting === true || profile.isFronting === false)
+                    ? profile.isFronting
+                    : null),
+            visibilityKnown: Boolean(preview && preview.visibilityExplicit === true)
+                || Boolean(profile && Object.prototype.hasOwnProperty.call(profile, "visibilityTypeId")),
+            visibilityTypeId: preview && preview.visibilityExplicit === true
+                ? canonicalVisibilityId(preview.visibilityTypeId)
+                : (profile && Object.prototype.hasOwnProperty.call(profile, "visibilityTypeId")
+                    ? canonicalVisibilityId(profile.visibilityTypeId)
+                    : null),
             avatarObjectUrl: hasPreviewField("avatarObjectUrl") ? preview.avatarObjectUrl : null
         };
     }

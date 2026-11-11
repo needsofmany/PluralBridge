@@ -160,7 +160,9 @@ var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase
 var allowedBrowserImageFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
 	"pluralbridge-about-logo-smaller.png",
-	"pluralbridge-about-logo-small.png"
+	"pluralbridge-about-logo-small.png",
+	"pluralbridge-nameplate.png",
+	"members-workspace-background.jpg"
 };
 
 // require login for the browser button app files

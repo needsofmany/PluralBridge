@@ -63,6 +63,17 @@ for css_file in "$SRC_APP/css/"*.css; do
   }
 done
 
+if [[ -d "$SRC_APP/images" ]]; then
+  mkdir -p "$SERVED_APP/images" || {
+    printf "SYNC_BROWSER_APP_CREATE_SERVED_IMAGES_FAILED\n"
+    exit 1
+  }
+  cp -p "$SRC_APP/images/"*.* "$SERVED_APP/images/" || {
+    printf "SYNC_BROWSER_APP_COPY_IMAGES_FAILED\n"
+    exit 1
+  }
+fi
+
 if [[ -d "$SRC_APP/assets" ]]; then
   mkdir -p "$SERVED_APP/assets" || {
     printf "SYNC_BROWSER_APP_CREATE_SERVED_ASSETS_FAILED\n"

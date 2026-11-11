@@ -1480,7 +1480,8 @@ function createMemberAccordion(member, options) {
             draftValues.description !== persistedValues.description ||
             draftValues.color !== persistedValues.color ||
             draftValues.fronting !== persistedValues.fronting ||
-            draftValues.sharing !== persistedValues.sharing ||
+            draftValues.visibilityKnown !== persistedValues.visibilityKnown ||
+            draftValues.visibilityTypeId !== persistedValues.visibilityTypeId ||
             draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl;
     }
 
@@ -1777,7 +1778,8 @@ function createMemberAccordion(member, options) {
         persistedValues.description = draftValues.description;
         persistedValues.color = draftValues.color;
         persistedValues.fronting = draftValues.fronting;
-        persistedValues.sharing = draftValues.sharing;
+        persistedValues.visibilityKnown = draftValues.visibilityKnown;
+        persistedValues.visibilityTypeId = draftValues.visibilityTypeId;
         persistedValues.avatarObjectUrl = draftValues.avatarObjectUrl;
 
         Object.keys(fieldRows).forEach(function (fieldName) {
@@ -1793,7 +1795,8 @@ function createMemberAccordion(member, options) {
             if (previewHeader) {
                 member.color = persistedValues.color;
                 member.fronting = persistedValues.fronting;
-                member.sharing = persistedValues.sharing;
+                member.visibilityKnown = persistedValues.visibilityKnown;
+                member.visibilityTypeId = persistedValues.visibilityTypeId;
                 member.avatarObjectUrl = persistedValues.avatarObjectUrl;
             }
         }
@@ -1894,7 +1897,8 @@ function createMemberAccordion(member, options) {
         draftValues.description = persistedValues.description;
         draftValues.color = persistedValues.color;
         draftValues.fronting = persistedValues.fronting;
-        draftValues.sharing = persistedValues.sharing;
+        draftValues.visibilityKnown = persistedValues.visibilityKnown;
+        draftValues.visibilityTypeId = persistedValues.visibilityTypeId;
         draftValues.avatarObjectUrl = persistedValues.avatarObjectUrl;
 
         setProfileStatus("");
@@ -2069,8 +2073,9 @@ function createMemberAccordion(member, options) {
             payload.fronting = draftValues.fronting;
         }
 
-        if (draftValues.sharing !== persistedValues.sharing) {
-            payload.sharing = draftValues.sharing;
+        if (draftValues.visibilityKnown !== persistedValues.visibilityKnown ||
+            draftValues.visibilityTypeId !== persistedValues.visibilityTypeId) {
+            payload.visibilityTypeId = draftValues.visibilityTypeId;
         }
 
         if (draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl) {
@@ -2080,13 +2085,18 @@ function createMemberAccordion(member, options) {
         return payload;
     }
 
+    function canonicalVisibilityId(value) {
+        return value === 1 || value === 2 || value === 3 || value === 4 ? value : null;
+    }
+
     const draftValues = {
         displayName: member && member.displayName ? member.displayName : "",
         pronouns: member && member.pronouns ? member.pronouns : "",
         description: member && member.description ? member.description : "",
         color: memberCssColor(member && member.color),
         fronting: member && (member.fronting === true || member.fronting === false) ? member.fronting : null,
-        sharing: nullablePreviewValue(member && member.sharing),
+        visibilityKnown: Boolean(member && member.visibilityKnown === true),
+        visibilityTypeId: canonicalVisibilityId(member && member.visibilityTypeId),
         avatarObjectUrl: nullablePreviewValue(member && member.avatarObjectUrl)
     };
 
@@ -2096,7 +2106,8 @@ function createMemberAccordion(member, options) {
         description: draftValues.description,
         color: draftValues.color,
         fronting: draftValues.fronting,
-        sharing: draftValues.sharing,
+        visibilityKnown: draftValues.visibilityKnown,
+        visibilityTypeId: draftValues.visibilityTypeId,
         avatarObjectUrl: draftValues.avatarObjectUrl
     };
 
@@ -2162,12 +2173,6 @@ function createMemberAccordion(member, options) {
     const headerControls = document.createElement("span");
     headerControls.className = "member-summary-controls";
 
-    const sharingChoices = [
-        { value: "", label: "Not loaded", icon: "unset" },
-        { value: "only-me", label: "Only me", icon: "only-me" },
-        { value: "selected-people", label: "Selected people", icon: "selected-people" },
-        { value: "all-connections", label: "All my connections", icon: "all-connections" }
-    ];
     const sharingLabel = document.createElement("span");
     sharingLabel.className = "member-sharing-label";
     sharingLabel.appendChild(document.createTextNode("Visible to:"));
@@ -2187,21 +2192,7 @@ function createMemberAccordion(member, options) {
     window.PluralBridge.memberSharingSequence = (window.PluralBridge.memberSharingSequence || 0) + 1;
     sharingList.id = "member-sharing-list-" + window.PluralBridge.memberSharingSequence;
     sharingButton.setAttribute("aria-controls", sharingList.id);
-    const sharingOptions = sharingChoices.map(function (choice, index) {
-        const option = document.createElement("div");
-        option.className = "member-sharing-option";
-        option.setAttribute("role", "option");
-        option.tabIndex = -1;
-        option.id = sharingList.id + "-option-" + index;
-        option.dataset.sharingValue = choice.value;
-        option.dataset.sharingIndex = String(index);
-        option.appendChild(sharingOutlineIcon(choice.icon));
-        const optionLabel = document.createElement("span");
-        optionLabel.textContent = choice.label;
-        option.appendChild(optionLabel);
-        sharingList.appendChild(option);
-        return option;
-    });
+    let sharingOptions = [];
     sharingControl.appendChild(sharingButton);
     sharingControl.appendChild(sharingList);
 
@@ -2527,26 +2518,72 @@ function createMemberAccordion(member, options) {
         } else if (draftValues.fronting) {
             label.textContent = "Fronting";
             frontingButton.setAttribute("aria-pressed", "true");
-            frontingButton.title = "Fronting";
+            frontingButton.title = "Fronting. This is the imported fronting snapshot.";
         } else {
             label.textContent = "Not fronting";
             frontingButton.setAttribute("aria-pressed", "false");
-            frontingButton.title = "Not fronting";
+            frontingButton.title = "Not fronting. This is the imported fronting snapshot.";
         }
         frontingButton.setAttribute("aria-label", frontingButton.title);
         frontingButton.appendChild(label);
     }
 
+    function visibilityChoices() {
+        const choices = [];
+        if (!draftValues.visibilityKnown) {
+            choices.push({ id: null, known: false, label: "Not loaded", icon: "unset", disabled: false });
+        } else {
+            choices.push({ id: null, known: true, label: "Not set", icon: "unset", disabled: false });
+        }
+
+        choices.push(
+            { id: 1, known: true, label: "Only you", icon: "only-me", disabled: false },
+            { id: 2, known: true, label: "Trusted friends", icon: "selected-people", disabled: false },
+            { id: 3, known: true, label: "All friends", icon: "all-connections", disabled: false },
+            { id: 4, known: true, label: "Selected people", icon: "selected-people", disabled: true }
+        );
+        return choices;
+    }
+
     function currentSharingChoice() {
-        const selected = sharingChoices.find(function (choice) {
-            return choice.value === (draftValues.sharing || "");
+        const choices = visibilityChoices();
+        if (!draftValues.visibilityKnown) {
+            return choices[0];
+        }
+
+        const selected = choices.find(function (choice) {
+            return choice.known && choice.id === draftValues.visibilityTypeId;
         });
-        return selected || sharingChoices[0];
+        return selected || choices[0];
     }
 
     function paintSharing() {
+        const choices = visibilityChoices();
         const choice = currentSharingChoice();
-        const selectedIndex = sharingChoices.indexOf(choice);
+        const selectedIndex = choices.indexOf(choice);
+        sharingList.replaceChildren();
+        sharingOptions = choices.map(function (item, index) {
+            const option = document.createElement("div");
+            option.className = "member-sharing-option";
+            option.setAttribute("role", "option");
+            option.tabIndex = -1;
+            option.id = sharingList.id + "-option-" + index;
+            option.dataset.visibilityId = item.id === null ? "" : String(item.id);
+            option.dataset.visibilityKnown = item.known ? "true" : "false";
+            option.dataset.sharingIndex = String(index);
+            if (item.disabled) {
+                option.setAttribute("aria-disabled", "true");
+            }
+            option.appendChild(sharingOutlineIcon(item.icon));
+            const optionLabel = document.createElement("span");
+            optionLabel.textContent = item.label;
+            option.appendChild(optionLabel);
+            const selected = index === selectedIndex;
+            option.setAttribute("aria-selected", selected ? "true" : "false");
+            option.classList.toggle("is-current", selected);
+            sharingList.appendChild(option);
+            return option;
+        });
         sharingButton.replaceChildren();
         sharingButton.appendChild(sharingOutlineIcon(choice.icon));
         const value = document.createElement("span");
@@ -2558,15 +2595,14 @@ function createMemberAccordion(member, options) {
         menuChevron.setAttribute("aria-hidden", "true");
         menuChevron.appendChild(sharingOutlineIcon("chevron"));
         sharingButton.appendChild(menuChevron);
-        sharingButton.title = choice.value
-            ? "Preview only. This does not change who can see the member."
-            : "Sharing is not loaded. Choosing a value stores a preview only.";
+        if (!draftValues.visibilityKnown) {
+            sharingButton.title = "Visibility is not loaded. Choosing a value stores a preview only.";
+        } else if (draftValues.visibilityTypeId === null) {
+            sharingButton.title = "Visibility is not set. Choosing a value stores a preview only.";
+        } else {
+            sharingButton.title = "Preview only. This does not change who can see the member.";
+        }
         sharingButton.setAttribute("aria-label", "Visible to: " + choice.label);
-        sharingOptions.forEach(function (option, index) {
-            const selected = index === selectedIndex;
-            option.setAttribute("aria-selected", selected ? "true" : "false");
-            option.classList.toggle("is-current", selected);
-        });
     }
 
     function placeSharingList() {
@@ -2596,7 +2632,7 @@ function createMemberAccordion(member, options) {
         }
 
         const selected = sharingOptions.findIndex(function (option) {
-            return option.dataset.sharingValue === (draftValues.sharing || "");
+            return option.getAttribute("aria-selected") === "true";
         });
         const index = selected < 0 ? 0 : selected;
         sharingOptions[index].focus();
@@ -2604,11 +2640,49 @@ function createMemberAccordion(member, options) {
         placeSharingList();
     }
 
-    function chooseSharing(value) {
-        draftValues.sharing = value ? value : null;
+    function chooseSharing(option) {
+        if (!option || option.getAttribute("aria-disabled") === "true") {
+            if (option && option.getAttribute("aria-disabled") === "true") {
+                setSharingOpen(false);
+                sharingButton.focus();
+            }
+            return;
+        }
+
+        if (option.dataset.visibilityKnown !== "true") {
+            setSharingOpen(false);
+            sharingButton.focus();
+            return;
+        }
+
+        const raw = option.dataset.visibilityId || "";
+        draftValues.visibilityKnown = true;
+        draftValues.visibilityTypeId = raw ? canonicalVisibilityId(Number(raw)) : null;
         setSharingOpen(false);
         updateSaveButtonState();
         sharingButton.focus();
+    }
+
+    function enabledSharingIndex(start, step) {
+        const count = sharingOptions.length;
+        if (!count) {
+            return 0;
+        }
+
+        let index = start;
+        for (let stepCount = 0; stepCount < count; stepCount += 1) {
+            index = step > 0
+                ? Math.min(count - 1, index + step)
+                : Math.max(0, index + step);
+            if (sharingOptions[index].getAttribute("aria-disabled") !== "true") {
+                return index;
+            }
+            if ((step > 0 && index === count - 1) || (step < 0 && index === 0)) {
+                break;
+            }
+        }
+
+        return start;
     }
 
     function dismissSharing(event) {
@@ -2693,15 +2767,20 @@ function createMemberAccordion(member, options) {
                 setSharingOpen(false);
             }
         });
-        sharingOptions.forEach(function (option) {
-            option.addEventListener("mousedown", function (event) {
+        sharingList.addEventListener("mousedown", function (event) {
+            if (event.target.closest(".member-sharing-option")) {
                 event.preventDefault();
                 event.stopPropagation();
-            });
-            option.addEventListener("click", function (event) {
-                keepHeaderClick(event);
-                chooseSharing(option.dataset.sharingValue || "");
-            });
+            }
+        });
+        sharingList.addEventListener("click", function (event) {
+            const option = event.target.closest(".member-sharing-option");
+            if (!option) {
+                return;
+            }
+
+            keepHeaderClick(event);
+            chooseSharing(option);
         });
         sharingList.addEventListener("keydown", function (event) {
             const current = Number(document.activeElement && document.activeElement.dataset
@@ -2710,15 +2789,19 @@ function createMemberAccordion(member, options) {
             if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End") {
                 event.preventDefault();
                 event.stopPropagation();
-                let next = Number.isNaN(current) ? 0 : current;
+                const start = Number.isNaN(current) ? 0 : current;
+                let next = start;
                 if (event.key === "ArrowDown") {
-                    next = Math.min(sharingOptions.length - 1, next + 1);
+                    next = enabledSharingIndex(next, 1);
                 } else if (event.key === "ArrowUp") {
-                    next = Math.max(0, next - 1);
+                    next = enabledSharingIndex(next, -1);
                 } else if (event.key === "Home") {
-                    next = 0;
+                    next = enabledSharingIndex(-1, 1);
                 } else {
-                    next = sharingOptions.length - 1;
+                    next = enabledSharingIndex(sharingOptions.length, -1);
+                }
+                if (!sharingOptions[next]) {
+                    return;
                 }
                 sharingOptions[next].focus();
                 sharingList.setAttribute("aria-activedescendant", sharingOptions[next].id);
@@ -2728,8 +2811,7 @@ function createMemberAccordion(member, options) {
             if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 event.stopPropagation();
-                const active = document.activeElement;
-                chooseSharing(active && active.dataset ? active.dataset.sharingValue || "" : "");
+                chooseSharing(document.activeElement);
                 return;
             }
 
@@ -3482,10 +3564,23 @@ function createMembersScreenFrame() {
         logo.hidden = true;
     });
 
+    const nameplate = document.createElement("img");
+    nameplate.className = "member-brand-nameplate";
+    nameplate.src = "/app/images/pluralbridge-nameplate.png";
+    nameplate.alt = "The Plural Bridge";
+    nameplate.addEventListener("error", function () {
+        nameplate.hidden = true;
+    });
+
+    const brand = document.createElement("div");
+    brand.className = "member-screen-brand";
+    brand.appendChild(nameplate);
+    brand.appendChild(logo);
+
     const header = document.createElement("div");
     header.className = "member-screen-header";
     header.appendChild(heading);
-    header.appendChild(logo);
+    header.appendChild(brand);
 
     const memberAddContainer = document.createElement("div");
     memberAddContainer.className = "member-add-container";
@@ -3496,6 +3591,13 @@ function createMembersScreenFrame() {
 
     const membersWorkspace = document.createElement("div");
     membersWorkspace.className = "member-workspace";
+
+    const workspacePhoto = document.createElement("img");
+    workspacePhoto.className = "member-workspace-photo";
+    workspacePhoto.src = "/app/images/members-workspace-background.jpg";
+    workspacePhoto.alt = "";
+    workspacePhoto.setAttribute("aria-hidden", "true");
+    membersWorkspace.appendChild(workspacePhoto);
 
     const memberContent = document.createElement("div");
     memberContent.className = "member-content-stack";

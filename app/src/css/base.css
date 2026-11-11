@@ -1,2 +1,111 @@
-/* Base browser app styles.
-   Initial module placeholder; existing styles remain in legacy-app.css during the first split. */
+/* Shared theme tokens. Dark is the default. Light is selected on the document root. */
+
+:root {
+	color-scheme: dark;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	--pb-bg: #101418;
+	--pb-bg-highlight: #243447;
+	--pb-surface: rgba(16, 20, 24, 0.86);
+	--pb-surface-raised: rgba(7, 10, 13, 0.95);
+	--pb-surface-muted: rgba(7, 10, 13, 0.4);
+	--pb-surface-inset: #070a0d;
+	--pb-surface-overlay: rgba(15, 23, 42, 0.72);
+	--pb-scrim: rgba(0, 0, 0, 0.58);
+	--pb-nav-bg: rgba(7, 10, 13, 0.94);
+	--pb-menu-bg: #172033;
+	--pb-dialog-bg: #121820;
+	--pb-text: #f4f7fb;
+	--pb-text-strong: #edf4ff;
+	--pb-text-muted: #d8e1ed;
+	--pb-text-faint: #b7c3d6;
+	--pb-accent: #a8c7ff;
+	--pb-accent-strong: #7eb0ff;
+	--pb-button-bg: #a8c7ff;
+	--pb-button-text: #101418;
+	--pb-button-hover-bg: #f4f7fb;
+	--pb-focus: #a8c7ff;
+	--pb-border: rgba(255, 255, 255, 0.14);
+	--pb-border-subtle: rgba(255, 255, 255, 0.08);
+	--pb-fill-subtle: rgba(255, 255, 255, 0.05);
+	--pb-input-bg: rgba(15, 23, 42, 0.72);
+	--pb-input-text: #e5e7eb;
+	--pb-input-border: rgba(148, 163, 184, 0.55);
+	--pb-danger: #fecaca;
+	--pb-success: #bbf7d0;
+	--pb-warning: #fef3c7;
+	--pb-error: #ffb4b4;
+	--pb-shadow: rgba(0, 0, 0, 0.35);
+	--pb-disabled: rgba(237, 244, 255, 0.45);
+	--pb-accent-08: color-mix(in srgb, var(--pb-accent) 8%, transparent);
+	--pb-accent-10: color-mix(in srgb, var(--pb-accent) 10%, transparent);
+	--pb-accent-12: color-mix(in srgb, var(--pb-accent) 12%, transparent);
+	--pb-accent-13: color-mix(in srgb, var(--pb-accent) 13%, transparent);
+	--pb-accent-16: color-mix(in srgb, var(--pb-accent) 16%, transparent);
+	--pb-accent-18: color-mix(in srgb, var(--pb-accent) 18%, transparent);
+	--pb-accent-20: color-mix(in srgb, var(--pb-accent) 20%, transparent);
+	--pb-accent-22: color-mix(in srgb, var(--pb-accent) 22%, transparent);
+	--pb-accent-24: color-mix(in srgb, var(--pb-accent) 24%, transparent);
+	--pb-accent-25: color-mix(in srgb, var(--pb-accent) 25%, transparent);
+	--pb-accent-28: color-mix(in srgb, var(--pb-accent) 28%, transparent);
+	--pb-accent-32: color-mix(in srgb, var(--pb-accent) 32%, transparent);
+	--pb-accent-35: color-mix(in srgb, var(--pb-accent) 35%, transparent);
+	--pb-accent-45: color-mix(in srgb, var(--pb-accent) 45%, transparent);
+	--pb-accent-55: color-mix(in srgb, var(--pb-accent) 55%, transparent);
+	--pb-accent-65: color-mix(in srgb, var(--pb-accent) 65%, transparent);
+	--pb-accent-70: color-mix(in srgb, var(--pb-accent) 70%, transparent);
+	--pb-workspace-photo-opacity: 0.2;
+	--pb-members-frame-darker: #22354D;
+	--pb-members-frame-mid: #30445C;
+	--pb-members-frame-lighter: #49617D;
+	--pb-card-bg: #172033;
+	--pb-card-control-bg: #243447;
+	--pb-members-frame-gradient: linear-gradient(
+		45deg,
+		var(--pb-members-frame-darker) 0%,
+		var(--pb-members-frame-mid) 50%,
+		var(--pb-members-frame-lighter) 100%
+	);
+}
+
+:root[data-theme="light"] {
+	color-scheme: light;
+	--pb-bg: #f4f7fb;
+	--pb-bg-highlight: #d5e4f6;
+	--pb-surface: #ffffff;
+	--pb-surface-raised: #ffffff;
+	--pb-surface-muted: #e7eef8;
+	--pb-surface-inset: #f7f9fc;
+	--pb-surface-overlay: #ffffff;
+	--pb-scrim: rgba(16, 24, 40, 0.46);
+	--pb-nav-bg: #e6eef8;
+	--pb-menu-bg: #ffffff;
+	--pb-dialog-bg: #ffffff;
+	--pb-text: #101418;
+	--pb-text-strong: #101418;
+	--pb-text-muted: #3c4b60;
+	--pb-text-faint: #5c6c82;
+	--pb-accent: #1e4f96;
+	--pb-accent-strong: #163e78;
+	--pb-button-bg: #1e4f96;
+	--pb-button-text: #f7f9fc;
+	--pb-button-hover-bg: #163e78;
+	--pb-focus: #1e4f96;
+	--pb-border: rgba(16, 20, 24, 0.16);
+	--pb-border-subtle: rgba(16, 20, 24, 0.08);
+	--pb-fill-subtle: rgba(16, 20, 24, 0.04);
+	--pb-input-bg: #ffffff;
+	--pb-input-text: #101418;
+	--pb-input-border: rgba(16, 20, 24, 0.28);
+	--pb-danger: #9f1239;
+	--pb-success: #166534;
+	--pb-warning: #92400e;
+	--pb-error: #b91c1c;
+	--pb-shadow: rgba(16, 24, 40, 0.16);
+	--pb-disabled: rgba(16, 20, 24, 0.38);
+	--pb-workspace-photo-opacity: 0.2;
+	--pb-members-frame-darker: #A8C1DF;
+	--pb-members-frame-mid: #BED2E8;
+	--pb-members-frame-lighter: #D4E4F3;
+	--pb-card-bg: #e7eef8;
+	--pb-card-control-bg: #ffffff;
+}

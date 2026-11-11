@@ -71,7 +71,7 @@ The following is a **starting inventory**, not a verified enumeration of all sto
 | Contract ID | SQL Server implementation | Responsibility | Status |
 | --- | --- | --- | --- |
 | `navigator.resolve-tree` | `dbo.pb_show_tree_step4_members_by_email` | Resolve account/anchor context and produce navigator-related graph/hierarchy data | SQL Server binding verified; local binding unresolved |
-| `members.read-anchor-profiles` | `dbo.pb_get_anchor_member_profiles_by_email` | Read direct member profiles, including stored color, for one authorized anchor | Reader contract updated; procedure text is not in this repository |
+| `members.read-anchor-profiles` | `dbo.pb_get_anchor_member_profiles_by_email` | Read direct member profiles, stored color, canonical visibility, and imported fronting for one authorized anchor | Reader contract updated. The procedure change is a separate review script and is not applied by this repository. |
 | `navigator.build-topology-seed` | `dbo.pb_show_tree_step5_topology_seed_builder` | Build topology data used by the navigator pipeline | Internal/dependency candidate; determine whether it belongs in the public contract catalog |
 
 ### 4.1 `navigator.resolve-tree` — SQL Server contract
@@ -129,10 +129,10 @@ A path that does not match this encoding keeps `section`, `treeLine`, and `pathK
 
 **HTTP binding:** `GET /api/me/anchor-member-profiles?objectType=&anchorName=`  
 **SQL Server binding:** `dbo.pb_get_anchor_member_profiles_by_email`  
-**Source:** The procedure text is not stored in this repository. This entry describes the reader and HTTP contract only.  
+**Source:** The procedure text is not stored as the live database definition. The review script `scripts/sqlserver/alter_pb_get_anchor_member_profiles_by_email.sql` is the proposed change and has not been applied by this repository.  
 **Local binding:** TBD  
 **Read/write:** Read-only.  
-**Status:** HTTP and reader contract updated for the fifth column. The live procedure is not claimed to have been changed by this repository.
+**Status:** HTTP and reader contract updated for color, nullable canonical visibility, and the imported fronting snapshot. The live procedure is not claimed to have been changed by this repository.
 
 **Inputs:** The client supplies `objectType` (`system`, `group`, or `place`) and `anchorName` (stored name, at most 510 characters). The API resolves the authenticated account and passes that account's email as `@Email NVARCHAR(320)`, plus `@AnchorObjectType NVARCHAR(64)` and `@AnchorName NVARCHAR(510)`. The client does not supply an email or account id.
 
@@ -145,8 +145,18 @@ A path that does not match this encoding keeps `section`, `treeLine`, and `pathK
 | `Pronouns` | `nvarchar` | `pronouns` | Yes |
 | `Description` | `nvarchar` | `description` | Yes |
 | `Color` | `nvarchar(64)` | `color` | Yes |
+| `VisibilityTypeId` | `int` | `visibilityTypeId` | Yes |
+| `VisibilityTypeCode` | `nvarchar` | `visibilityTypeCode` | Yes |
+| `VisibilityTypeName` | `nvarchar` | `visibilityTypeName` | Yes |
+| `IsFronting` | `bit` | `isFronting` | No |
 
-`Color` is the stored member color. Populated values use `#RRGGBB`. Null means no stored color. The reader rejects a different column list, a different column order, or more than one result set. An empty authorized anchor is `200` and `[]`.
+`Color` is the stored member color. Populated values use `#RRGGBB`. Null means no stored color.
+
+`VisibilityTypeId`, `VisibilityTypeCode`, and `VisibilityTypeName` are the result columns. The left join reads `dbo.pb_visibility_types.VisibilityTypeId`, `VisibilityCode`, and `DisplayName`, and aliases the last two to `VisibilityTypeCode` and `VisibilityTypeName`. `pb_visibility_types.Description` is not returned. A null id, code, and name together mean visibility is not set. The member remains in the result. The lookup values are `1 ONLY_YOU` / Only you, `2 TRUSTED_FRIENDS` / Trusted friends, `3 ALL_FRIENDS` / All friends, and `4 SELECTED_PEOPLE` / Selected people. `IsPrivate` and `PreventTrusted` remain imported evidence and are not the visibility returned here.
+
+`IsFronting` is the imported fronting snapshot for this read. It is `1` when `dbo.pb_front_history` has a row for the same member and the member's system with `EndTimeMs` null and `IsLive = 1`; otherwise it is `0`. The predicate is an `EXISTS`, so more than one open interval cannot duplicate the member. This is not a live connection to Simply Plural, and the read does not change front-history rows.
+
+The reader rejects a different column list, a different column order, a null fronting flag, or more than one result set. An empty authorized anchor is `200` and `[]`.
 
 **Errors and authorization:** The authenticated account is resolved on the server. Procedure errors `50001` and `50002` are 400, `50004` is 404, `50005` and `50007` are 400, and `50006` and `50008` are 403. Any other SQL failure, or a result that does not match this contract, is a generic 500. Responses do not include SQL text or connection secrets.
 

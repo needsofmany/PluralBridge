@@ -10,7 +10,11 @@ internal sealed record AnchorMemberProfile(
 	string DisplayName,
 	string? Pronouns,
 	string? Description,
-	string? Color);
+	string? Color,
+	int? VisibilityTypeId,
+	string? VisibilityTypeCode,
+	string? VisibilityTypeName,
+	bool IsFronting);
 
 internal sealed class AnchorMemberProfileResultSet
 {
@@ -29,7 +33,11 @@ internal static class AnchorMemberProfileReader
 		new("DisplayName", "nvarchar"),
 		new("Pronouns", "nvarchar"),
 		new("Description", "nvarchar"),
-		new("Color", "nvarchar")
+		new("Color", "nvarchar"),
+		new("VisibilityTypeId", "int"),
+		new("VisibilityTypeCode", "nvarchar"),
+		new("VisibilityTypeName", "nvarchar"),
+		new("IsFronting", "bit")
 	];
 
 	internal static async Task<IReadOnlyList<AnchorMemberProfile>?> ReadAsync(
@@ -121,13 +129,56 @@ internal static class AnchorMemberProfileReader
 			&& row[1] is string displayName
 			&& TryOptionalText(row[2], out var pronouns)
 			&& TryOptionalText(row[3], out var description)
-			&& TryOptionalText(row[4], out var color))
+			&& TryOptionalText(row[4], out var color)
+			&& TryOptionalInt(row[5], out var visibilityTypeId)
+			&& TryOptionalText(row[6], out var visibilityTypeCode)
+			&& TryOptionalText(row[7], out var visibilityTypeName)
+			&& TryRequiredBool(row[8], out var isFronting))
 		{
-			profile = new AnchorMemberProfile(memberId, displayName, pronouns, description, color);
+			profile = new AnchorMemberProfile(
+				memberId,
+				displayName,
+				pronouns,
+				description,
+				color,
+				visibilityTypeId,
+				visibilityTypeCode,
+				visibilityTypeName,
+				isFronting);
 			return true;
 		}
 
 		profile = null!;
+		return false;
+	}
+
+	private static bool TryOptionalInt(object value, out int? number)
+	{
+		if (value is DBNull)
+		{
+			number = null;
+			return true;
+		}
+
+		if (value is int id)
+		{
+			number = id;
+			return true;
+		}
+
+		number = null;
+		return false;
+	}
+
+	private static bool TryRequiredBool(object value, out bool flag)
+	{
+		if (value is bool bit)
+		{
+			flag = bit;
+			return true;
+		}
+
+		flag = false;
 		return false;
 	}
 

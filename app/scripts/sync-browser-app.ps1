@@ -47,6 +47,11 @@ Get-ChildItem "$srcApp/css/*.css" |
   Where-Object { $_.Name -ne "app.css" } |
   Copy-Item -Destination "$servedApp/css/" -Force
 
+if (Test-Path "$srcApp/images" -PathType Container) {
+  New-Item -ItemType Directory -Force -Path "$servedApp/images" | Out-Null
+  Copy-Item "$srcApp/images/*" "$servedApp/images/" -Force
+}
+
 if (Test-Path "$srcApp/assets" -PathType Container) {
   New-Item -ItemType Directory -Force -Path "$servedApp/assets" | Out-Null
   Copy-Item "$srcApp/assets/*" "$servedApp/assets/" -Recurse -Force

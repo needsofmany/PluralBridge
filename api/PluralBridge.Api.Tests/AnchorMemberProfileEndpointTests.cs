@@ -141,24 +141,18 @@ public sealed class AnchorMemberProfileEndpointTests
 		var profiles = AnchorMemberProfileReader.Map(
 		[
 			ResultSet(
+				ProfileColumns(),
 				[
-					["MemberId", "uniqueidentifier"],
-					["DisplayName", "nvarchar"],
-					["Pronouns", "nvarchar"],
-					["Description", "nvarchar"],
-					["Color", "nvarchar"]
-				],
-				[
-					[firstId, "Ada", DBNull.Value, "Shore guide", "#336699"],
-					[secondId, "Bea", "they/them", DBNull.Value, DBNull.Value]
+					[firstId, "Ada", DBNull.Value, "Shore guide", "#336699", 1, "ONLY_YOU", "Only you", true],
+					[secondId, "Bea", "they/them", DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, false]
 				])
 		]);
 
 		Assert.NotNull(profiles);
 		Assert.Equal(
 			[
-				new AnchorMemberProfile(firstId, "Ada", null, "Shore guide", "#336699"),
-				new AnchorMemberProfile(secondId, "Bea", "they/them", null, null)
+				new AnchorMemberProfile(firstId, "Ada", null, "Shore guide", "#336699", 1, "ONLY_YOU", "Only you", true),
+				new AnchorMemberProfile(secondId, "Bea", "they/them", null, null, null, null, null, false)
 			],
 			profiles);
 	}
@@ -168,24 +162,8 @@ public sealed class AnchorMemberProfileEndpointTests
 	{
 		var profiles = AnchorMemberProfileReader.Map(
 		[
-			ResultSet(
-				[
-					["MemberId", "uniqueidentifier"],
-					["DisplayName", "nvarchar"],
-					["Pronouns", "nvarchar"],
-					["Description", "nvarchar"],
-					["Color", "nvarchar"]
-				],
-				[]),
-			ResultSet(
-				[
-					["MemberId", "uniqueidentifier"],
-					["DisplayName", "nvarchar"],
-					["Pronouns", "nvarchar"],
-					["Description", "nvarchar"],
-					["Color", "nvarchar"]
-				],
-				[])
+			ResultSet(ProfileColumns(), []),
+			ResultSet(ProfileColumns(), [])
 		]);
 
 		Assert.Null(profiles);
@@ -224,6 +202,57 @@ public sealed class AnchorMemberProfileEndpointTests
 		]);
 
 		Assert.Null(profiles);
+	}
+
+	[Fact]
+	public void Map_RejectsProfileResultWithoutVisibilityOrFronting()
+	{
+		var profiles = AnchorMemberProfileReader.Map(
+		[
+			ResultSet(
+				[
+					["MemberId", "uniqueidentifier"],
+					["DisplayName", "nvarchar"],
+					["Pronouns", "nvarchar"],
+					["Description", "nvarchar"],
+					["Color", "nvarchar"]
+				],
+				[])
+		]);
+
+		Assert.Null(profiles);
+	}
+
+	[Fact]
+	public void Map_RejectsNullFrontingFlag()
+	{
+		var memberId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+		var profiles = AnchorMemberProfileReader.Map(
+		[
+			ResultSet(
+				ProfileColumns(),
+				[
+					[memberId, "Ada", DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value]
+				])
+		]);
+
+		Assert.Null(profiles);
+	}
+
+	private static string[][] ProfileColumns()
+	{
+		return
+		[
+			["MemberId", "uniqueidentifier"],
+			["DisplayName", "nvarchar"],
+			["Pronouns", "nvarchar"],
+			["Description", "nvarchar"],
+			["Color", "nvarchar"],
+			["VisibilityTypeId", "int"],
+			["VisibilityTypeCode", "nvarchar"],
+			["VisibilityTypeName", "nvarchar"],
+			["IsFronting", "bit"]
+		];
 	}
 
 	private static string ProfileRoute(string objectType, string anchorName)
