@@ -104,13 +104,21 @@
    -------------------------------------------------------------------------- */
 
 .member-profile-field-row {
-    grid-template-columns: minmax(0, 1fr) 1.45rem;
+    grid-template-columns: minmax(0, max-content) 1.45rem;
     grid-template-areas:
-        "label edit"
-        "value value";
-    align-items: start;
-    gap: 0.25rem 0.5rem;
+        "label label"
+        "value edit";
+    align-items: center;
+    justify-content: start;
+    width: max-content;
+    max-width: 100%;
+    gap: 0.25rem 0.35rem;
     padding: 0.45rem 0.35rem;
+}
+
+.member-profile-field-row[data-member-profile-field="description"] {
+    grid-template-columns: minmax(0, 1fr) 1.45rem;
+    width: 100%;
 }
 
 .member-profile-field-label {
@@ -125,7 +133,9 @@
 
 .member-profile-field-edit-button {
     grid-area: edit;
-    justify-self: end;
+    justify-self: start;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .member-profile-field-editor {

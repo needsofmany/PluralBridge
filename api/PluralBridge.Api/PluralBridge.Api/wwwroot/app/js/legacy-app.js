@@ -1410,6 +1410,9 @@ function createMemberAccordion(member, options) {
             addShape("circle", { cx: "18", cy: "5", r: "3" });
             addShape("circle", { cx: "6", cy: "12", r: "3" });
             addShape("circle", { cx: "18", cy: "19", r: "3" });
+        } else if (kind === "inherit") {
+            addShape("path", { d: "M7 7h8a4 4 0 0 1 0 8H9" });
+            addShape("path", { d: "M11 13 8 16l3 3" });
         } else if (kind === "chevron") {
             svg.setAttribute("width", "16");
             svg.setAttribute("height", "16");
@@ -1440,6 +1443,8 @@ function createMemberAccordion(member, options) {
             path.setAttribute("d", "M8.6 7.4 4 12l4.6 4.6L7.2 18 1.2 12l6-6 1.4 1.4zm6.8 0L16.8 6l6 6-6 6-1.4-1.4L20 12l-4.6-4.6zM13.2 5h2L10.8 19h-2l4.4-14z");
         } else if (iconName === "save") {
             path.setAttribute("d", "M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zM7 5h8v5H7V5zm10 14H7v-6h10v6z");
+        } else if (window.PluralBridge.members && typeof window.PluralBridge.members.createEditPencil === "function") {
+            return window.PluralBridge.members.createEditPencil();
         } else {
             path.setAttribute("d", "M4 17.3V21h3.7L18.8 9.9l-3.7-3.7L4 17.3zM20.7 8c.4-.4.4-1 0-1.4l-2.3-2.3c-.4-.4-1-.4-1.4 0l-1.2 1.2 3.7 3.7L20.7 8z");
         }
@@ -1481,7 +1486,9 @@ function createMemberAccordion(member, options) {
             draftValues.color !== persistedValues.color ||
             draftValues.fronting !== persistedValues.fronting ||
             draftValues.visibilityKnown !== persistedValues.visibilityKnown ||
+            draftValues.visibilityInherit !== persistedValues.visibilityInherit ||
             draftValues.visibilityTypeId !== persistedValues.visibilityTypeId ||
+            draftValues.permission !== persistedValues.permission ||
             draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl;
     }
 
@@ -1739,7 +1746,91 @@ function createMemberAccordion(member, options) {
 
         button.appendChild(label);
 
-        button.addEventListener("click", saveProfileChanges);
+        let savePointerHeld = false;
+
+        function rememberOpenCard() {
+            pendingSavedCardView = captureCardView();
+            keepSavedCardOpen = true;
+        }
+
+        function releaseUnusedSaveHold() {
+            window.removeEventListener("pointerup", releaseUnusedSaveHold, true);
+            window.removeEventListener("pointercancel", releaseUnusedSaveHold, true);
+            window.setTimeout(function () {
+                if (!savePointerHeld) {
+                    return;
+                }
+
+                savePointerHeld = false;
+                keepSavedCardOpen = false;
+                pendingSavedCardView = null;
+            }, 0);
+        }
+
+        button.addEventListener("pointerdown", function (event) {
+            if (event.button !== 0) {
+                return;
+            }
+
+            event.stopPropagation();
+            savePointerHeld = true;
+            rememberOpenCard();
+            window.addEventListener("pointerup", releaseUnusedSaveHold, true);
+            window.addEventListener("pointercancel", releaseUnusedSaveHold, true);
+        });
+
+        button.addEventListener("keydown", function (event) {
+            if (event.key !== "Enter" && event.key !== " ") {
+                return;
+            }
+
+            event.stopPropagation();
+            savePointerHeld = true;
+            rememberOpenCard();
+        });
+
+        button.addEventListener("keyup", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+                releaseUnusedSaveHold();
+            }
+        });
+
+        button.addEventListener("click", async function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            savePointerHeld = false;
+            const view = pendingSavedCardView || captureCardView();
+            const holdToken = ++savedCardHoldToken;
+            pendingSavedCardView = null;
+            activeSavedCardView = view;
+            view.open = true;
+            keepSavedCardOpen = true;
+            restoreCardView(view);
+
+            try {
+                await saveProfileChanges();
+            } finally {
+                window.setTimeout(function () {
+                    if (holdToken !== savedCardHoldToken) {
+                        return;
+                    }
+
+                    restoreCardView(view);
+                    window.setTimeout(function () {
+                        if (holdToken !== savedCardHoldToken) {
+                            return;
+                        }
+
+                        restoreCardView(view);
+                        keepSavedCardOpen = false;
+                        pendingSavedCardView = null;
+                        if (activeSavedCardView === view) {
+                            activeSavedCardView = null;
+                        }
+                    }, 0);
+                }, 0);
+            }
+        });
 
         return button;
     }
@@ -1779,7 +1870,9 @@ function createMemberAccordion(member, options) {
         persistedValues.color = draftValues.color;
         persistedValues.fronting = draftValues.fronting;
         persistedValues.visibilityKnown = draftValues.visibilityKnown;
+        persistedValues.visibilityInherit = draftValues.visibilityInherit;
         persistedValues.visibilityTypeId = draftValues.visibilityTypeId;
+        persistedValues.permission = draftValues.permission;
         persistedValues.avatarObjectUrl = draftValues.avatarObjectUrl;
 
         Object.keys(fieldRows).forEach(function (fieldName) {
@@ -1898,7 +1991,9 @@ function createMemberAccordion(member, options) {
         draftValues.color = persistedValues.color;
         draftValues.fronting = persistedValues.fronting;
         draftValues.visibilityKnown = persistedValues.visibilityKnown;
+        draftValues.visibilityInherit = persistedValues.visibilityInherit;
         draftValues.visibilityTypeId = persistedValues.visibilityTypeId;
+        draftValues.permission = persistedValues.permission;
         draftValues.avatarObjectUrl = persistedValues.avatarObjectUrl;
 
         setProfileStatus("");
@@ -1939,6 +2034,14 @@ function createMemberAccordion(member, options) {
         pendingLeaveResolve = null;
         pendingLeaveAction = null;
 
+        if (shouldLeave) {
+            savedCardHoldToken += 1;
+            keepSavedCardOpen = false;
+            pendingSavedCardView = null;
+            activeSavedCardView = null;
+            pendingLeaveNavigatesAway = false;
+        }
+
         hideUnsavedDialog();
 
         if (shouldLeave && typeof action === "function") {
@@ -1950,7 +2053,49 @@ function createMemberAccordion(member, options) {
         }
     }
 
-    function requestProfileLeave(leaveAction) {
+    function captureCardView() {
+        const positions = [];
+        let node = cardDetails.parentElement;
+        while (node) {
+            if (node.scrollHeight > node.clientHeight || node.scrollWidth > node.clientWidth) {
+                positions.push({
+                    node: node,
+                    top: node.scrollTop,
+                    left: node.scrollLeft
+                });
+            }
+            node = node.parentElement;
+        }
+        if (document.scrollingElement) {
+            positions.push({
+                node: document.scrollingElement,
+                top: document.scrollingElement.scrollTop,
+                left: document.scrollingElement.scrollLeft
+            });
+        }
+        return {
+            open: cardDetails.open,
+            positions: positions
+        };
+    }
+
+    function restoreCardView(view) {
+        if (!view || !cardDetails.isConnected) {
+            return;
+        }
+        if (view.open) {
+            cardDetails.open = true;
+        }
+        view.positions.forEach(function (position) {
+            if (!position.node || !position.node.isConnected) {
+                return;
+            }
+            position.node.scrollTop = position.top;
+            position.node.scrollLeft = position.left;
+        });
+    }
+
+    function requestProfileLeave(leaveAction, navigatesAway) {
         closeActiveEditor(true);
 
         if (!hasDirtyFields()) {
@@ -1966,6 +2111,7 @@ function createMemberAccordion(member, options) {
         }
 
         pendingLeaveAction = leaveAction || null;
+        pendingLeaveNavigatesAway = navigatesAway !== false;
         showUnsavedDialog();
 
         return new Promise(function (resolve) {
@@ -1988,9 +2134,52 @@ function createMemberAccordion(member, options) {
         setGuardStatus("Changes could not be saved. Keep editing or discard changes.", "error");
     }
 
+    function holdExpandedCard(view) {
+        const holdToken = ++savedCardHoldToken;
+        keepSavedCardOpen = true;
+        activeSavedCardView = view;
+        pendingSavedCardView = null;
+        restoreCardView(view);
+        window.setTimeout(function () {
+            if (holdToken !== savedCardHoldToken) {
+                return;
+            }
+
+            restoreCardView(view);
+            window.setTimeout(function () {
+                if (holdToken !== savedCardHoldToken) {
+                    return;
+                }
+
+                restoreCardView(view);
+                keepSavedCardOpen = false;
+                pendingSavedCardView = null;
+                if (activeSavedCardView === view) {
+                    activeSavedCardView = null;
+                }
+            }, 0);
+        }, 0);
+    }
+
     function discardChangesAndLeave() {
+        const navigateAway = pendingLeaveNavigatesAway === true;
+        const view = captureCardView();
+        view.open = true;
+
+        if (!navigateAway) {
+            holdExpandedCard(view);
+        }
+
         discardProfileChanges();
-        completePendingLeave(true);
+
+        if (navigateAway) {
+            completePendingLeave(true);
+            return;
+        }
+
+        restoreCardView(view);
+        completePendingLeave(false);
+        restoreCardView(view);
     }
 
     function returnToCurrentProfile() {
@@ -2074,8 +2263,14 @@ function createMemberAccordion(member, options) {
         }
 
         if (draftValues.visibilityKnown !== persistedValues.visibilityKnown ||
+            draftValues.visibilityInherit !== persistedValues.visibilityInherit ||
             draftValues.visibilityTypeId !== persistedValues.visibilityTypeId) {
-            payload.visibilityTypeId = draftValues.visibilityTypeId;
+            payload.visibilityInherit = draftValues.visibilityInherit === true;
+            payload.visibilityTypeId = draftValues.visibilityInherit === true ? null : draftValues.visibilityTypeId;
+        }
+
+        if (draftValues.permission !== persistedValues.permission) {
+            payload.permission = draftValues.permission;
         }
 
         if (draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl) {
@@ -2096,7 +2291,9 @@ function createMemberAccordion(member, options) {
         color: memberCssColor(member && member.color),
         fronting: member && (member.fronting === true || member.fronting === false) ? member.fronting : null,
         visibilityKnown: Boolean(member && member.visibilityKnown === true),
+        visibilityInherit: Boolean(member && member.visibilityInherit === true),
         visibilityTypeId: canonicalVisibilityId(member && member.visibilityTypeId),
+        permission: member && member.permission ? member.permission : null,
         avatarObjectUrl: nullablePreviewValue(member && member.avatarObjectUrl)
     };
 
@@ -2107,7 +2304,9 @@ function createMemberAccordion(member, options) {
         color: draftValues.color,
         fronting: draftValues.fronting,
         visibilityKnown: draftValues.visibilityKnown,
+        visibilityInherit: draftValues.visibilityInherit,
         visibilityTypeId: draftValues.visibilityTypeId,
+        permission: draftValues.permission,
         avatarObjectUrl: draftValues.avatarObjectUrl
     };
 
@@ -2236,11 +2435,38 @@ function createMemberAccordion(member, options) {
     summaryMain.appendChild(identity);
     sharingLabel.appendChild(sharingControl);
     headerControls.appendChild(sharingLabel);
+    if (previewHeader && window.PluralBridge.members && typeof window.PluralBridge.members.createPolicyDropdown === "function" && typeof window.PluralBridge.members.policyChoices === "function") {
+        const permissionLabel = document.createElement("span");
+        permissionLabel.className = "member-sharing-label";
+        permissionLabel.appendChild(document.createTextNode("Permissions:"));
+        const permissionMenu = window.PluralBridge.members.createPolicyDropdown({
+            label: "Permissions",
+            choices: window.PluralBridge.members.policyChoices("permission", true),
+            getValue: function () {
+                return draftValues.permission || "";
+            },
+            setValue: function (next) {
+                draftValues.permission = next ? next : null;
+                updateSaveButtonState();
+            }
+        });
+        permissionMenu.root.classList.add("member-card-permission");
+        permissionLabel.appendChild(permissionMenu.root);
+        permissionLabel.addEventListener("mousedown", function (event) {
+            event.stopPropagation();
+        });
+        permissionLabel.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        headerControls.appendChild(permissionLabel);
+        cardDetails.paintPermission = permissionMenu.refresh;
+    }
     headerControls.appendChild(frontingButton);
     headerControls.appendChild(chevron);
 
     if (previewHeader) {
-        summary.appendChild(colorStrip);
+        cardDetails.appendChild(colorStrip);
     }
     summary.appendChild(summaryMain);
     if (previewHeader) {
@@ -2249,7 +2475,20 @@ function createMemberAccordion(member, options) {
         summary.appendChild(chevron);
     }
 
+    let ignoreSummaryClickUntil = 0;
+    let keepSavedCardOpen = false;
+    let pendingSavedCardView = null;
+    let activeSavedCardView = null;
+    let savedCardHoldToken = 0;
+    let pendingLeaveNavigatesAway = false;
+
     summary.addEventListener("click", async function (event) {
+        if (Date.now() < ignoreSummaryClickUntil) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
+
         const currentGuard = window.PluralBridge && window.PluralBridge.memberProfileGuard
             ? window.PluralBridge.memberProfileGuard
             : null;
@@ -2278,7 +2517,7 @@ function createMemberAccordion(member, options) {
 
             requestProfileLeave(function () {
                 cardDetails.open = false;
-            });
+            }, false);
         }
     });
 
@@ -2306,7 +2545,7 @@ function createMemberAccordion(member, options) {
     colorRow.className = "member-profile-color-row";
     const colorLabel = document.createElement("span");
     colorLabel.className = "member-profile-field-label";
-    colorLabel.textContent = "Color";
+    colorLabel.textContent = previewHeader ? "Member color" : "Color";
     const colorSwatch = document.createElement("span");
     colorSwatch.className = "member-color-swatch";
     const colorInput = document.createElement("input");
@@ -2325,7 +2564,10 @@ function createMemberAccordion(member, options) {
     colorRow.appendChild(colorPencil);
     colorRow.appendChild(colorInput);
     if (previewHeader) {
-        profileFields.appendChild(colorRow);
+        const colorHelp = document.createElement("p");
+        colorHelp.className = "member-color-help";
+        colorHelp.textContent = "Used to identify this member throughout the app.";
+        colorRow.appendChild(colorHelp);
     }
 
     const profileActions = document.createElement("div");
@@ -2357,9 +2599,26 @@ function createMemberAccordion(member, options) {
     const discardChangesButton = createGuardActionButton("Discard changes", "member-profile-unsaved-button");
     const keepEditingButton = createGuardActionButton("Keep editing", "member-profile-unsaved-button");
 
-    saveChangesButton.addEventListener("click", saveChangesAndLeave);
-    discardChangesButton.addEventListener("click", discardChangesAndLeave);
-    keepEditingButton.addEventListener("click", keepEditing);
+    function keepGuardEvent(event) {
+        event.stopPropagation();
+        ignoreSummaryClickUntil = Date.now() + 500;
+    }
+
+    saveChangesButton.addEventListener("mousedown", keepGuardEvent);
+    discardChangesButton.addEventListener("mousedown", keepGuardEvent);
+    keepEditingButton.addEventListener("mousedown", keepGuardEvent);
+    saveChangesButton.addEventListener("click", function (event) {
+        keepGuardEvent(event);
+        saveChangesAndLeave();
+    });
+    discardChangesButton.addEventListener("click", function (event) {
+        keepGuardEvent(event);
+        discardChangesAndLeave();
+    });
+    keepEditingButton.addEventListener("click", function (event) {
+        keepGuardEvent(event);
+        keepEditing();
+    });
 
     guardDialog.addEventListener("cancel", function (event) {
         event.preventDefault();
@@ -2381,7 +2640,15 @@ function createMemberAccordion(member, options) {
 
     profilePanel.appendChild(profileHeading);
     profilePanel.appendChild(profileFields);
-    if (allowProfileEditing) {
+    if (previewHeader) {
+        const colorFooter = document.createElement("div");
+        colorFooter.className = "member-profile-color-footer";
+        colorFooter.appendChild(colorRow);
+        if (allowProfileEditing) {
+            colorFooter.appendChild(profileActions);
+        }
+        profilePanel.appendChild(colorFooter);
+    } else if (allowProfileEditing) {
         profilePanel.appendChild(profileActions);
     }
     profilePanel.appendChild(profileStatus);
@@ -2410,6 +2677,15 @@ function createMemberAccordion(member, options) {
     };
 
     cardDetails.addEventListener("toggle", function () {
+        if (keepSavedCardOpen && !cardDetails.open) {
+            cardDetails.open = true;
+            if (activeSavedCardView) {
+                activeSavedCardView.open = true;
+                restoreCardView(activeSavedCardView);
+            }
+            return;
+        }
+
         window.PluralBridge = window.PluralBridge || {};
         if (previewHeader) {
             chevron.classList.toggle("is-expanded", cardDetails.open);
@@ -2511,6 +2787,7 @@ function createMemberAccordion(member, options) {
         svg.appendChild(arrow);
         frontingButton.appendChild(svg);
         const label = document.createElement("span");
+        label.className = "member-fronting-label";
         if (draftValues.fronting === null) {
             label.textContent = "Not loaded";
             frontingButton.setAttribute("aria-pressed", "mixed");
@@ -2533,10 +2810,11 @@ function createMemberAccordion(member, options) {
         if (!draftValues.visibilityKnown) {
             choices.push({ id: null, known: false, label: "Not loaded", icon: "unset", disabled: false });
         } else {
-            choices.push({ id: null, known: true, label: "Not set", icon: "unset", disabled: false });
+            choices.push({ id: null, known: true, label: "Not set", icon: "unset", inherit: false, disabled: false });
         }
 
         choices.push(
+            { id: null, known: true, label: "Inherit", icon: "inherit", inherit: true, disabled: false },
             { id: 1, known: true, label: "Only you", icon: "only-me", disabled: false },
             { id: 2, known: true, label: "Trusted friends", icon: "selected-people", disabled: false },
             { id: 3, known: true, label: "All friends", icon: "all-connections", disabled: false },
@@ -2551,8 +2829,14 @@ function createMemberAccordion(member, options) {
             return choices[0];
         }
 
+        if (draftValues.visibilityInherit === true) {
+            return choices.find(function (choice) {
+                return choice.inherit === true;
+            }) || choices[0];
+        }
+
         const selected = choices.find(function (choice) {
-            return choice.known && choice.id === draftValues.visibilityTypeId;
+            return choice.known && choice.inherit !== true && choice.id === draftValues.visibilityTypeId;
         });
         return selected || choices[0];
     }
@@ -2570,6 +2854,7 @@ function createMemberAccordion(member, options) {
             option.id = sharingList.id + "-option-" + index;
             option.dataset.visibilityId = item.id === null ? "" : String(item.id);
             option.dataset.visibilityKnown = item.known ? "true" : "false";
+            option.dataset.visibilityInherit = item.inherit === true ? "true" : "false";
             option.dataset.sharingIndex = String(index);
             if (item.disabled) {
                 option.setAttribute("aria-disabled", "true");
@@ -2597,6 +2882,8 @@ function createMemberAccordion(member, options) {
         sharingButton.appendChild(menuChevron);
         if (!draftValues.visibilityKnown) {
             sharingButton.title = "Visibility is not loaded. Choosing a value stores a preview only.";
+        } else if (draftValues.visibilityInherit === true) {
+            sharingButton.title = "Preview only. Inherit does not change stored visibility.";
         } else if (draftValues.visibilityTypeId === null) {
             sharingButton.title = "Visibility is not set. Choosing a value stores a preview only.";
         } else {
@@ -2657,7 +2944,10 @@ function createMemberAccordion(member, options) {
 
         const raw = option.dataset.visibilityId || "";
         draftValues.visibilityKnown = true;
-        draftValues.visibilityTypeId = raw ? canonicalVisibilityId(Number(raw)) : null;
+        draftValues.visibilityInherit = option.dataset.visibilityInherit === "true";
+        draftValues.visibilityTypeId = draftValues.visibilityInherit || !raw
+            ? null
+            : canonicalVisibilityId(Number(raw));
         setSharingOpen(false);
         updateSaveButtonState();
         sharingButton.focus();
@@ -2701,6 +2991,9 @@ function createMemberAccordion(member, options) {
         paintColor();
         paintFronting();
         paintSharing();
+        if (typeof cardDetails.paintPermission === "function") {
+            cardDetails.paintPermission();
+        }
     }
 
     function keepHeaderClick(event) {
@@ -2709,17 +3002,23 @@ function createMemberAccordion(member, options) {
     }
 
     if (previewHeader) {
-        avatarPencil.addEventListener("click", function (event) {
+        function openAvatarChooser(event) {
             keepHeaderClick(event);
             avatarFile.click();
-        });
-        avatarWrap.addEventListener("click", function (event) {
-            const coarsePointer = window.matchMedia && window.matchMedia("(hover: none), (pointer: coarse)").matches;
-            if (!coarsePointer || event.target === avatarPencil) {
+        }
+        avatarPencil.addEventListener("mousedown", keepHeaderClick);
+        avatarPencil.addEventListener("click", openAvatarChooser);
+        avatarWrap.addEventListener("mousedown", function (event) {
+            if (event.target === avatarFile) {
                 return;
             }
-            keepHeaderClick(event);
-            avatarFile.click();
+            event.stopPropagation();
+        });
+        avatarWrap.addEventListener("click", function (event) {
+            if (event.target === avatarFile || event.target === avatarPencil || avatarPencil.contains(event.target)) {
+                return;
+            }
+            openAvatarChooser(event);
         });
         avatarFile.addEventListener("click", function (event) {
             event.stopPropagation();
@@ -3283,7 +3582,7 @@ function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGr
 
     const heading = document.createElement("h3");
     heading.className = "member-systems-title";
-    heading.textContent = "System navigator";
+    heading.textContent = "Plural map navigator";
 
     function createPinIcon(isPinned) {
         const svgNamespace = "http://www.w3.org/2000/svg";
@@ -4308,6 +4607,15 @@ function showMembersWorkspace() {
             },
             toggleAddGroup: function () {
                 openAddDialog("group");
+            },
+            toggleAddPlace: function () {
+                openAddDialog("place");
+            },
+            toggleAddSystem: function () {
+                openAddDialog("system");
+            },
+            toggleAddRelationship: function () {
+                openAddDialog("relationship");
             },
             isSystemPanelOpen: membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
         });

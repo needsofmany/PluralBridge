@@ -329,11 +329,13 @@ window.PluralBridge.navigator = (function () {
                     : null),
             visibilityKnown: Boolean(preview && preview.visibilityExplicit === true)
                 || Boolean(profile && Object.prototype.hasOwnProperty.call(profile, "visibilityTypeId")),
+            visibilityInherit: Boolean(preview && preview.visibilityExplicit === true && preview.visibilityInherit === true),
             visibilityTypeId: preview && preview.visibilityExplicit === true
-                ? canonicalVisibilityId(preview.visibilityTypeId)
+                ? (preview.visibilityInherit === true ? null : canonicalVisibilityId(preview.visibilityTypeId))
                 : (profile && Object.prototype.hasOwnProperty.call(profile, "visibilityTypeId")
                     ? canonicalVisibilityId(profile.visibilityTypeId)
                     : null),
+            permission: preview && preview.permissionExplicit === true ? preview.permission : null,
             avatarObjectUrl: hasPreviewField("avatarObjectUrl") ? preview.avatarObjectUrl : null
         };
     }

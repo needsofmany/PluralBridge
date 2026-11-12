@@ -261,14 +261,26 @@ window.PluralBridge.members = (function () {
                 options.toggleAddGroup();
             }
         }));
-        popover.appendChild(createAddOption("Place", "place", false, null));
-        popover.appendChild(createAddOption("System", "system", false, null));
+        popover.appendChild(createAddOption("Place", "place", Boolean(options && typeof options.toggleAddPlace === "function"), function () {
+            if (options && typeof options.toggleAddPlace === "function") {
+                options.toggleAddPlace();
+            }
+        }));
+        popover.appendChild(createAddOption("System", "system", Boolean(options && typeof options.toggleAddSystem === "function"), function () {
+            if (options && typeof options.toggleAddSystem === "function") {
+                options.toggleAddSystem();
+            }
+        }));
 
         const relationshipSeparator = document.createElement("div");
         relationshipSeparator.className = "member-toolbar-add-separator";
         relationshipSeparator.setAttribute("role", "separator");
         popover.appendChild(relationshipSeparator);
-        popover.appendChild(createAddOption("Relationship", "relationship", false, null));
+        popover.appendChild(createAddOption("Relationship", "relationship", Boolean(options && typeof options.toggleAddRelationship === "function"), function () {
+            if (options && typeof options.toggleAddRelationship === "function") {
+                options.toggleAddRelationship();
+            }
+        }));
 
         details.appendChild(summary);
         details.appendChild(popover);
@@ -501,15 +513,21 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    function previewNounFor(kind) {
+        if (kind === "group" || kind === "system" || kind === "place" || kind === "relationship" || kind === "member") {
+            return kind;
+        }
+
+        return "member";
+    }
+
     async function holdAccountPreview(kind, request) {
-        const isGroup = kind === "group";
-        const previewNoun = isGroup ? "group" : "member";
+        const previewNoun = previewNounFor(kind);
+        const isMember = previewNoun === "member";
 
         if (!databaseWritesAreDisabled()) {
             return {
-                status: isGroup
-                    ? "Group creation is not connected to an anchor-specific save endpoint yet."
-                    : "Member creation is not connected to an anchor-specific save endpoint yet."
+                status: previewNoun.charAt(0).toUpperCase() + previewNoun.slice(1) + " creation is not connected to an anchor-specific save endpoint yet."
             };
         }
 
@@ -533,39 +551,47 @@ window.PluralBridge.members = (function () {
         }
 
         const destination = previewDestination(request);
-        const record = isGroup
-            ? {
-                previewKind: "group",
-                objectType: "group",
-                displayName: request.displayName,
-                color: request.color ? String(request.color) : "",
-                description: request.description || "",
-                destination: destination
+        const record = {
+            previewKind: previewNoun,
+            objectType: previewNoun === "relationship" ? "relationship" : previewNoun,
+            displayName: request && request.displayName ? String(request.displayName) : "",
+            description: request && request.description ? String(request.description) : "",
+            color: request && request.color ? String(request.color) : "",
+            visibility: request && request.visibility ? String(request.visibility) : "",
+            permission: request && request.permission ? String(request.permission) : "",
+            destination: destination
+        };
+        if (isMember) {
+            record.pronouns = request && request.pronouns ? String(request.pronouns) : "";
+            record.fronting = Boolean(request && request.fronting === true);
+            record.avatarObjectUrl = request && request.avatarObjectUrl ? String(request.avatarObjectUrl) : "";
+        }
+        if (previewNoun === "relationship") {
+            record.relationshipType = request && request.relationshipType ? String(request.relationshipType) : "";
+            record.source = request && request.source ? request.source : null;
+            record.target = request && request.target ? request.target : null;
+            record.previewLabel = request && request.previewLabel ? String(request.previewLabel) : "";
+            const sourceKey = relationshipObjectKey(record.source);
+            const existingOutgoing = sourceKey && memberPreviewsByAccount[accountId].some(function (stored) {
+                return stored &&
+                    stored.previewKind === "relationship" &&
+                    relationshipObjectKey(stored.source) === sourceKey;
+            });
+            if (existingOutgoing) {
+                return {
+                    status: "This source already has an outgoing relationship in this preview. The draft was kept."
+                };
             }
-            : {
-                previewKind: "member",
-                objectType: "member",
-                displayName: request.displayName,
-                pronouns: request.pronouns || "",
-                description: request.description || "",
-                color: request.color ? String(request.color) : "",
-                fronting: request.fronting === true,
-                avatarObjectUrl: request.avatarObjectUrl ? String(request.avatarObjectUrl) : "",
-                destination: destination
-            };
+        }
 
         memberPreviewsByAccount[accountId].push(record);
 
         console.info(
-            isGroup
-                ? "Suppressed add-group database write. Group details were held in browser memory for the signed-in account. No profile fields were written to the log."
-                : "Suppressed add-member database write. Member details were held in browser memory for the signed-in account. No profile fields were written to the log."
+            "Suppressed add-" + previewNoun + " database write. Details were held in browser memory for the signed-in account. No fields were written to the log."
         );
 
         return {
-            status: isGroup
-                ? "Preview only: group details held in browser memory. Nothing was saved to the database."
-                : "Preview only: member details held in browser memory. Nothing was saved to the database.",
+            status: "Preview only: " + previewNoun + " details held in browser memory. Nothing was saved to the database.",
             reset: true
         };
     }
@@ -594,9 +620,19 @@ window.PluralBridge.members = (function () {
         return null;
     }
 
+    function canonicalPermission(value) {
+        if (value === "inherit" || value === "viewer" || value === "editor" || value === "manager" || value === "owner") {
+            return value;
+        }
+
+        return null;
+    }
+
     function assignVisibilityPreview(record, previous, fields) {
-        const incoming = Boolean(fields)
-            && Object.prototype.hasOwnProperty.call(fields, "visibilityTypeId");
+        const incoming = Boolean(fields) && (
+            Object.prototype.hasOwnProperty.call(fields, "visibilityTypeId")
+            || Object.prototype.hasOwnProperty.call(fields, "visibilityInherit")
+        );
         const retained = !incoming && Boolean(previous) && previous.visibilityExplicit === true;
         if (!incoming && !retained) {
             return;
@@ -604,7 +640,20 @@ window.PluralBridge.members = (function () {
 
         const source = incoming ? fields : previous;
         record.visibilityExplicit = true;
-        record.visibilityTypeId = canonicalVisibilityId(source.visibilityTypeId);
+        record.visibilityInherit = source.visibilityInherit === true;
+        record.visibilityTypeId = record.visibilityInherit ? null : canonicalVisibilityId(source.visibilityTypeId);
+    }
+
+    function assignPermissionPreview(record, previous, fields) {
+        const incoming = Boolean(fields) && Object.prototype.hasOwnProperty.call(fields, "permission");
+        const retained = !incoming && Boolean(previous) && previous.permissionExplicit === true;
+        if (!incoming && !retained) {
+            return;
+        }
+
+        const source = incoming ? fields : previous;
+        record.permissionExplicit = true;
+        record.permission = canonicalPermission(source.permission);
     }
 
     function explicitPreviewAvatar(value) {
@@ -643,6 +692,7 @@ window.PluralBridge.members = (function () {
         assignExplicitPreview(record, preview, null, "color", explicitPreviewColor);
         assignExplicitPreview(record, preview, null, "fronting", explicitPreviewFronting);
         assignVisibilityPreview(record, preview, null);
+        assignPermissionPreview(record, preview, null);
         assignExplicitPreview(record, preview, null, "avatarObjectUrl", explicitPreviewAvatar);
         return record;
     }
@@ -686,6 +736,7 @@ window.PluralBridge.members = (function () {
         assignExplicitPreview(record, previous, fields, "color", explicitPreviewColor);
         assignExplicitPreview(record, previous, fields, "fronting", explicitPreviewFronting);
         assignVisibilityPreview(record, previous, fields);
+        assignPermissionPreview(record, previous, fields);
         assignExplicitPreview(record, previous, fields, "avatarObjectUrl", explicitPreviewAvatar);
         memberProfilePreviewsByAccount[accountKey][memberKey] = record;
 
@@ -1083,6 +1134,9 @@ window.PluralBridge.members = (function () {
         } else if (objectType === "member") {
             shape("path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" });
             shape("circle", { cx: "12", cy: "7", r: "4" });
+        } else if (objectType === "account") {
+            shape("circle", { cx: "12", cy: "8", r: "3" });
+            shape("path", { d: "M5 19a7 7 0 0 1 14 0" });
         } else if (objectType === "relationship") {
             shape("path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" });
             shape("path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" });
@@ -1111,12 +1165,84 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    function createEditPencil() {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-edit-pencil-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "16");
+        svg.setAttribute("height", "16");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        function addShape(tagName, attributes) {
+            const node = document.createElementNS(svgNamespace, tagName);
+            Object.keys(attributes).forEach(function (name) {
+                node.setAttribute(name, attributes[name]);
+            });
+            svg.appendChild(node);
+        }
+
+        addShape("path", {
+            d: "M3.1 18.2 6.8 21.2 5.2 22.4 2.2 20.2Z",
+            fill: "#F3D7A1",
+            stroke: "#8A6A12",
+            "stroke-width": "0.6",
+            "stroke-linejoin": "round"
+        });
+        addShape("path", {
+            d: "M2.4 20.4 3.5 22.2 4.8 21.4 3.6 19.6Z",
+            fill: "#5C4A32"
+        });
+        addShape("path", {
+            d: "M6.2 17.6 18.4 5.4 15.6 2.6 3.4 14.8Z",
+            fill: "#F6C445",
+            stroke: "#8A6A12",
+            "stroke-width": "0.8",
+            "stroke-linejoin": "round"
+        });
+        addShape("path", {
+            d: "M15.5 2.7 18.3 5.5 19.6 4.2 16.8 1.4Z",
+            fill: "#E4E4E4",
+            stroke: "#6E6E6E",
+            "stroke-width": "0.45",
+            "stroke-linejoin": "round"
+        });
+        addShape("path", {
+            d: "M16.9 1.5 21.2 5.8 19.7 7.3 15.4 3Z",
+            fill: "#F48FB1",
+            stroke: "#9D4E6C",
+            "stroke-width": "0.55",
+            "stroke-linejoin": "round"
+        });
+        return svg;
+    }
+
     function dialogPencil() {
-        const icon = dialogSvg("M4 17.3V21h3.7L18.8 9.9l-3.7-3.7L4 17.3zM20.7 8c.4-.4.4-1 0-1.4l-2.3-2.3c-.4-.4-1-.4-1.4 0l-1.2 1.2 3.7 3.7L20.7 8z");
-        icon.setAttribute("class", "member-add-dialog-pencil-icon");
-        icon.setAttribute("width", "16");
-        icon.setAttribute("height", "16");
+        const icon = createEditPencil();
+        icon.classList.add("member-add-dialog-pencil-icon");
         return icon;
+    }
+
+    function relationshipArrow() {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-relationship-arrow-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "40");
+        svg.setAttribute("height", "40");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("d", "M4 12h14M14 6l6 6-6 6");
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", "currentColor");
+        path.setAttribute("stroke-width", "1.75");
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+        svg.appendChild(path);
+        return svg;
     }
 
     function dialogFrontingIcon(isFronting) {
@@ -1142,35 +1268,653 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    const supportedRelationshipTypes = [
+        { id: "parent", label: "Parent" },
+        { id: "sibling", label: "Sibling" },
+        { id: "related", label: "Related" },
+        { id: "associated", label: "Associated" },
+        { id: "subsystem", label: "Subsystem" },
+        { id: "evolving", label: "Evolving" }
+    ];
+    const customRelationshipTypesByAccount = {};
+
+    function customRelationshipId(label) {
+        const slug = String(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "type";
+        return "custom:" + slug + ":" + Math.random().toString(36).slice(2, 8);
+    }
+
+    function relationshipTypeChoices(accountId) {
+        const choices = supportedRelationshipTypes.map(function (item) {
+            return { id: item.id, label: item.label, icon: "link", disabled: false, custom: false };
+        });
+        const custom = accountId && customRelationshipTypesByAccount[accountId]
+            ? customRelationshipTypesByAccount[accountId]
+            : [];
+        custom.forEach(function (item) {
+            choices.push({
+                id: item.id,
+                label: item.label,
+                icon: "link",
+                disabled: false,
+                custom: true
+            });
+        });
+        return choices;
+    }
+
+    function paintInheritanceHint(hint, show, sourceName) {
+        hint.textContent = sourceName ? "Inherited from " + sourceName : "\u00a0";
+        const visible = Boolean(show && sourceName);
+        hint.classList.toggle("is-quiet", !visible);
+        hint.setAttribute("aria-hidden", visible ? "false" : "true");
+    }
+
+    function policyChoices(kind, includeUnset) {
+        const choices = [];
+        if (includeUnset) {
+            choices.push({ id: "", label: "Not set", icon: "unset", disabled: false });
+        }
+        if (kind === "permission") {
+            choices.push(
+                { id: "inherit", label: "Inherit", icon: "inherit", disabled: false },
+                { id: "viewer", label: "Viewer", icon: "viewer", disabled: false },
+                { id: "editor", label: "Editor", icon: "editor", disabled: false },
+                { id: "manager", label: "Manager", icon: "manager", disabled: false },
+                { id: "owner", label: "Owner", icon: "owner", disabled: false }
+            );
+            return choices;
+        }
+
+        choices.push(
+            { id: "inherit", label: "Inherit", icon: "inherit", disabled: false },
+            { id: "1", label: "Only you", icon: "only-you", disabled: false },
+            { id: "2", label: "Trusted friends", icon: "trusted", disabled: false },
+            { id: "3", label: "All friends", icon: "all-friends", disabled: false },
+            { id: "4", label: "Selected people", icon: "trusted", disabled: true }
+        );
+        return choices;
+    }
+
+    function policyOutlineIcon(kind) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-sharing-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "1.8");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        function addShape(tagName, attributes) {
+            const node = document.createElementNS(svgNamespace, tagName);
+            Object.keys(attributes).forEach(function (name) {
+                node.setAttribute(name, attributes[name]);
+            });
+            svg.appendChild(node);
+        }
+
+        if (kind === "inherit") {
+            addShape("path", { d: "M7 7h8a4 4 0 0 1 0 8H9" });
+            addShape("path", { d: "M11 13 8 16l3 3" });
+        } else if (kind === "viewer") {
+            addShape("path", { d: "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" });
+            addShape("circle", { cx: "12", cy: "12", r: "3" });
+        } else if (kind === "editor") {
+            addShape("path", { d: "M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" });
+            addShape("path", { d: "M13.5 6.5l3 3" });
+        } else if (kind === "manager") {
+            addShape("path", { d: "M12 3 5 6v5c0 4.2 2.8 7.2 7 8.5 4.2-1.3 7-4.3 7-8.5V6l-7-3z" });
+            addShape("path", { d: "M9 12l2 2 4-4" });
+        } else if (kind === "owner") {
+            addShape("path", { d: "M12 3.5 14.2 8l4.8.7-3.5 3.4.8 4.9L12 14.8 7.7 17l.8-4.9L5 8.7 9.8 8 12 3.5z" });
+        } else if (kind === "only-you") {
+            addShape("path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" });
+            addShape("circle", { cx: "12", cy: "7", r: "4" });
+        } else if (kind === "trusted") {
+            addShape("path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" });
+            addShape("circle", { cx: "9", cy: "7", r: "4" });
+            addShape("path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" });
+            addShape("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" });
+        } else if (kind === "all-friends") {
+            addShape("path", { d: "M8.59 13.51 15.42 17.49" });
+            addShape("path", { d: "M15.41 6.51 8.59 10.49" });
+            addShape("circle", { cx: "18", cy: "5", r: "3" });
+            addShape("circle", { cx: "6", cy: "12", r: "3" });
+            addShape("circle", { cx: "18", cy: "19", r: "3" });
+        } else if (kind === "link") {
+            addShape("path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" });
+            addShape("path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" });
+        } else {
+            addShape("circle", { cx: "12", cy: "12", r: "9" });
+            addShape("path", { d: "M8 12h8" });
+        }
+
+        return svg;
+    }
+
+    function policyIconKind(choice) {
+        if (choice && choice.icon) {
+            return choice.icon;
+        }
+        const id = choice && choice.id ? String(choice.id) : "";
+        if (id === "1") {
+            return "only-you";
+        }
+        if (id === "2") {
+            return "trusted";
+        }
+        if (id === "3") {
+            return "all-friends";
+        }
+        if (id === "4") {
+            return "trusted";
+        }
+        if (
+            id === "parent" ||
+            id === "sibling" ||
+            id === "related" ||
+            id === "associated" ||
+            id === "subsystem" ||
+            id === "evolving" ||
+            id.indexOf("custom:") === 0
+        ) {
+            return "link";
+        }
+        return "unset";
+    }
+
+    function policyChevron(open) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const chevron = document.createElement("span");
+        chevron.className = "member-sharing-chevron" + (open ? " is-open" : "");
+        chevron.setAttribute("aria-hidden", "true");
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "16");
+        svg.setAttribute("height", "16");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", "currentColor");
+        path.setAttribute("stroke-width", "1.75");
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+        svg.appendChild(path);
+        chevron.appendChild(svg);
+        return chevron;
+    }
+
+    function createPolicyDropdown(options) {
+        const choices = options && options.choices ? options.choices : [];
+        const root = document.createElement("div");
+        root.className = "member-policy-control";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "member-policy-button";
+        button.setAttribute("aria-haspopup", "listbox");
+        button.setAttribute("aria-expanded", "false");
+        const value = document.createElement("span");
+        value.className = "member-policy-value";
+        const list = document.createElement("div");
+        list.className = "member-policy-list member-sharing-list";
+        list.setAttribute("role", "listbox");
+        list.hidden = true;
+        const listId = "member-policy-" + Math.random().toString(36).slice(2);
+        list.id = listId;
+        button.setAttribute("aria-controls", listId);
+        let optionsEls = [];
+
+        function currentChoice() {
+            const current = options && typeof options.getValue === "function" ? String(options.getValue() || "") : "";
+            for (let index = 0; index < choices.length; index += 1) {
+                if (choices[index].id === current) {
+                    return choices[index];
+                }
+            }
+            return choices[0] || { id: "", label: "Not set", disabled: false };
+        }
+
+        function paint() {
+            const choice = currentChoice();
+            value.textContent = choice.label;
+            const accessible = (options && options.label ? options.label + ": " : "") + choice.label;
+            button.setAttribute("aria-label", accessible);
+            button.title = accessible;
+            list.replaceChildren();
+            optionsEls = choices.map(function (item, index) {
+                const option = document.createElement("div");
+                option.className = "member-sharing-option";
+                option.setAttribute("role", "option");
+                option.tabIndex = -1;
+                option.id = listId + "-option-" + index;
+                option.dataset.policyId = item.id;
+                if (item.disabled) {
+                    option.setAttribute("aria-disabled", "true");
+                }
+                option.appendChild(policyOutlineIcon(policyIconKind(item)));
+                const optionLabel = document.createElement("span");
+                optionLabel.textContent = item.label;
+                option.appendChild(optionLabel);
+                if (item.custom) {
+                    const badge = document.createElement("span");
+                    badge.className = "member-policy-custom";
+                    badge.textContent = "Custom";
+                    option.appendChild(badge);
+                }
+                const selected = item.id === choice.id;
+                option.setAttribute("aria-selected", selected ? "true" : "false");
+                option.classList.toggle("is-current", selected);
+                list.appendChild(option);
+                return option;
+            });
+            button.replaceChildren(policyOutlineIcon(policyIconKind(choice)), value, policyChevron(!list.hidden));
+        }
+
+        function place() {
+            const rect = button.getBoundingClientRect();
+            const height = list.offsetHeight;
+            let top = rect.bottom + 4;
+            if (top + height > window.innerHeight - 8) {
+                top = Math.max(8, rect.top - height - 4);
+            }
+            list.style.left = Math.max(8, rect.left) + "px";
+            list.style.top = top + "px";
+            list.style.width = Math.max(rect.width, 180) + "px";
+        }
+
+        function setOpen(open) {
+            list.hidden = !open;
+            button.setAttribute("aria-expanded", open ? "true" : "false");
+            paint();
+            if (!open) {
+                return;
+            }
+            const selected = optionsEls.findIndex(function (option) {
+                return option.getAttribute("aria-selected") === "true";
+            });
+            const index = selected < 0 ? 0 : selected;
+            optionsEls[index].focus();
+            place();
+        }
+
+        function choose(option) {
+            if (!option || option.getAttribute("aria-disabled") === "true") {
+                setOpen(false);
+                button.focus();
+                return;
+            }
+            if (options && typeof options.setValue === "function") {
+                options.setValue(option.dataset.policyId || "");
+            }
+            setOpen(false);
+            button.focus();
+        }
+
+        function keepLocal(event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        root.addEventListener("mousedown", function (event) {
+            event.stopPropagation();
+        });
+        root.addEventListener("click", function (event) {
+            event.stopPropagation();
+        });
+        button.addEventListener("click", function (event) {
+            keepLocal(event);
+            setOpen(list.hidden);
+        });
+        button.addEventListener("keydown", function (event) {
+            if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                setOpen(true);
+            }
+        });
+        list.addEventListener("mousedown", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        list.addEventListener("keydown", function (event) {
+            event.stopPropagation();
+            const current = optionsEls.findIndex(function (option) {
+                return option === document.activeElement;
+            });
+            if (event.key === "Escape") {
+                event.preventDefault();
+                setOpen(false);
+                button.focus();
+                return;
+            }
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                choose(optionsEls[current]);
+                return;
+            }
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                const step = event.key === "ArrowDown" ? 1 : -1;
+                let index = current < 0 ? 0 : current + step;
+                index = Math.max(0, Math.min(optionsEls.length - 1, index));
+                optionsEls[index].focus();
+            }
+        });
+        list.addEventListener("click", function (event) {
+            const option = event.target.closest(".member-sharing-option");
+            event.preventDefault();
+            event.stopPropagation();
+            if (option) {
+                choose(option);
+            }
+        });
+        function onPointerDown(event) {
+            if (!root.isConnected) {
+                document.removeEventListener("pointerdown", onPointerDown, true);
+                return;
+            }
+            if (root.contains(event.target) || list.contains(event.target)) {
+                return;
+            }
+            if (!list.hidden) {
+                setOpen(false);
+            }
+        }
+        document.addEventListener("pointerdown", onPointerDown, true);
+
+        root.appendChild(button);
+        root.appendChild(list);
+        paint();
+        return {
+            root: root,
+            refresh: paint
+        };
+    }
+
+    function accountDestinationRow(accountId) {
+        if (!accountId) {
+            return null;
+        }
+
+        return {
+            pathKey: "account:" + accountId,
+            parentPathKey: null,
+            objectType: "account",
+            objectId: accountId,
+            anchorName: "This account",
+            nodeLabel: "This account",
+            header: false,
+            accountDestination: true
+        };
+    }
+
+    function isModeDestination(row, mode) {
+        if (!row || row.header === true) {
+            return false;
+        }
+        if (row.objectType === "account") {
+            return mode === "group" || mode === "system" || mode === "place";
+        }
+        return row.objectType === "system" || row.objectType === "group" || row.objectType === "place";
+    }
+
+    function createTreeExpansion(rows) {
+        const children = {};
+        rows.forEach(function (row) {
+            if (!row.parentPathKey) {
+                return;
+            }
+            if (!children[row.parentPathKey]) {
+                children[row.parentPathKey] = [];
+            }
+            children[row.parentPathKey].push(row);
+        });
+        const structureOpen = {};
+        const membersOpen = {};
+        Object.keys(children).forEach(function (key) {
+            const list = children[key];
+            const hasStructure = list.some(function (row) {
+                return row.objectType !== "member";
+            });
+            if (hasStructure) {
+                structureOpen[key] = true;
+            }
+            membersOpen[key] = false;
+        });
+        return {
+            children: children,
+            structureOpen: structureOpen,
+            membersOpen: membersOpen
+        };
+    }
+
+    function treeChildren(expansion, pathKey) {
+        return pathKey && expansion.children[pathKey] ? expansion.children[pathKey] : [];
+    }
+
+    function treeFullyOpen(expansion) {
+        const keys = Object.keys(expansion.children);
+        for (let index = 0; index < keys.length; index += 1) {
+            const key = keys[index];
+            const list = expansion.children[key];
+            const hasStructure = list.some(function (row) {
+                return row.objectType !== "member";
+            });
+            const hasMembers = list.some(function (row) {
+                return row.objectType === "member";
+            });
+            if ((hasStructure || hasMembers) && expansion.structureOpen[key] !== true) {
+                return false;
+            }
+            if (hasStructure && hasMembers && expansion.membersOpen[key] !== true) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function setTreeFullyOpen(expansion, open) {
+        Object.keys(expansion.children).forEach(function (key) {
+            expansion.structureOpen[key] = open;
+            expansion.membersOpen[key] = open;
+        });
+    }
+
+    function renderDialogTree(host, rows, expansion, options) {
+        const scrollTop = host.scrollTop;
+        const active = document.activeElement;
+        const restorePath = active && host.contains(active) ? active.getAttribute("data-path-key") : "";
+        const restoreToggle = Boolean(active && active.classList.contains("member-system-tree-toggle"));
+        host.replaceChildren();
+        const canSelect = options && typeof options.canSelect === "function"
+            ? options.canSelect
+            : function () { return true; };
+        const selectedPathKey = options && options.selectedPathKey ? options.selectedPathKey : "";
+
+        function notify() {
+            if (options && typeof options.onChange === "function") {
+                options.onChange();
+            }
+        }
+
+        function appendMembersToggle(parent, members, level) {
+            const open = expansion.membersOpen[parent.pathKey] === true;
+            const nodeRow = document.createElement("div");
+            nodeRow.className = "member-system-node-row";
+            nodeRow.style.setProperty("--system-node-level", String(level));
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "member-system-tree-toggle member-member-list-toggle";
+            toggle.setAttribute("data-path-key", "members:" + parent.pathKey);
+            toggle.setAttribute("aria-expanded", String(open));
+            toggle.setAttribute("aria-label", open ? "Collapse members" : "Expand members");
+            toggle.appendChild(dialogChevron(open));
+            const text = document.createElement("span");
+            text.textContent = "Members";
+            toggle.appendChild(text);
+            toggle.addEventListener("click", function () {
+                expansion.membersOpen[parent.pathKey] = !open;
+                notify();
+            });
+            nodeRow.appendChild(toggle);
+            host.appendChild(nodeRow);
+            if (open) {
+                members.forEach(function (child) {
+                    appendRow(child, level + 1);
+                });
+            }
+        }
+
+        function appendRow(row, level) {
+            const list = treeChildren(expansion, row.pathKey);
+            const structural = list.filter(function (child) {
+                return child.objectType !== "member";
+            });
+            const members = list.filter(function (child) {
+                return child.objectType === "member";
+            });
+            const structureShown = expansion.structureOpen[row.pathKey] === true;
+            const nodeRow = document.createElement("div");
+            nodeRow.className = "member-system-node-row";
+            nodeRow.style.setProperty("--system-node-level", String(level));
+            if (structural.length || members.length) {
+                const toggle = document.createElement("button");
+                toggle.type = "button";
+                toggle.className = "member-system-tree-toggle";
+                toggle.setAttribute("data-path-key", row.pathKey);
+                toggle.setAttribute("aria-expanded", String(structureShown));
+                toggle.setAttribute("aria-label", structureShown ? "Collapse" : "Expand");
+                toggle.appendChild(dialogChevron(structureShown));
+                toggle.addEventListener("click", function () {
+                    expansion.structureOpen[row.pathKey] = !structureShown;
+                    notify();
+                });
+                nodeRow.appendChild(toggle);
+            } else {
+                const spacer = document.createElement("span");
+                spacer.className = "member-system-tree-spacer";
+                nodeRow.appendChild(spacer);
+            }
+
+            const selectable = canSelect(row) === true;
+            const selectButton = document.createElement("button");
+            selectButton.type = "button";
+            selectButton.className = "member-system-node-button";
+            selectButton.setAttribute("data-path-key", row.pathKey);
+            if (selectedPathKey && selectedPathKey === row.pathKey) {
+                selectButton.classList.add("is-active");
+                selectButton.setAttribute("aria-current", "true");
+            }
+            if (!selectable) {
+                selectButton.classList.add("is-not-destination");
+                selectButton.setAttribute("aria-disabled", "true");
+                selectButton.title = row.objectType === "member"
+                    ? (options && options.memberTitle ? options.memberTitle : "Members stay visible and cannot be the destination.")
+                    : (options && options.headingTitle ? options.headingTitle : "This heading cannot be the destination.");
+            }
+            const icon = dialogOutlineIcon(row.objectType);
+            if (icon) {
+                selectButton.appendChild(icon);
+            }
+            const text = document.createElement("span");
+            text.className = "member-tree-node-text";
+            text.textContent = row.nodeLabel || "";
+            selectButton.appendChild(text);
+            selectButton.addEventListener("click", function () {
+                if (!selectable || !options || typeof options.onSelect !== "function") {
+                    return;
+                }
+                options.onSelect(row);
+            });
+            nodeRow.appendChild(selectButton);
+            host.appendChild(nodeRow);
+            if (!structureShown) {
+                return;
+            }
+            structural.forEach(function (child) {
+                appendRow(child, level + 1);
+            });
+            if (members.length && structural.length) {
+                appendMembersToggle(row, members, level + 1);
+            } else if (members.length) {
+                members.forEach(function (child) {
+                    appendRow(child, level + 1);
+                });
+            }
+        }
+
+        const leading = options && options.leadingRows ? options.leadingRows : [];
+        const roots = leading.concat(rows.filter(function (row) {
+            return row.parentPathKey == null;
+        }));
+        if (!roots.length) {
+            const empty = document.createElement("p");
+            empty.className = "member-add-dialog-tree-empty";
+            empty.textContent = options && options.emptyText
+                ? options.emptyText
+                : "The signed-in account map is not available.";
+            host.appendChild(empty);
+        } else {
+            roots.forEach(function (row) {
+                appendRow(row, 0);
+            });
+        }
+        host.scrollTop = scrollTop;
+        if (!restorePath) {
+            return;
+        }
+        const selector = restoreToggle ? ".member-system-tree-toggle" : ".member-system-node-button";
+        const buttons = host.querySelectorAll(selector);
+        for (let index = 0; index < buttons.length; index += 1) {
+            if (buttons[index].getAttribute("data-path-key") === restorePath) {
+                buttons[index].focus();
+                break;
+            }
+        }
+    }
+
     function presentAddMemberDialog(opener, addMode) {
-        const isGroup = addMode === "group";
+        const mode = addMode === "group" || addMode === "system" || addMode === "place" ? addMode : "member";
+        const memberOnly = mode === "member";
+        const isGroup = !memberOnly;
+        const modeTitle = mode === "group" ? "Add Group" : mode === "system" ? "Add System" : mode === "place" ? "Add Place" : "Add Member";
+        const modeTreeLabel = "Add " + mode + " to:";
         const snapshot = readMapSnapshot();
         const openedAccountId = snapshot.accountId || currentAccountId();
         addMemberDialogOpener = opener;
         const controller = new AbortController();
         addMemberDialogController = controller;
         const signal = controller.signal;
-        const expanded = {};
-        snapshot.rows.forEach(function (row) {
-            if (row.parentPathKey) {
-                expanded[row.parentPathKey] = true;
-            }
-        });
+        const expansion = createTreeExpansion(snapshot.rows);
 
+        const accountRow = accountDestinationRow(openedAccountId);
         let selectedRow = containingAnchor(snapshot);
+        if (!isModeDestination(selectedRow, mode)) {
+            selectedRow = memberOnly ? null : accountRow;
+        }
+        let visibilityChoice = selectedRow && selectedRow.objectType === "account" ? "1" : "inherit";
+        let permissionChoice = selectedRow && selectedRow.objectType === "account" ? "owner" : "inherit";
+        let visibilityOverridden = false;
+        let permissionOverridden = false;
         let fronting = false;
         let draftAvatarUrl = "";
 
         const dialog = document.createElement("dialog");
         dialog.className = "member-add-dialog";
-        dialog.setAttribute("data-add-mode", isGroup ? "group" : "member");
+        dialog.setAttribute("data-add-mode", mode);
         dialog.setAttribute("aria-labelledby", "member-add-overlay-title");
         addMemberDialog = dialog;
 
         const title = document.createElement("h2");
         title.id = "member-add-overlay-title";
         title.className = "member-add-dialog-title";
-        title.textContent = isGroup ? "Add Group" : "Add Member";
+        title.textContent = modeTitle;
 
         const layout = document.createElement("div");
         layout.className = "member-add-dialog-layout";
@@ -1183,7 +1927,7 @@ window.PluralBridge.members = (function () {
 
         const sideLabel = document.createElement("p");
         sideLabel.className = "member-add-dialog-side-label";
-        sideLabel.textContent = isGroup ? "Add group to:" : "Add member to:";
+        sideLabel.textContent = modeTreeLabel;
 
         const expandAllButton = document.createElement("button");
         expandAllButton.type = "button";
@@ -1194,7 +1938,7 @@ window.PluralBridge.members = (function () {
         const tree = document.createElement("div");
         tree.className = "member-add-dialog-tree member-systems-tree";
         tree.setAttribute("role", "group");
-        tree.setAttribute("aria-label", "Add member to");
+        tree.setAttribute("aria-label", modeTreeLabel);
 
         const actions = document.createElement("div");
         actions.className = "member-add-dialog-actions";
@@ -1213,7 +1957,6 @@ window.PluralBridge.members = (function () {
         actions.appendChild(cancelButton);
         side.appendChild(sideHeading);
         side.appendChild(tree);
-        side.appendChild(actions);
 
         const main = document.createElement("div");
         main.className = "member-add-dialog-main";
@@ -1224,6 +1967,7 @@ window.PluralBridge.members = (function () {
         const frontingButton = document.createElement("button");
         frontingButton.type = "button";
         frontingButton.className = "member-add-dialog-fronting member-add-dialog-member-only";
+        frontingButton.hidden = true;
 
         const closeButton = document.createElement("button");
         closeButton.type = "button";
@@ -1232,11 +1976,10 @@ window.PluralBridge.members = (function () {
         closeButton.textContent = "×";
 
         toolbar.appendChild(frontingButton);
-        toolbar.appendChild(closeButton);
 
         const typeLine = document.createElement("p");
         typeLine.className = "member-add-dialog-type";
-        typeLine.appendChild(document.createTextNode("Type : "));
+        typeLine.appendChild(document.createTextNode(memberOnly ? "Type : " : "Parent: "));
         const typeValue = document.createElement("span");
         typeLine.appendChild(typeValue);
 
@@ -1317,17 +2060,35 @@ window.PluralBridge.members = (function () {
         nameInput.id = "member-add-overlay-name";
         nameInput.type = "text";
         nameInput.autocomplete = "off";
-        nameInput.placeholder = "Use @ for root";
+        nameInput.placeholder = mode === "group"
+            ? "Enter group name"
+            : mode === "system"
+                ? "Enter system name"
+                : mode === "place"
+                    ? "Enter place name"
+                    : "Enter member name";
+        nameInput.value = "";
+        let anchorNameEdited = false;
+        nameInput.addEventListener("input", function () {
+            anchorNameEdited = true;
+        });
+        function keepTypedAnchorName() {
+            if (memberOnly || anchorNameEdited) {
+                return;
+            }
+            nameInput.value = "";
+        }
 
         const pronounsInput = document.createElement("input");
         pronounsInput.id = "member-add-overlay-pronouns";
         pronounsInput.type = "text";
         pronounsInput.autocomplete = "off";
-        pronounsInput.placeholder = "Use @ for root";
+        pronounsInput.placeholder = "Enter pronouns";
 
         const descriptionInput = document.createElement("textarea");
         descriptionInput.id = "member-add-overlay-description";
         descriptionInput.rows = 6;
+        descriptionInput.placeholder = "Enter description";
 
         const status = createStatusMessage();
         status.classList.add("member-add-dialog-status");
@@ -1343,51 +2104,35 @@ window.PluralBridge.members = (function () {
 
         function paintAvatar() {
             avatarFrame.replaceChildren();
-            if (!draftAvatarUrl) {
-                const empty = document.createElement("span");
-                empty.className = "member-add-dialog-avatar-empty";
-                empty.textContent = "No avatar selected";
-                avatarFrame.appendChild(empty);
+            const avatars = window.PluralBridge.avatars;
+            if (avatars && typeof avatars.paintFrame === "function") {
+                avatars.paintFrame(avatarFrame, draftAvatarUrl, "No avatar selected");
                 return;
             }
-
-            const image = document.createElement("img");
-            image.className = "member-add-dialog-avatar-image";
-            image.alt = "";
-            image.src = draftAvatarUrl;
-            avatarFrame.appendChild(image);
+            avatarFrame.textContent = draftAvatarUrl ? "" : "No avatar selected";
         }
 
         function currentDestination() {
-            return isDestinationAnchor(selectedRow) ? selectedRow : null;
+            return isModeDestination(selectedRow, mode) ? selectedRow : null;
+        }
+
+        function applyDestinationDefaults() {
+            const destination = currentDestination();
+            const standalone = Boolean(destination && destination.objectType === "account");
+            if (!visibilityOverridden) {
+                visibilityChoice = standalone ? "1" : "inherit";
+            }
+            if (!permissionOverridden) {
+                permissionChoice = standalone ? "owner" : "inherit";
+            }
         }
 
         function syncSave() {
             saveButton.disabled = !currentDestination();
         }
 
-        function expandablePathKeys() {
-            const keys = {};
-            snapshot.rows.forEach(function (row) {
-                if (row.parentPathKey) {
-                    keys[row.parentPathKey] = true;
-                }
-            });
-            return Object.keys(keys);
-        }
-
-        function allOccurrencesExpanded() {
-            const keys = expandablePathKeys();
-            for (let index = 0; index < keys.length; index += 1) {
-                if (expanded[keys[index]] !== true) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
         function syncExpandAll() {
-            const collapseAll = allOccurrencesExpanded();
+            const collapseAll = treeFullyOpen(expansion);
             const label = collapseAll ? "Collapse all" : "Expand all";
             expandAllButton.setAttribute("aria-label", label);
             expandAllButton.title = label;
@@ -1417,14 +2162,20 @@ window.PluralBridge.members = (function () {
             if (accountChanged()) {
                 return;
             }
+            if (!isModeDestination(row, mode)) {
+                return;
+            }
             if (selectedRow && selectedRow.pathKey === row.pathKey) {
                 syncSave();
                 return;
             }
             selectedRow = row;
+            applyDestinationDefaults();
             paintDestination();
+            paintPolicy();
             syncSave();
             paintTree();
+            keepTypedAnchorName();
         }
 
         function accountChanged() {
@@ -1436,132 +2187,33 @@ window.PluralBridge.members = (function () {
             return false;
         }
 
-        function childRows(pathKey) {
-            return snapshot.rows.filter(function (row) {
-                return row.parentPathKey === pathKey;
-            });
-        }
-
-        function appendChoice(row, level) {
-            const children = childRows(row.pathKey);
-            const hasChildren = children.length > 0;
-            const isExpanded = expanded[row.pathKey] === true;
-            const nodeRow = document.createElement("div");
-            nodeRow.className = "member-system-node-row";
-            nodeRow.style.setProperty("--system-node-level", String(level));
-
-            if (hasChildren) {
-                const expandButton = document.createElement("button");
-                expandButton.type = "button";
-                expandButton.className = "member-system-tree-toggle";
-                expandButton.setAttribute("data-path-key", row.pathKey);
-                expandButton.setAttribute("aria-expanded", String(isExpanded));
-                expandButton.setAttribute("aria-label", isExpanded ? "Collapse" : "Expand");
-                expandButton.appendChild(dialogChevron(isExpanded));
-                expandButton.addEventListener("click", function () {
+        function paintTree() {
+            renderDialogTree(tree, snapshot.rows, expansion, {
+                leadingRows: accountRow && !memberOnly ? [accountRow] : [],
+                selectedPathKey: selectedRow && selectedRow.pathKey ? selectedRow.pathKey : "",
+                canSelect: function (row) {
+                    return isModeDestination(row, mode);
+                },
+                onSelect: selectOccurrence,
+                onChange: function () {
                     if (accountChanged()) {
                         return;
                     }
-                    expanded[row.pathKey] = !isExpanded;
                     syncExpandAll();
                     paintTree();
-                });
-                nodeRow.appendChild(expandButton);
-            } else {
-                const spacer = document.createElement("span");
-                spacer.className = "member-system-tree-spacer";
-                nodeRow.appendChild(spacer);
-            }
-
-            const iconType = row.objectType === "system" || row.objectType === "group" || row.objectType === "place" || row.objectType === "member"
-                ? row.objectType
-                : "";
-            const content = document.createElement("span");
-            content.className = "member-tree-node-content";
-            const icon = dialogOutlineIcon(iconType);
-            if (icon) {
-                content.appendChild(icon);
-            }
-            const text = document.createElement("span");
-            text.className = "member-tree-node-text";
-            text.textContent = row.nodeLabel || "";
-            content.appendChild(text);
-
-            const selectButton = document.createElement("button");
-            selectButton.type = "button";
-            selectButton.className = "member-system-node-button";
-            selectButton.setAttribute("data-path-key", row.pathKey);
-            if (selectedRow && selectedRow.pathKey === row.pathKey) {
-                selectButton.classList.add("is-active");
-            }
-            if (isDestinationAnchor(row)) {
-                if (selectedRow && selectedRow.pathKey === row.pathKey) {
-                    selectButton.setAttribute("aria-current", "true");
-                }
-            } else {
-                selectButton.classList.add("is-not-destination");
-                selectButton.title = row.header
-                    ? "This heading cannot be the destination."
-                    : "Members stay visible and cannot be the destination.";
-            }
-            selectButton.appendChild(content);
-            selectButton.addEventListener("focus", function () {
-                selectOccurrence(row);
+                },
+                emptyText: "The signed-in account map is not available."
             });
-            selectButton.addEventListener("click", function () {
-                selectOccurrence(row);
-            });
-            nodeRow.appendChild(selectButton);
-
-            tree.appendChild(nodeRow);
-            if (hasChildren && isExpanded) {
-                children.forEach(function (child) {
-                    appendChoice(child, level + 1);
-                });
-            }
-        }
-
-        function paintTree() {
-            const scrollTop = tree.scrollTop;
-            const active = document.activeElement;
-            const restorePath = active && tree.contains(active) ? active.getAttribute("data-path-key") : "";
-            const restoreToggle = Boolean(active && active.classList.contains("member-system-tree-toggle"));
-            tree.replaceChildren();
-            if (snapshot.rows.length === 0) {
-                const empty = document.createElement("p");
-                empty.className = "member-add-dialog-tree-empty";
-                empty.textContent = "The signed-in account map is not available.";
-                tree.appendChild(empty);
-                syncExpandAll();
-                return;
-            }
-
-            snapshot.rows.forEach(function (row) {
-                if (row.parentPathKey == null) {
-                    appendChoice(row, 0);
-                }
-            });
-            tree.scrollTop = scrollTop;
             syncExpandAll();
-            if (!restorePath) {
-                return;
-            }
-
-            const selector = restoreToggle
-                ? ".member-system-tree-toggle"
-                : ".member-system-node-button";
-            const buttons = tree.querySelectorAll(selector);
-            for (let index = 0; index < buttons.length; index += 1) {
-                if (buttons[index].getAttribute("data-path-key") === restorePath) {
-                    buttons[index].focus();
-                    break;
-                }
-            }
         }
 
         const form = document.createElement("form");
         form.className = "member-add-dialog-form";
-        form.appendChild(title);
+        const heading = document.createElement("div");
+        heading.className = "member-add-dialog-heading";
+        heading.appendChild(title);
+        heading.appendChild(closeButton);
+        form.appendChild(heading);
         form.appendChild(layout);
         layout.appendChild(side);
         layout.appendChild(main);
@@ -1570,7 +2222,63 @@ window.PluralBridge.members = (function () {
         identity.appendChild(destinationName);
         identity.appendChild(media);
 
-        main.appendChild(toolbar);
+        const policyRow = document.createElement("div");
+        policyRow.className = "member-add-dialog-policy";
+        const visibilityHint = document.createElement("p");
+        visibilityHint.className = "member-policy-hint";
+        const permissionHint = document.createElement("p");
+        permissionHint.className = "member-policy-hint";
+        const visibilityMenu = createPolicyDropdown({
+            label: "Visible to",
+            choices: policyChoices("visibility", false),
+            getValue: function () { return visibilityChoice; },
+            setValue: function (next) {
+                visibilityChoice = next || "inherit";
+                visibilityOverridden = true;
+                paintPolicy();
+            }
+        });
+        const permissionMenu = createPolicyDropdown({
+            label: "Permissions",
+            choices: policyChoices("permission", false),
+            getValue: function () { return permissionChoice; },
+            setValue: function (next) {
+                permissionChoice = next || "inherit";
+                permissionOverridden = true;
+                paintPolicy();
+            }
+        });
+        const visibilityField = document.createElement("div");
+        visibilityField.className = "member-add-dialog-policy-field";
+        const visibilityLabel = document.createElement("span");
+        visibilityLabel.className = "member-add-dialog-label";
+        visibilityLabel.textContent = "Visible to:";
+        visibilityField.appendChild(visibilityLabel);
+        visibilityField.appendChild(visibilityMenu.root);
+        visibilityField.appendChild(visibilityHint);
+        const permissionField = document.createElement("div");
+        permissionField.className = "member-add-dialog-policy-field";
+        const permissionLabel = document.createElement("span");
+        permissionLabel.className = "member-add-dialog-label";
+        permissionLabel.textContent = "Permissions:";
+        permissionField.appendChild(permissionLabel);
+        permissionField.appendChild(permissionMenu.root);
+        permissionField.appendChild(permissionHint);
+        policyRow.appendChild(visibilityField);
+        policyRow.appendChild(permissionField);
+
+        function paintPolicy() {
+            const destination = currentDestination();
+            const sourceName = destination && destination.objectType !== "account"
+                ? destinationDisplayName(destination)
+                : "";
+            paintInheritanceHint(visibilityHint, visibilityChoice === "inherit", sourceName);
+            paintInheritanceHint(permissionHint, permissionChoice === "inherit", sourceName);
+            visibilityMenu.refresh();
+            permissionMenu.refresh();
+        }
+
+        main.appendChild(policyRow);
         main.appendChild(typeLine);
         main.appendChild(identity);
         const nameField = labeledField("member-add-overlay-name", "Name", nameInput, { mode: "add" });
@@ -1588,23 +2296,23 @@ window.PluralBridge.members = (function () {
         descriptionField.classList.add("member-add-dialog-description-field");
         main.appendChild(descriptionField);
         main.appendChild(status);
+        form.appendChild(actions);
         dialog.appendChild(form);
 
         paintFronting();
         paintAvatar();
+        applyDestinationDefaults();
         paintDestination();
+        paintPolicy();
         syncSave();
         paintTree();
+        keepTypedAnchorName();
 
         expandAllButton.addEventListener("click", function () {
             if (accountChanged()) {
                 return;
             }
-            const keys = expandablePathKeys();
-            const expand = !allOccurrencesExpanded();
-            keys.forEach(function (pathKey) {
-                expanded[pathKey] = expand;
-            });
+            setTreeFullyOpen(expansion, !treeFullyOpen(expansion));
             syncExpandAll();
             paintTree();
         }, { signal: signal });
@@ -1643,7 +2351,10 @@ window.PluralBridge.members = (function () {
                     URL.revokeObjectURL(draftAvatarUrl);
                 }
             }
-            draftAvatarUrl = URL.createObjectURL(file);
+            const avatars = window.PluralBridge.avatars;
+            draftAvatarUrl = avatars && typeof avatars.createObjectUrl === "function"
+                ? avatars.createObjectUrl(file)
+                : URL.createObjectURL(file);
             addMemberDialogOwnedUrls.push(draftAvatarUrl);
             paintAvatar();
         }, { signal: signal });
@@ -1672,15 +2383,15 @@ window.PluralBridge.members = (function () {
 
             const destination = currentDestination();
             if (!destination) {
-                status.textContent = isGroup
-                    ? "Select a system, group, or place before saving this group."
-                    : "Select a system, group, or place before saving this member.";
+                status.textContent = memberOnly
+                    ? "Select a system, group, or place before saving this member."
+                    : "Select a parent, or This account for a standalone " + mode + ", before saving.";
                 syncSave();
                 return;
             }
 
             if (!currentAccountId()) {
-                status.textContent = "The signed-in account is not available, so this " + (isGroup ? "group" : "member") + " preview was not stored.";
+                status.textContent = "The signed-in account is not available, so this " + mode + " preview was not stored.";
                 return;
             }
 
@@ -1689,6 +2400,8 @@ window.PluralBridge.members = (function () {
                 displayName: displayName,
                 description: descriptionInput.value.trim(),
                 color: colorInput.value,
+                visibility: visibilityChoice,
+                permission: permissionChoice,
                 destination: {
                     objectType: destination.objectType,
                     objectId: destination.objectId,
@@ -1696,13 +2409,13 @@ window.PluralBridge.members = (function () {
                     anchorName: destination.anchorName || ""
                 }
             };
-            if (!isGroup) {
+            if (memberOnly) {
                 previewRequest.pronouns = pronounsInput.value.trim();
                 previewRequest.fronting = fronting;
                 previewRequest.avatarObjectUrl = draftAvatarUrl;
             }
             try {
-                const outcome = await holdAccountPreview(isGroup ? "group" : "member", previewRequest);
+                const outcome = await holdAccountPreview(mode, previewRequest);
                 if (accountChanged()) {
                     return;
                 }
@@ -1719,20 +2432,487 @@ window.PluralBridge.members = (function () {
 
         document.body.appendChild(dialog);
         dialog.showModal();
+        keepTypedAnchorName();
         if (currentDestination()) {
             nameInput.focus();
         }
+        window.setTimeout(function () {
+            if (nameInput.isConnected) {
+                keepTypedAnchorName();
+            }
+        }, 0);
+    }
+
+    function relationshipObjectKey(row) {
+        if (!row || row.header === true || !row.objectType || !row.objectId || row.objectType === "member") {
+            return "";
+        }
+        return String(row.objectType).toLowerCase() + ":" + String(row.objectId).toLowerCase();
+    }
+
+    function anchorEndpoint(row) {
+        return Boolean(
+            row &&
+            row.header !== true &&
+            row.objectId &&
+            (row.objectType === "system" || row.objectType === "group" || row.objectType === "place")
+        );
+    }
+
+    function parentLinkWouldCycle(snapshot, parentRow, childRow) {
+        const parentKey = relationshipObjectKey(parentRow);
+        const childKey = relationshipObjectKey(childRow);
+        if (!parentKey || !childKey || parentKey === childKey) {
+            return parentKey !== "" && parentKey === childKey;
+        }
+
+        const byPath = {};
+        (snapshot.rows || []).forEach(function (row) {
+            if (row.pathKey) {
+                byPath[row.pathKey] = row;
+            }
+        });
+        const parentsOf = {};
+        function addParent(child, parent) {
+            if (!child || !parent || child === parent) {
+                return;
+            }
+            if (!parentsOf[child]) {
+                parentsOf[child] = [];
+            }
+            if (parentsOf[child].indexOf(parent) < 0) {
+                parentsOf[child].push(parent);
+            }
+        }
+        (snapshot.rows || []).forEach(function (row) {
+            const child = relationshipObjectKey(row);
+            if (!child || !row.parentPathKey) {
+                return;
+            }
+            let current = byPath[row.parentPathKey];
+            const seen = {};
+            while (current && current.pathKey && !seen[current.pathKey]) {
+                seen[current.pathKey] = true;
+                const parent = relationshipObjectKey(current);
+                if (parent) {
+                    addParent(child, parent);
+                    break;
+                }
+                current = current.parentPathKey ? byPath[current.parentPathKey] : null;
+            }
+        });
+        const accountId = currentAccountId();
+        const previews = accountId && memberPreviewsByAccount[accountId] ? memberPreviewsByAccount[accountId] : [];
+        previews.forEach(function (record) {
+            if (!record || record.previewKind !== "relationship" || record.relationshipType !== "parent") {
+                return;
+            }
+            addParent(relationshipObjectKey(record.target), relationshipObjectKey(record.source));
+        });
+
+        const seen = {};
+        const stack = (parentsOf[parentKey] || []).slice();
+        while (stack.length) {
+            const key = stack.pop();
+            if (!key || seen[key]) {
+                continue;
+            }
+            if (key === childKey) {
+                return true;
+            }
+            seen[key] = true;
+            (parentsOf[key] || []).forEach(function (next) {
+                stack.push(next);
+            });
+        }
+        return false;
+    }
+
+    function presentRelationshipDialog(opener) {
+        const snapshot = readMapSnapshot();
+        const openedAccountId = snapshot.accountId || currentAccountId();
+        addMemberDialogOpener = opener;
+        const controller = new AbortController();
+        addMemberDialogController = controller;
+        const signal = controller.signal;
+        const leftExpansion = createTreeExpansion(snapshot.rows);
+        const rightExpansion = createTreeExpansion(snapshot.rows);
+        const relationshipChoices = relationshipTypeChoices(openedAccountId);
+        let leftRow = containingAnchor(snapshot);
+        let rightRow = null;
+        let relationshipType = "sibling";
+        let visibilityChoice = "inherit";
+        let permissionChoice = "inherit";
+
+        const dialog = document.createElement("dialog");
+        dialog.className = "member-add-dialog member-relationship-dialog";
+        dialog.setAttribute("aria-labelledby", "member-relationship-title");
+        addMemberDialog = dialog;
+
+        const title = document.createElement("h2");
+        title.id = "member-relationship-title";
+        title.className = "member-add-dialog-title";
+        title.textContent = "Add Relationship";
+
+        const closeButton = document.createElement("button");
+        closeButton.type = "button";
+        closeButton.className = "member-add-dialog-close";
+        closeButton.setAttribute("aria-label", "Close");
+        closeButton.textContent = "×";
+
+        const layout = document.createElement("div");
+        layout.className = "member-relationship-layout";
+
+        function endpointName(row) {
+            if (!row) {
+                return "";
+            }
+            return row.anchorName || row.nodeLabel || "";
+        }
+
+        function paintTree(host, side) {
+            const selected = side === "left" ? leftRow : rightRow;
+            renderDialogTree(host, snapshot.rows, side === "left" ? leftExpansion : rightExpansion, {
+                selectedPathKey: selected && selected.pathKey ? selected.pathKey : "",
+                memberTitle: "Members stay visible and cannot be relationship endpoints.",
+                headingTitle: "This heading cannot be a relationship endpoint.",
+                canSelect: function (row) {
+                    return anchorEndpoint(row);
+                },
+                onSelect: function (row) {
+                    if (side === "left") {
+                        leftRow = row;
+                    } else {
+                        rightRow = row;
+                    }
+                    paint();
+                },
+                onChange: function () {
+                    paintTree(host, side);
+                },
+                emptyText: "The signed-in account map is not available."
+            });
+        }
+
+        function column(labelText, side) {
+            const wrap = document.createElement("div");
+            wrap.className = "member-relationship-column";
+            const label = document.createElement("p");
+            label.className = "member-add-dialog-side-label member-relationship-column-label";
+            label.textContent = labelText;
+            const tree = document.createElement("div");
+            tree.className = "member-add-dialog-tree member-relationship-tree";
+            tree.setAttribute("role", "group");
+            tree.setAttribute("aria-label", labelText);
+            wrap.appendChild(label);
+            wrap.appendChild(tree);
+            wrap.tree = tree;
+            wrap.side = side;
+            return wrap;
+        }
+
+        const leftColumn = column("Who?", "left");
+        const rightColumn = column("With who?", "right");
+        const center = document.createElement("div");
+        center.className = "member-relationship-center";
+        const kindLabel = document.createElement("p");
+        kindLabel.className = "member-add-dialog-label member-relationship-column-label";
+        kindLabel.textContent = "What kind of relationship?";
+        const kindRow = document.createElement("div");
+        kindRow.className = "member-relationship-kind";
+        const kindMenu = createPolicyDropdown({
+            label: "Relationship type",
+            choices: relationshipChoices,
+            getValue: function () { return relationshipType; },
+            setValue: function (next) {
+                relationshipType = next || "sibling";
+                paint();
+            }
+        });
+        const kindPencil = document.createElement("button");
+        kindPencil.type = "button";
+        kindPencil.className = "member-add-dialog-pencil is-revealed";
+        kindPencil.setAttribute("aria-label", "Add a relationship type");
+        kindPencil.title = "Add a relationship type";
+        kindPencil.appendChild(dialogPencil());
+        const arrow = document.createElement("span");
+        arrow.className = "member-relationship-arrow";
+        arrow.setAttribute("aria-hidden", "true");
+        arrow.appendChild(relationshipArrow());
+        kindRow.appendChild(kindMenu.root);
+        kindRow.appendChild(kindPencil);
+        kindRow.appendChild(arrow);
+        const typeEditor = document.createElement("div");
+        typeEditor.className = "member-relationship-type-editor";
+        typeEditor.hidden = true;
+        const typeInput = document.createElement("input");
+        typeInput.type = "text";
+        typeInput.className = "member-relationship-type-input";
+        typeInput.placeholder = "Enter relationship type";
+        typeInput.setAttribute("aria-label", "Relationship type name");
+        typeInput.autocomplete = "off";
+        const typeAdd = document.createElement("button");
+        typeAdd.type = "button";
+        typeAdd.className = "member-relationship-type-add";
+        typeAdd.textContent = "Add";
+        const typeCancel = document.createElement("button");
+        typeCancel.type = "button";
+        typeCancel.className = "member-relationship-type-cancel";
+        typeCancel.textContent = "Cancel";
+        const typeStatus = document.createElement("p");
+        typeStatus.className = "member-relationship-type-status";
+        const typeActions = document.createElement("div");
+        typeActions.className = "member-relationship-type-actions";
+        typeActions.appendChild(typeAdd);
+        typeActions.appendChild(typeCancel);
+        typeEditor.appendChild(typeInput);
+        typeEditor.appendChild(typeActions);
+        typeEditor.appendChild(typeStatus);
+
+        const visibilityHint = document.createElement("p");
+        visibilityHint.className = "member-policy-hint";
+        const permissionHint = document.createElement("p");
+        permissionHint.className = "member-policy-hint";
+        const visibilityMenu = createPolicyDropdown({
+            label: "Visible to",
+            choices: policyChoices("visibility", false),
+            getValue: function () { return visibilityChoice; },
+            setValue: function (next) {
+                visibilityChoice = next || "inherit";
+                paint();
+            }
+        });
+        const permissionMenu = createPolicyDropdown({
+            label: "Permissions",
+            choices: policyChoices("permission", false),
+            getValue: function () { return permissionChoice; },
+            setValue: function (next) {
+                permissionChoice = next || "inherit";
+                paint();
+            }
+        });
+
+        function labeled(text, control, hint) {
+            const field = document.createElement("div");
+            field.className = "member-add-dialog-policy-field";
+            const label = document.createElement("span");
+            label.className = "member-add-dialog-label";
+            label.textContent = text;
+            field.appendChild(label);
+            field.appendChild(control);
+            field.appendChild(hint);
+            return field;
+        }
+
+        const kindBlock = document.createElement("div");
+        kindBlock.className = "member-relationship-kind-block";
+        kindBlock.appendChild(kindRow);
+        kindBlock.appendChild(typeEditor);
+        const centerBody = document.createElement("div");
+        centerBody.className = "member-relationship-center-body";
+        centerBody.appendChild(kindBlock);
+        centerBody.appendChild(labeled("Visible to:", visibilityMenu.root, visibilityHint));
+        centerBody.appendChild(labeled("Permissions:", permissionMenu.root, permissionHint));
+        center.appendChild(kindLabel);
+        center.appendChild(centerBody);
+
+        const status = createStatusMessage();
+        status.classList.add("member-add-dialog-status");
+        const preview = document.createElement("p");
+        preview.className = "member-relationship-preview";
+        const actions = document.createElement("div");
+        actions.className = "member-add-dialog-actions";
+        const saveButton = document.createElement("button");
+        saveButton.type = "submit";
+        saveButton.className = "member-add-dialog-save";
+        saveButton.textContent = "Save";
+        const cancelButton = document.createElement("button");
+        cancelButton.type = "button";
+        cancelButton.className = "member-add-dialog-cancel";
+        cancelButton.textContent = "Cancel";
+        actions.appendChild(saveButton);
+        actions.appendChild(cancelButton);
+
+        function paint() {
+            paintTree(leftColumn.tree, "left");
+            paintTree(rightColumn.tree, "right");
+            const sourceName = endpointName(leftRow);
+            paintInheritanceHint(visibilityHint, visibilityChoice === "inherit", sourceName);
+            paintInheritanceHint(permissionHint, permissionChoice === "inherit", sourceName);
+            visibilityMenu.refresh();
+            permissionMenu.refresh();
+            kindMenu.refresh();
+            const typeLabel = relationshipChoices.filter(function (item) {
+                return item.id === relationshipType;
+            })[0];
+            const typeText = typeLabel ? (typeLabel.custom ? typeLabel.label : typeLabel.id) : relationshipType;
+            preview.textContent = sourceName && endpointName(rightRow)
+                ? "Relationship: " + sourceName + " (" + typeText + " → " + endpointName(rightRow) + ")"
+                : "Relationship: Select who the relationship starts from and who it points to.";
+        }
+
+        const form = document.createElement("form");
+        form.className = "member-add-dialog-form";
+        const headingRow = document.createElement("div");
+        headingRow.className = "member-relationship-heading";
+        headingRow.appendChild(title);
+        headingRow.appendChild(closeButton);
+        form.appendChild(headingRow);
+        layout.appendChild(leftColumn);
+        layout.appendChild(center);
+        layout.appendChild(rightColumn);
+        form.appendChild(layout);
+        const footer = document.createElement("div");
+        footer.className = "member-relationship-footer";
+        footer.appendChild(actions);
+        footer.appendChild(preview);
+        form.appendChild(footer);
+        form.appendChild(status);
+        dialog.appendChild(form);
+        paint();
+
+        function rememberRelationshipType(label) {
+            const name = label.trim();
+            if (!name) {
+                typeStatus.textContent = "Enter a relationship type.";
+                typeInput.focus();
+                return;
+            }
+            const accountId = currentAccountId();
+            if (!accountId || accountId !== openedAccountId) {
+                typeStatus.textContent = "The signed-in account is not available, so this relationship type was not stored.";
+                return;
+            }
+            const duplicate = relationshipChoices.some(function (item) {
+                return item.label.toLowerCase() === name.toLowerCase();
+            });
+            if (duplicate) {
+                typeStatus.textContent = "That relationship type is already available.";
+                typeInput.focus();
+                return;
+            }
+            if (!customRelationshipTypesByAccount[accountId]) {
+                customRelationshipTypesByAccount[accountId] = [];
+            }
+            const record = {
+                id: customRelationshipId(name),
+                label: name,
+                custom: true
+            };
+            customRelationshipTypesByAccount[accountId].push(record);
+            relationshipChoices.push({
+                id: record.id,
+                label: record.label,
+                icon: "link",
+                disabled: false,
+                custom: true
+            });
+            relationshipType = record.id;
+            typeInput.value = "";
+            typeStatus.textContent = "";
+            typeEditor.hidden = true;
+            paint();
+        }
+
+        kindPencil.addEventListener("click", function () {
+            typeEditor.hidden = false;
+            typeStatus.textContent = "";
+            typeInput.focus();
+        }, { signal: signal });
+        typeCancel.addEventListener("click", function () {
+            typeEditor.hidden = true;
+            typeStatus.textContent = "";
+        }, { signal: signal });
+        typeAdd.addEventListener("click", function () {
+            rememberRelationshipType(typeInput.value);
+        }, { signal: signal });
+        typeInput.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                rememberRelationshipType(typeInput.value);
+            }
+        }, { signal: signal });
+
+        closeButton.addEventListener("click", closeAddMemberDialog, { signal: signal });
+        cancelButton.addEventListener("click", closeAddMemberDialog, { signal: signal });
+        dialog.addEventListener("cancel", function (event) {
+            event.preventDefault();
+            closeAddMemberDialog();
+        }, { signal: signal });
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            if (!anchorEndpoint(leftRow) || !anchorEndpoint(rightRow)) {
+                status.textContent = "Choose a system, group, or place for both sides of the relationship.";
+                return;
+            }
+            if (relationshipType === "parent" && parentLinkWouldCycle(snapshot, leftRow, rightRow)) {
+                status.textContent = "This would create a circular parent relationship.";
+                return;
+            }
+            if (relationshipObjectKey(leftRow) === relationshipObjectKey(rightRow)) {
+                status.textContent = "Choose two different anchors. An anchor cannot be related to itself in this preview.";
+                return;
+            }
+            if (!currentAccountId()) {
+                status.textContent = "The signed-in account is not available, so this relationship preview was not stored.";
+                return;
+            }
+            const label = endpointName(leftRow) + " (" + relationshipType + "-> " + endpointName(rightRow) + ")";
+            saveButton.disabled = true;
+            try {
+                const outcome = await holdAccountPreview("relationship", {
+                    displayName: label,
+                    previewLabel: label,
+                    relationshipType: relationshipType,
+                    visibility: visibilityChoice,
+                    permission: permissionChoice,
+                    source: {
+                        objectType: leftRow.objectType,
+                        objectId: leftRow.objectId,
+                        pathKey: leftRow.pathKey,
+                        anchorName: leftRow.anchorName || ""
+                    },
+                    target: {
+                        objectType: rightRow.objectType,
+                        objectId: rightRow.objectId,
+                        pathKey: rightRow.pathKey,
+                        anchorName: rightRow.anchorName || ""
+                    },
+                    destination: {
+                        objectType: leftRow.objectType,
+                        objectId: leftRow.objectId,
+                        pathKey: leftRow.pathKey,
+                        anchorName: leftRow.anchorName || ""
+                    }
+                });
+                status.textContent = outcome && outcome.status ? outcome.status : "";
+            } finally {
+                if (saveButton.isConnected) {
+                    saveButton.disabled = false;
+                }
+            }
+        }, { signal: signal });
+
+        document.body.appendChild(dialog);
+        dialog.showModal();
     }
 
     function openAddMemberDialog(options) {
         const opener = options && options.opener instanceof Element ? options.opener : null;
-        const mode = options && options.mode === "group" ? "group" : "member";
+        const requested = options && options.mode ? String(options.mode) : "member";
+        const mode = requested === "group" || requested === "system" || requested === "place" || requested === "relationship"
+            ? requested
+            : "member";
         const scheduledEpoch = addMemberDialogEpoch;
         window.setTimeout(function () {
             if (scheduledEpoch !== addMemberDialogEpoch) {
                 return;
             }
             destroyAddMemberDialog();
+            if (mode === "relationship") {
+                presentRelationshipDialog(opener);
+                return;
+            }
             presentAddMemberDialog(opener, mode);
         }, 0);
     }
@@ -1743,6 +2923,9 @@ window.PluralBridge.members = (function () {
         setTreeToggleVisible: setTreeToggleVisible,
         createMemberAddForm: createMemberAddForm,
         openAddMemberDialog: openAddMemberDialog,
+        createPolicyDropdown: createPolicyDropdown,
+        policyChoices: policyChoices,
+        createEditPencil: createEditPencil,
         closeAddMemberDialog: closeAddMemberDialog,
         previewAddMember: previewAddMember,
         readMemberProfilePreview: readMemberProfilePreview,

@@ -137,6 +137,7 @@ var allowedBrowserCssFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCas
 	"base.css",
 	"layout.css",
 	"members.css",
+	"avatars.css",
 	"navigator.css",
 	"developer-tools.css",
 	"legacy-app.css",
@@ -149,6 +150,7 @@ var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase
 {
 	"bootstrap.js",
 	"api-client.js",
+	"avatars.js",
 	"members.js",
 	"developer-tools.js",
 	"navigator.js",

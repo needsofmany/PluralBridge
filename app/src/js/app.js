@@ -2,6 +2,7 @@
     const scripts = [
         "js/bootstrap.js",
         "js/api-client.js",
+        "js/avatars.js",
         "js/members.js",
         "js/developer-tools.js",
         "js/navigator.js",
