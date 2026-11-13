@@ -1479,19 +1479,6 @@ function createMemberAccordion(member, options) {
         return getProfilePlaceholder(fieldName);
     }
 
-    function hasDirtyFields() {
-        return draftValues.displayName !== persistedValues.displayName ||
-            draftValues.pronouns !== persistedValues.pronouns ||
-            draftValues.description !== persistedValues.description ||
-            draftValues.color !== persistedValues.color ||
-            draftValues.fronting !== persistedValues.fronting ||
-            draftValues.visibilityKnown !== persistedValues.visibilityKnown ||
-            draftValues.visibilityInherit !== persistedValues.visibilityInherit ||
-            draftValues.visibilityTypeId !== persistedValues.visibilityTypeId ||
-            draftValues.permission !== persistedValues.permission ||
-            draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl;
-    }
-
     function setProfileStatus(message, statusType) {
         profileStatus.classList.remove("is-error");
         profileStatus.classList.remove("is-success");
@@ -1503,20 +1490,6 @@ function createMemberAccordion(member, options) {
 
         if (statusType === "success") {
             profileStatus.classList.add("is-success");
-        }
-    }
-
-    function setGuardStatus(message, statusType) {
-        guardStatus.classList.remove("is-error");
-        guardStatus.classList.remove("is-success");
-        guardStatus.textContent = message || "";
-
-        if (statusType === "error") {
-            guardStatus.classList.add("is-error");
-        }
-
-        if (statusType === "success") {
-            guardStatus.classList.add("is-success");
         }
     }
 
@@ -1549,39 +1522,72 @@ function createMemberAccordion(member, options) {
         updateSaveButtonState();
     }
 
+    function changeTracking() {
+        return window.PluralBridge && window.PluralBridge.changeTracking
+            ? window.PluralBridge.changeTracking
+            : null;
+    }
+
+    function cardIsDirty() {
+        const changes = changeTracking();
+        return !!(changes && changes.dirty(cardDetails));
+    }
+
+    function modifiedMarker() {
+        const changes = changeTracking();
+        return changes ? changes.modifiedClass : "pb-control-modified";
+    }
+
+    function notifyEdited(control) {
+        const changes = changeTracking();
+        if (!changes || !control) {
+            return;
+        }
+
+        changes.notify(control);
+    }
+
+    function renderChangeState() {
+        const dirty = cardIsDirty();
+        cardDetails.classList.remove("member-card-unsaved");
+        if (unsavedIndicator) {
+            unsavedIndicator.hidden = !dirty;
+        }
+        updateSaveButtonState();
+    }
+
+    function withoutChangeNotices(work) {
+        const changes = changeTracking();
+        if (!changes) {
+            work();
+            return;
+        }
+
+        changes.suppress(cardDetails, work);
+    }
+
+    let cancelButton = null;
+
     function updateSaveButtonState() {
+        const dirty = cardIsDirty();
+        if (cancelButton) {
+            cancelButton.hidden = !dirty;
+            cancelButton.disabled = isSaving;
+        }
+
         if (!saveButton) {
             return;
         }
 
-        const isDirty = hasDirtyFields();
-
-        saveButton.disabled = isSaving || !isDirty;
-        saveButton.title = isDirty ? "Save profile changes" : "No profile changes to save";
-
-        if (!previewHeader) {
-            return;
-        }
-
-        window.PluralBridge = window.PluralBridge || {};
-        const currentGuard = window.PluralBridge.memberProfileGuard;
-        if (isDirty) {
-            if (
-                currentGuard &&
-                currentGuard !== profileGuard &&
-                typeof currentGuard.hasDirtyChanges === "function" &&
-                currentGuard.hasDirtyChanges()
-            ) {
-                return;
-            }
-
-            window.PluralBridge.memberProfileGuard = profileGuard;
-            return;
-        }
-
-        if (!cardDetails.open && currentGuard === profileGuard) {
-            window.PluralBridge.memberProfileGuard = null;
-        }
+        const nameMissing = !String(draftValues.displayName || "").trim();
+        saveButton.disabled = isSaving || !dirty || nameMissing;
+        saveButton.title = isSaving
+            ? "Saving profile changes"
+            : nameMissing
+                ? "Name is required."
+                : dirty
+                    ? "Save profile changes"
+                    : "No profile changes to save";
     }
 
     function closeActiveEditor(applyChange) {
@@ -1603,6 +1609,10 @@ function createMemberAccordion(member, options) {
             editState.editor.replaceWith(editState.displayElement);
         }
 
+        if (editState.editor.classList.contains(modifiedMarker())) {
+            editState.displayElement.classList.add(modifiedMarker());
+        }
+
         editState.row.classList.remove("is-active");
         editState.editButton.disabled = isSaving;
 
@@ -1610,12 +1620,20 @@ function createMemberAccordion(member, options) {
         updateSaveButtonState();
     }
 
+    function fitLongEditor(editor) {
+        if (!editor || editor.tagName !== "TEXTAREA" || !editor.isConnected) {
+            return;
+        }
+
+        editor.style.height = "auto";
+        editor.style.height = editor.scrollHeight + "px";
+    }
+
     function createEditorForField(fieldName, isLongText) {
         let editor = null;
 
         if (isLongText) {
             editor = document.createElement("textarea");
-            editor.rows = 6;
             editor.className = "member-profile-field-editor member-profile-field-textarea";
         } else {
             editor = document.createElement("input");
@@ -1626,8 +1644,23 @@ function createMemberAccordion(member, options) {
 
         editor.value = draftValues[fieldName] || "";
         editor.setAttribute("aria-label", "Edit " + fieldLabels[fieldName]);
+        const fieldLabel = fieldRows[fieldName] && fieldRows[fieldName].row.querySelector(".member-profile-field-label");
+        if (fieldLabel && fieldLabel.id) {
+            editor.setAttribute("aria-labelledby", fieldLabel.id);
+        }
+
+        editor.addEventListener("input", function () {
+            draftValues[fieldName] = editor.value;
+            if (isLongText) {
+                fitLongEditor(editor);
+            }
+            updateSaveButtonState();
+        });
 
         editor.addEventListener("blur", function () {
+            if (isLongText) {
+                return;
+            }
             closeActiveEditor(true);
         });
 
@@ -1662,10 +1695,20 @@ function createMemberAccordion(member, options) {
         closeActiveEditor(true);
 
         const editor = createEditorForField(fieldName, rowInfo.isLongText);
+        const changes = changeTracking();
+        if (changes) {
+            changes.rebind(rowInfo.value, editor);
+        }
+        if (rowInfo.value.classList.contains(modifiedMarker())) {
+            editor.classList.add(modifiedMarker());
+        }
 
         rowInfo.row.classList.add("is-active");
         rowInfo.editButton.disabled = true;
         rowInfo.value.replaceWith(editor);
+        if (rowInfo.isLongText) {
+            fitLongEditor(editor);
+        }
 
         activeEdit = {
             fieldName: fieldName,
@@ -1688,6 +1731,7 @@ function createMemberAccordion(member, options) {
 
         const label = document.createElement("span");
         label.className = "member-profile-field-label";
+        label.id = "member-field-" + window.PluralBridge.memberSharingSequence + "-" + fieldName;
         label.textContent = labelText;
 
         const value = document.createElement("span");
@@ -1695,6 +1739,8 @@ function createMemberAccordion(member, options) {
         value.dataset.memberProfileValue = fieldName;
         value.dataset.persistedValue = rawValue || "";
         value.dataset.draftValue = rawValue || "";
+        value.setAttribute("data-change-control", "");
+        value.setAttribute("aria-labelledby", label.id);
         value.textContent = allowProfileEditing
             ? (rawValue || getProfilePlaceholder(fieldName))
             : (rawValue || "");
@@ -1716,6 +1762,14 @@ function createMemberAccordion(member, options) {
             startEditingField(fieldName);
         });
 
+        if (allowProfileEditing) {
+            value.addEventListener("dblclick", function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                startEditingField(fieldName);
+            });
+        }
+
         row.appendChild(label);
         row.appendChild(value);
         if (allowProfileEditing) {
@@ -1736,8 +1790,8 @@ function createMemberAccordion(member, options) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "member-profile-save-button";
-        button.disabled = true;
-        button.title = "No profile changes to save.";
+        button.disabled = false;
+        button.title = "Save profile changes";
 
         button.appendChild(createMemberActionIcon("save"));
 
@@ -1799,6 +1853,9 @@ function createMemberAccordion(member, options) {
             event.preventDefault();
             event.stopPropagation();
             savePointerHeld = false;
+            if (isSaving) {
+                return;
+            }
             const view = pendingSavedCardView || captureCardView();
             const holdToken = ++savedCardHoldToken;
             pendingSavedCardView = null;
@@ -1835,6 +1892,41 @@ function createMemberAccordion(member, options) {
         return button;
     }
 
+    function createProfileCancelButton() {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "member-profile-cancel-button";
+        button.textContent = "Cancel";
+        button.hidden = true;
+        button.disabled = false;
+
+        button.addEventListener("pointerdown", function (event) {
+            event.stopPropagation();
+        });
+
+        button.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (isSaving || !cardIsDirty()) {
+                return;
+            }
+
+            const view = captureCardView();
+            view.open = true;
+            const changes = changeTracking();
+            if (changes) {
+                changes.restore(cardDetails);
+            }
+            cardDetails.open = true;
+            restoreCardView(view);
+            window.setTimeout(function () {
+                restoreCardView(view);
+            }, 0);
+        });
+
+        return button;
+    }
+
     function setProfileBusy(isBusy) {
         isSaving = isBusy;
 
@@ -1846,13 +1938,23 @@ function createMemberAccordion(member, options) {
             activeEdit.editor.disabled = isBusy;
         }
 
-        updateSaveButtonState();
-    }
+        [frontingButton, sharingButton, colorPencil, colorInput, avatarPencil, avatarFile].forEach(function (control) {
+            if (control) {
+                control.disabled = isBusy;
+            }
+        });
 
-    function setGuardBusy(isBusy) {
-        saveChangesButton.disabled = isBusy;
-        discardChangesButton.disabled = isBusy;
-        keepEditingButton.disabled = isBusy;
+        const permissionButton = cardDetails.querySelector(".member-policy-button");
+        if (permissionButton) {
+            permissionButton.disabled = isBusy;
+        }
+
+        const changes = changeTracking();
+        if (changes) {
+            changes.setSaving(cardDetails, isBusy);
+        }
+
+        updateSaveButtonState();
     }
 
     function buildMemberEditRequest() {
@@ -1864,6 +1966,18 @@ function createMemberAccordion(member, options) {
     }
 
     function applySuccessfulSave() {
+        if (!applySuccessfulSave.guarded) {
+            applySuccessfulSave.guarded = true;
+            try {
+                withoutChangeNotices(function () {
+                    applySuccessfulSave();
+                });
+            } finally {
+                applySuccessfulSave.guarded = false;
+            }
+            return;
+        }
+
         persistedValues.displayName = draftValues.displayName;
         persistedValues.pronouns = draftValues.pronouns;
         persistedValues.description = draftValues.description;
@@ -1901,28 +2015,134 @@ function createMemberAccordion(member, options) {
         paintPreviewControls();
     }
 
+    function applyPersistedProfileFields(profile) {
+        if (!applyPersistedProfileFields.guarded) {
+            applyPersistedProfileFields.guarded = true;
+            try {
+                withoutChangeNotices(function () {
+                    applyPersistedProfileFields(profile);
+                });
+            } finally {
+                applyPersistedProfileFields.guarded = false;
+            }
+            return;
+        }
+
+        const displayName = profile && profile.displayName ? String(profile.displayName) : "";
+        const pronouns = profile && profile.pronouns ? String(profile.pronouns) : "";
+        const description = profile && profile.description ? String(profile.description) : "";
+        const color = storedMemberColor(profile && profile.color);
+
+        persistedValues.displayName = displayName;
+        persistedValues.pronouns = pronouns;
+        persistedValues.description = description;
+        persistedValues.color = color;
+        draftValues.displayName = displayName;
+        draftValues.pronouns = pronouns;
+        draftValues.description = description;
+        draftValues.color = color;
+
+        ["displayName", "pronouns", "description"].forEach(function (fieldName) {
+            if (!fieldRows[fieldName]) {
+                return;
+            }
+
+            fieldRows[fieldName].value.dataset.persistedValue = persistedValues[fieldName] || "";
+            fieldRows[fieldName].value.dataset.draftValue = draftValues[fieldName] || "";
+            updateStaticFieldDisplay(fieldName);
+        });
+
+        if (member) {
+            member.displayName = displayName;
+            member.pronouns = pronouns;
+            member.description = description;
+            member.color = color;
+        }
+
+        jsonBlock.textContent = JSON.stringify(member, null, 2);
+        updateSummaryPreview();
+        updateSaveButtonState();
+        paintPreviewControls();
+    }
+
+    function markedControls() {
+        const changes = changeTracking();
+        return changes ? changes.modified(cardDetails) : [];
+    }
+
+    function controlIsMarked(control) {
+        return !!(control && markedControls().indexOf(control) >= 0);
+    }
+
+    function savedProfileControls(before) {
+        return before.filter(function (control) {
+            return profileControls.indexOf(control) >= 0;
+        });
+    }
+
+    function publishConfirmed(before, includeColor, includeLatchedExtras) {
+        const changes = changeTracking();
+        if (!changes) {
+            return;
+        }
+
+        const fields = {
+            displayName: persistedValues.displayName,
+            pronouns: persistedValues.pronouns,
+            description: persistedValues.description
+        };
+        if (includeColor) {
+            fields.color = persistedValues.color;
+        }
+        if (includeLatchedExtras && before.indexOf(frontingButton) >= 0) {
+            fields.fronting = persistedValues.fronting;
+        }
+        if (includeLatchedExtras && before.indexOf(sharingButton) >= 0) {
+            fields.visibilityKnown = persistedValues.visibilityKnown;
+            fields.visibilityInherit = persistedValues.visibilityInherit;
+            fields.visibilityTypeId = persistedValues.visibilityTypeId;
+        }
+        if (includeLatchedExtras && permissionControl && before.indexOf(permissionControl) >= 0) {
+            fields.permission = persistedValues.permission;
+        }
+        if (includeLatchedExtras && before.indexOf(avatarWrap) >= 0) {
+            fields.avatarObjectUrl = persistedValues.avatarObjectUrl;
+        }
+        changes.publishShared(getMemberIdForSave(), fields, cardDetails);
+    }
+
     async function saveProfileChanges() {
         closeActiveEditor(true);
 
-        if (!hasDirtyFields()) {
+        if (isSaving) {
+            return { saved: false };
+        }
+
+        if (changeTracking() && !cardIsDirty()) {
             updateSaveButtonState();
-            return true;
+            return { saved: false };
         }
 
         const memberId = getMemberIdForSave();
 
         if (!memberId) {
-            setProfileStatus("Member edit is not available because this member has no member ID.", "error");
-            return false;
+            const message = "Member edit is not available because this member has no member ID.";
+            setProfileStatus(message, "error");
+            return { saved: false, message: message };
         }
 
         const request = buildMemberEditRequest();
 
         if (!request.displayName) {
-            setProfileStatus("Name is required.", "error");
+            const message = "Name is required.";
+            setProfileStatus(message, "error");
             updateSaveButtonState();
-            return false;
+            return { saved: false, message: message };
         }
+
+        const before = markedControls().slice();
+        const changes = changeTracking();
+        const includeColor = before.indexOf(colorSwatch) >= 0;
 
         if (options && typeof options.saveProfile === "function") {
             setProfileBusy(true);
@@ -1932,25 +2152,42 @@ function createMemberAccordion(member, options) {
                 const outcome = await options.saveProfile(profilePreviewSaveRequest(memberId, request));
 
                 if (!cardDetails.isConnected) {
-                    return false;
+                    return { saved: false, message: "Member could not be saved." };
                 }
 
                 if (!outcome || outcome.saved !== true) {
-                    setProfileStatus(
-                        outcome && outcome.status
-                            ? outcome.status
-                            : "Member could not be saved. Confirm the API is running and try again.",
-                        "error"
-                    );
-                    return false;
+                    const message = outcome && outcome.status
+                        ? outcome.status
+                        : "Member could not be saved. Confirm the API is running and try again.";
+                    setProfileStatus(message, "error");
+                    return { saved: false, message: message };
                 }
 
-                applySuccessfulSave();
+                if (outcome.persisted === true) {
+                    if (!outcome.profile) {
+                        const message = "The member profile save did not return the saved values.";
+                        setProfileStatus(message, "error");
+                        return { saved: false, message: message };
+                    }
+
+                    applyPersistedProfileFields(outcome.profile);
+                    if (changes) {
+                        changes.commit(cardDetails, savedProfileControls(before));
+                    }
+                    publishConfirmed(before, true, false);
+                } else {
+                    applySuccessfulSave();
+                    if (changes) {
+                        changes.commit(cardDetails, before);
+                    }
+                    publishConfirmed(before, includeColor, true);
+                }
                 setProfileStatus(outcome.status || "Member saved.", "success");
-                return true;
+                return { saved: true };
             } catch (error) {
-                setProfileStatus("Member could not be saved. Confirm the API is running and try again.", "error");
-                return false;
+                const message = "Member could not be saved. Confirm the API is running and try again.";
+                setProfileStatus(message, "error");
+                return { saved: false, message: message };
             } finally {
                 setProfileBusy(false);
             }
@@ -1961,8 +2198,9 @@ function createMemberAccordion(member, options) {
             : null;
 
         if (!apiClient || typeof apiClient.editMember !== "function") {
-            setProfileStatus("Member edit is not available in the current browser session.", "error");
-            return false;
+            const message = "Member edit is not available in the current browser session.";
+            setProfileStatus(message, "error");
+            return { saved: false, message: message };
         }
 
         setProfileBusy(true);
@@ -1970,86 +2208,39 @@ function createMemberAccordion(member, options) {
 
         try {
             await apiClient.editMember(memberId, request);
-            applySuccessfulSave();
+            withoutChangeNotices(function () {
+                persistedValues.displayName = draftValues.displayName;
+                persistedValues.pronouns = draftValues.pronouns;
+                persistedValues.description = draftValues.description;
+                ["displayName", "pronouns", "description"].forEach(function (fieldName) {
+                    if (!fieldRows[fieldName]) {
+                        return;
+                    }
+                    fieldRows[fieldName].value.dataset.persistedValue = persistedValues[fieldName] || "";
+                    fieldRows[fieldName].value.dataset.draftValue = draftValues[fieldName] || "";
+                    updateStaticFieldDisplay(fieldName);
+                });
+                if (member) {
+                    member.displayName = persistedValues.displayName;
+                    member.pronouns = persistedValues.pronouns;
+                    member.description = persistedValues.description;
+                }
+                updateSummaryPreview();
+            });
+            if (changes) {
+                changes.commit(cardDetails, savedProfileControls(before).filter(function (control) {
+                    return control !== colorSwatch;
+                }));
+            }
+            publishConfirmed(before, false, false);
             setProfileStatus("Member saved.", "success");
-            return true;
+            return { saved: true };
         } catch (error) {
-            setProfileStatus("Member could not be saved. Confirm the API is running and try again.", "error");
-            return false;
+            const message = "Member could not be saved. Confirm the API is running and try again.";
+            setProfileStatus(message, "error");
+            return { saved: false, message: message };
         } finally {
             setProfileBusy(false);
-        }
-    }
-
-    function discardProfileChanges() {
-        closeActiveEditor(false);
-        releaseUnsavedAvatar();
-
-        draftValues.displayName = persistedValues.displayName;
-        draftValues.pronouns = persistedValues.pronouns;
-        draftValues.description = persistedValues.description;
-        draftValues.color = persistedValues.color;
-        draftValues.fronting = persistedValues.fronting;
-        draftValues.visibilityKnown = persistedValues.visibilityKnown;
-        draftValues.visibilityInherit = persistedValues.visibilityInherit;
-        draftValues.visibilityTypeId = persistedValues.visibilityTypeId;
-        draftValues.permission = persistedValues.permission;
-        draftValues.avatarObjectUrl = persistedValues.avatarObjectUrl;
-
-        setProfileStatus("");
-        updateAllStaticFieldDisplays();
-        paintPreviewControls();
-    }
-
-    function showUnsavedDialog() {
-        setGuardStatus("");
-
-        guardDialog.hidden = false;
-        guardDialog.removeAttribute("hidden");
-
-        if (typeof guardDialog.showModal === "function" && !guardDialog.open) {
-            guardDialog.showModal();
-        } else {
-            guardDialog.setAttribute("open", "open");
-        }
-
-        keepEditingButton.focus();
-    }
-
-    function hideUnsavedDialog() {
-        if (typeof guardDialog.close === "function" && guardDialog.open) {
-            guardDialog.close();
-        }
-
-        guardDialog.hidden = true;
-        guardDialog.removeAttribute("open");
-        setGuardStatus("");
-        setGuardBusy(false);
-    }
-
-    function completePendingLeave(shouldLeave) {
-        const resolve = pendingLeaveResolve;
-        const action = pendingLeaveAction;
-
-        pendingLeaveResolve = null;
-        pendingLeaveAction = null;
-
-        if (shouldLeave) {
-            savedCardHoldToken += 1;
-            keepSavedCardOpen = false;
-            pendingSavedCardView = null;
-            activeSavedCardView = null;
-            pendingLeaveNavigatesAway = false;
-        }
-
-        hideUnsavedDialog();
-
-        if (shouldLeave && typeof action === "function") {
-            action();
-        }
-
-        if (typeof resolve === "function") {
-            resolve(shouldLeave);
         }
     }
 
@@ -2095,124 +2286,6 @@ function createMemberAccordion(member, options) {
         });
     }
 
-    function requestProfileLeave(leaveAction, navigatesAway) {
-        closeActiveEditor(true);
-
-        if (!hasDirtyFields()) {
-            if (typeof leaveAction === "function") {
-                leaveAction();
-            }
-
-            return Promise.resolve(true);
-        }
-
-        if (pendingLeaveResolve) {
-            return Promise.resolve(false);
-        }
-
-        pendingLeaveAction = leaveAction || null;
-        pendingLeaveNavigatesAway = navigatesAway !== false;
-        showUnsavedDialog();
-
-        return new Promise(function (resolve) {
-            pendingLeaveResolve = resolve;
-        });
-    }
-
-    async function saveChangesAndLeave() {
-        setGuardBusy(true);
-        setGuardStatus("Saving changes.");
-
-        const didSave = await saveProfileChanges();
-
-        if (didSave) {
-            completePendingLeave(true);
-            return;
-        }
-
-        setGuardBusy(false);
-        setGuardStatus("Changes could not be saved. Keep editing or discard changes.", "error");
-    }
-
-    function holdExpandedCard(view) {
-        const holdToken = ++savedCardHoldToken;
-        keepSavedCardOpen = true;
-        activeSavedCardView = view;
-        pendingSavedCardView = null;
-        restoreCardView(view);
-        window.setTimeout(function () {
-            if (holdToken !== savedCardHoldToken) {
-                return;
-            }
-
-            restoreCardView(view);
-            window.setTimeout(function () {
-                if (holdToken !== savedCardHoldToken) {
-                    return;
-                }
-
-                restoreCardView(view);
-                keepSavedCardOpen = false;
-                pendingSavedCardView = null;
-                if (activeSavedCardView === view) {
-                    activeSavedCardView = null;
-                }
-            }, 0);
-        }, 0);
-    }
-
-    function discardChangesAndLeave() {
-        const navigateAway = pendingLeaveNavigatesAway === true;
-        const view = captureCardView();
-        view.open = true;
-
-        if (!navigateAway) {
-            holdExpandedCard(view);
-        }
-
-        discardProfileChanges();
-
-        if (navigateAway) {
-            completePendingLeave(true);
-            return;
-        }
-
-        restoreCardView(view);
-        completePendingLeave(false);
-        restoreCardView(view);
-    }
-
-    function returnToCurrentProfile() {
-        cardDetails.open = true;
-
-        window.setTimeout(function () {
-            cardDetails.scrollIntoView({
-                block: "center",
-                inline: "nearest"
-            });
-
-            try {
-                summary.focus({
-                    preventScroll: true
-                });
-            } catch (error) {
-                summary.focus();
-            }
-        }, 0);
-    }
-
-    function keepEditing() {
-        completePendingLeave(false);
-        returnToCurrentProfile();
-    }
-    function createGuardActionButton(labelText, className) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = className;
-        button.textContent = labelText;
-        return button;
-    }
-
     const previewHeader = Boolean(options && options.previewHeader === true);
 
     function nullablePreviewValue(value) {
@@ -2229,6 +2302,15 @@ function createMemberAccordion(member, options) {
 
     function memberCssColor(value) {
         return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
+    }
+
+    function storedMemberColor(value) {
+        if (typeof value !== "string") {
+            return null;
+        }
+
+        const trimmed = value.trim();
+        return trimmed ? trimmed : null;
     }
 
     function generatedMemberColor() {
@@ -2253,27 +2335,27 @@ function createMemberAccordion(member, options) {
             pronouns: request.pronouns,
             description: request.description
         };
+        const changes = changeTracking();
+        const marked = markedControls();
 
-        if (draftValues.color !== persistedValues.color) {
+        if (changes && marked.indexOf(colorSwatch) >= 0) {
             payload.color = draftValues.color;
         }
 
-        if (draftValues.fronting !== persistedValues.fronting) {
+        if (changes && marked.indexOf(frontingButton) >= 0) {
             payload.fronting = draftValues.fronting;
         }
 
-        if (draftValues.visibilityKnown !== persistedValues.visibilityKnown ||
-            draftValues.visibilityInherit !== persistedValues.visibilityInherit ||
-            draftValues.visibilityTypeId !== persistedValues.visibilityTypeId) {
+        if (changes && marked.indexOf(sharingButton) >= 0) {
             payload.visibilityInherit = draftValues.visibilityInherit === true;
             payload.visibilityTypeId = draftValues.visibilityInherit === true ? null : draftValues.visibilityTypeId;
         }
 
-        if (draftValues.permission !== persistedValues.permission) {
+        if (changes && permissionControl && marked.indexOf(permissionControl) >= 0) {
             payload.permission = draftValues.permission;
         }
 
-        if (draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl) {
+        if (changes && marked.indexOf(avatarWrap) >= 0) {
             payload.avatarObjectUrl = draftValues.avatarObjectUrl;
         }
 
@@ -2288,7 +2370,7 @@ function createMemberAccordion(member, options) {
         displayName: member && member.displayName ? member.displayName : "",
         pronouns: member && member.pronouns ? member.pronouns : "",
         description: member && member.description ? member.description : "",
-        color: memberCssColor(member && member.color),
+        color: storedMemberColor(member && member.color),
         fronting: member && (member.fronting === true || member.fronting === false) ? member.fronting : null,
         visibilityKnown: Boolean(member && member.visibilityKnown === true),
         visibilityInherit: Boolean(member && member.visibilityInherit === true),
@@ -2319,8 +2401,10 @@ function createMemberAccordion(member, options) {
     const fieldRows = {};
     let activeEdit = null;
     let isSaving = false;
-    let pendingLeaveResolve = null;
-    let pendingLeaveAction = null;
+    let unsavedIndicator = null;
+    let detachChanges = null;
+    let profileControls = [];
+    let permissionControl = null;
 
     const cardDetails = document.createElement("details");
     cardDetails.className = previewHeader ? "member-card member-card-preview" : "member-card";
@@ -2337,6 +2421,8 @@ function createMemberAccordion(member, options) {
 
     const avatarWrap = document.createElement("span");
     avatarWrap.className = "member-avatar-wrap";
+    avatarWrap.setAttribute("data-change-control", "");
+    avatarWrap.setAttribute("data-change-name", "Choose an avatar image");
 
     const avatarPlaceholder = document.createElement("span");
     avatarPlaceholder.className = "member-avatar-placeholder";
@@ -2381,6 +2467,9 @@ function createMemberAccordion(member, options) {
     const sharingButton = document.createElement("button");
     sharingButton.type = "button";
     sharingButton.className = "member-card-sharing";
+    sharingButton.setAttribute("data-change-control", "");
+    sharingButton.setAttribute("data-change-name", "Visibility");
+    sharingButton.setAttribute("aria-label", "Visibility");
     sharingButton.setAttribute("aria-haspopup", "listbox");
     sharingButton.setAttribute("aria-expanded", "false");
     const sharingList = document.createElement("div");
@@ -2398,6 +2487,8 @@ function createMemberAccordion(member, options) {
     const frontingButton = document.createElement("button");
     frontingButton.type = "button";
     frontingButton.className = "member-card-fronting";
+    frontingButton.setAttribute("data-change-control", "");
+    frontingButton.setAttribute("data-change-name", "Fronting");
 
     const chevron = document.createElement("span");
     chevron.className = "member-card-expand-icon member-tree-chevron";
@@ -2426,6 +2517,11 @@ function createMemberAccordion(member, options) {
 
     identity.appendChild(name);
     identity.appendChild(pronouns);
+    unsavedIndicator = document.createElement("span");
+    unsavedIndicator.className = "member-card-unsaved-indicator";
+    unsavedIndicator.textContent = "Unsaved changes";
+    unsavedIndicator.hidden = true;
+    identity.appendChild(unsavedIndicator);
     avatarWrap.appendChild(avatarPlaceholder);
     if (previewHeader) {
         avatarWrap.appendChild(avatarPencil);
@@ -2446,11 +2542,22 @@ function createMemberAccordion(member, options) {
                 return draftValues.permission || "";
             },
             setValue: function (next) {
-                draftValues.permission = next ? next : null;
+                const permission = next ? String(next) : "";
+                if (permission === (draftValues.permission || "")) {
+                    return;
+                }
+                draftValues.permission = permission || null;
+                notifyEdited(permissionControl);
                 updateSaveButtonState();
             }
         });
         permissionMenu.root.classList.add("member-card-permission");
+        permissionControl = permissionMenu.root.matches && permissionMenu.root.matches("input, select, textarea")
+            ? permissionMenu.root
+            : (permissionMenu.root.querySelector("input, select, textarea, .member-policy-button") || permissionMenu.root);
+        permissionControl.setAttribute("data-change-control", "");
+        permissionControl.setAttribute("data-change-name", "Permissions");
+        permissionControl.setAttribute("aria-label", "Permissions");
         permissionLabel.appendChild(permissionMenu.root);
         permissionLabel.addEventListener("mousedown", function (event) {
             event.stopPropagation();
@@ -2475,51 +2582,13 @@ function createMemberAccordion(member, options) {
         summary.appendChild(chevron);
     }
 
-    let ignoreSummaryClickUntil = 0;
     let keepSavedCardOpen = false;
     let pendingSavedCardView = null;
     let activeSavedCardView = null;
     let savedCardHoldToken = 0;
-    let pendingLeaveNavigatesAway = false;
-
-    summary.addEventListener("click", async function (event) {
-        if (Date.now() < ignoreSummaryClickUntil) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-        }
-
-        const currentGuard = window.PluralBridge && window.PluralBridge.memberProfileGuard
-            ? window.PluralBridge.memberProfileGuard
-            : null;
-
-        if (
-            !cardDetails.open &&
-            currentGuard &&
-            currentGuard !== profileGuard &&
-            typeof currentGuard.hasDirtyChanges === "function" &&
-            currentGuard.hasDirtyChanges() &&
-            typeof currentGuard.requestLeave === "function"
-        ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            await currentGuard.requestLeave(function () {
-                cardDetails.open = true;
-            });
-
-            return;
-        }
-
-        if (cardDetails.open && hasDirtyFields()) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            requestProfileLeave(function () {
-                cardDetails.open = false;
-            }, false);
-        }
-    });
+    let paintingColor = false;
+    let colorEcho = 0;
+    let acceptColorEdits = false;
 
     cardDetails.appendChild(summary);
 
@@ -2552,7 +2621,11 @@ function createMemberAccordion(member, options) {
     colorInput.type = "color";
     colorInput.className = "member-color-input";
     colorInput.value = "#94a3b8";
-    colorInput.setAttribute("aria-label", "Choose a member color");
+    colorLabel.id = "member-color-label-" + window.PluralBridge.memberSharingSequence;
+    colorInput.setAttribute("aria-labelledby", colorLabel.id);
+    colorSwatch.setAttribute("data-change-control", "");
+    colorSwatch.setAttribute("data-change-name", colorLabel.textContent);
+    colorSwatch.appendChild(colorInput);
     const colorPencil = document.createElement("button");
     colorPencil.type = "button";
     colorPencil.className = "member-profile-field-edit-button member-color-pencil";
@@ -2562,7 +2635,6 @@ function createMemberAccordion(member, options) {
     colorRow.appendChild(colorLabel);
     colorRow.appendChild(colorSwatch);
     colorRow.appendChild(colorPencil);
-    colorRow.appendChild(colorInput);
     if (previewHeader) {
         const colorHelp = document.createElement("p");
         colorHelp.className = "member-color-help";
@@ -2574,6 +2646,10 @@ function createMemberAccordion(member, options) {
     profileActions.className = "member-profile-action-row";
 
     const saveButton = allowProfileEditing ? createProfileSaveButton() : null;
+    cancelButton = allowProfileEditing ? createProfileCancelButton() : null;
+    if (cancelButton) {
+        profileActions.appendChild(cancelButton);
+    }
     if (saveButton) {
         profileActions.appendChild(saveButton);
     }
@@ -2582,61 +2658,6 @@ function createMemberAccordion(member, options) {
     profileStatus.className = "member-form-status";
     profileStatus.setAttribute("aria-live", "polite");
     profileStatus.textContent = "";
-
-    const guardDialog = document.createElement("dialog");
-    guardDialog.className = "member-profile-unsaved-dialog";
-    guardDialog.setAttribute("aria-label", "Unsaved member profile changes");
-    guardDialog.hidden = true;
-
-    const guardMessage = document.createElement("p");
-    guardMessage.className = "member-profile-unsaved-message";
-    guardMessage.textContent = "This member has unsaved profile changes.";
-
-    const guardButtonRow = document.createElement("div");
-    guardButtonRow.className = "member-profile-unsaved-actions";
-
-    const saveChangesButton = createGuardActionButton("Save changes", "member-profile-unsaved-button");
-    const discardChangesButton = createGuardActionButton("Discard changes", "member-profile-unsaved-button");
-    const keepEditingButton = createGuardActionButton("Keep editing", "member-profile-unsaved-button");
-
-    function keepGuardEvent(event) {
-        event.stopPropagation();
-        ignoreSummaryClickUntil = Date.now() + 500;
-    }
-
-    saveChangesButton.addEventListener("mousedown", keepGuardEvent);
-    discardChangesButton.addEventListener("mousedown", keepGuardEvent);
-    keepEditingButton.addEventListener("mousedown", keepGuardEvent);
-    saveChangesButton.addEventListener("click", function (event) {
-        keepGuardEvent(event);
-        saveChangesAndLeave();
-    });
-    discardChangesButton.addEventListener("click", function (event) {
-        keepGuardEvent(event);
-        discardChangesAndLeave();
-    });
-    keepEditingButton.addEventListener("click", function (event) {
-        keepGuardEvent(event);
-        keepEditing();
-    });
-
-    guardDialog.addEventListener("cancel", function (event) {
-        event.preventDefault();
-        keepEditing();
-    });
-
-    guardButtonRow.appendChild(saveChangesButton);
-    guardButtonRow.appendChild(discardChangesButton);
-    guardButtonRow.appendChild(keepEditingButton);
-
-    const guardStatus = document.createElement("p");
-    guardStatus.className = "member-form-status member-profile-unsaved-status";
-    guardStatus.setAttribute("aria-live", "polite");
-    guardStatus.textContent = "";
-
-    guardDialog.appendChild(guardMessage);
-    guardDialog.appendChild(guardButtonRow);
-    guardDialog.appendChild(guardStatus);
 
     profilePanel.appendChild(profileHeading);
     profilePanel.appendChild(profileFields);
@@ -2652,7 +2673,6 @@ function createMemberAccordion(member, options) {
         profilePanel.appendChild(profileActions);
     }
     profilePanel.appendChild(profileStatus);
-    profilePanel.appendChild(guardDialog);
 
     const jsonBlock = document.createElement("pre");
     jsonBlock.className = "member-json json-output";
@@ -2671,12 +2691,20 @@ function createMemberAccordion(member, options) {
     body.appendChild(rawJsonDetails);
     cardDetails.appendChild(body);
 
-    const profileGuard = {
-        hasDirtyChanges: hasDirtyFields,
-        requestLeave: requestProfileLeave
-    };
-
     cardDetails.addEventListener("toggle", function () {
+        if (cardDetails.dataset.pbLeave) {
+            const holdOpen = cardDetails.dataset.pbLeave === "1";
+            if (cardDetails.open !== holdOpen) {
+                cardDetails.open = holdOpen;
+            }
+            return;
+        }
+
+        if (cardIsDirty() && !cardDetails.open) {
+            cardDetails.open = true;
+            return;
+        }
+
         if (keepSavedCardOpen && !cardDetails.open) {
             cardDetails.open = true;
             if (activeSavedCardView) {
@@ -2686,18 +2714,8 @@ function createMemberAccordion(member, options) {
             return;
         }
 
-        window.PluralBridge = window.PluralBridge || {};
         if (previewHeader) {
             chevron.classList.toggle("is-expanded", cardDetails.open);
-        }
-
-        if (cardDetails.open) {
-            window.PluralBridge.memberProfileGuard = profileGuard;
-            return;
-        }
-
-        if (window.PluralBridge.memberProfileGuard === profileGuard) {
-            window.PluralBridge.memberProfileGuard = null;
         }
     });
 
@@ -2761,9 +2779,28 @@ function createMemberAccordion(member, options) {
             ? "Edit color"
             : "No stored member color. This color is generated for display. Choosing a color stores a preview only.";
         colorPencil.title = colorSwatch.title;
-        if (appearance.explicit) {
-            colorInput.value = appearance.fill;
+        if (appearance.explicit && colorInput.value.toLowerCase() !== appearance.fill.toLowerCase()) {
+            withoutChangeNotices(function () {
+                colorEcho += 1;
+                paintingColor = true;
+                colorInput.value = appearance.fill;
+                paintingColor = false;
+            });
+            window.setTimeout(function () {
+                colorEcho = Math.max(0, colorEcho - 1);
+            }, 0);
         }
+    }
+
+    function commitPickerColor() {
+        if (!acceptColorEdits || paintingColor || colorEcho || isSaving) {
+            return;
+        }
+
+        const nextColor = memberCssColor(colorInput.value);
+        draftValues.color = nextColor;
+        paintColor();
+        updateSaveButtonState();
     }
 
     function paintFronting() {
@@ -2948,6 +2985,7 @@ function createMemberAccordion(member, options) {
         draftValues.visibilityTypeId = draftValues.visibilityInherit || !raw
             ? null
             : canonicalVisibilityId(Number(raw));
+        notifyEdited(sharingButton);
         setSharingOpen(false);
         updateSaveButtonState();
         sharingButton.focus();
@@ -3030,6 +3068,7 @@ function createMemberAccordion(member, options) {
             }
             releaseUnsavedAvatar();
             draftValues.avatarObjectUrl = URL.createObjectURL(file);
+            notifyEdited(avatarWrap);
             avatarFile.value = "";
             paintAvatar();
             updateSaveButtonState();
@@ -3135,6 +3174,7 @@ function createMemberAccordion(member, options) {
         frontingButton.addEventListener("click", function (event) {
             keepHeaderClick(event);
             draftValues.fronting = draftValues.fronting === null ? true : !draftValues.fronting;
+            notifyEdited(frontingButton);
             paintFronting();
             updateSaveButtonState();
         });
@@ -3144,11 +3184,8 @@ function createMemberAccordion(member, options) {
         colorSwatch.addEventListener("click", function () {
             colorInput.click();
         });
-        colorInput.addEventListener("input", function () {
-            draftValues.color = memberCssColor(colorInput.value);
-            paintColor();
-            updateSaveButtonState();
-        });
+        colorInput.addEventListener("input", commitPickerColor);
+        colorInput.addEventListener("change", commitPickerColor);
 
         queueMicrotask(function () {
             if (!cardDetails.isConnected || !document.body) {
@@ -3158,6 +3195,10 @@ function createMemberAccordion(member, options) {
             const removalObserver = new MutationObserver(function () {
                 if (!cardDetails.isConnected) {
                     releaseUnsavedAvatar();
+                    if (typeof detachChanges === "function") {
+                        detachChanges();
+                        detachChanges = null;
+                    }
                     document.removeEventListener("pointerdown", dismissSharing, true);
                     window.removeEventListener("resize", placeSharingList);
                     window.removeEventListener("scroll", placeSharingList, true);
@@ -3170,6 +3211,316 @@ function createMemberAccordion(member, options) {
 
     paintPreviewControls();
     updateSaveButtonState();
+    acceptColorEdits = true;
+
+    function surfaceIsModified(control) {
+        const marker = modifiedMarker();
+        return !!(control && control.classList && control.classList.contains(marker));
+    }
+
+    function textFieldIsModified(fieldName) {
+        const rowInfo = fieldRows[fieldName];
+        if (rowInfo && surfaceIsModified(rowInfo.value)) {
+            return true;
+        }
+        return !!(activeEdit && activeEdit.fieldName === fieldName && surfaceIsModified(activeEdit.editor));
+    }
+
+    function applyExternal(fields) {
+        if (!fields) {
+            return;
+        }
+
+        const refreshControls = [];
+        ["displayName", "pronouns", "description"].forEach(function (fieldName) {
+            if (!Object.prototype.hasOwnProperty.call(fields, fieldName) || !fieldRows[fieldName] || textFieldIsModified(fieldName)) {
+                return;
+            }
+
+            persistedValues[fieldName] = fields[fieldName];
+            draftValues[fieldName] = fields[fieldName];
+            fieldRows[fieldName].value.dataset.persistedValue = persistedValues[fieldName] || "";
+            fieldRows[fieldName].value.dataset.draftValue = draftValues[fieldName] || "";
+            updateStaticFieldDisplay(fieldName);
+            if (member && Object.prototype.hasOwnProperty.call(member, fieldName)) {
+                member[fieldName] = persistedValues[fieldName];
+            }
+            if (activeEdit && activeEdit.fieldName === fieldName) {
+                activeEdit.editor.value = draftValues[fieldName] || "";
+                if (fieldRows[fieldName].isLongText) {
+                    fitLongEditor(activeEdit.editor);
+                }
+                refreshControls.push(activeEdit.editor);
+            }
+            refreshControls.push(fieldRows[fieldName].value);
+        });
+
+        if (Object.prototype.hasOwnProperty.call(fields, "color") && !surfaceIsModified(colorSwatch) && !surfaceIsModified(colorInput)) {
+            persistedValues.color = fields.color;
+            draftValues.color = fields.color;
+            if (member) {
+                member.color = persistedValues.color;
+            }
+            refreshControls.push(colorSwatch, colorInput);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(fields, "fronting") && !surfaceIsModified(frontingButton)) {
+            persistedValues.fronting = fields.fronting;
+            draftValues.fronting = fields.fronting;
+            if (member) {
+                member.fronting = persistedValues.fronting;
+            }
+            refreshControls.push(frontingButton);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(fields, "permission") && !surfaceIsModified(permissionControl)) {
+            persistedValues.permission = fields.permission;
+            draftValues.permission = fields.permission;
+            if (permissionControl) {
+                refreshControls.push(permissionControl);
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(fields, "avatarObjectUrl") && !surfaceIsModified(avatarWrap) && !surfaceIsModified(avatarFile)) {
+            persistedValues.avatarObjectUrl = fields.avatarObjectUrl;
+            draftValues.avatarObjectUrl = fields.avatarObjectUrl;
+            if (member) {
+                member.avatarObjectUrl = persistedValues.avatarObjectUrl;
+            }
+            refreshControls.push(avatarWrap, avatarFile);
+        }
+
+        const visibilitySupplied = ["visibilityKnown", "visibilityInherit", "visibilityTypeId"].some(function (key) {
+            return Object.prototype.hasOwnProperty.call(fields, key);
+        });
+        if (visibilitySupplied && !surfaceIsModified(sharingButton)) {
+            ["visibilityKnown", "visibilityInherit", "visibilityTypeId"].forEach(function (key) {
+                if (Object.prototype.hasOwnProperty.call(fields, key)) {
+                    persistedValues[key] = fields[key];
+                    draftValues[key] = fields[key];
+                }
+            });
+            if (member && Object.prototype.hasOwnProperty.call(fields, "visibilityKnown")) {
+                member.visibilityKnown = persistedValues.visibilityKnown;
+            }
+            if (member && Object.prototype.hasOwnProperty.call(fields, "visibilityTypeId")) {
+                member.visibilityTypeId = persistedValues.visibilityTypeId;
+            }
+            refreshControls.push(sharingButton);
+        }
+
+        updateSummaryPreview();
+        paintPreviewControls();
+        const changes = changeTracking();
+        if (changes) {
+            changes.refreshSnapshots(cardDetails, refreshControls);
+        }
+    }
+
+    cardDetails.addEventListener("click", function (event) {
+        const changes = changeTracking();
+        if (!changes) {
+            return;
+        }
+
+        if (changes.blocks(cardDetails)) {
+            event.preventDefault();
+            event.stopPropagation();
+            const wasOpen = cardDetails.open;
+            cardDetails.dataset.pbLeave = wasOpen ? "1" : "0";
+            changes.requestLeave(function () {
+                delete cardDetails.dataset.pbLeave;
+                if (!cardDetails.isConnected) {
+                    return;
+                }
+                cardDetails.open = true;
+                window.setTimeout(function () {
+                    if (cardDetails.isConnected && !cardDetails.dataset.pbLeave) {
+                        cardDetails.open = true;
+                    }
+                }, 0);
+            }).then(function () {
+                delete cardDetails.dataset.pbLeave;
+            });
+            return;
+        }
+
+        const avatarSurface = event.target && event.target.closest
+            ? event.target.closest(".member-avatar-wrap")
+            : null;
+        if (avatarSurface && cardDetails.contains(avatarSurface)) {
+            const fileTarget = event.target.closest ? event.target.closest("input[type='file']") : null;
+            if (!fileTarget) {
+                event.preventDefault();
+            }
+            return;
+        }
+
+        const control = event.target && event.target.closest
+            ? event.target.closest("button, input, textarea, select, a, [role='option']")
+            : null;
+        if (control && cardDetails.contains(control)) {
+            return;
+        }
+
+        const summaryHit = event.target && event.target.closest
+            ? event.target.closest("summary")
+            : null;
+        if (summaryHit && cardDetails.contains(summaryHit) && cardDetails.open && changes.dirty(cardDetails)) {
+            event.preventDefault();
+            event.stopPropagation();
+            changes.requestLeave(function () {
+                if (cardDetails.isConnected) {
+                    cardDetails.open = true;
+                }
+            });
+        }
+    }, true);
+
+    cardDetails.addEventListener("focusin", function (event) {
+        const changes = changeTracking();
+        if (!changes || !changes.blocks(cardDetails) || changes.hasPending()) {
+            return;
+        }
+
+        if (event.target && typeof event.target.blur === "function") {
+            event.target.blur();
+        }
+        changes.requestLeave();
+    }, true);
+
+    profileControls = [
+        fieldRows.displayName.value,
+        fieldRows.pronouns.value,
+        fieldRows.description.value,
+        colorSwatch
+    ];
+
+    function profileFieldName(control) {
+        if (!control) {
+            return "";
+        }
+        if (control.dataset && control.dataset.memberProfileValue && fieldRows[control.dataset.memberProfileValue]) {
+            return control.dataset.memberProfileValue;
+        }
+        const fieldRow = control.closest ? control.closest("[data-member-profile-field]") : null;
+        const fieldName = fieldRow && fieldRow.dataset.memberProfileField;
+        return fieldName && fieldRows[fieldName] ? fieldName : "";
+    }
+
+    function readTracked(control) {
+        const fieldName = profileFieldName(control);
+        if (fieldName) {
+            return draftValues[fieldName];
+        }
+        if (control === colorSwatch || control === colorInput) {
+            return draftValues.color;
+        }
+        if (control === frontingButton) {
+            return draftValues.fronting;
+        }
+        if (control === sharingButton) {
+            return {
+                visibilityKnown: draftValues.visibilityKnown,
+                visibilityInherit: draftValues.visibilityInherit,
+                visibilityTypeId: draftValues.visibilityTypeId
+            };
+        }
+        if (permissionControl && control === permissionControl) {
+            return draftValues.permission;
+        }
+        if (control === avatarWrap || control === avatarFile) {
+            return draftValues.avatarObjectUrl;
+        }
+        if (control.type === "checkbox" || control.type === "radio") {
+            return control.checked;
+        }
+        return control.value;
+    }
+
+    function writeTracked(control, value) {
+        const fieldName = profileFieldName(control);
+        if (fieldName) {
+            draftValues[fieldName] = value || "";
+            if (activeEdit && activeEdit.fieldName === fieldName) {
+                closeActiveEditor(false);
+            }
+            fieldRows[fieldName].value.dataset.draftValue = draftValues[fieldName] || "";
+            updateStaticFieldDisplay(fieldName);
+            if (member && Object.prototype.hasOwnProperty.call(member, fieldName)) {
+                member[fieldName] = draftValues[fieldName];
+            }
+            updateSummaryPreview();
+            return;
+        }
+        if (control === colorSwatch || control === colorInput) {
+            draftValues.color = value;
+            if (member) {
+                member.color = value;
+            }
+            paintColor();
+            return;
+        }
+        if (control === frontingButton) {
+            draftValues.fronting = value === true || value === false ? value : null;
+            if (member) {
+                member.fronting = draftValues.fronting;
+            }
+            paintFronting();
+            return;
+        }
+        if (control === sharingButton && value) {
+            draftValues.visibilityKnown = value.visibilityKnown === true;
+            draftValues.visibilityInherit = value.visibilityInherit === true;
+            draftValues.visibilityTypeId = value.visibilityTypeId;
+            if (member) {
+                member.visibilityKnown = draftValues.visibilityKnown;
+                member.visibilityTypeId = draftValues.visibilityTypeId;
+            }
+            paintSharing();
+            return;
+        }
+        if (permissionControl && control === permissionControl) {
+            draftValues.permission = value || null;
+            if (typeof cardDetails.paintPermission === "function") {
+                cardDetails.paintPermission();
+            }
+            return;
+        }
+        if (control === avatarWrap || control === avatarFile) {
+            releaseUnsavedAvatar();
+            draftValues.avatarObjectUrl = value || null;
+            if (member) {
+                member.avatarObjectUrl = draftValues.avatarObjectUrl;
+            }
+            paintAvatar();
+            return;
+        }
+        if (control.type === "checkbox" || control.type === "radio") {
+            control.checked = !!value;
+            return;
+        }
+        if (control.type !== "file" && value !== undefined && value !== null) {
+            control.value = value;
+        }
+    }
+
+    const changeOwner = changeTracking();
+    if (changeOwner) {
+        detachChanges = changeOwner.attach({
+            container: cardDetails,
+            memberId: getMemberIdForSave(),
+            save: saveProfileChanges,
+            read: readTracked,
+            write: writeTracked,
+            persists: function (control) {
+                return profileControls.indexOf(control) >= 0 || !!profileFieldName(control);
+            },
+            applyExternal: applyExternal,
+            onChanged: renderChangeState
+        });
+        changeOwner.capture(cardDetails);
+    }
 
     return cardDetails;
 }
@@ -4488,22 +4839,6 @@ function getEventTargetElement(event) {
   return null;
 }
 
-async function allowMemberProfileLeave() {
-    const guard = window.PluralBridge && window.PluralBridge.memberProfileGuard
-        ? window.PluralBridge.memberProfileGuard
-        : null;
-
-    if (!guard || typeof guard.hasDirtyChanges !== "function" || !guard.hasDirtyChanges()) {
-        return true;
-    }
-
-    if (typeof guard.requestLeave !== "function") {
-        return false;
-    }
-
-    return await guard.requestLeave();
-}
-
 function clearPluralMapDisplay() {
     const navigatorView = window.PluralBridge && window.PluralBridge.navigator
         ? window.PluralBridge.navigator
@@ -4776,7 +5111,7 @@ if (loginForm) {
     });
 }
 
-document.addEventListener("click", async function (event) {
+document.addEventListener("click", function (event) {
     const targetElement = getEventTargetElement(event);
     const placeholderButton = targetElement
         ? targetElement.closest("[data-shell-placeholder]")
@@ -4809,13 +5144,6 @@ document.addEventListener("click", async function (event) {
 
     if (contractButton) {
         event.preventDefault();
-
-        const canLeave = await allowMemberProfileLeave();
-
-        if (!canLeave) {
-            return;
-        }
-
         renderContract(contractButton.dataset.contract);
         return;
     }
@@ -4826,12 +5154,6 @@ document.addEventListener("click", async function (event) {
 
     if (sessionButton) {
         event.preventDefault();
-
-        const canLeave = await allowMemberProfileLeave();
-
-        if (!canLeave) {
-            return;
-        }
 
         const action = sessionButton.dataset.sessionAction;
 

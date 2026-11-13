@@ -1,3 +1,9 @@
+-- SUPERSEDED 2026-11-13. Do not run this script.
+-- The 13 November 2026 catalog stores MembershipStatusId on dbo.pb_system_memberships
+-- and stores roles in dbo.pb_system_membership_roles. It does not store RoleId on the membership row.
+-- Anchor write roles are recorded in dbo.pb_object_membership_roles.
+-- This file is kept as the historical create script.
+
 SELECT DB_NAME() AS CurrentDatabase;
 GO
 

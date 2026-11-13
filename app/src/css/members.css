@@ -893,7 +893,14 @@
 	overflow-wrap: anywhere;
 }
 
+.member-profile-field-value-long,
+.member-profile-field-textarea {
+	box-sizing: border-box;
+	min-height: 8rem;
+}
+
 .member-profile-field-value-long {
+	display: block;
 	line-height: 1.22;
 	white-space: pre-wrap;
 }
@@ -966,7 +973,7 @@
 }
 
 .member-profile-field-textarea {
-	min-height: 8rem;
+	field-sizing: content;
 	resize: vertical;
 }
 
@@ -981,7 +988,9 @@
 
 .member-profile-action-row {
 	display: flex;
+	align-items: center;
 	justify-content: flex-end;
+	gap: 0.5rem;
 	margin-top: -0.25rem;
 }
 
@@ -998,9 +1007,27 @@
 		cursor: pointer;
 	}
 
-	.member-profile-save-button:disabled {
+	.member-profile-save-button:disabled,
+	.member-profile-cancel-button:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
+	}
+
+.member-profile-cancel-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.38rem 0.65rem;
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
+.member-profile-cancel-button[hidden] {
+	display: none;
+}
+
+	.member-profile-cancel-button:not(:disabled) {
+		cursor: pointer;
 	}
 
 .member-profile-json-details {
@@ -1014,61 +1041,6 @@
 		line-height: 1.05;
 		padding: 0.02rem 0;
 	}
-
-/* Unsaved-change modal */
-
-.member-profile-unsaved-dialog {
-	width: min(92vw, 26rem);
-	margin: auto;
-	padding: 1rem;
-	border: 1px solid var(--pb-accent-65);
-	border-radius: 0.8rem;
-	background: var(--pb-dialog-bg);
-	color: var(--pb-input-text);
-	box-shadow: 0 1.5rem 4rem var(--pb-scrim);
-}
-
-	.member-profile-unsaved-dialog::backdrop {
-		background: var(--pb-scrim);
-	}
-
-	.member-profile-unsaved-dialog[hidden] {
-		display: none;
-	}
-
-.member-profile-unsaved-message {
-	margin: 0 0 0.75rem;
-	color: var(--pb-warning);
-	font-weight: 800;
-	line-height: 1.35;
-}
-
-.member-profile-unsaved-actions {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-end;
-	gap: 0.4rem;
-}
-
-.member-profile-unsaved-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-height: 2rem;
-	border-radius: 0.5rem;
-	padding: 0.32rem 0.55rem;
-	font-size: 0.84rem;
-	line-height: 1.1;
-}
-
-	.member-profile-unsaved-button:disabled {
-		opacity: 0.45;
-		cursor: not-allowed;
-	}
-
-.member-profile-unsaved-status {
-	margin: 0.65rem 0 0;
-}
 
 .member-add-dialog {
 	width: min(68rem, calc(100vw - 2rem));
@@ -1792,6 +1764,7 @@
 }
 
 .member-card-preview .member-profile-field-row[data-member-profile-field="description"] {
+	align-items: start;
 	width: 100%;
 	grid-template-columns: minmax(5.5rem, 9rem) minmax(0, 1fr) max-content;
 }
@@ -1811,6 +1784,7 @@
 }
 
 .member-color-swatch {
+	position: relative;
 	width: 1.7rem;
 	height: 1.7rem;
 	border: 1px solid var(--pb-input-border);
@@ -1818,12 +1792,16 @@
 	cursor: pointer;
 }
 
-.member-card-preview .member-profile-save-button {
+.member-card-preview .member-profile-save-button,
+.member-card-preview .member-profile-cancel-button {
 	box-sizing: border-box;
-	flex: 0 0 11.5rem;
-	width: 11.5rem;
 	height: 2.75rem;
 	white-space: nowrap;
+}
+
+.member-card-preview .member-profile-save-button {
+	flex: 0 0 11.5rem;
+	width: 11.5rem;
 }
 
 @media (max-width: 720px) {
@@ -2260,4 +2238,65 @@
 .member-add-dialog .member-add-dialog-pencil:disabled,
 .member-add-dialog .member-add-dialog-save:disabled {
 	cursor: not-allowed;
+}
+
+.member-card-unsaved-indicator {
+	color: var(--pb-danger);
+	font-size: 0.75rem;
+	font-weight: 600;
+}
+
+.member-change-dialog {
+	border: 1px solid var(--pb-danger);
+	border-radius: 12px;
+	background: var(--pb-dialog-bg, var(--pb-card-bg, #111));
+	color: inherit;
+	width: max-content;
+	max-width: calc(100vw - 2rem);
+	padding: 1.25rem;
+}
+
+.member-change-dialog::backdrop {
+	background: var(--pb-scrim, rgba(0, 0, 0, 0.55));
+}
+
+.member-change-summary {
+	margin: 0 0 0.75rem;
+}
+
+.member-change-heading,
+.member-change-note,
+.member-change-status {
+	margin: 0 0 0.75rem;
+}
+
+.member-change-heading {
+	margin-bottom: 0;
+}
+
+.member-change-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.member-change-list li {
+	padding-left: 1em;
+}
+
+.member-change-note,
+.member-change-status.is-error {
+	color: var(--pb-danger);
+}
+
+.member-change-actions {
+	display: flex;
+	flex-wrap: nowrap;
+	gap: 0.5rem;
+}
+
+.member-change-button {
+	cursor: pointer;
+	flex: 0 0 auto;
+	white-space: nowrap;
 }

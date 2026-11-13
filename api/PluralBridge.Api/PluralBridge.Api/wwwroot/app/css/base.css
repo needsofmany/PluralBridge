@@ -109,3 +109,12 @@
 	--pb-card-bg: #e7eef8;
 	--pb-card-control-bg: #ffffff;
 }
+
+.pb-control-modified {
+	box-shadow: inset 0 0 0 2px #dc2626;
+}
+
+.pb-control-modified:focus-visible {
+	outline: 2px solid var(--pb-focus);
+	outline-offset: 2px;
+}

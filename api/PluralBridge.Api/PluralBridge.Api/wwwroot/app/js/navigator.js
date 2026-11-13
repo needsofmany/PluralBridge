@@ -295,8 +295,13 @@ window.PluralBridge.navigator = (function () {
         console.error(explanation);
     }
 
-    function memberCssColor(value) {
-        return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
+    function storedMemberColor(value) {
+        if (typeof value !== "string") {
+            return null;
+        }
+
+        const trimmed = value.trim();
+        return trimmed ? trimmed : null;
     }
 
     function canonicalVisibilityId(value) {
@@ -316,12 +321,18 @@ window.PluralBridge.navigator = (function () {
 
         return {
             memberId: profile ? profile.memberId : memberId,
-            displayName: preview ? preview.displayName : profile.displayName,
-            pronouns: preview ? preview.pronouns : profile.pronouns,
-            description: preview ? preview.description : profile.description,
+            displayName: preview && Object.prototype.hasOwnProperty.call(preview, "displayName")
+                ? preview.displayName
+                : profile.displayName,
+            pronouns: preview && Object.prototype.hasOwnProperty.call(preview, "pronouns")
+                ? preview.pronouns
+                : profile.pronouns,
+            description: preview && Object.prototype.hasOwnProperty.call(preview, "description")
+                ? preview.description
+                : profile.description,
             color: hasPreviewField("color")
-                ? memberCssColor(preview.color)
-                : memberCssColor(profile && profile.color),
+                ? storedMemberColor(preview.color)
+                : storedMemberColor(profile && profile.color),
             fronting: hasPreviewField("fronting")
                 ? preview.fronting
                 : (profile && (profile.isFronting === true || profile.isFronting === false)
@@ -393,18 +404,25 @@ window.PluralBridge.navigator = (function () {
             list.appendChild(createCard(profileForCard(profile, id, renderedAccountId), {
                 allowProfileEditing: true,
                 previewHeader: true,
-                saveProfile: function (saveRequest) {
+                saveProfile: async function (saveRequest) {
                     const membersApi = window.PluralBridge && window.PluralBridge.members
                         ? window.PluralBridge.members
                         : null;
-                    if (!membersApi || typeof membersApi.saveMemberProfilePreview !== "function") {
+                    if (!membersApi || typeof membersApi.saveMemberProfile !== "function") {
                         return {
                             saved: false,
                             status: "Member profile saving is not connected to an anchor-specific endpoint yet."
                         };
                     }
 
-                    return membersApi.saveMemberProfilePreview(renderedAccountId, id, saveRequest);
+                    const outcome = await membersApi.saveMemberProfile(renderedAccountId, id, {
+                        objectType: row.objectType,
+                        objectId: row.objectId
+                    }, saveRequest);
+                    if (outcome && outcome.persisted === true && outcome.profile) {
+                        reflectSharedMemberName(id, outcome.profile.displayName);
+                    }
+                    return outcome;
                 }
             }));
         });
@@ -650,6 +668,36 @@ window.PluralBridge.navigator = (function () {
         }
     }
 
+    function reflectSharedMemberName(memberId, displayName) {
+        const id = normalizeGuid(memberId);
+        if (!id) {
+            return;
+        }
+
+        const nextLabel = "Member: " + (displayName ? String(displayName) : "");
+        let changed = false;
+        rows.forEach(function (row) {
+            if (!row || row.objectType !== "member" || normalizeGuid(row.objectId) !== id) {
+                return;
+            }
+
+            if (typeof row.nodeLabel !== "string" || row.nodeLabel.indexOf("Member: ") !== 0 || row.nodeLabel === nextLabel) {
+                return;
+            }
+
+            row.nodeLabel = nextLabel;
+            changed = true;
+        });
+
+        if (!changed || !tree) {
+            return;
+        }
+
+        const top = tree.scrollTop;
+        renderTree();
+        tree.scrollTop = top;
+    }
+
     function renderTree() {
         if (!tree) {
             return;
@@ -664,26 +712,29 @@ window.PluralBridge.navigator = (function () {
         syncExpandAllButton();
     }
 
-    async function selectAnchor(row) {
+    function selectAnchor(row) {
         if (!isSelectable(row) || selectedPathKey === row.pathKey) {
             return;
         }
 
-        const selection = selectionGeneration + 1;
-        selectionGeneration = selection;
+        const generationAtRequest = selectionGeneration;
+        const proceed = function () {
+            if (selectionGeneration !== generationAtRequest || !isSelectable(row)) {
+                return;
+            }
 
-        let allowed = true;
-        if (typeof allowMemberProfileLeave === "function") {
-            allowed = await allowMemberProfileLeave();
-        }
-
-        if (!allowed || selection !== selectionGeneration || !isSelectable(row)) {
+            selectionGeneration += 1;
+            selectedPathKey = row.pathKey;
+            renderTree();
+            loadAnchorProfiles(row);
+        };
+        const changes = window.PluralBridge && window.PluralBridge.memberChanges;
+        if (changes && typeof changes.requestLeave === "function") {
+            changes.requestLeave(proceed);
             return;
         }
 
-        selectedPathKey = row.pathKey;
-        renderTree();
-        loadAnchorProfiles(row);
+        proceed();
     }
 
     function clear() {

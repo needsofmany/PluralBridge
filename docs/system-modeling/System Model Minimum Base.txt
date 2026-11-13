@@ -210,7 +210,7 @@ A top level group that contains two Systems
 This allows us to make a Group the same class as a System i.e. a different kind of anchor
 
 Account
-├── Group: Household
+├── Group: 	
 │   ├── Member: A
 │   ├── Member: E
 │   ├── Member: I

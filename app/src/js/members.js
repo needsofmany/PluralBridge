@@ -660,6 +660,26 @@ window.PluralBridge.members = (function () {
         return typeof value === "string" && value ? value : null;
     }
 
+    function assignColorPreview(record, previous, fields) {
+        const incoming = Boolean(fields) && Object.prototype.hasOwnProperty.call(fields, "color");
+        if (incoming) {
+            if (fields.color === null) {
+                record.color = null;
+                return;
+            }
+
+            const hex = explicitPreviewColor(fields.color);
+            if (hex) {
+                record.color = hex;
+            }
+            return;
+        }
+
+        if (previous && Object.prototype.hasOwnProperty.call(previous, "color")) {
+            record.color = previous.color;
+        }
+    }
+
     function assignExplicitPreview(record, previous, fields, key, explicitValue) {
         const source = fields && Object.prototype.hasOwnProperty.call(fields, key)
             ? fields
@@ -684,12 +704,17 @@ window.PluralBridge.members = (function () {
             return null;
         }
 
-        const record = {
-            displayName: preview.displayName,
-            pronouns: preview.pronouns,
-            description: preview.description
-        };
-        assignExplicitPreview(record, preview, null, "color", explicitPreviewColor);
+        const record = {};
+        if (Object.prototype.hasOwnProperty.call(preview, "displayName")) {
+            record.displayName = preview.displayName;
+        }
+        if (Object.prototype.hasOwnProperty.call(preview, "pronouns")) {
+            record.pronouns = preview.pronouns;
+        }
+        if (Object.prototype.hasOwnProperty.call(preview, "description")) {
+            record.description = preview.description;
+        }
+        assignColorPreview(record, preview, null);
         assignExplicitPreview(record, preview, null, "fronting", explicitPreviewFronting);
         assignVisibilityPreview(record, preview, null);
         assignPermissionPreview(record, preview, null);
@@ -733,7 +758,7 @@ window.PluralBridge.members = (function () {
             pronouns: fields && fields.pronouns ? String(fields.pronouns) : "",
             description: fields && fields.description ? String(fields.description) : ""
         };
-        assignExplicitPreview(record, previous, fields, "color", explicitPreviewColor);
+        assignColorPreview(record, previous, fields);
         assignExplicitPreview(record, previous, fields, "fronting", explicitPreviewFronting);
         assignVisibilityPreview(record, previous, fields);
         assignPermissionPreview(record, previous, fields);
@@ -746,6 +771,97 @@ window.PluralBridge.members = (function () {
             saved: true,
             status: "Preview only: member profile held in browser memory. Nothing was saved to the database."
         };
+    }
+
+    function forgetPersistedProfilePreview(accountId, memberId) {
+        const accountKey = profilePreviewKey(accountId);
+        const memberKey = profilePreviewKey(memberId);
+        const accountPreviews = accountKey ? memberProfilePreviewsByAccount[accountKey] : null;
+        const stored = accountPreviews && memberKey ? accountPreviews[memberKey] : null;
+        if (!stored) {
+            return;
+        }
+
+        delete stored.displayName;
+        delete stored.pronouns;
+        delete stored.description;
+        delete stored.color;
+
+        const remaining = Object.keys(stored).some(function (key) {
+            return stored[key] !== undefined;
+        });
+        if (!remaining) {
+            delete accountPreviews[memberKey];
+        }
+    }
+
+    async function saveMemberProfile(accountId, memberId, anchor, fields) {
+        if (databaseWritesAreDisabled()) {
+            return saveMemberProfilePreview(accountId, memberId, fields);
+        }
+
+        const objectType = anchor && anchor.objectType ? String(anchor.objectType) : "";
+        const objectId = anchor && anchor.objectId ? String(anchor.objectId) : "";
+        if (objectType !== "system" && objectType !== "group" && objectType !== "place") {
+            return {
+                saved: false,
+                status: "The selected anchor cannot authorize this member profile save."
+            };
+        }
+
+        if (!objectId) {
+            return {
+                saved: false,
+                status: "The selected anchor has no id, so this member profile was not saved."
+            };
+        }
+
+        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+        if (!apiClient || typeof apiClient.saveAnchorMemberProfile !== "function") {
+            return {
+                saved: false,
+                status: "Member profile saving is not available in the current browser session."
+            };
+        }
+
+        const body = {
+            anchorObjectType: objectType,
+            anchorObjectId: objectId,
+            displayName: fields ? fields.displayName : "",
+            pronouns: fields ? fields.pronouns : "",
+            description: fields ? fields.description : ""
+        };
+        if (fields && Object.prototype.hasOwnProperty.call(fields, "color")) {
+            body.color = fields.color;
+        }
+
+        try {
+            const payload = await apiClient.saveAnchorMemberProfile(memberId, body);
+            const profile = payload && payload.profile ? payload.profile : null;
+            if (!profile) {
+                return {
+                    saved: false,
+                    status: "The member profile save did not return the saved values."
+                };
+            }
+
+            forgetPersistedProfilePreview(accountId, memberId);
+            return {
+                saved: true,
+                persisted: true,
+                profile: profile,
+                status: "Member saved."
+            };
+        } catch (error) {
+            return {
+                saved: false,
+                status: error && error.message
+                    ? error.message
+                    : "Member could not be saved."
+            };
+        }
     }
 
     function createMemberAddForm(options) {
@@ -2930,6 +3046,7 @@ window.PluralBridge.members = (function () {
         previewAddMember: previewAddMember,
         readMemberProfilePreview: readMemberProfilePreview,
         saveMemberProfilePreview: saveMemberProfilePreview,
+        saveMemberProfile: saveMemberProfile,
         createMemberEditForm: createMemberEditForm
     };
 })();

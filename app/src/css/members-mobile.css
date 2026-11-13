@@ -117,6 +117,7 @@
 }
 
 .member-profile-field-row[data-member-profile-field="description"] {
+    align-items: start;
     grid-template-columns: minmax(0, 1fr) 1.45rem;
     width: 100%;
 }
@@ -166,4 +167,22 @@
     max-height: calc(100dvh - 5.75rem);
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+.member-change-dialog {
+    width: calc(100vw - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+}
+
+.member-change-actions {
+    flex-direction: column;
+}
+
+.member-change-button {
+    width: 100%;
+}
+
+.member-profile-field-value.pb-control-modified,
+.member-profile-field-value-long.pb-control-modified {
+    box-shadow: inset 0 0 0 2px #dc2626;
 }

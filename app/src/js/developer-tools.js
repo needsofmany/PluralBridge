@@ -1,6 +1,15 @@
-window.PluralBridge = window.PluralBridge || {};
-window.PluralBridge.developerTools = window.PluralBridge.developerTools || {};
+(function () {
+    window.PluralBridge = window.PluralBridge || {};
+    window.PluralBridge.developerTools = window.PluralBridge.developerTools || {};
 
-if (!Object.prototype.hasOwnProperty.call(window.PluralBridge.developerTools, "databaseWritesDisabled")) {
-    window.PluralBridge.developerTools.databaseWritesDisabled = true;
-}
+    function ensureDatabaseWritesEnabledByDefault(tools) {
+        if (!tools || Object.prototype.hasOwnProperty.call(tools, "databaseWritesDisabled")) {
+            return;
+        }
+
+        tools.databaseWritesDisabled = false;
+    }
+
+    ensureDatabaseWritesEnabledByDefault(window.PluralBridge.developerTools);
+    window.PluralBridge.developerTools.ensureDatabaseWritesEnabledByDefault = ensureDatabaseWritesEnabledByDefault;
+})();

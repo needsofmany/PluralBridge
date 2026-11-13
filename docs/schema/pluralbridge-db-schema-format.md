@@ -7,6 +7,11 @@ This documents the working SQL schema for:
 - `PluralBridgeChap2SafeSpine`
 
 Source snapshot came from the exported schema script you provided (`script.sql`).
+The 13 November 2026 catalog script is `PluralBridgeChap2SafeSpine-111326.sql`.
+Three later migrations, already executed and recorded under `scripts/sqlserver/Members/`, change that catalog:
+`001_create_pb_object_membership_roles.sql`, `002_nullable_system_id_members_groups_group_members.sql`, and `003_pb_member_write_audit_anchor_context.sql`.
+The notes below include those executed changes. The catalog file itself remains the pre-migration snapshot.
+`scripts/sqlserver/chap2_safe_spine/crosscut/create_pb_system_memberships.sql` is superseded and is kept as history. It still creates a `RoleId` column that the current membership table does not have.
 
 ## Record Tree Key
 
@@ -31,6 +36,7 @@ PluralBridgeChap2SafeSpine
 │  ├─ 🟢 pb_system_membership_statuses
 │  ├─ 🟢 pb_roles
 │  ├─ 🟠 pb_system_membership_roles
+│  ├─ 🟠 pb_object_membership_roles
 │  └─ 🟡 pb_system_relationships (single-root index conflict with multi-root goal)
 ├─ Member + Fronting + Privacy
 │  ├─ 🟢 pb_members
@@ -183,7 +189,7 @@ PluralBridgeChap2SafeSpine
 | Field | Type | Description |
 |---|---|---|
 | `GroupMemberId` | uniqueidentifier | Group-member link identifier (PK). |
-| `SystemId` | uniqueidentifier | Owning system FK. |
+| `SystemId` | uniqueidentifier | Owning system FK (nullable). Existing foreign key and `UQ_pb_group_members_SystemId_GroupId_MemberId` remain. |
 | `GroupId` | uniqueidentifier | Group FK. |
 | `MemberId` | uniqueidentifier | Member FK. |
 | `SourceGroupId` | nvarchar(128) | Source group identifier (nullable). |
@@ -195,7 +201,7 @@ PluralBridgeChap2SafeSpine
 | Field | Type | Description |
 |---|---|---|
 | `GroupId` | uniqueidentifier | Group identifier (PK). |
-| `SystemId` | uniqueidentifier | Owning system FK. |
+| `SystemId` | uniqueidentifier | Owning system FK (nullable). Existing foreign key remains. |
 | `SourceGroupId` | nvarchar(128) | Source group identifier (nullable). |
 | `ParentGroupId` | uniqueidentifier | Parent group FK (nullable). |
 | `ParentSourceGroupId` | nvarchar(128) | Parent source group id (nullable). |
@@ -230,20 +236,25 @@ PluralBridgeChap2SafeSpine
 | Field | Type | Description |
 |---|---|---|
 | `MemberWriteAuditId` | uniqueidentifier | Member write audit row id (PK). |
-| `SystemId` | uniqueidentifier | System FK. |
+| `SystemId` | uniqueidentifier | System FK (nullable). Existing `FK_pb_member_write_audit_systems` remains. |
 | `AccountId` | uniqueidentifier | Account FK. |
 | `SystemMembershipId` | uniqueidentifier | Membership FK (nullable). |
 | `MemberId` | uniqueidentifier | Member FK. |
 | `Operation` | nvarchar(32) | Operation (`member.add` or `member.edit`). |
 | `RequestTraceId` | nvarchar(100) | Request trace/correlation value (nullable). |
+| `AnchorObjectType` | nvarchar(64) | Selected anchor type (`system`, `group`, or `place`; nullable). |
+| `AnchorObjectId` | nvarchar(128) | Selected anchor id (nullable). |
 | `CreatedAtUtc` | datetime2(7) | Audit timestamp. |
+
+`CK_pb_member_write_audit_AnchorContext` requires the anchor type and id to be both absent or both present. When present, the type is `system`, `group`, or `place`, and the id is nonblank.
+`CK_pb_member_write_audit_RequiresContext` requires `SystemId` or both anchor columns. Both checks are enabled and trusted.
 
 ### [🟢] pb_members
 
 | Field | Type | Description |
 |---|---|---|
 | `MemberId` | uniqueidentifier | Member identifier (PK). |
-| `SystemId` | uniqueidentifier | Owning system FK. |
+| `SystemId` | uniqueidentifier | Owning system FK (nullable). Existing `FK_pb_members_pb_systems` remains. |
 | `DisplayName` | nvarchar(510) | Member display name. |
 | `Pronouns` | nvarchar(510) | Pronouns text (nullable). |
 | `Description` | nvarchar(max) | Description text (nullable). |
@@ -321,6 +332,16 @@ PluralBridgeChap2SafeSpine
 | `Description` | nvarchar(max) | Source description (nullable). |
 | `ApiBaseUrl` | nvarchar(2000) | Source API base URL (nullable). |
 | `CreatedAtUtc` | datetime2(3) | Row creation timestamp. |
+
+### [🟠] pb_object_membership_roles
+
+| Field | Type | Description |
+|---|---|---|
+| `ObjectMembershipId` | uniqueidentifier | Object membership FK (composite PK part). |
+| `RoleId` | int | Role FK (composite PK part). Reuses `pb_roles`, including `Owner`. |
+| `CreatedAtUtc` | datetime2(3) | Assignment timestamp. Default `sysutcdatetime()`. |
+
+`IX_pb_object_membership_roles_RoleId` indexes `RoleId`. Foreign keys reference `pb_object_memberships` and `pb_roles`. The executed copy placed the 21 existing system Owner assignments onto the matching object memberships.
 
 ### [🟠] pb_system_membership_roles
 

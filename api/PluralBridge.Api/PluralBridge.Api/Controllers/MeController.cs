@@ -267,6 +267,185 @@ public sealed class MeController(
 
 	private const string AnchorMemberProfilesEndpoint = "/api/me/anchor-member-profiles";
 
+	[HttpPut("anchor-member-profiles/{memberId:guid}")]
+	public async Task<IActionResult> SaveAnchorMemberProfile(
+		Guid memberId,
+		AnchorMemberProfileSaveRequest? request,
+		CancellationToken cancellationToken)
+	{
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+				? correlationId.ToString()
+				: null);
+		var endpoint = AnchorMemberProfilesEndpoint + "/" + memberId.ToString("D");
+
+		if (!AnchorMemberProfileSave.TryPrepare(request, out var prepared, out var validationError) || prepared is null)
+		{
+			return AnchorProfileSaveError(
+				StatusCodes.Status400BadRequest,
+				endpoint,
+				validationError ?? "The member profile could not be saved.",
+				memberId);
+		}
+
+		try
+		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using SqlConnection connection = new(connectionString);
+			await connection.OpenAsync(cancellationToken);
+
+			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
+			if (account is null)
+			{
+				requestTrace.LogStage(
+					logger,
+					nameof(LogStageParts.error_path),
+					nameof(LogStageParts.reached));
+
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint,
+					canWrite = true,
+					memberId,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			await AnchorMemberProfileSave.CreateGraphTablesAsync(connection, cancellationToken);
+
+			await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+			try
+			{
+				var traceId = requestTrace.TraceId;
+				if (traceId.Length > 100)
+				{
+					traceId = traceId[..100];
+				}
+
+				var profile = await AnchorMemberProfileSave.ExecuteAsync(
+					connection,
+					transaction,
+					account.AccountId,
+					memberId,
+					prepared,
+					traceId,
+					cancellationToken);
+
+				await transaction.CommitAsync(cancellationToken);
+
+				return Ok(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint,
+					canWrite = true,
+					memberId = profile.MemberId,
+					anchorObjectType = prepared.AnchorObjectType,
+					anchorObjectId = prepared.AnchorObjectId,
+					profile = new
+					{
+						memberId = profile.MemberId,
+						displayName = profile.DisplayName,
+						pronouns = profile.Pronouns,
+						description = profile.Description,
+						color = profile.Color,
+						updatedAtUtc = profile.UpdatedAtUtc
+					}
+				});
+			}
+			catch
+			{
+				try
+				{
+					await transaction.RollbackAsync(cancellationToken);
+				}
+				catch (Exception rollbackError) when (rollbackError is not OperationCanceledException)
+				{
+				}
+
+				throw;
+			}
+		}
+		catch (SqlException exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
+			return MapAnchorProfileSaveSqlError(exception, endpoint, memberId);
+		}
+		catch (Exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
+			return AnchorProfileSaveError(
+				StatusCodes.Status500InternalServerError,
+				endpoint,
+				"The member profile could not be saved.");
+		}
+	}
+
+	private IActionResult MapAnchorProfileSaveSqlError(SqlException exception, string endpoint, Guid memberId)
+	{
+		var message = exception.Number switch
+		{
+			AnchorMemberProfileSave.NoMembership => "No access membership exists for this account on the selected anchor.",
+			AnchorMemberProfileSave.MultipleMemberships => "More than one access membership matches this account and anchor.",
+			AnchorMemberProfileSave.InactiveMembership => "The access membership for this account on the selected anchor is not active.",
+			AnchorMemberProfileSave.OwnerRequired => "An active Owner role is required on the selected anchor.",
+			AnchorMemberProfileSave.MemberMissing => "The member was not found.",
+			AnchorMemberProfileSave.NotStructuralChild => "The member is not a structural child of the selected anchor.",
+			_ => null
+		};
+
+		if (message is null)
+		{
+			return AnchorProfileSaveError(
+				StatusCodes.Status500InternalServerError,
+				endpoint,
+				"The member profile could not be saved.");
+		}
+
+		var status = exception.Number == AnchorMemberProfileSave.MemberMissing
+			? StatusCodes.Status404NotFound
+			: StatusCodes.Status403Forbidden;
+
+		return AnchorProfileSaveError(status, endpoint, message, memberId);
+	}
+
+	private ObjectResult AnchorProfileSaveError(int statusCode, string endpoint, string error, Guid? memberId = null)
+	{
+		return StatusCode(statusCode, new
+		{
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint,
+			canWrite = true,
+			memberId,
+			error
+		});
+	}
+
 	[HttpGet("anchor-member-profiles")]
 	public async Task<IActionResult> GetAnchorMemberProfiles(
 		[FromQuery] string? objectType,

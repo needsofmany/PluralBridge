@@ -89,6 +89,44 @@ window.PluralBridge.apiClient = (function () {
         });
     }
 
+    async function saveAnchorMemberProfile(memberId, memberRequest) {
+        if (!memberId) {
+            throw new Error("Member ID is required for member edit.");
+        }
+
+        const response = await fetch(apiUrl("/api/me/anchor-member-profiles/" + encodeURIComponent(memberId)), {
+            method: "PUT",
+            credentials: "same-origin",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(memberRequest || {})
+        });
+
+        const responseText = await response.text();
+        let payload = null;
+
+        if (responseText) {
+            try {
+                payload = JSON.parse(responseText);
+            } catch (parseError) {
+                payload = null;
+            }
+        }
+
+        if (!response.ok) {
+            const message = payload && payload.error
+                ? String(payload.error)
+                : "Member could not be saved.";
+            const error = new Error(message);
+            error.status = response.status;
+            throw error;
+        }
+
+        return payload;
+    }
+
     async function editMember(memberId, memberRequest) {
         const systemId = await getCurrentSystemId();
 
@@ -111,6 +149,7 @@ window.PluralBridge.apiClient = (function () {
     client.readMembers = readMembers;
     client.readAnchorMemberProfiles = readAnchorMemberProfiles;
     client.addMember = addMember;
+    client.saveAnchorMemberProfile = saveAnchorMemberProfile;
     client.editMember = editMember;
 
     return client;

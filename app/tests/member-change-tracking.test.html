@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Member change tracking</title>
+    <link rel="stylesheet" href="../src/css/base.css">
+    <link rel="stylesheet" href="../src/css/members.css">
+</head>
+<body>
+    <div id="appOutput"></div>
+    <div id="sessionStatus"></div>
+    <div id="host"></div>
+    <pre id="result">RUNNING</pre>
+    <script src="../src/js/developer-tools.js"></script>
+    <script src="../src/js/member-change-tracking.js"></script>
+    <script>
+        window.PluralBridge = window.PluralBridge || {};
+        window.PluralBridge.members = {
+            policyChoices: function () {
+                return [
+                    { id: "", label: "Not set" },
+                    { id: "Editor", label: "Editor" }
+                ];
+            },
+            createPolicyDropdown: function (options) {
+                var select = document.createElement("select");
+                select.className = "member-policy-button";
+                options.choices.forEach(function (choice) {
+                    var option = document.createElement("option");
+                    option.value = choice.id;
+                    option.textContent = choice.label;
+                    select.appendChild(option);
+                });
+                select.value = options.getValue() || "";
+                select.addEventListener("change", function () {
+                    options.setValue(select.value);
+                });
+                return {
+                    root: select,
+                    refresh: function () {
+                        select.value = options.getValue() || "";
+                    }
+                };
+            }
+        };
+    </script>
+    <script src="../src/js/legacy-app.js"></script>
+    <script>
+        (function () {
+            var failures = [];
+            var requests = [];
+            var nextOutcome = null;
+            var releaseSave = null;
+            var host = document.getElementById("host");
+            var changes = window.PluralBridge.changeTracking;
+
+            function check(condition, message) {
+                if (!condition) {
+                    failures.push(message);
+                }
+            }
+
+            function tick() {
+                return new Promise(function (resolve) {
+                    window.setTimeout(resolve, 0);
+                });
+            }
+
+            function member(id, name) {
+                return {
+                    memberId: id,
+                    displayName: name,
+                    pronouns: "she/her",
+                    description: "First",
+                    color: "navy"
+                };
+            }
+
+            function persistedProfile(request) {
+                return {
+                    saved: true,
+                    persisted: true,
+                    status: "Member saved.",
+                    profile: {
+                        displayName: request.displayName,
+                        pronouns: request.pronouns,
+                        description: request.description,
+                        color: Object.prototype.hasOwnProperty.call(request, "color") ? request.color : "navy"
+                    }
+                };
+            }
+
+            window.PluralBridge.saveProfile = function (request) {
+                requests.push(JSON.parse(JSON.stringify(request)));
+                if (releaseSave) {
+                    var release = releaseSave;
+                    releaseSave = null;
+                    return release.promise.then(function () {
+                        return nextOutcome || persistedProfile(request);
+                    });
+                }
+                if (nextOutcome) {
+                    var outcome = nextOutcome;
+                    nextOutcome = null;
+                    return Promise.resolve(outcome);
+                }
+                return Promise.resolve(persistedProfile(request));
+            };
+
+            function makeCard(record, open) {
+                var card = window.PluralBridge.createMemberAccordion(record, {
+                    previewHeader: true,
+                    allowProfileEditing: true,
+                    saveProfile: window.PluralBridge.saveProfile
+                });
+                card.open = open !== false;
+                host.appendChild(card);
+                return card;
+            }
+
+            function row(card, label) {
+                return Array.prototype.find.call(card.querySelectorAll(".member-profile-field-row"), function (item) {
+                    var text = item.querySelector(".member-profile-field-label");
+                    return text && text.textContent === label;
+                });
+            }
+
+            function typeField(card, label, value) {
+                var field = row(card, label);
+                field.querySelector(".member-profile-field-edit-button").click();
+                var editor = field.querySelector(".member-profile-field-editor");
+                editor.value = value;
+                editor.dispatchEvent(new Event("input", { bubbles: true }));
+                return editor;
+            }
+
+            function dialog() {
+                return document.querySelector("dialog.member-change-dialog");
+            }
+
+            async function openLeave(target) {
+                target.querySelector(".member-name").click();
+                await tick();
+                await tick();
+                return dialog();
+            }
+
+            function buttonNamed(name) {
+                return Array.prototype.find.call(dialog().querySelectorAll("button"), function (button) {
+                    return button.textContent === name;
+                });
+            }
+
+            function press(name) {
+                var prompt = dialog();
+                if (!prompt || !prompt.open) {
+                    failures.push("pressed " + name + " while the dialog was closed");
+                    return;
+                }
+                var button = buttonNamed(name);
+                button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+                button.click();
+            }
+
+            async function run() {
+                var tools = window.PluralBridge.developerTools;
+                check(tools.databaseWritesDisabled === false, "writes default to enabled");
+                var explicit = { databaseWritesDisabled: true };
+                tools.ensureDatabaseWritesEnabledByDefault(explicit);
+                check(explicit.databaseWritesDisabled === true, "explicit write disable is preserved");
+                var fresh = {};
+                tools.ensureDatabaseWritesEnabledByDefault(fresh);
+                check(fresh.databaseWritesDisabled === false, "missing write flag defaults to enabled");
+                check(!changes.bits && typeof changes.modified === "function" && typeof changes.clear === "function",
+                    "tracking exposes control discovery without bit constants");
+
+                var ada = member("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "Ada");
+                var card = makeCard(ada, true);
+                var other = makeCard(member("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "Bea"), false);
+                await tick();
+                check(!changes.dirty(card), "programmatic render leaves the card clean");
+                check(!card.classList.contains("member-card-unsaved"), "clean card has no red-frame class");
+
+                var nameRow = row(card, "Name");
+                nameRow.querySelector(".member-profile-field-edit-button").click();
+                var nameEditor = nameRow.querySelector(".member-profile-field-editor");
+                nameEditor.dispatchEvent(new Event("focus", { bubbles: true }));
+                nameEditor.blur();
+                await tick();
+                check(!changes.dirty(card), "focus and blur without input do not mark a control");
+
+                card.querySelector(".member-card-sharing").click();
+                check(!changes.dirty(card), "opening the visibility menu does not mark a control");
+
+                typeField(card, "Name", "Ada!");
+                var nameEditor = row(card, "Name").querySelector(".member-profile-field-editor");
+                check(nameEditor && nameEditor.classList.contains(changes.modifiedClass), "name input marks the name editor");
+                check(!nameRow.classList.contains(changes.modifiedClass), "the name row is not marked");
+                typeField(card, "Name", "Ada");
+                check(row(card, "Name").querySelector(".member-profile-field-editor").classList.contains(changes.modifiedClass), "restoring the original name leaves Name marked");
+                check(!card.querySelector(".member-profile-save-button").disabled, "a marked control enables Save");
+
+                var pronounsRow = row(card, "Pronouns");
+                typeField(card, "Pronouns", "they/them");
+                check(pronounsRow.querySelector(".member-profile-field-editor").classList.contains(changes.modifiedClass), "pronouns input marks the pronouns editor");
+                check(!pronounsRow.classList.contains(changes.modifiedClass), "the pronouns row is not marked");
+                typeField(card, "Pronouns", "she/her");
+                check(pronounsRow.querySelector(".member-profile-field-editor").classList.contains(changes.modifiedClass), "restoring pronouns leaves Pronouns marked");
+                check(!dialog() || !dialog().open, "moving to another control on the same card does not prompt");
+
+                typeField(card, "Description", "Changed");
+                check(row(card, "Description").querySelector(".member-profile-field-editor").classList.contains(changes.modifiedClass), "description input marks the description editor");
+                check(!row(card, "Description").classList.contains(changes.modifiedClass), "the description row is not marked");
+
+                var color = card.querySelector("input[type='color']");
+                var colorSwatch = card.querySelector(".member-color-swatch");
+                var originalPicker = color.value;
+                color.value = "#112233";
+                color.dispatchEvent(new Event("input", { bubbles: true }));
+                check(colorSwatch.classList.contains(changes.modifiedClass), "color input marks the visible color swatch");
+                check(!color.classList.contains(changes.modifiedClass), "the hidden color input is not marked");
+                color.value = originalPicker;
+                color.dispatchEvent(new Event("input", { bubbles: true }));
+                check(colorSwatch.classList.contains(changes.modifiedClass), "restoring the original color leaves the swatch marked");
+
+                var visibility = Array.prototype.find.call(card.querySelectorAll(".member-sharing-option"), function (option) {
+                    return option.textContent.indexOf("Only you") >= 0;
+                });
+                visibility.click();
+                check(card.querySelector(".member-card-sharing").classList.contains(changes.modifiedClass), "visibility selection marks the visible trigger");
+
+                var permission = card.querySelector(".member-policy-button");
+                permission.value = "Editor";
+                permission.dispatchEvent(new Event("change", { bubbles: true }));
+                check(permission.classList.contains(changes.modifiedClass), "permission selection marks the visible trigger");
+
+                card.querySelector(".member-card-fronting").click();
+                check(card.querySelector(".member-card-fronting").classList.contains(changes.modifiedClass), "fronting click marks the visible control");
+
+                var avatar = card.querySelector("input[type='file']");
+                var avatarFrame = card.querySelector(".member-avatar-wrap");
+                avatar.dispatchEvent(new Event("change", { bubbles: true }));
+                check(!avatar.classList.contains(changes.modifiedClass) && !avatarFrame.classList.contains(changes.modifiedClass), "an empty file change does not mark Avatar");
+                var file = new File(["avatar"], "ada.png", { type: "image/png" });
+                var transfer = new DataTransfer();
+                transfer.items.add(file);
+                avatar.files = transfer.files;
+                avatar.dispatchEvent(new Event("change", { bubbles: true }));
+                check(avatarFrame.classList.contains(changes.modifiedClass), "choosing an avatar marks the avatar frame");
+                check(!avatar.classList.contains(changes.modifiedClass), "the hidden avatar input is not marked");
+
+                typeField(card, "Pronouns", "she/her");
+                check(!dialog() || !dialog().open, "another same-card edit does not prompt");
+                check(!card.classList.contains("member-card-unsaved"), "modified controls do not frame the card");
+                check(card.querySelector(".member-card-unsaved-indicator").hidden === false, "unsaved indicator is visible");
+                check(card.querySelector(".member-card-unsaved-indicator").textContent === "Unsaved changes", "indicator text");
+
+                var nameValue = row(card, "Name").querySelector(".member-profile-field-value");
+                function dangerShadow(element) {
+                    return getComputedStyle(element).boxShadow;
+                }
+                document.documentElement.setAttribute("data-theme", "light");
+                var lightShadow = dangerShadow(nameValue);
+                var lightCard = dangerShadow(card);
+                document.documentElement.removeAttribute("data-theme");
+                var darkShadow = dangerShadow(nameValue);
+                var darkCard = dangerShadow(card);
+                check(lightShadow.indexOf("220, 38, 38") >= 0 && lightShadow.indexOf("inset") >= 0, "light theme draws an explicit red mark inside the control");
+                check(darkShadow.indexOf("220, 38, 38") >= 0 && darkShadow.indexOf("inset") >= 0, "dark theme draws an explicit red mark inside the control");
+                check(lightCard.indexOf("220, 38, 38") < 0 && darkCard.indexOf("220, 38, 38") < 0, "the card itself has no red frame");
+
+                var prompt = await openLeave(other);
+                check(prompt && prompt.open, "leaving opens the dialog");
+                check(other.open === false, "a closed destination stays closed before resolution");
+                check(card.open === true, "the current card stays expanded before resolution");
+                check(prompt.querySelector(".member-change-heading").textContent === "Changed:",
+                    "Changed: stands on its own line");
+                var changedItems = prompt.querySelectorAll(".member-change-list li");
+                var changedNames = Array.prototype.map.call(changedItems, function (item) {
+                    return item.textContent;
+                });
+                check(changedNames.join(", ") === changes.names(card).join(", "),
+                    "changed-field list follows the marked controls");
+                var itemIndent = changedItems.length ? getComputedStyle(changedItems[0]).paddingLeft : "";
+                check(changedItems.length > 1 && Array.prototype.every.call(changedItems, function (item) {
+                    return getComputedStyle(item).paddingLeft === itemIndent && parseFloat(itemIndent) > 0;
+                }), "each changed field is indented on its own line");
+                var changeActions = prompt.querySelector(".member-change-actions");
+                check(prompt.querySelector(".member-change-list").compareDocumentPosition(changeActions) & Node.DOCUMENT_POSITION_FOLLOWING,
+                    "the buttons stay together below the changed-field list");
+                check(getComputedStyle(changeActions).flexDirection === "row" && getComputedStyle(changeActions).flexWrap === "nowrap",
+                    "desktop dialog buttons share one row");
+                check(changes.names(card).join(", ") === "Choose an avatar image, Visibility, Permissions, Fronting, Name, Pronouns, Description, Member color",
+                    "changed names come from labels and accessible names");
+                check(buttonNamed("Save changes") && buttonNamed("Discard changes") && buttonNamed("Keep editing"),
+                    "dialog buttons");
+
+                press("Keep editing");
+                await tick();
+                check(!dialog() || !dialog().open, "Keep editing closes the dialog");
+                check(other.open === false, "Keep editing cancels navigation");
+                check(changes.dirty(card), "Keep editing preserves the marked controls");
+
+                prompt = await openLeave(other);
+                prompt.dispatchEvent(new Event("cancel", { cancelable: true }));
+                await tick();
+                check(!dialog().open, "dismissal closes the dialog");
+                check(changes.dirty(card), "dismissal preserves the marked controls");
+                prompt = await openLeave(other);
+                check(prompt.open, "a later leave opens a fresh dialog");
+
+                nextOutcome = { saved: false, status: "The profile was not saved." };
+                var beforeFailure = requests.length;
+                press("Save changes");
+                await tick();
+                await tick();
+                check(dialog().open, "failed Save keeps the dialog open");
+                check(dialog().querySelector(".member-change-status").textContent === "The profile was not saved.",
+                    "failed Save shows the error");
+                check(changes.dirty(card), "failed Save preserves the marked controls");
+                check(requests.length === beforeFailure + 1, "failed Save used the save operation");
+
+                press("Save changes");
+                await tick();
+                await tick();
+                check(dialog().open, "partial Save keeps the dialog open");
+                check(dialog().querySelector(".member-change-note").textContent ===
+                    "Not saved yet: Choose an avatar image, Visibility, Permissions, Fronting. Discard changes or keep editing.",
+                    "partial Save explains the fields that remain");
+                check(!nameRow.querySelector(".member-profile-field-value").classList.contains(changes.modifiedClass) && !card.querySelector(".member-color-swatch").classList.contains(changes.modifiedClass),
+                    "persistent Save clears only the saved profile controls");
+                check(card.querySelector(".member-card-fronting").classList.contains(changes.modifiedClass), "Fronting stays marked");
+                check(Object.prototype.hasOwnProperty.call(requests[requests.length - 1], "color"),
+                    "an explicit color edit is submitted");
+                check(!Object.prototype.hasOwnProperty.call(requests[requests.length - 1], "fronting") ||
+                    requests[requests.length - 1].fronting !== undefined,
+                    "fronting stays in the draft");
+                var remainingRequests = requests.length;
+                press("Save changes");
+                await tick();
+                check(requests.length === remainingRequests, "Save changes is unavailable once profile controls are clear");
+                check(buttonNamed("Save changes").disabled, "dialog Save is disabled for marked controls the API does not save");
+                check(!buttonNamed("Discard changes").disabled && !buttonNamed("Keep editing").disabled,
+                    "Discard and Keep editing remain available");
+
+                press("Discard changes");
+                await tick();
+                check(!changes.dirty(card), "Discard clears the modification markers");
+                check(!card.classList.contains("member-card-unsaved"), "Discard removes the red frame");
+                check(other.open === true, "Discard completes the pending navigation");
+                check(card.querySelector(".member-name").textContent === "Ada", "Discard restores the saved name");
+
+                typeField(card, "Name", "Ada Two");
+                card.querySelector(".member-card-fronting").click();
+                other.open = false;
+                prompt = await openLeave(other);
+                press("Save changes");
+                await tick();
+                await tick();
+                check(dialog().querySelector(".member-change-note").textContent ===
+                    "Not saved yet: Fronting. Discard changes or keep editing.",
+                    "name-plus-fronting Save leaves Fronting unsaved");
+                check(!Object.prototype.hasOwnProperty.call(requests[requests.length - 1], "color"),
+                    "an unrelated save omits color");
+                press("Discard changes");
+                await tick();
+
+                var scrollHost = document.createElement("div");
+                scrollHost.style.cssText = "height:70px; overflow:auto";
+                var tall = document.createElement("div");
+                tall.style.height = "500px";
+                host.appendChild(scrollHost);
+                var cycle = makeCard(member("cccccccc-cccc-cccc-cccc-cccccccccccc", "Cara"), true);
+                scrollHost.appendChild(cycle);
+                scrollHost.appendChild(tall);
+                scrollHost.scrollTop = 24;
+                typeField(cycle, "Name", "Cara Two");
+                var hold = {};
+                hold.promise = new Promise(function (resolve) {
+                    hold.resolve = resolve;
+                });
+                releaseSave = hold;
+                cycle.querySelector(".member-profile-save-button").click();
+                await tick();
+                check(cycle.querySelector(".member-profile-field-edit-button").disabled, "saving blocks editing");
+                check(cycle.querySelector(".member-profile-save-button").disabled, "saving blocks a duplicate Save");
+                check(cycle.querySelector(".member-profile-cancel-button").disabled, "saving disables Cancel");
+                cycle.querySelector(".member-profile-save-button").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+                check(requests.length === remainingRequests + 2, "a second Save does not start another request");
+                hold.resolve();
+                releaseSave = null;
+                await tick();
+                await tick();
+                check(cycle.open === true, "direct Save keeps the card expanded");
+                check(scrollHost.scrollTop === 24, "direct Save preserves scroll position");
+                check(!changes.dirty(cycle), "successful direct Save clears the saved controls");
+                check(!cycle.classList.contains("member-card-unsaved"), "successful direct Save leaves the card unframed");
+
+                typeField(cycle, "Name", "Cara Three");
+                var destination = makeCard(member("dddddddd-dddd-dddd-dddd-dddddddddddd", "Dina"), true);
+                prompt = await openLeave(destination);
+                check(destination.open === true, "an already-open destination stays open");
+                check(cycle.open === true, "the dirty card stays open when the destination is already open");
+                press("Save changes");
+                await tick();
+                await tick();
+                check(!dialog() || !dialog().open, "dialog Save completes navigation after a full profile save");
+                check(!changes.dirty(cycle), "dialog Save clears the saved profile controls");
+
+                typeField(cycle, "Name", "Cara Four");
+                destination.open = false;
+                prompt = await openLeave(destination);
+                press("Discard changes");
+                await tick();
+                check(destination.open === true, "a second leave cycle can discard");
+                check(!changes.dirty(cycle), "the second discard clears the new edit");
+
+                typeField(cycle, "Name", "Cara Five");
+                destination.open = false;
+                prompt = await openLeave(destination);
+                press("Keep editing");
+                await tick();
+                prompt = await openLeave(destination);
+                check(prompt.open, "a leave after Keep editing opens another dialog");
+                press("Discard changes");
+                await tick();
+
+                cycle.open = true;
+                typeField(cycle, "Name", "Cara Six");
+                cycle.querySelector(".member-name").click();
+                await tick();
+                await tick();
+                check(dialog() && dialog().open && cycle.open === true, "closing the dirty card prompts and stays expanded");
+                press("Discard changes");
+                await tick();
+                check(cycle.open === true, "Discard from a same-card close keeps the card expanded");
+                check(!changes.dirty(cycle), "same-card Discard clears the markers");
+
+                var sharedId = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+                var first = makeCard(member(sharedId, "Eve"), true);
+                var second = makeCard(member(sharedId, "Eve"), true);
+                var third = makeCard(member(sharedId, "Eve"), true);
+                typeField(first, "Name", "Eve Two");
+                first.querySelector(".member-profile-save-button").click();
+                await tick();
+                await tick();
+                check(second.querySelector(".member-name").textContent === "Eve Two", "shared cards receive the saved name");
+                check(!changes.dirty(second) && !changes.dirty(third), "shared updates do not create edits");
+                var localEditor = typeField(second, "Name", "Local draft");
+                localEditor.focus();
+                localEditor.blur();
+                await tick();
+                changes.publishShared(sharedId, { displayName: "Eve Three", color: "#abcdef" }, first);
+                check(second.querySelector(".member-name").textContent === "Local draft", "a dirty shared card keeps its draft");
+                check(third.querySelector(".member-name").textContent === "Eve Three", "a clean shared card receives the published name");
+                check(!changes.dirty(third), "a published update does not mark controls");
+                second.querySelector(".member-name").click();
+                await tick();
+                await tick();
+                press("Discard changes");
+                await tick();
+                check(second.querySelector(".member-name").textContent === "Eve Two", "Discard restores the saved shared name");
+
+                var snapshotId = "abababab-abab-abab-abab-abababababab";
+                var source = makeCard(member(snapshotId, "Eve"), true);
+                var clean = makeCard(member(snapshotId, "Eve"), true);
+                var edited = makeCard(member(snapshotId, "Eve"), true);
+                var held = makeCard(member(snapshotId, "Eve"), true);
+                typeField(source, "Name", "Eve Two");
+                source.querySelector(".member-profile-save-button").click();
+                await tick();
+                await tick();
+                check(clean.querySelector(".member-name").textContent === "Eve Two", "a clean occurrence shows the saved name");
+                check(!changes.dirty(clean), "a shared name update does not mark the clean occurrence");
+                typeField(clean, "Name", "Temporary");
+                clean.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(clean.querySelector(".member-name").textContent === "Eve Two", "Cancel restores the saved shared name");
+                check(!changes.dirty(clean), "Cancel clears the marker after a shared update");
+
+                typeField(edited, "Name", "Temporary");
+                var snapshotDestination = makeCard(member("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd", "Ora"), false);
+                prompt = await openLeave(snapshotDestination);
+                press("Discard changes");
+                await tick();
+                check(edited.querySelector(".member-name").textContent === "Eve Two", "Discard changes restores the saved shared name");
+                check(!changes.dirty(edited), "Discard changes clears the marker after a shared update");
+
+                row(held, "Name").querySelector(".member-profile-field-edit-button").click();
+                await tick();
+                var heldEditor = row(held, "Name").querySelector(".member-profile-field-editor");
+                check(heldEditor && heldEditor.value === "Eve Two" && !changes.dirty(held), "an open editor shows the saved name without a marker");
+                typeField(source, "Name", "Eve Four");
+                source.querySelector(".member-profile-save-button").click();
+                await tick();
+                await tick();
+                check(heldEditor.value === "Eve Four" && !changes.dirty(held), "a shared update refreshes an unmodified open editor");
+                heldEditor.value = "Nope";
+                heldEditor.dispatchEvent(new Event("input", { bubbles: true }));
+                held.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(held.querySelector(".member-name").textContent === "Eve Four", "Cancel restores the name saved while the editor was open");
+
+                typeField(clean, "Name", "Local draft");
+                var cleanName = row(clean, "Name").querySelector(".member-profile-field-editor");
+                changes.publishShared(snapshotId, { displayName: "Eve Five" }, source);
+                check(cleanName.value === "Local draft", "a shared update does not overwrite a modified name");
+                clean.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(clean.querySelector(".member-name").textContent === "Eve Four", "Cancel keeps the baseline from before the modified edit");
+
+                var colorCard = makeCard(member(snapshotId, "Eve Four"), true);
+                changes.publishShared(snapshotId, { color: "#123456" }, source);
+                check(!changes.dirty(colorCard), "a shared hex color does not mark the clean card");
+                check(!colorCard.querySelector(".member-color-strip").classList.contains("is-generated"), "a shared hex color is shown");
+                var colorInput = colorCard.querySelector("input[type='color']");
+                colorInput.value = "#abcdef";
+                colorInput.dispatchEvent(new Event("input", { bubbles: true }));
+                changes.publishShared(snapshotId, { color: null }, source);
+                check(colorInput.value === "#abcdef", "a shared update does not overwrite a modified color");
+                colorCard.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(colorInput.value.toLowerCase() === "#123456", "Cancel restores the shared hex color");
+                changes.publishShared(snapshotId, { color: null }, source);
+                check(!changes.dirty(colorCard) && colorCard.querySelector(".member-color-strip").classList.contains("is-generated"), "a shared null color clears the explicit color without a marker");
+                colorInput.value = "#112233";
+                colorInput.dispatchEvent(new Event("input", { bubbles: true }));
+                colorCard.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(colorCard.querySelector(".member-color-strip").classList.contains("is-generated"), "Cancel restores a null color");
+                changes.publishShared(snapshotId, { color: "navy" }, source);
+                check(!changes.dirty(colorCard), "refreshing a non-hex color does not mark the card");
+                colorInput.value = "#445566";
+                colorInput.dispatchEvent(new Event("input", { bubbles: true }));
+                colorCard.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(colorCard.querySelector(".member-color-strip").classList.contains("is-generated"), "Cancel restores the non-hex color instead of the picked hex");
+
+                typeField(card, "Name", "");
+                check(card.querySelector(".member-profile-save-button").disabled, "a blank name disables Save");
+                other.open = false;
+                prompt = await openLeave(other);
+                press("Save changes");
+                await tick();
+                await tick();
+                check(dialog().querySelector(".member-change-status").textContent === "Name is required.",
+                    "blank name is reported and does not clear the mask");
+                check(changes.names(card).indexOf("Name") >= 0, "blank name keeps the Name marker");
+                press("Discard changes");
+                await tick();
+
+                function cancelOf(target) {
+                    return target.querySelector(".member-profile-cancel-button");
+                }
+
+                var cancelHost = document.createElement("div");
+                cancelHost.style.cssText = "height:70px; overflow:auto";
+                var cancelTall = document.createElement("div");
+                cancelTall.style.height = "500px";
+                host.appendChild(cancelHost);
+                var cancelCard = makeCard(member("12121212-1212-1212-1212-121212121212", "Nia"), true);
+                cancelHost.appendChild(cancelCard);
+                cancelHost.appendChild(cancelTall);
+                cancelHost.scrollTop = 24;
+                var cancel = cancelOf(cancelCard);
+                check(cancel && cancel.type === "button", "Cancel is a button");
+                check(cancel.hidden === true, "Cancel is hidden while the card is clean");
+
+                typeField(cancelCard, "Name", "Nia Two");
+                check(cancel.hidden === false && cancel.disabled === false, "Cancel appears after an ordinary edit");
+                cancel.click();
+                await tick();
+                check(cancelCard.open === true, "Cancel keeps the card expanded");
+                check(cancelHost.scrollTop === 24, "Cancel preserves scroll position");
+                check(cancel.hidden === true, "Cancel hides after restoring an ordinary edit");
+                check(!changes.dirty(cancelCard), "Cancel clears modification markers");
+                check(cancelCard.querySelector(".member-card-unsaved-indicator").hidden === true, "Cancel clears Unsaved changes");
+                check(cancelCard.querySelector(".member-name").textContent === "Nia", "Cancel restores the saved name");
+                check(!dialog() || !dialog().open, "Cancel does not open a confirmation dialog");
+
+                typeField(cancelCard, "Name", "Nia Saved");
+                cancelCard.querySelector(".member-card-fronting").click();
+                cancelCard.querySelector(".member-profile-save-button").click();
+                await tick();
+                await tick();
+                check(cancelCard.querySelector(".member-name").textContent === "Nia Saved", "partial Save keeps the saved name");
+                check(cancelCard.querySelector(".member-card-fronting").classList.contains(changes.modifiedClass), "partial Save leaves Fronting marked");
+                check(cancel.hidden === false, "Cancel stays visible after a partial Save");
+                cancel.click();
+                await tick();
+                check(cancelCard.open === true, "Cancel after partial Save keeps the card expanded");
+                check(cancelHost.scrollTop === 24, "Cancel after partial Save preserves scroll position");
+                check(cancel.hidden === true && !changes.dirty(cancelCard), "Cancel after partial Save clears the remaining markers");
+                check(cancelCard.querySelector(".member-name").textContent === "Nia Saved", "Cancel after partial Save does not undo the saved name");
+                check(cancelCard.querySelector(".member-card-fronting").getAttribute("aria-pressed") === "mixed", "Cancel restores the fronting draft");
+
+                typeField(cancelCard, "Name", "Nia Failed");
+                nextOutcome = { saved: false, status: "The profile was not saved." };
+                cancelCard.querySelector(".member-profile-save-button").click();
+                await tick();
+                await tick();
+                check(cancel.hidden === false && cancel.disabled === false, "Cancel stays available after a failed Save");
+                check(cancelCard.querySelector(".member-name").textContent === "Nia Failed", "a failed Save keeps the edited name");
+                check(cancelCard.open === true, "a failed Save keeps the card expanded");
+                cancel.click();
+                await tick();
+                check(cancelCard.open === true, "Cancel after a failed Save keeps the card expanded");
+                check(cancelHost.scrollTop === 24, "Cancel after a failed Save preserves scroll position");
+                check(cancel.hidden === true && !changes.dirty(cancelCard), "Cancel after a failed Save clears the markers");
+                check(cancelCard.querySelector(".member-name").textContent === "Nia Saved", "Cancel after a failed Save restores the last saved name");
+                check(!dialog() || !dialog().open, "Cancel does not navigate away");
+
+                var frameCard = makeCard(member("13131313-1313-1313-1313-131313131313", "Nia"), true);
+                var shortDescription = row(frameCard, "Description").querySelector(".member-profile-field-value");
+                var shortDescriptionHeight = shortDescription.getBoundingClientRect().height;
+                check(parseFloat(getComputedStyle(shortDescription).minHeight) >= 120 && shortDescriptionHeight + 1 >= parseFloat(getComputedStyle(shortDescription).minHeight),
+                    "a short description keeps the expanded minimum height");
+
+                typeField(frameCard, "Name", "Nia Extra");
+                await tick();
+                var nameSurface = row(frameCard, "Name").querySelector(".member-profile-field-editor");
+                nameSurface.blur();
+                await tick();
+                nameSurface = row(frameCard, "Name").querySelector(".member-profile-field-value");
+                check(nameSurface && nameSurface.classList.contains(changes.modifiedClass), "Name keeps its marker after leaving the editor");
+                row(frameCard, "Name").querySelector(".member-profile-field-edit-button").click();
+                await tick();
+                check(row(frameCard, "Name").querySelector(".member-profile-field-editor").classList.contains(changes.modifiedClass), "Name keeps its marker when the editor reopens");
+                typeField(frameCard, "Pronouns", "they/them");
+                await tick();
+                var pronounSurface = row(frameCard, "Pronouns").querySelector(".member-profile-field-editor");
+                pronounSurface.blur();
+                await tick();
+                pronounSurface = row(frameCard, "Pronouns").querySelector(".member-profile-field-value");
+                check(pronounSurface && pronounSurface.classList.contains(changes.modifiedClass), "Pronouns keeps its marker after leaving the editor");
+
+                typeField(frameCard, "Description", "Longer description");
+                await tick();
+                var descriptionEditor = row(frameCard, "Description").querySelector(".member-profile-field-editor");
+                var descriptionHeight = descriptionEditor.getBoundingClientRect().height;
+                descriptionEditor.blur();
+                await tick();
+                check(descriptionEditor.isConnected, "Description stays open when focus leaves it");
+                check(descriptionEditor.getBoundingClientRect().height === descriptionHeight && descriptionHeight > 0, "Description keeps its expanded height");
+                check(descriptionEditor.classList.contains(changes.modifiedClass), "Description stays marked after blur");
+                check(descriptionEditor.value === "Longer description", "Description keeps its draft after blur");
+                check(descriptionEditor.getBoundingClientRect().height + 1 >= shortDescriptionHeight, "blur does not shrink the description editor");
+                descriptionEditor.value = new Array(14).join("Line of description text.\n");
+                descriptionEditor.dispatchEvent(new Event("input", { bubbles: true }));
+                var grownDescriptionHeight = descriptionEditor.getBoundingClientRect().height;
+                check(grownDescriptionHeight > shortDescriptionHeight, "a longer description grows past the minimum");
+                row(frameCard, "Name").querySelector(".member-profile-field-edit-button").click();
+                await tick();
+                var longDescription = row(frameCard, "Description").querySelector(".member-profile-field-value");
+                check(longDescription.textContent.indexOf("\n") >= 0, "the displayed description keeps paragraph breaks");
+                check(longDescription.getBoundingClientRect().height > shortDescriptionHeight, "the displayed description grows with longer text");
+                check(longDescription.getBoundingClientRect().height + 1 >= parseFloat(getComputedStyle(longDescription).minHeight), "the displayed description stays at least the minimum");
+                typeField(frameCard, "Description", "Longer description");
+                await tick();
+                descriptionEditor = row(frameCard, "Description").querySelector(".member-profile-field-editor");
+                check(descriptionEditor.getBoundingClientRect().height + 1 >= shortDescriptionHeight, "reopening the editor does not shrink it below the minimum");
+
+                var frame = frameCard.querySelector(".member-avatar-wrap");
+                var frameFile = frameCard.querySelector("input[type='file']");
+                var chooserClicks = 0;
+                frameFile.addEventListener("click", function () {
+                    chooserClicks += 1;
+                });
+                frameCard.querySelector(".member-avatar-placeholder").click();
+                await tick();
+                await tick();
+                check(chooserClicks === 1, "clicking the avatar opens the chooser");
+                check(!dialog() || !dialog().open, "clicking the avatar does not open the leave prompt");
+                check(frameCard.open === true, "clicking the avatar does not toggle the card");
+                frameCard.querySelector(".member-avatar-pencil").click();
+                check(chooserClicks === 2, "clicking the avatar pencil opens the chooser");
+                check(!dialog() || !dialog().open, "clicking the pencil does not open the leave prompt");
+                check(descriptionEditor.isConnected && descriptionEditor.classList.contains(changes.modifiedClass), "the description editor stays marked");
+
+                frameFile.dispatchEvent(new Event("change", { bubbles: true }));
+                check(!frame.classList.contains(changes.modifiedClass), "cancelling the chooser does not mark the avatar");
+                check(descriptionEditor.value === "Longer description" && descriptionEditor.classList.contains(changes.modifiedClass), "cancelling the chooser leaves the description draft and marker");
+
+                var image = new File(["avatar"], "nia.png", { type: "image/png" });
+                var imageTransfer = new DataTransfer();
+                imageTransfer.items.add(image);
+                frameFile.files = imageTransfer.files;
+                frameFile.dispatchEvent(new Event("change", { bubbles: true }));
+                check(frame.classList.contains(changes.modifiedClass), "choosing an avatar marks the avatar frame");
+                check(frame.querySelector(".member-avatar-image"), "the avatar frame stays marked after it repaints");
+                var frameShadow = getComputedStyle(frame).boxShadow;
+                var descriptionShadow = getComputedStyle(descriptionEditor).boxShadow;
+                check(frameShadow.indexOf("220, 38, 38") >= 0 && frameShadow.indexOf("inset") >= 0, "the avatar frame uses an inset red border");
+                check(descriptionShadow.indexOf("220, 38, 38") >= 0 && descriptionShadow.indexOf("inset") >= 0, "the description editor keeps its inset red border");
+
+                var frameDestination = makeCard(member("14141414-1414-1414-1414-141414141414", "Ola"), false);
+                frameDestination.querySelector(".member-name").click();
+                await tick();
+                await tick();
+                dialog().dispatchEvent(new Event("cancel", { cancelable: true }));
+                await tick();
+                check(!dialog().open, "dismissal closes the prompt");
+                check(frame.classList.contains(changes.modifiedClass) && descriptionEditor.classList.contains(changes.modifiedClass), "dismissal keeps the visible markers");
+                check(descriptionEditor.value === "Longer description", "dismissal keeps the description draft");
+
+                frameDestination.querySelector(".member-name").click();
+                await tick();
+                await tick();
+                press("Keep editing");
+                await tick();
+                check(!dialog() || !dialog().open, "Keep editing dismisses the prompt");
+                check(frameDestination.open === false, "Keep editing cancels the navigation");
+                check(frame.classList.contains(changes.modifiedClass) && descriptionEditor.classList.contains(changes.modifiedClass), "Keep editing leaves every marker visible");
+                check(getComputedStyle(frame).boxShadow.indexOf("220, 38, 38") >= 0, "Keep editing leaves the avatar border");
+                check(getComputedStyle(descriptionEditor).boxShadow.indexOf("220, 38, 38") >= 0, "Keep editing leaves the description border");
+                check(descriptionEditor.value === "Longer description", "Keep editing leaves the description draft");
+
+                frameCard.querySelector(".member-profile-save-button").click();
+                await tick();
+                await tick();
+                var savedDescription = row(frameCard, "Description").querySelector(".member-profile-field-value");
+                check(savedDescription && !savedDescription.classList.contains(changes.modifiedClass), "Save clears the saved description marker");
+                check(savedDescription.textContent === "Longer description", "Save keeps the saved description");
+                check(savedDescription.getBoundingClientRect().height + 1 >= parseFloat(getComputedStyle(savedDescription).minHeight), "Save does not shrink the description");
+                check(frame.classList.contains(changes.modifiedClass), "Save leaves the unsaved avatar marker");
+                frameCard.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(!frame.classList.contains(changes.modifiedClass), "Cancel clears the avatar marker");
+                check(row(frameCard, "Description").querySelector(".member-profile-field-value").textContent === "Longer description", "Cancel does not revert the saved description");
+                check(row(frameCard, "Description").querySelector(".member-profile-field-value").getBoundingClientRect().height + 1 >= parseFloat(getComputedStyle(row(frameCard, "Description").querySelector(".member-profile-field-value")).minHeight), "Cancel does not shrink the description");
+                check(frameCard.open === true, "Cancel keeps the card expanded");
+
+                var editCard = makeCard(member("99999999-9999-9999-9999-999999999999", "Ivy"), true);
+                editCard.querySelector(".member-card-sharing").click();
+                check(!editCard.querySelector(".member-card-sharing").classList.contains(changes.modifiedClass), "opening visibility does not mark its trigger");
+                var editPermission = editCard.querySelector(".member-policy-button");
+                editPermission.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+                check(!editPermission.classList.contains(changes.modifiedClass), "opening permissions does not mark its trigger");
+                var labels = ["Name", "Pronouns", "Description"];
+                for (var labelIndex = 0; labelIndex < labels.length; labelIndex += 1) {
+                    var label = labels[labelIndex];
+                    var displayed = row(editCard, label).querySelector(".member-profile-field-value");
+                    displayed.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+                    await tick();
+                    var opened = row(editCard, label).querySelector(".member-profile-field-editor");
+                    check(!!opened, "double-click opens the " + label + " editor");
+                    check(document.activeElement === opened, "double-click focuses the " + label + " editor");
+                    check(!opened.classList.contains(changes.modifiedClass), "double-click does not mark " + label);
+                    check(editCard.open === true, "double-click does not toggle the " + label + " card");
+                }
+                var descriptionEditor = row(editCard, "Description").querySelector(".member-profile-field-editor");
+                descriptionEditor.value = "Still editable";
+                descriptionEditor.setSelectionRange(0, 5);
+                descriptionEditor.dispatchEvent(new Event("input", { bubbles: true }));
+                check(descriptionEditor.selectionStart === 0, "the open editor keeps text selection");
+                check(descriptionEditor.classList.contains(changes.modifiedClass), "typing after double-click marks the editor");
+                var editFronting = editCard.querySelector(".member-card-fronting");
+                editFronting.click();
+                editFronting.click();
+                check(editFronting.classList.contains(changes.modifiedClass), "fronting stays marked after repaint");
+                var editSharing = editCard.querySelector(".member-card-sharing");
+                Array.prototype.find.call(editCard.querySelectorAll(".member-sharing-option"), function (option) {
+                    return option.textContent.indexOf("Only you") >= 0;
+                }).click();
+                check(editSharing.classList.contains(changes.modifiedClass), "visibility stays marked on its trigger");
+                editPermission.value = "Viewer";
+                editPermission.dispatchEvent(new Event("change", { bubbles: true }));
+                check(editPermission.classList.contains(changes.modifiedClass), "permissions stay marked on the trigger");
+                var editColor = editCard.querySelector("input[type='color']");
+                editColor.value = "#abcdef";
+                editColor.dispatchEvent(new Event("input", { bubbles: true }));
+                editColor.dispatchEvent(new Event("input", { bubbles: true }));
+                check(editCard.querySelector(".member-color-swatch").classList.contains(changes.modifiedClass), "the color swatch stays marked after repaint");
+                check(!editCard.querySelector(".member-profile-field-label").classList.contains(changes.modifiedClass), "a field label is not marked");
+                editCard.querySelector(".member-name").click();
+                await tick();
+                await tick();
+                press("Discard changes");
+                await tick();
+
+                var dynamicCard = makeCard(member("ffffffff-ffff-ffff-ffff-ffffffffffff", "Faye"), true);
+                var nickname = document.createElement("input");
+                nickname.type = "text";
+                nickname.setAttribute("aria-label", "Nickname");
+                dynamicCard.appendChild(nickname);
+                changes.suppress(dynamicCard, function () {
+                    nickname.value = "painted";
+                    nickname.dispatchEvent(new Event("input", { bubbles: true }));
+                });
+                check(!nickname.classList.contains(changes.modifiedClass), "programmatic input does not mark a control");
+                nickname.focus();
+                nickname.value = "Nick";
+                nickname.dispatchEvent(new Event("input", { bubbles: true }));
+                check(nickname.classList.contains(changes.modifiedClass), "a dynamically added input is marked");
+                check(changes.names(dynamicCard).indexOf("Nickname") >= 0, "a dynamic control contributes its accessible name");
+                check(!changes.bits, "dynamic controls do not use a bit field list");
+                nickname.value = "";
+                nickname.dispatchEvent(new Event("input", { bubbles: true }));
+                check(nickname.classList.contains(changes.modifiedClass), "clearing a dynamic control leaves it marked");
+
+                document.getElementById("result").textContent = failures.length
+                    ? "FAIL\n" + failures.join("\n")
+                    : "PASS";
+            }
+
+            run().catch(function (error) {
+                failures.push(error && error.stack ? error.stack : String(error));
+                document.getElementById("result").textContent = "FAIL\n" + failures.join("\n");
+            });
+        })();
+    </script>
+</body>
+</html>

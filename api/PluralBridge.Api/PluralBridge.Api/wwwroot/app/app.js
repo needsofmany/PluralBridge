@@ -6,6 +6,7 @@
         "js/members.js",
         "js/developer-tools.js",
         "js/navigator.js",
+        "js/member-change-tracking.js",
         "js/legacy-app.js",
         "js/account-screens.js",
         "js/shell.js"
