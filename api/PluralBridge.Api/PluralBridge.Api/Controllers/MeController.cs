@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -289,6 +290,24 @@ public sealed class MeController(
 				memberId);
 		}
 
+		if (!AnchorMemberProfileSave.TryPreparePlacement(request!, out var placement, out var placementError))
+		{
+			return AnchorProfileSaveError(
+				StatusCodes.Status400BadRequest,
+				endpoint,
+				placementError ?? "The member profile could not be saved.",
+				memberId);
+		}
+
+		if (!AnchorMemberProfileSave.TryPrepareAvatar(request, out var avatar, out var avatarError))
+		{
+			return AnchorProfileSaveError(
+				StatusCodes.Status400BadRequest,
+				endpoint,
+				avatarError ?? "The member profile could not be saved.",
+				memberId);
+		}
+
 		try
 		{
 			var connectionString = configuration.GetConnectionString(Globals.connectionString);
@@ -344,8 +363,31 @@ public sealed class MeController(
 					account.AccountId,
 					memberId,
 					prepared,
+					request!.Branch,
 					traceId,
 					cancellationToken);
+
+				AnchorMemberProfileSave.StoredPlacement? storedPlacement = null;
+				if (placement is not null)
+				{
+					storedPlacement = await AnchorMemberProfileSave.ApplyPlacementAsync(
+						connection,
+						transaction,
+						memberId,
+						prepared,
+						placement,
+						cancellationToken);
+				}
+
+				if (avatar is not null)
+				{
+					await AnchorMemberProfileSave.ApplyAvatarAsync(
+						connection,
+						transaction,
+						memberId,
+						avatar,
+						cancellationToken);
+				}
 
 				await transaction.CommitAsync(cancellationToken);
 
@@ -365,7 +407,23 @@ public sealed class MeController(
 						pronouns = profile.Pronouns,
 						description = profile.Description,
 						color = profile.Color,
-						updatedAtUtc = profile.UpdatedAtUtc
+						updatedAtUtc = profile.UpdatedAtUtc,
+						placementVisibilityMode = storedPlacement is { SetVisibility: true }
+							? storedPlacement.VisibilityMode
+							: null,
+						placementVisibilityTypeId = storedPlacement is { SetVisibility: true }
+							? storedPlacement.VisibilityTypeId
+							: null,
+						placementPermissionMode = storedPlacement is { SetPermission: true }
+							? storedPlacement.PermissionMode
+							: null,
+						placementPermissionCode = storedPlacement is { SetPermission: true }
+							? storedPlacement.PermissionCode
+							: null,
+						avatarSaved = avatar is not null,
+						avatarUrl = avatar is not null
+							? "/api/me/members/" + profile.MemberId.ToString("D") + "/avatar"
+							: null
 					}
 				});
 			}
@@ -413,8 +471,15 @@ public sealed class MeController(
 			AnchorMemberProfileSave.MultipleMemberships => "More than one access membership matches this account and anchor.",
 			AnchorMemberProfileSave.InactiveMembership => "The access membership for this account on the selected anchor is not active.",
 			AnchorMemberProfileSave.OwnerRequired => "An active Owner role is required on the selected anchor.",
+			AnchorMemberProfileSave.InvalidBranch => "The selected branch is not valid.",
 			AnchorMemberProfileSave.MemberMissing => "The member was not found.",
 			AnchorMemberProfileSave.NotStructuralChild => "The member is not a structural child of the selected anchor.",
+			AnchorMemberProfileSave.PlacementMissing => "The member has no placement row on the selected anchor.",
+			AnchorMemberProfileSave.AvatarStorageMissing => "Avatar storage is not installed.",
+			AnchorMemberProfileSave.FrontingStorageMissing => "Fronting storage is not installed.",
+			AnchorMemberProfileSave.DuplicateOpenFront => "This member has more than one open fronting interval.",
+			208 => "Visibility and Permissions storage is not installed.",
+			515 => "Fronting cannot be saved for a systemless member until pb_front_history.SystemId allows NULL.",
 			_ => null
 		};
 
@@ -426,9 +491,17 @@ public sealed class MeController(
 				"The member profile could not be saved.");
 		}
 
-		var status = exception.Number == AnchorMemberProfileSave.MemberMissing
-			? StatusCodes.Status404NotFound
-			: StatusCodes.Status403Forbidden;
+		var status = exception.Number switch
+		{
+			AnchorMemberProfileSave.MemberMissing => StatusCodes.Status404NotFound,
+			AnchorMemberProfileSave.PlacementMissing => StatusCodes.Status409Conflict,
+			AnchorMemberProfileSave.AvatarStorageMissing => StatusCodes.Status500InternalServerError,
+			AnchorMemberProfileSave.FrontingStorageMissing => StatusCodes.Status500InternalServerError,
+			AnchorMemberProfileSave.DuplicateOpenFront => StatusCodes.Status409Conflict,
+			208 => StatusCodes.Status500InternalServerError,
+			515 => StatusCodes.Status500InternalServerError,
+			_ => StatusCodes.Status403Forbidden
+		};
 
 		return AnchorProfileSaveError(status, endpoint, message, memberId);
 	}
@@ -446,10 +519,177 @@ public sealed class MeController(
 		});
 	}
 
+	[HttpGet("members/{memberId:guid}/avatar")]
+	public async Task<IActionResult> GetMemberAvatar(Guid memberId, CancellationToken cancellationToken)
+	{
+		try
+		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using SqlConnection connection = new(connectionString);
+			await connection.OpenAsync(cancellationToken);
+			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
+			if (account is null)
+			{
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint = "/api/me/members/" + memberId.ToString("D") + "/avatar",
+					canWrite = false,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			var image = await AnchorMemberProfileSave.ReadAvatarAsync(
+				connection,
+				account.AccountId,
+				memberId,
+				cancellationToken);
+			if (image is null)
+			{
+				return NotFound();
+			}
+
+			return File(image.Value.Bytes, image.Value.ContentType);
+		}
+		catch (SqlException exception) when (exception.Number == 208)
+		{
+			return NotFound();
+		}
+		catch (Exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			return Problem(
+				title: Globals.requestFailed,
+				detail: "The member avatar could not be read.",
+				statusCode: StatusCodes.Status500InternalServerError);
+		}
+	}
+
+	[HttpPut("members/{memberId:guid}/fronting")]
+	public async Task<IActionResult> SaveMemberFronting(
+		Guid memberId,
+		MemberFrontingSaveRequest? request,
+		CancellationToken cancellationToken)
+	{
+		var endpoint = "/api/me/members/" + memberId.ToString("D") + "/fronting";
+		if (request is null
+			|| request.Fronting is null
+			|| request.AnchorObjectType is not ("system" or "group" or "place")
+			|| !Guid.TryParse(request.AnchorObjectId, out var anchorObjectId)
+			|| anchorObjectId == Guid.Empty)
+		{
+			return AnchorProfileSaveError(
+				StatusCodes.Status400BadRequest,
+				endpoint,
+				"Fronting requires the selected anchor and a true or false state.",
+				memberId);
+		}
+
+		try
+		{
+			var connectionString = configuration.GetConnectionString(Globals.connectionString);
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				return Problem(
+					title: Globals.missingConnectionString,
+					detail: Globals.missingConnStringDetail,
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			await using SqlConnection connection = new(connectionString);
+			await connection.OpenAsync(cancellationToken);
+			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
+			if (account is null)
+			{
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint,
+					canWrite = true,
+					memberId,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			var requestTrace = RequestTraceContext.Create(
+				HttpContext.TraceIdentifier,
+				HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+					? correlationId.ToString()
+					: null);
+			var traceId = requestTrace.TraceId;
+			if (traceId.Length > 100)
+			{
+				traceId = traceId[..100];
+			}
+
+			await AnchorMemberProfileSave.CreateGraphTablesAsync(connection, cancellationToken);
+			await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+			try
+			{
+				var fronting = await AnchorMemberProfileSave.ApplyFrontingAsync(
+					connection,
+					transaction,
+					account.AccountId,
+					memberId,
+					request.AnchorObjectType,
+					anchorObjectId,
+					request.Fronting.Value,
+					request.Branch,
+					traceId,
+					cancellationToken);
+				await transaction.CommitAsync(cancellationToken);
+				return Ok(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint,
+					canWrite = true,
+					memberId,
+					fronting
+				});
+			}
+			catch
+			{
+				try
+				{
+					await transaction.RollbackAsync(cancellationToken);
+				}
+				catch (Exception rollbackError) when (rollbackError is not OperationCanceledException)
+				{
+				}
+
+				throw;
+			}
+		}
+		catch (SqlException exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			return MapAnchorProfileSaveSqlError(exception, endpoint, memberId);
+		}
+		catch (Exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			return AnchorProfileSaveError(
+				StatusCodes.Status500InternalServerError,
+				endpoint,
+				"Fronting could not be saved.",
+				memberId);
+		}
+	}
+
 	[HttpGet("anchor-member-profiles")]
 	public async Task<IActionResult> GetAnchorMemberProfiles(
 		[FromQuery] string? objectType,
 		[FromQuery] string? anchorName,
+		[FromQuery] string? objectId,
+		[FromQuery] string? branch,
 		CancellationToken cancellationToken)
 	{
 		var requestTrace = RequestTraceContext.Create(
@@ -510,34 +750,93 @@ public sealed class MeController(
 				});
 			}
 
-			await using var command = new SqlCommand(
-				"dbo.pb_get_anchor_member_profiles_by_email",
-				connection)
-			{
-				CommandType = CommandType.StoredProcedure
-			};
-			command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = account.Email;
-			command.Parameters.Add("@AnchorObjectType", SqlDbType.NVarChar, 64).Value = objectType;
-			command.Parameters.Add("@AnchorName", SqlDbType.NVarChar, 510).Value = anchorName;
-
-			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-			var profiles = await AnchorMemberProfileReader.ReadAsync(reader, cancellationToken);
-			if (profiles is null)
-			{
-				requestTrace.LogStage(
-					logger,
-					nameof(LogStageParts.error_path),
-					nameof(LogStageParts.reached));
-
-				return AnchorProfileProblem();
-			}
+			var bundle = await ReadAnchorProfilesAsync(connection, account.Email, objectType, anchorName, branch, cancellationToken);
+			var profiles = bundle.Profiles;
 
 			requestTrace.LogStage(
 				logger,
 				nameof(LogStageParts.endpoint),
 				nameof(LogStageParts.completed));
 
-			return Ok(profiles);
+			if (!Guid.TryParse(objectId, out var anchorObjectId) || anchorObjectId == Guid.Empty)
+			{
+				return Ok(profiles);
+			}
+
+			var placementByMember = bundle.Placements.ToDictionary(
+				row => row.MemberId,
+				row => new AnchorMemberProfileSave.MemberPlacementRow(
+					row.MemberId,
+					row.VisibilityMode,
+					row.VisibilityTypeId,
+					row.PermissionMode,
+					row.PermissionCode));
+			var openFronting = bundle.Fronting.ToDictionary(row => row.MemberId, row => row.IsFronting);
+			var avatarPaths = bundle.Avatars.ToDictionary(
+				row => row.MemberId,
+				row => AvatarReferenceUrl(row.MemberId, row.UpdatedAtUtc));
+
+			var branchNodes = bundle.BranchValid
+				? bundle.BranchAnchors
+					.Select(anchor => new AnchorMemberProfileSave.BranchNode(anchor.ObjectType, anchor.ObjectId))
+					.ToArray()
+				: Array.Empty<AnchorMemberProfileSave.BranchNode>();
+			var anchorSettings = bundle.BranchValid
+				? bundle.BranchAnchors
+					.Select(anchor => new AnchorMemberProfileSave.AnchorSetting(
+						anchor.ObjectType,
+						anchor.ObjectId,
+						anchor.VisibilityMode ?? "unset",
+						anchor.VisibilityTypeId,
+						anchor.PermissionMode ?? "unset",
+						anchor.PermissionCode))
+					.ToArray()
+				: Array.Empty<AnchorMemberProfileSave.AnchorSetting>();
+
+			return Ok(profiles.Select(profile =>
+			{
+				placementByMember.TryGetValue(profile.MemberId, out var placement);
+				var resolved = AnchorMemberProfileSave.ResolvePlacement(
+					placement,
+					branchNodes,
+					anchorSettings,
+					bundle.BranchValid);
+				var isFronting = openFronting.TryGetValue(profile.MemberId, out var openInterval)
+					? openInterval
+					: profile.IsFronting;
+				avatarPaths.TryGetValue(profile.MemberId, out var avatarUrl);
+
+				return new
+				{
+					memberId = profile.MemberId,
+					displayName = profile.DisplayName,
+					pronouns = profile.Pronouns,
+					description = profile.Description,
+					color = profile.Color,
+					visibilityTypeId = profile.VisibilityTypeId,
+					visibilityTypeCode = profile.VisibilityTypeCode,
+					visibilityTypeName = profile.VisibilityTypeName,
+					isFronting,
+					placementVisibilityMode = placement?.VisibilityMode,
+					placementVisibilityTypeId = placement?.VisibilityTypeId,
+					placementPermissionMode = placement?.PermissionMode,
+					placementPermissionCode = placement?.PermissionCode,
+					resolvedVisibilityMode = resolved.VisibilityMode,
+					resolvedVisibilityTypeId = resolved.VisibilityTypeId,
+					resolvedPermissionMode = resolved.PermissionMode,
+					resolvedPermissionCode = resolved.PermissionCode,
+					avatarUrl
+				};
+			}));
+		}
+		catch (AnchorProfileContractException exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			requestTrace.LogStage(
+				logger,
+				nameof(LogStageParts.error_path),
+				nameof(LogStageParts.reached));
+
+			return AnchorProfileInstallationError(exception.Message);
 		}
 		catch (SqlException exception) when (!cancellationToken.IsCancellationRequested)
 		{
@@ -559,6 +858,40 @@ public sealed class MeController(
 		}
 	}
 
+	private static async Task<AnchorProfileBundle> ReadAnchorProfilesAsync(
+		SqlConnection connection,
+		string email,
+		string objectType,
+		string anchorName,
+		string? branch,
+		CancellationToken cancellationToken)
+	{
+		await using var command = new SqlCommand(
+			"dbo.pb_get_anchor_member_profiles_by_email",
+			connection)
+		{
+			CommandType = CommandType.StoredProcedure
+		};
+		command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = email;
+		command.Parameters.Add("@AnchorObjectType", SqlDbType.NVarChar, 64).Value = objectType;
+		command.Parameters.Add("@AnchorName", SqlDbType.NVarChar, 510).Value = anchorName;
+		command.Parameters.Add("@BranchJson", SqlDbType.NVarChar, -1).Value =
+			AnchorMemberProfileSave.BranchJson(branch ?? "");
+
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+		return await AnchorMemberProfileReader.ReadAsync(reader, cancellationToken)
+			?? throw new AnchorProfileContractException(
+				"The profile procedure did not return the six-result-set contract. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+	}
+
+	internal static string AvatarReferenceUrl(Guid memberId, DateTime updatedAtUtc)
+	{
+		return "/api/me/members/"
+			+ memberId.ToString("D")
+			+ "/avatar?v="
+			+ Uri.EscapeDataString(updatedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture));
+	}
+
 	private IActionResult MapAnchorProfileProcedureError(int errorNumber)
 	{
 		return errorNumber switch
@@ -570,8 +903,35 @@ public sealed class MeController(
 			50006 => Forbid(),
 			50007 => AnchorProfileBadRequest("More than one access membership matches this anchor."),
 			50008 => Forbid(),
+			50009 => AnchorProfileConflict("More than one membership row matches a selected member on this anchor."),
+			8144 => AnchorProfileInstallationError(
+				"The profile procedure does not accept branch context. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API."),
 			_ => AnchorProfileProblem()
 		};
+	}
+
+	private ObjectResult AnchorProfileInstallationError(string error)
+	{
+		return StatusCode(StatusCodes.Status500InternalServerError, new
+		{
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = AnchorMemberProfilesEndpoint,
+			canWrite = false,
+			error
+		});
+	}
+
+	private ConflictObjectResult AnchorProfileConflict(string error)
+	{
+		return Conflict(new
+		{
+			api = Globals.apiName,
+			phase = Globals.projectPhase,
+			endpoint = AnchorMemberProfilesEndpoint,
+			canWrite = false,
+			error
+		});
 	}
 
 	private BadRequestObjectResult AnchorProfileBadRequest(string error)

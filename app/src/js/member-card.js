@@ -200,7 +200,7 @@
         const dirty = cardIsDirty();
         cardDetails.classList.remove("member-card-unsaved");
         if (unsavedIndicator) {
-            unsavedIndicator.hidden = !dirty;
+            unsavedIndicator.classList.toggle("is-visible", dirty);
         }
         updateSaveButtonState();
     }
@@ -396,6 +396,8 @@
 
         if (isLongText) {
             value.classList.add("member-profile-field-value-long");
+        } else {
+            value.classList.add("member-profile-field-value-short");
         }
 
         const editButton = document.createElement("button");
@@ -714,6 +716,34 @@
         paintPreviewControls();
     }
 
+    function applyPersistedPlacement(profile) {
+        if (!profile) {
+            return;
+        }
+
+        withoutChangeNotices(function () {
+            if (profile.placementVisibilityMode) {
+                persistedValues.visibilityKnown = true;
+                persistedValues.visibilityInherit = profile.placementVisibilityMode === "inherit";
+                persistedValues.visibilityTypeId = profile.placementVisibilityMode === "explicit"
+                    ? canonicalVisibilityId(profile.placementVisibilityTypeId)
+                    : null;
+                draftValues.visibilityKnown = persistedValues.visibilityKnown;
+                draftValues.visibilityInherit = persistedValues.visibilityInherit;
+                draftValues.visibilityTypeId = persistedValues.visibilityTypeId;
+            }
+
+            if (profile.placementPermissionMode) {
+                persistedValues.permission = profile.placementPermissionMode === "explicit"
+                    ? profile.placementPermissionCode
+                    : (profile.placementPermissionMode === "inherit" ? "inherit" : null);
+                draftValues.permission = persistedValues.permission;
+            }
+
+            paintPreviewControls();
+        });
+    }
+
     function markedControls() {
         const changes = changeTracking();
         return changes ? changes.modified(cardDetails) : [];
@@ -789,9 +819,26 @@
             return { saved: false, message: message };
         }
 
+        if (frontingRequest) {
+            const pendingFront = await frontingRequest;
+            if (!pendingFront || pendingFront.saved !== true) {
+                return {
+                    saved: false,
+                    message: pendingFront && pendingFront.message
+                        ? pendingFront.message
+                        : "Fronting could not be saved."
+                };
+            }
+        }
+
         const before = markedControls().slice();
         const changes = changeTracking();
         const includeColor = before.indexOf(colorSwatch) >= 0;
+        if (before.indexOf(avatarWrap) >= 0 && !pendingAvatar) {
+            const message = "Choose a PNG, JPEG, or WebP image before saving.";
+            setProfileStatus(message, "error");
+            return { saved: false, message: message };
+        }
 
         if (options && typeof options.saveProfile === "function") {
             setProfileBusy(true);
@@ -820,10 +867,54 @@
                     }
 
                     applyPersistedProfileFields(outcome.profile);
+                    applyPersistedPlacement(outcome.profile);
                     if (changes) {
-                        changes.commit(cardDetails, savedProfileControls(before));
+                        const saved = savedProfileControls(before);
+                        if (Object.prototype.hasOwnProperty.call(outcome.profile, "placementVisibilityMode")
+                            && outcome.profile.placementVisibilityMode) {
+                            saved.push(sharingButton);
+                        }
+                        if (permissionControl
+                            && Object.prototype.hasOwnProperty.call(outcome.profile, "placementPermissionMode")
+                            && outcome.profile.placementPermissionMode) {
+                            saved.push(permissionControl);
+                        }
+                        if (outcome.profile.avatarSaved === true && outcome.profile.avatarUrl) {
+                            const previousPreview = pendingAvatar && pendingAvatar.objectUrl;
+                            pendingAvatar = null;
+                            if (previousPreview && previousPreview !== outcome.profile.avatarUrl && typeof URL.revokeObjectURL === "function") {
+                                URL.revokeObjectURL(previousPreview);
+                            }
+                            persistedValues.avatarObjectUrl = outcome.profile.avatarUrl;
+                            draftValues.avatarObjectUrl = outcome.profile.avatarUrl;
+                            if (member) {
+                                member.avatarObjectUrl = outcome.profile.avatarUrl;
+                            }
+                            paintAvatar();
+                            saved.push(avatarWrap);
+                        }
+                        changes.commit(cardDetails, saved);
                     }
                     publishConfirmed(before, true, false);
+                    if (outcome.profile.avatarSaved === true && outcome.profile.avatarUrl && changes) {
+                        changes.publishShared(getMemberIdForSave(), {
+                            avatarObjectUrl: outcome.profile.avatarUrl
+                        }, cardDetails);
+                    }
+                    if (before.indexOf(avatarWrap) >= 0 && !(outcome.profile.avatarSaved === true && outcome.profile.avatarUrl)) {
+                        const message = "The avatar was not saved.";
+                        setProfileStatus(message, "error");
+                        return { saved: false, message: message };
+                    }
+                    if (before.indexOf(frontingButton) >= 0 && options && typeof options.saveFronting === "function") {
+                        const front = await saveFrontingNow(draftValues.fronting);
+                        if (!front || front.saved !== true) {
+                            return {
+                                saved: false,
+                                message: front && front.message ? front.message : "Fronting could not be saved."
+                            };
+                        }
+                    }
                 } else {
                     applySuccessfulSave();
                     if (changes) {
@@ -996,15 +1087,36 @@
         }
 
         if (changes && marked.indexOf(sharingButton) >= 0) {
-            payload.visibilityInherit = draftValues.visibilityInherit === true;
-            payload.visibilityTypeId = draftValues.visibilityInherit === true ? null : draftValues.visibilityTypeId;
+            if (draftValues.visibilityInherit === true) {
+                payload.visibilityMode = "inherit";
+                payload.visibilityTypeId = null;
+            } else if (draftValues.visibilityTypeId === 1 || draftValues.visibilityTypeId === 2 || draftValues.visibilityTypeId === 3) {
+                payload.visibilityMode = "explicit";
+                payload.visibilityTypeId = draftValues.visibilityTypeId;
+            } else {
+                payload.visibilityMode = "unset";
+                payload.visibilityTypeId = null;
+            }
+            payload.visibilityInherit = payload.visibilityMode === "inherit";
         }
 
         if (changes && permissionControl && marked.indexOf(permissionControl) >= 0) {
             payload.permission = draftValues.permission;
+            if (draftValues.permission === "inherit") {
+                payload.permissionMode = "inherit";
+                payload.permissionCode = null;
+            } else if (draftValues.permission === "viewer" || draftValues.permission === "editor" || draftValues.permission === "manager" || draftValues.permission === "owner") {
+                payload.permissionMode = "explicit";
+                payload.permissionCode = draftValues.permission;
+            } else {
+                payload.permissionMode = "unset";
+                payload.permissionCode = null;
+            }
         }
 
-        if (changes && marked.indexOf(avatarWrap) >= 0) {
+        if (changes && marked.indexOf(avatarWrap) >= 0 && pendingAvatar) {
+            payload.avatarContentType = pendingAvatar.contentType;
+            payload.avatarImageBase64 = pendingAvatar.base64;
             payload.avatarObjectUrl = draftValues.avatarObjectUrl;
         }
 
@@ -1086,7 +1198,7 @@
 
     const avatarFile = document.createElement("input");
     avatarFile.type = "file";
-    avatarFile.accept = "image/*";
+    avatarFile.accept = "image/png,image/jpeg,image/webp";
     avatarFile.tabIndex = -1;
     avatarFile.className = "member-avatar-file";
     avatarFile.setAttribute("aria-label", "Choose an avatar image");
@@ -1169,8 +1281,6 @@
     unsavedIndicator = document.createElement("span");
     unsavedIndicator.className = "member-card-unsaved-indicator";
     unsavedIndicator.textContent = "Unsaved changes";
-    unsavedIndicator.hidden = true;
-    identity.appendChild(unsavedIndicator);
     avatarWrap.appendChild(avatarPlaceholder);
     if (previewHeader) {
         avatarWrap.appendChild(avatarPencil);
@@ -1296,6 +1406,7 @@
 
     const saveButton = allowProfileEditing ? createProfileSaveButton() : null;
     cancelButton = allowProfileEditing ? createProfileCancelButton() : null;
+    profileActions.appendChild(unsavedIndicator);
     if (cancelButton) {
         profileActions.appendChild(cancelButton);
     }
@@ -1368,13 +1479,125 @@
         }
     });
 
+    let pendingAvatar = null;
+    let frontingRequest = null;
+    let saveFrontingNow = function () {
+        return Promise.resolve({
+            saved: false,
+            message: "Fronting could not be saved."
+        });
+    };
+
     function releaseUnsavedAvatar() {
+        const previewUrl = pendingAvatar && pendingAvatar.objectUrl
+            ? pendingAvatar.objectUrl
+            : draftValues.avatarObjectUrl;
         if (
-            draftValues.avatarObjectUrl &&
-            draftValues.avatarObjectUrl !== persistedValues.avatarObjectUrl &&
-            typeof URL.revokeObjectURL === "function"
+            previewUrl &&
+            previewUrl !== persistedValues.avatarObjectUrl &&
+            typeof URL.revokeObjectURL === "function" &&
+            String(previewUrl).indexOf("blob:") === 0
         ) {
-            URL.revokeObjectURL(draftValues.avatarObjectUrl);
+            URL.revokeObjectURL(previewUrl);
+        }
+        pendingAvatar = null;
+    }
+
+    function blobToBase64(blob) {
+        return new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = function () {
+                const text = String(reader.result || "");
+                const comma = text.indexOf(",");
+                resolve(comma >= 0 ? text.slice(comma + 1) : text);
+            };
+            reader.onerror = function () {
+                reject(new Error("The image could not be read."));
+            };
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    function loadAvatarImage(url) {
+        return new Promise(function (resolve, reject) {
+            const image = new Image();
+            image.onload = function () {
+                resolve(image);
+            };
+            image.onerror = function () {
+                reject(new Error("Choose a PNG, JPEG, or WebP image."));
+            };
+            image.src = url;
+        });
+    }
+
+    function canvasToBlob(canvas, type, quality) {
+        return new Promise(function (resolve, reject) {
+            canvas.toBlob(function (blob) {
+                if (!blob) {
+                    reject(new Error("The image could not be read."));
+                    return;
+                }
+                resolve(blob);
+            }, type, quality);
+        });
+    }
+
+    async function normalizeAvatarFile(file) {
+        const allowed = {
+            "image/png": true,
+            "image/jpeg": true,
+            "image/webp": true
+        };
+        if (!file || !allowed[file.type]) {
+            throw new Error("Choose a PNG, JPEG, or WebP image.");
+        }
+
+        const maxEdge = 2048;
+        const maxBytes = 2 * 1024 * 1024;
+        const sourceUrl = URL.createObjectURL(file);
+        try {
+            const image = await loadAvatarImage(sourceUrl);
+            const sourceWidth = image.naturalWidth || image.width;
+            const sourceHeight = image.naturalHeight || image.height;
+            if (!sourceWidth || !sourceHeight) {
+                throw new Error("The image could not be read.");
+            }
+
+            if (sourceWidth <= maxEdge && sourceHeight <= maxEdge && file.size <= maxBytes) {
+                return {
+                    contentType: file.type,
+                    base64: await blobToBase64(file),
+                    blob: file
+                };
+            }
+
+            const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+            canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+            const context = canvas.getContext("2d");
+            if (!context) {
+                throw new Error("The image could not be read.");
+            }
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            const type = file.type === "image/png" ? "image/webp" : file.type;
+            let quality = 0.92;
+            let blob = await canvasToBlob(canvas, type, quality);
+            while (blob.size > maxBytes && quality > 0.5) {
+                quality -= 0.08;
+                blob = await canvasToBlob(canvas, type, quality);
+            }
+            if (blob.size > maxBytes) {
+                throw new Error("The image is still larger than 2 MiB after resizing.");
+            }
+            return {
+                contentType: blob.type || type,
+                base64: await blobToBase64(blob),
+                blob: blob
+            };
+        } finally {
+            URL.revokeObjectURL(sourceUrl);
         }
     }
 
@@ -1567,13 +1790,13 @@
         menuChevron.appendChild(sharingOutlineIcon("chevron"));
         sharingButton.appendChild(menuChevron);
         if (!draftValues.visibilityKnown) {
-            sharingButton.title = "Visibility is not loaded. Choosing a value stores a preview only.";
+            sharingButton.title = "Visibility is not loaded.";
         } else if (draftValues.visibilityInherit === true) {
-            sharingButton.title = "Preview only. Inherit does not change stored visibility.";
+            sharingButton.title = "Visibility is Inherit. " + resolvedVisibilityText();
         } else if (draftValues.visibilityTypeId === null) {
-            sharingButton.title = "Visibility is not set. Choosing a value stores a preview only.";
+            sharingButton.title = "Visibility is not set.";
         } else {
-            sharingButton.title = "Preview only. This does not change who can see the member.";
+            sharingButton.title = "Visibility is saved for this member on the selected anchor.";
         }
         sharingButton.setAttribute("aria-label", "Visible to: " + choice.label);
     }
@@ -1670,6 +1893,21 @@
         setSharingOpen(false);
     }
 
+    function resolvedVisibilityText() {
+        const mode = member && member.resolvedVisibilityMode;
+        if (mode === "explicit") {
+            const labels = { 1: "Only you", 2: "Trusted friends", 3: "All friends" };
+            const label = labels[member.resolvedVisibilityTypeId];
+            return label
+                ? "In this branch that resolves to " + label + "."
+                : "In this branch that resolves to an explicit visibility.";
+        }
+        if (mode === "unset") {
+            return "In this branch that resolves to Not set.";
+        }
+        return "This branch ends at the top anchor, so Inherit stays Inherit.";
+    }
+
     function paintPreviewControls() {
         paintAvatar();
         if (!previewHeader) {
@@ -1680,6 +1918,16 @@
         paintSharing();
         if (typeof cardDetails.paintPermission === "function") {
             cardDetails.paintPermission();
+        }
+        if (permissionControl && draftValues.permission === "inherit") {
+            const mode = member && member.resolvedPermissionMode;
+            let resolved = "This branch ends at the top anchor, so Inherit stays Inherit.";
+            if (mode === "explicit" && member.resolvedPermissionCode) {
+                resolved = "In this branch that resolves to " + member.resolvedPermissionCode + ".";
+            } else if (mode === "unset") {
+                resolved = "In this branch that resolves to Not set.";
+            }
+            permissionControl.title = "Permissions are Inherit. " + resolved;
         }
     }
 
@@ -1712,15 +1960,33 @@
         });
         avatarFile.addEventListener("change", function () {
             const file = avatarFile.files && avatarFile.files[0] ? avatarFile.files[0] : null;
+            avatarFile.value = "";
             if (!file) {
                 return;
             }
-            releaseUnsavedAvatar();
-            draftValues.avatarObjectUrl = URL.createObjectURL(file);
-            notifyEdited(avatarWrap);
-            avatarFile.value = "";
-            paintAvatar();
-            updateSaveButtonState();
+            const requestToken = String(Date.now()) + ":" + file.name + ":" + file.size;
+            avatarFile.dataset.normalizeToken = requestToken;
+            normalizeAvatarFile(file).then(function (normalized) {
+                if (!cardDetails.isConnected || avatarFile.dataset.normalizeToken !== requestToken) {
+                    return;
+                }
+                releaseUnsavedAvatar();
+                const objectUrl = URL.createObjectURL(normalized.blob);
+                pendingAvatar = {
+                    contentType: normalized.contentType,
+                    base64: normalized.base64,
+                    objectUrl: objectUrl
+                };
+                draftValues.avatarObjectUrl = objectUrl;
+                notifyEdited(avatarWrap);
+                paintAvatar();
+                updateSaveButtonState();
+            }, function (error) {
+                if (!cardDetails.isConnected) {
+                    return;
+                }
+                setProfileStatus(error && error.message ? error.message : "Choose a PNG, JPEG, or WebP image.", "error");
+            });
         });
         sharingLabel.addEventListener("mousedown", function (event) {
             event.stopPropagation();
@@ -1820,12 +2086,72 @@
         frontingButton.addEventListener("mousedown", function (event) {
             event.stopPropagation();
         });
+        saveFrontingNow = function (next) {
+            if (!options || typeof options.saveFronting !== "function") {
+                return Promise.resolve({
+                    saved: false,
+                    message: "Fronting could not be saved."
+                });
+            }
+
+            if (frontingRequest) {
+                return frontingRequest;
+            }
+
+            frontingButton.disabled = true;
+            frontingRequest = Promise.resolve(options.saveFronting(next === true)).then(function (outcome) {
+                if (!cardDetails.isConnected) {
+                    return { saved: false, message: "Fronting could not be saved." };
+                }
+
+                if (outcome && outcome.saved === true && (outcome.fronting === true || outcome.fronting === false)) {
+                    withoutChangeNotices(function () {
+                        persistedValues.fronting = outcome.fronting;
+                        draftValues.fronting = outcome.fronting;
+                        if (member) {
+                            member.fronting = outcome.fronting;
+                        }
+                        paintFronting();
+                    });
+                    const changes = changeTracking();
+                    if (changes) {
+                        changes.commit(cardDetails, [frontingButton]);
+                        changes.publishShared(getMemberIdForSave(), {
+                            fronting: outcome.fronting
+                        }, cardDetails);
+                    }
+                    return { saved: true };
+                }
+
+                const message = outcome && outcome.status ? outcome.status : "Fronting could not be saved.";
+                setProfileStatus(message, "error");
+                paintFronting();
+                return { saved: false, message: message };
+            }, function () {
+                const message = "Fronting could not be saved.";
+                setProfileStatus(message, "error");
+                return { saved: false, message: message };
+            });
+            frontingRequest.finally(function () {
+                frontingRequest = null;
+                frontingButton.disabled = false;
+                updateSaveButtonState();
+            });
+            return frontingRequest;
+        }
+
         frontingButton.addEventListener("click", function (event) {
             keepHeaderClick(event);
+            if (isSaving || frontingRequest) {
+                return;
+            }
             draftValues.fronting = draftValues.fronting === null ? true : !draftValues.fronting;
             notifyEdited(frontingButton);
             paintFronting();
             updateSaveButtonState();
+            if (options && typeof options.saveFronting === "function") {
+                saveFrontingNow(draftValues.fronting);
+            }
         });
         colorPencil.addEventListener("click", function () {
             colorInput.click();
@@ -2163,7 +2489,16 @@
             read: readTracked,
             write: writeTracked,
             persists: function (control) {
-                return profileControls.indexOf(control) >= 0 || !!profileFieldName(control);
+                if (profileControls.indexOf(control) >= 0 || profileFieldName(control)) {
+                    return true;
+                }
+                if (!(options && typeof options.saveProfile === "function")) {
+                    return false;
+                }
+                if (control === sharingButton || control === permissionControl || control === avatarWrap) {
+                    return true;
+                }
+                return control === frontingButton && typeof options.saveFronting === "function";
             },
             applyExternal: applyExternal,
             onChanged: renderChangeState

@@ -79,10 +79,16 @@ window.PluralBridge.apiClient = (function () {
         });
     }
 
-    async function readAnchorMemberProfiles(objectType, anchorName, signal) {
+    async function readAnchorMemberProfiles(objectType, anchorName, signal, objectId, branch) {
         const query = new URLSearchParams();
         query.set("objectType", objectType);
         query.set("anchorName", anchorName);
+        if (objectId) {
+            query.set("objectId", objectId);
+        }
+        if (branch) {
+            query.set("branch", branch);
+        }
 
         return await fetchJson("/api/me/anchor-member-profiles?" + query.toString(), {
             signal: signal
@@ -127,6 +133,42 @@ window.PluralBridge.apiClient = (function () {
         return payload;
     }
 
+    async function saveMemberFronting(memberId, frontingRequest) {
+        if (!memberId) {
+            throw new Error("Member ID is required for fronting.");
+        }
+
+        const response = await fetch(apiUrl("/api/me/members/" + encodeURIComponent(memberId) + "/fronting"), {
+            method: "PUT",
+            credentials: "same-origin",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(frontingRequest || {})
+        });
+        const responseText = await response.text();
+        let payload = null;
+        if (responseText) {
+            try {
+                payload = JSON.parse(responseText);
+            } catch (parseError) {
+                payload = null;
+            }
+        }
+
+        if (!response.ok) {
+            const message = payload && payload.error
+                ? String(payload.error)
+                : "Fronting could not be saved.";
+            const error = new Error(message);
+            error.status = response.status;
+            throw error;
+        }
+
+        return payload;
+    }
+
     async function editMember(memberId, memberRequest) {
         const systemId = await getCurrentSystemId();
 
@@ -150,6 +192,7 @@ window.PluralBridge.apiClient = (function () {
     client.readAnchorMemberProfiles = readAnchorMemberProfiles;
     client.addMember = addMember;
     client.saveAnchorMemberProfile = saveAnchorMemberProfile;
+    client.saveMemberFronting = saveMemberFronting;
     client.editMember = editMember;
 
     return client;

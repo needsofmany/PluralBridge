@@ -5,6 +5,41 @@ using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Controllers;
 
+internal sealed class AnchorProfileContractException : Exception
+{
+	internal AnchorProfileContractException(string message)
+		: base(message)
+	{
+	}
+}
+
+internal sealed record AnchorProfileBundle(
+	IReadOnlyList<AnchorMemberProfile> Profiles,
+	bool BranchValid,
+	IReadOnlyList<AnchorBranchAnchor> BranchAnchors,
+	IReadOnlyList<AnchorMemberPlacement> Placements,
+	IReadOnlyList<AnchorMemberFronting> Fronting,
+	IReadOnlyList<AnchorMemberAvatar> Avatars);
+
+internal sealed record AnchorMemberPlacement(
+	Guid MemberId,
+	string? VisibilityMode,
+	int? VisibilityTypeId,
+	string? PermissionMode,
+	string? PermissionCode);
+
+internal sealed record AnchorMemberFronting(Guid MemberId, bool IsFronting);
+
+internal sealed record AnchorMemberAvatar(Guid MemberId, DateTime UpdatedAtUtc);
+
+internal sealed record AnchorBranchAnchor(
+	string ObjectType,
+	Guid ObjectId,
+	string? VisibilityMode,
+	int? VisibilityTypeId,
+	string? PermissionMode,
+	string? PermissionCode);
+
 internal sealed record AnchorMemberProfile(
 	Guid MemberId,
 	string DisplayName,
@@ -40,7 +75,44 @@ internal static class AnchorMemberProfileReader
 		new("IsFronting", "bit")
 	];
 
-	internal static async Task<IReadOnlyList<AnchorMemberProfile>?> ReadAsync(
+	private static readonly AnchorMemberProfileColumn[] BranchValidColumns =
+	[
+		new("BranchValid", "bit")
+	];
+
+	private static readonly AnchorMemberProfileColumn[] BranchAnchorColumns =
+	[
+		new("Ordinal", "int"),
+		new("ObjectType", "nvarchar"),
+		new("ObjectId", "uniqueidentifier"),
+		new("VisibilityMode", "nvarchar"),
+		new("VisibilityTypeId", "int"),
+		new("PermissionMode", "nvarchar"),
+		new("PermissionCode", "nvarchar")
+	];
+
+	private static readonly AnchorMemberProfileColumn[] PlacementColumns =
+	[
+		new("MemberId", "uniqueidentifier"),
+		new("VisibilityMode", "nvarchar"),
+		new("VisibilityTypeId", "int"),
+		new("PermissionMode", "nvarchar"),
+		new("PermissionCode", "nvarchar")
+	];
+
+	private static readonly AnchorMemberProfileColumn[] FrontingColumns =
+	[
+		new("MemberId", "uniqueidentifier"),
+		new("IsFronting", "bit")
+	];
+
+	private static readonly AnchorMemberProfileColumn[] AvatarColumns =
+	[
+		new("MemberId", "uniqueidentifier"),
+		new("UpdatedAtUtc", "datetime2")
+	];
+
+	internal static async Task<AnchorProfileBundle?> ReadAsync(
 		SqlDataReader reader,
 		CancellationToken cancellationToken)
 	{
@@ -72,7 +144,118 @@ internal static class AnchorMemberProfileReader
 		}
 		while (await reader.NextResultAsync(cancellationToken));
 
-		return Map(resultSets);
+		return MapBundle(resultSets);
+	}
+
+	internal static AnchorProfileBundle MapBundle(IReadOnlyList<AnchorMemberProfileResultSet> resultSets)
+	{
+		if (resultSets.Count != 6)
+		{
+			throw new AnchorProfileContractException(
+				"The profile procedure returned "
+				+ resultSets.Count
+				+ " result sets. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+		}
+
+		var profiles = Map([resultSets[0]]);
+		if (profiles is null
+			|| !ColumnsMatch(resultSets[1], BranchValidColumns)
+			|| !ColumnsMatch(resultSets[2], BranchAnchorColumns)
+			|| !ColumnsMatch(resultSets[3], PlacementColumns)
+			|| !ColumnsMatch(resultSets[4], FrontingColumns)
+			|| !ColumnsMatch(resultSets[5], AvatarColumns))
+		{
+			throw new AnchorProfileContractException(
+				"The profile procedure result sets do not match the installed contract. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+		}
+
+		if (resultSets[1].Rows.Count != 1 || resultSets[1].Rows[0].Count != 1 || resultSets[1].Rows[0][0] is not bool branchValid)
+		{
+			throw new AnchorProfileContractException(
+				"The profile procedure did not return BranchValid. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+		}
+
+		var anchors = new List<AnchorBranchAnchor>(resultSets[2].Rows.Count);
+		foreach (var row in resultSets[2].Rows)
+		{
+			if (row.Count != BranchAnchorColumns.Length
+				|| row[1] is not string objectType
+				|| row[2] is not Guid objectId
+				|| !TryOptionalText(row[3], out var visibilityMode)
+				|| !TryOptionalInt(row[4], out var visibilityTypeId)
+				|| !TryOptionalText(row[5], out var permissionMode)
+				|| !TryOptionalText(row[6], out var permissionCode))
+			{
+				throw new AnchorProfileContractException(
+					"A branch anchor row could not be read.");
+			}
+
+			anchors.Add(new AnchorBranchAnchor(
+				objectType,
+				objectId,
+				visibilityMode,
+				visibilityTypeId,
+				permissionMode,
+				permissionCode));
+		}
+
+		var seenMembers = new HashSet<Guid>();
+		var placements = new List<AnchorMemberPlacement>(resultSets[3].Rows.Count);
+		foreach (var row in resultSets[3].Rows)
+		{
+			if (row.Count != PlacementColumns.Length
+				|| row[0] is not Guid memberId
+				|| !TryOptionalText(row[1], out var visibilityMode)
+				|| !TryOptionalInt(row[2], out var visibilityTypeId)
+				|| !TryOptionalText(row[3], out var permissionMode)
+				|| !TryOptionalText(row[4], out var permissionCode)
+				|| !seenMembers.Add(memberId))
+			{
+				throw new AnchorProfileContractException(
+					"A placement row was missing, duplicated, or could not be read.");
+			}
+
+			placements.Add(new AnchorMemberPlacement(
+				memberId,
+				visibilityMode,
+				visibilityTypeId,
+				permissionMode,
+				permissionCode));
+		}
+
+		seenMembers.Clear();
+		var fronting = new List<AnchorMemberFronting>(resultSets[4].Rows.Count);
+		foreach (var row in resultSets[4].Rows)
+		{
+			if (row.Count != FrontingColumns.Length
+				|| row[0] is not Guid memberId
+				|| !TryRequiredBool(row[1], out var isFronting)
+				|| !seenMembers.Add(memberId))
+			{
+				throw new AnchorProfileContractException(
+					"A fronting row was missing, duplicated, or could not be read.");
+			}
+
+			fronting.Add(new AnchorMemberFronting(memberId, isFronting));
+		}
+
+		seenMembers.Clear();
+		var avatars = new List<AnchorMemberAvatar>(resultSets[5].Rows.Count);
+		foreach (var row in resultSets[5].Rows)
+		{
+			if (row.Count != AvatarColumns.Length
+				|| row[0] is not Guid memberId
+				|| row[1] is not DateTime updatedAtUtc
+				|| !seenMembers.Add(memberId))
+			{
+				throw new AnchorProfileContractException(
+					"An avatar reference was missing, duplicated, or could not be read.");
+			}
+
+			avatars.Add(new AnchorMemberAvatar(memberId, updatedAtUtc));
+		}
+
+		return new AnchorProfileBundle(profiles, branchValid, anchors, placements, fronting, avatars);
 	}
 
 	internal static IReadOnlyList<AnchorMemberProfile>? Map(

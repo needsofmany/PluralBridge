@@ -339,16 +339,67 @@ window.PluralBridge.navigator = (function () {
                     ? profile.isFronting
                     : null),
             visibilityKnown: Boolean(preview && preview.visibilityExplicit === true)
+                || Boolean(profile && Object.prototype.hasOwnProperty.call(profile, "placementVisibilityMode"))
                 || Boolean(profile && Object.prototype.hasOwnProperty.call(profile, "visibilityTypeId")),
-            visibilityInherit: Boolean(preview && preview.visibilityExplicit === true && preview.visibilityInherit === true),
+            visibilityInherit: Boolean(preview && preview.visibilityExplicit === true)
+                ? preview.visibilityInherit === true
+                : (profile && Object.prototype.hasOwnProperty.call(profile, "placementVisibilityMode")
+                    ? profile.placementVisibilityMode === "inherit"
+                    : false),
             visibilityTypeId: preview && preview.visibilityExplicit === true
                 ? (preview.visibilityInherit === true ? null : canonicalVisibilityId(preview.visibilityTypeId))
-                : (profile && Object.prototype.hasOwnProperty.call(profile, "visibilityTypeId")
-                    ? canonicalVisibilityId(profile.visibilityTypeId)
+                : (profile && Object.prototype.hasOwnProperty.call(profile, "placementVisibilityMode")
+                    ? (profile.placementVisibilityMode === "explicit"
+                        ? canonicalVisibilityId(profile.placementVisibilityTypeId)
+                        : null)
+                    : (profile && Object.prototype.hasOwnProperty.call(profile, "visibilityTypeId")
+                        ? canonicalVisibilityId(profile.visibilityTypeId)
+                        : null)),
+            permission: preview && preview.permissionExplicit === true
+                ? preview.permission
+                : (profile && Object.prototype.hasOwnProperty.call(profile, "placementPermissionMode")
+                    ? (profile.placementPermissionMode === "explicit"
+                        ? profile.placementPermissionCode
+                        : (profile.placementPermissionMode === "inherit" ? "inherit" : null))
                     : null),
-            permission: preview && preview.permissionExplicit === true ? preview.permission : null,
-            avatarObjectUrl: hasPreviewField("avatarObjectUrl") ? preview.avatarObjectUrl : null
+            avatarObjectUrl: hasPreviewField("avatarObjectUrl")
+                ? preview.avatarObjectUrl
+                : (profile && profile.avatarUrl ? profile.avatarUrl : null),
+            resolvedVisibilityMode: profile && profile.resolvedVisibilityMode ? profile.resolvedVisibilityMode : null,
+            resolvedVisibilityTypeId: profile ? canonicalVisibilityId(profile.resolvedVisibilityTypeId) : null,
+            resolvedPermissionMode: profile && profile.resolvedPermissionMode ? profile.resolvedPermissionMode : null,
+            resolvedPermissionCode: profile && profile.resolvedPermissionCode ? profile.resolvedPermissionCode : null
         };
+    }
+
+    function selectedBranch(row) {
+        const chain = [];
+        const seen = {};
+        let current = row;
+        while (current && chain.length < 32) {
+            if (!current.objectType || !current.objectId) {
+                break;
+            }
+            if (current.pathKey && seen[current.pathKey]) {
+                break;
+            }
+            if (current.pathKey) {
+                seen[current.pathKey] = true;
+            }
+            chain.push(String(current.objectType) + ":" + String(current.objectId));
+            if (!current.parentPathKey) {
+                break;
+            }
+            const parentKey = current.parentPathKey;
+            current = null;
+            for (let index = 0; index < rows.length; index += 1) {
+                if (rows[index] && rows[index].pathKey === parentKey) {
+                    current = rows[index];
+                    break;
+                }
+            }
+        }
+        return chain.join(",");
     }
 
     function renderProfiles(row, profiles) {
@@ -404,6 +455,23 @@ window.PluralBridge.navigator = (function () {
             list.appendChild(createCard(profileForCard(profile, id, renderedAccountId), {
                 allowProfileEditing: true,
                 previewHeader: true,
+                saveFronting: async function (fronting) {
+                    const membersApi = window.PluralBridge && window.PluralBridge.members
+                        ? window.PluralBridge.members
+                        : null;
+                    if (!membersApi || typeof membersApi.saveMemberFronting !== "function") {
+                        return {
+                            saved: false,
+                            status: "Fronting could not be saved."
+                        };
+                    }
+
+                    return membersApi.saveMemberFronting(renderedAccountId, id, {
+                        objectType: row.objectType,
+                        objectId: row.objectId,
+                        branch: selectedBranch(row)
+                    }, fronting);
+                },
                 saveProfile: async function (saveRequest) {
                     const membersApi = window.PluralBridge && window.PluralBridge.members
                         ? window.PluralBridge.members
@@ -417,7 +485,8 @@ window.PluralBridge.navigator = (function () {
 
                     const outcome = await membersApi.saveMemberProfile(renderedAccountId, id, {
                         objectType: row.objectType,
-                        objectId: row.objectId
+                        objectId: row.objectId,
+                        branch: selectedBranch(row)
                     }, saveRequest);
                     if (outcome && outcome.persisted === true && outcome.profile) {
                         reflectSharedMemberName(id, outcome.profile.displayName);
@@ -493,7 +562,7 @@ window.PluralBridge.navigator = (function () {
             return;
         }
 
-        apiClient.readAnchorMemberProfiles(row.objectType, anchorName, request.signal)
+        apiClient.readAnchorMemberProfiles(row.objectType, anchorName, request.signal, row.objectId, selectedBranch(row))
             .then(function (profiles) {
                 if (!profileResponseIsCurrent(request, pathKey)) {
                     return;

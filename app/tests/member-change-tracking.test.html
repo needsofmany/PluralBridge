@@ -86,7 +86,13 @@
                         displayName: request.displayName,
                         pronouns: request.pronouns,
                         description: request.description,
-                        color: Object.prototype.hasOwnProperty.call(request, "color") ? request.color : "navy"
+                        color: Object.prototype.hasOwnProperty.call(request, "color") ? request.color : "navy",
+                        placementVisibilityMode: request.visibilityMode || null,
+                        placementVisibilityTypeId: request.visibilityTypeId,
+                        placementPermissionMode: request.permissionMode || null,
+                        placementPermissionCode: request.permissionCode,
+                        avatarSaved: !!request.avatarImageBase64,
+                        avatarUrl: request.avatarImageBase64 ? "/api/me/members/" + request.memberId + "/avatar" : null
                     }
                 };
             }
@@ -124,6 +130,30 @@
                     var text = item.querySelector(".member-profile-field-label");
                     return text && text.textContent === label;
                 });
+            }
+
+            function pngFile(name) {
+                var binary = atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+                var bytes = new Uint8Array(binary.length);
+                for (var index = 0; index < binary.length; index += 1) {
+                    bytes[index] = binary.charCodeAt(index);
+                }
+                return new File([bytes], name, { type: "image/png" });
+            }
+
+            async function chooseAvatar(input, name) {
+                var transfer = new DataTransfer();
+                transfer.items.add(pngFile(name));
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                var frame = input.closest(".member-avatar-wrap");
+                for (var attempt = 0; attempt < 30; attempt += 1) {
+                    await tick();
+                    if (frame.classList.contains(changes.modifiedClass)) {
+                        return frame;
+                    }
+                }
+                return frame;
             }
 
             function typeField(card, label, value) {
@@ -242,18 +272,14 @@
                 var avatarFrame = card.querySelector(".member-avatar-wrap");
                 avatar.dispatchEvent(new Event("change", { bubbles: true }));
                 check(!avatar.classList.contains(changes.modifiedClass) && !avatarFrame.classList.contains(changes.modifiedClass), "an empty file change does not mark Avatar");
-                var file = new File(["avatar"], "ada.png", { type: "image/png" });
-                var transfer = new DataTransfer();
-                transfer.items.add(file);
-                avatar.files = transfer.files;
-                avatar.dispatchEvent(new Event("change", { bubbles: true }));
+                await chooseAvatar(avatar, "ada.png");
                 check(avatarFrame.classList.contains(changes.modifiedClass), "choosing an avatar marks the avatar frame");
                 check(!avatar.classList.contains(changes.modifiedClass), "the hidden avatar input is not marked");
 
                 typeField(card, "Pronouns", "she/her");
                 check(!dialog() || !dialog().open, "another same-card edit does not prompt");
                 check(!card.classList.contains("member-card-unsaved"), "modified controls do not frame the card");
-                check(card.querySelector(".member-card-unsaved-indicator").hidden === false, "unsaved indicator is visible");
+                check(card.querySelector(".member-profile-action-row .member-card-unsaved-indicator.is-visible") !== null, "unsaved indicator is visible beside Save");
                 check(card.querySelector(".member-card-unsaved-indicator").textContent === "Unsaved changes", "indicator text");
 
                 var nameValue = row(card, "Name").querySelector(".member-profile-field-value");
@@ -326,8 +352,14 @@
                 await tick();
                 check(dialog().open, "partial Save keeps the dialog open");
                 check(dialog().querySelector(".member-change-note").textContent ===
-                    "Not saved yet: Choose an avatar image, Visibility, Permissions, Fronting. Discard changes or keep editing.",
+                    "Not saved yet: Fronting. Discard changes or keep editing.",
                     "partial Save explains the fields that remain");
+                check(!card.querySelector(".member-avatar-wrap").classList.contains(changes.modifiedClass),
+                    "persistent Save clears Avatar when the saved image is returned");
+                check(!card.querySelector(".member-card-sharing").classList.contains(changes.modifiedClass),
+                    "persistent Save clears Visibility when the placement mode is returned");
+                check(!card.querySelector(".member-policy-button").classList.contains(changes.modifiedClass),
+                    "persistent Save clears Permissions when the placement mode is returned");
                 check(!nameRow.querySelector(".member-profile-field-value").classList.contains(changes.modifiedClass) && !card.querySelector(".member-color-swatch").classList.contains(changes.modifiedClass),
                     "persistent Save clears only the saved profile controls");
                 check(card.querySelector(".member-card-fronting").classList.contains(changes.modifiedClass), "Fronting stays marked");
@@ -575,7 +607,7 @@
                 check(cancelHost.scrollTop === 24, "Cancel preserves scroll position");
                 check(cancel.hidden === true, "Cancel hides after restoring an ordinary edit");
                 check(!changes.dirty(cancelCard), "Cancel clears modification markers");
-                check(cancelCard.querySelector(".member-card-unsaved-indicator").hidden === true, "Cancel clears Unsaved changes");
+                check(!cancelCard.querySelector(".member-card-unsaved-indicator").classList.contains("is-visible"), "Cancel clears Unsaved changes");
                 check(cancelCard.querySelector(".member-name").textContent === "Nia", "Cancel restores the saved name");
                 check(!dialog() || !dialog().open, "Cancel does not open a confirmation dialog");
 
@@ -682,11 +714,7 @@
                 check(!frame.classList.contains(changes.modifiedClass), "cancelling the chooser does not mark the avatar");
                 check(descriptionEditor.value === "Longer description" && descriptionEditor.classList.contains(changes.modifiedClass), "cancelling the chooser leaves the description draft and marker");
 
-                var image = new File(["avatar"], "nia.png", { type: "image/png" });
-                var imageTransfer = new DataTransfer();
-                imageTransfer.items.add(image);
-                frameFile.files = imageTransfer.files;
-                frameFile.dispatchEvent(new Event("change", { bubbles: true }));
+                await chooseAvatar(frameFile, "nia.png");
                 check(frame.classList.contains(changes.modifiedClass), "choosing an avatar marks the avatar frame");
                 check(frame.querySelector(".member-avatar-image"), "the avatar frame stays marked after it repaints");
                 var frameShadow = getComputedStyle(frame).boxShadow;
@@ -723,7 +751,7 @@
                 check(savedDescription && !savedDescription.classList.contains(changes.modifiedClass), "Save clears the saved description marker");
                 check(savedDescription.textContent === "Longer description", "Save keeps the saved description");
                 check(savedDescription.getBoundingClientRect().height + 1 >= parseFloat(getComputedStyle(savedDescription).minHeight), "Save does not shrink the description");
-                check(frame.classList.contains(changes.modifiedClass), "Save leaves the unsaved avatar marker");
+                check(!frame.classList.contains(changes.modifiedClass), "Save clears the avatar marker after the image is saved");
                 frameCard.querySelector(".member-profile-cancel-button").click();
                 await tick();
                 check(!frame.classList.contains(changes.modifiedClass), "Cancel clears the avatar marker");
@@ -822,6 +850,49 @@
                 nickname.value = "";
                 nickname.dispatchEvent(new Event("input", { bubbles: true }));
                 check(nickname.classList.contains(changes.modifiedClass), "clearing a dynamic control leaves it marked");
+
+                changes.restore(dynamicCard);
+                var frontRequests = [];
+                var frontOutcome = null;
+                var frontCard = window.PluralBridge.createMemberAccordion(member("16161616-1616-1616-1616-161616161616", "Fay"), {
+                    previewHeader: true,
+                    allowProfileEditing: true,
+                    saveProfile: window.PluralBridge.saveProfile,
+                    saveFronting: function (fronting) {
+                        frontRequests.push(fronting);
+                        if (frontOutcome) {
+                            var outcome = frontOutcome;
+                            frontOutcome = null;
+                            return Promise.resolve(outcome);
+                        }
+                        return Promise.resolve({ saved: true, fronting: fronting });
+                    }
+                });
+                frontCard.open = true;
+                host.appendChild(frontCard);
+                typeField(frontCard, "Name", "Fay Two");
+                frontCard.querySelector(".member-card-fronting").click();
+                await tick();
+                await tick();
+                check(frontRequests.length === 1 && frontRequests[0] === true, "fronting saves immediately");
+                check(!frontCard.querySelector(".member-card-fronting").classList.contains(changes.modifiedClass), "successful fronting clears its marker");
+                check(changes.names(frontCard).indexOf("Name") >= 0, "fronting save keeps the unrelated name draft");
+                frontOutcome = { saved: false, status: "Fronting failed." };
+                frontCard.querySelector(".member-card-fronting").click();
+                await tick();
+                await tick();
+                check(frontCard.querySelector(".member-card-fronting").classList.contains(changes.modifiedClass), "failed fronting keeps its marker");
+                check(frontCard.querySelector(".member-form-status").textContent === "Fronting failed.", "failed fronting shows the error");
+                check(changes.names(frontCard).indexOf("Name") >= 0, "failed fronting keeps the name draft");
+                var frontAvatar = frontCard.querySelector("input[type='file']");
+                await chooseAvatar(frontAvatar, "fay.png");
+                check(frontCard.querySelector(".member-avatar-wrap").classList.contains(changes.modifiedClass), "avatar stays marked beside the failed fronting state");
+                frontCard.querySelector(".member-profile-cancel-button").click();
+                await tick();
+                check(!frontCard.querySelector(".member-avatar-wrap").classList.contains(changes.modifiedClass), "Cancel restores the avatar marker");
+                check(!frontCard.querySelector(".member-avatar-image"), "Cancel restores the saved avatar image");
+                check(!frontCard.querySelector(".member-card-fronting").classList.contains(changes.modifiedClass), "Cancel clears the failed fronting marker");
+                check(changes.names(frontCard).indexOf("Name") < 0, "Cancel restores the name draft");
 
                 document.getElementById("result").textContent = failures.length
                     ? "FAIL\n" + failures.join("\n")

@@ -972,6 +972,17 @@
 	height: 2.15rem;
 }
 
+.member-profile-field-value-short {
+	display: block;
+	box-sizing: content-box;
+	height: 2.15rem;
+	padding: 0.45rem 0.55rem;
+	border: 1px solid var(--pb-accent-55);
+	border-radius: 0.45rem;
+	background: var(--pb-surface-overlay);
+	line-height: 1.45;
+}
+
 .member-profile-field-textarea {
 	field-sizing: content;
 	resize: vertical;
@@ -2241,9 +2252,15 @@
 }
 
 .member-card-unsaved-indicator {
+	visibility: hidden;
 	color: var(--pb-danger);
 	font-size: 0.75rem;
 	font-weight: 600;
+	white-space: nowrap;
+}
+
+.member-card-unsaved-indicator.is-visible {
+	visibility: visible;
 }
 
 .member-change-dialog {

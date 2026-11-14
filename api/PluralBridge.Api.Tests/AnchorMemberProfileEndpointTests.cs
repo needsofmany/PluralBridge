@@ -239,6 +239,329 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Null(profiles);
 	}
 
+	[Fact]
+	public void MapBundle_ReadsSixSetsIndependently()
+	{
+		var memberId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+		var anchorId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+		var updatedAt = new DateTime(2026, 11, 13, 7, 1, 2, 100);
+		var bundle = AnchorMemberProfileReader.MapBundle(SixSets(
+			[
+				[memberId, "Ada", DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, false]
+			],
+			true,
+			[
+				[0, "group", anchorId, "inherit", DBNull.Value, "explicit", "viewer"]
+			],
+			[
+				[memberId, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value]
+			],
+			[
+				[memberId, true]
+			],
+			[
+				[memberId, updatedAt]
+			]));
+
+		Assert.True(bundle.BranchValid);
+		Assert.Equal("Ada", bundle.Profiles[0].DisplayName);
+		Assert.False(bundle.Profiles[0].IsFronting);
+		Assert.Null(bundle.Placements[0].VisibilityMode);
+		Assert.Null(bundle.Placements[0].PermissionMode);
+		Assert.True(bundle.Fronting[0].IsFronting);
+		Assert.Equal(updatedAt, bundle.Avatars[0].UpdatedAtUtc);
+		Assert.Equal(
+			"/api/me/members/55555555-5555-5555-5555-555555555555/avatar?v=2026-11-13T07%3A01%3A02.100",
+			MeController.AvatarReferenceUrl(memberId, updatedAt));
+	}
+
+	[Fact]
+	public void MapBundle_AllowsEmptyMemberLists()
+	{
+		var bundle = AnchorMemberProfileReader.MapBundle(SixSets([], false, [], [], [], []));
+
+		Assert.Empty(bundle.Profiles);
+		Assert.False(bundle.BranchValid);
+		Assert.Empty(bundle.BranchAnchors);
+		Assert.Empty(bundle.Placements);
+		Assert.Empty(bundle.Fronting);
+		Assert.Empty(bundle.Avatars);
+	}
+
+	[Fact]
+	public void MapBundle_KeepsFrontingAndAvatarWhenPlacementRowsAreAbsent()
+	{
+		var memberId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+		var updatedAt = new DateTime(2026, 11, 13, 8, 0, 0, 0);
+		var bundle = AnchorMemberProfileReader.MapBundle(SixSets(
+			[
+				[memberId, "Ada", DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, false]
+			],
+			false,
+			[],
+			[],
+			[
+				[memberId, true]
+			],
+			[
+				[memberId, updatedAt]
+			]));
+
+		Assert.Empty(bundle.Placements);
+		Assert.True(bundle.Fronting[0].IsFronting);
+		Assert.Equal(updatedAt, bundle.Avatars[0].UpdatedAtUtc);
+	}
+
+	[Fact]
+	public void MapBundle_RejectsIncompleteContract()
+	{
+		var exception = Assert.Throws<AnchorProfileContractException>(() =>
+			AnchorMemberProfileReader.MapBundle(
+			[
+				ResultSet(ProfileColumns(), []),
+				ResultSet([["BranchValid", "bit"]], [[false]]),
+				ResultSet(BranchColumns(), [])
+			]));
+
+		Assert.Contains("3 result sets", exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void MapBundle_RejectsDuplicatePlacementRows()
+	{
+		var memberId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+		var exception = Assert.Throws<AnchorProfileContractException>(() =>
+			AnchorMemberProfileReader.MapBundle(SixSets(
+				[
+					[memberId, "Ada", DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, false]
+				],
+				true,
+				[],
+				[
+					[memberId, "unset", DBNull.Value, "unset", DBNull.Value],
+					[memberId, "explicit", 1, "unset", DBNull.Value]
+				],
+				[
+					[memberId, false]
+				],
+				[])));
+
+		Assert.Contains("duplicated", exception.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Decide_AllowsDirectOwnerOnTheExample10HouseholdRoot()
+	{
+		var household = Guid.Parse("EDB5FBA0-8773-46C6-B8A2-3BCCF923EFB4");
+		var decision = AnchorWriteAuthorization.Decide(
+			"group",
+			household,
+			[
+				Fact("group", household, "inherit", owner: true, linkedToNext: true, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.Allowed, decision);
+	}
+
+	[Fact]
+	public void Decide_AllowsMainHouseToInheritHouseholdOwner()
+	{
+		var household = Guid.Parse("EDB5FBA0-8773-46C6-B8A2-3BCCF923EFB4");
+		var mainHouse = Guid.Parse("449F4A5D-8F31-4710-AD7A-776A8ACB0325");
+		var decision = AnchorWriteAuthorization.Decide(
+			"system",
+			mainHouse,
+			[
+				Fact("system", mainHouse, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("group", household, "inherit", owner: true, linkedToNext: false, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.Allowed, decision);
+	}
+
+	[Fact]
+	public void Decide_AllowsTheHarborToInheritHouseholdOwner()
+	{
+		var household = Guid.Parse("EDB5FBA0-8773-46C6-B8A2-3BCCF923EFB4");
+		var harbor = Guid.Parse("D83AADAF-B096-4AC2-AA23-88561BA8F5F3");
+		var decision = AnchorWriteAuthorization.Decide(
+			"system",
+			harbor,
+			[
+				Fact("system", harbor, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("group", household, "inherit", owner: true, linkedToNext: false, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.Allowed, decision);
+	}
+
+	[Fact]
+	public void Decide_AllowsInheritedOwnerThroughAGenericMultiLevelBranch()
+	{
+		var root = Guid.Parse("10000000-0000-0000-0000-000000000001");
+		var middle = Guid.Parse("10000000-0000-0000-0000-000000000002");
+		var selected = Guid.Parse("10000000-0000-0000-0000-000000000003");
+		var decision = AnchorWriteAuthorization.Decide(
+			"place",
+			selected,
+			[
+				Fact("place", selected, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("group", middle, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("system", root, "inherit", owner: true, linkedToNext: false, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.Allowed, decision);
+	}
+
+	[Fact]
+	public void Decide_DeniesAGenericBranchWithNoOwnerGrant()
+	{
+		var root = Guid.Parse("10000000-0000-0000-0000-000000000001");
+		var selected = Guid.Parse("10000000-0000-0000-0000-000000000003");
+		var decision = AnchorWriteAuthorization.Decide(
+			"place",
+			selected,
+			[
+				Fact("place", selected, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("system", root, "inherit", owner: false, linkedToNext: false, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.OwnerRequired, decision);
+	}
+
+	[Fact]
+	public void Decide_StopsAGenericBranchWhenAnAncestorDoesNotInherit()
+	{
+		var root = Guid.Parse("10000000-0000-0000-0000-000000000001");
+		var middle = Guid.Parse("10000000-0000-0000-0000-000000000002");
+		var selected = Guid.Parse("10000000-0000-0000-0000-000000000003");
+		var explicitStop = AnchorWriteAuthorization.Decide(
+			"place",
+			selected,
+			[
+				Fact("place", selected, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("group", middle, "explicit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("system", root, "inherit", owner: true, linkedToNext: false, accountChild: true)
+			]);
+		var notSetStop = AnchorWriteAuthorization.Decide(
+			"place",
+			selected,
+			[
+				Fact("place", selected, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("group", middle, null, owner: false, linkedToNext: true, accountChild: false),
+				Fact("system", root, "inherit", owner: true, linkedToNext: false, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.OwnerRequired, explicitStop);
+		Assert.Equal(AnchorWriteDecision.OwnerRequired, notSetStop);
+	}
+
+	[Fact]
+	public void Decide_DoesNotTreatAnOwnerPermissionCodeAsARoleGrant()
+	{
+		var household = Guid.Parse("EDB5FBA0-8773-46C6-B8A2-3BCCF923EFB4");
+		var decision = AnchorWriteAuthorization.Decide(
+			"group",
+			household,
+			[
+				Fact("group", household, "explicit", owner: false, linkedToNext: false, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.OwnerRequired, decision);
+	}
+
+	[Fact]
+	public void Decide_RejectsAGenericInvalidBranchAndAnUnrelatedParentGrant()
+	{
+		var root = Guid.Parse("10000000-0000-0000-0000-000000000001");
+		var otherParent = Guid.Parse("10000000-0000-0000-0000-000000000009");
+		var selected = Guid.Parse("10000000-0000-0000-0000-000000000003");
+		var brokenLink = AnchorWriteAuthorization.Decide(
+			"place",
+			selected,
+			[
+				Fact("place", selected, "inherit", owner: true, linkedToNext: false, accountChild: false),
+				Fact("system", otherParent, "inherit", owner: true, linkedToNext: false, accountChild: true)
+			]);
+		var unrelatedGrant = AnchorWriteAuthorization.Decide(
+			"place",
+			selected,
+			[
+				Fact("place", selected, "inherit", owner: false, linkedToNext: true, accountChild: false),
+				Fact("system", root, "inherit", owner: false, linkedToNext: false, accountChild: true)
+			]);
+
+		Assert.Equal(AnchorWriteDecision.InvalidBranch, brokenLink);
+		Assert.Equal(AnchorWriteDecision.OwnerRequired, unrelatedGrant);
+		Assert.False(AnchorWriteAuthorization.TryReadBranch(
+			"place:" + otherParent.ToString("D") + ",system:" + root.ToString("D"),
+			"place",
+			selected,
+			out _));
+	}
+
+	private static AnchorWriteFact Fact(
+		string objectType,
+		Guid objectId,
+		string? permissionMode,
+		bool owner,
+		bool linkedToNext,
+		bool accountChild)
+	{
+		return new AnchorWriteFact(objectType, objectId, permissionMode, owner, linkedToNext, accountChild);
+	}
+
+	private static AnchorMemberProfileResultSet[] SixSets(
+		object[][] profiles,
+		bool branchValid,
+		object[][] anchors,
+		object[][] placements,
+		object[][] fronting,
+		object[][] avatars)
+	{
+		return
+		[
+			ResultSet(ProfileColumns(), profiles),
+			ResultSet([["BranchValid", "bit"]], [[branchValid]]),
+			ResultSet(BranchColumns(), anchors),
+			ResultSet(
+				[
+					["MemberId", "uniqueidentifier"],
+					["VisibilityMode", "nvarchar"],
+					["VisibilityTypeId", "int"],
+					["PermissionMode", "nvarchar"],
+					["PermissionCode", "nvarchar"]
+				],
+				placements),
+			ResultSet(
+				[
+					["MemberId", "uniqueidentifier"],
+					["IsFronting", "bit"]
+				],
+				fronting),
+			ResultSet(
+				[
+					["MemberId", "uniqueidentifier"],
+					["UpdatedAtUtc", "datetime2"]
+				],
+				avatars)
+		];
+	}
+
+	private static string[][] BranchColumns()
+	{
+		return
+		[
+			["Ordinal", "int"],
+			["ObjectType", "nvarchar"],
+			["ObjectId", "uniqueidentifier"],
+			["VisibilityMode", "nvarchar"],
+			["VisibilityTypeId", "int"],
+			["PermissionMode", "nvarchar"],
+			["PermissionCode", "nvarchar"]
+		];
+	}
+
 	private static string[][] ProfileColumns()
 	{
 		return

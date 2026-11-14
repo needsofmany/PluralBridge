@@ -829,12 +829,29 @@ window.PluralBridge.members = (function () {
         const body = {
             anchorObjectType: objectType,
             anchorObjectId: objectId,
+            branch: anchor && anchor.branch ? String(anchor.branch) : "",
             displayName: fields ? fields.displayName : "",
             pronouns: fields ? fields.pronouns : "",
             description: fields ? fields.description : ""
         };
         if (fields && Object.prototype.hasOwnProperty.call(fields, "color")) {
             body.color = fields.color;
+        }
+        if (fields && Object.prototype.hasOwnProperty.call(fields, "visibilityMode")) {
+            body.visibilityMode = fields.visibilityMode;
+            body.visibilityTypeId = Object.prototype.hasOwnProperty.call(fields, "visibilityTypeId")
+                ? fields.visibilityTypeId
+                : null;
+        }
+        if (fields && Object.prototype.hasOwnProperty.call(fields, "permissionMode")) {
+            body.permissionMode = fields.permissionMode;
+            body.permissionCode = Object.prototype.hasOwnProperty.call(fields, "permissionCode")
+                ? fields.permissionCode
+                : null;
+        }
+        if (fields && Object.prototype.hasOwnProperty.call(fields, "avatarContentType")) {
+            body.avatarContentType = fields.avatarContentType;
+            body.avatarImageBase64 = fields.avatarImageBase64;
         }
 
         try {
@@ -860,6 +877,61 @@ window.PluralBridge.members = (function () {
                 status: error && error.message
                     ? error.message
                     : "Member could not be saved."
+            };
+        }
+    }
+
+    async function saveMemberFronting(accountId, memberId, anchor, fronting) {
+        if (databaseWritesAreDisabled()) {
+            return {
+                saved: false,
+                status: "Fronting was not saved because database writes are disabled."
+            };
+        }
+
+        const objectType = anchor && anchor.objectType ? String(anchor.objectType) : "";
+        const objectId = anchor && anchor.objectId ? String(anchor.objectId) : "";
+        if ((objectType !== "system" && objectType !== "group" && objectType !== "place") || !objectId) {
+            return {
+                saved: false,
+                status: "The selected anchor cannot authorize this fronting change."
+            };
+        }
+
+        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+        if (!apiClient || typeof apiClient.saveMemberFronting !== "function") {
+            return {
+                saved: false,
+                status: "Fronting could not be saved."
+            };
+        }
+
+        try {
+            const payload = await apiClient.saveMemberFronting(memberId, {
+                anchorObjectType: objectType,
+                anchorObjectId: objectId,
+                branch: anchor && anchor.branch ? String(anchor.branch) : "",
+                fronting: fronting === true
+            });
+            if (!payload || (payload.fronting !== true && payload.fronting !== false)) {
+                return {
+                    saved: false,
+                    status: "Fronting could not be saved."
+                };
+            }
+
+            return {
+                saved: true,
+                fronting: payload.fronting
+            };
+        } catch (error) {
+            return {
+                saved: false,
+                status: error && error.message
+                    ? error.message
+                    : "Fronting could not be saved."
             };
         }
     }
@@ -3047,6 +3119,7 @@ window.PluralBridge.members = (function () {
         readMemberProfilePreview: readMemberProfilePreview,
         saveMemberProfilePreview: saveMemberProfilePreview,
         saveMemberProfile: saveMemberProfile,
+        saveMemberFronting: saveMemberFronting,
         createMemberEditForm: createMemberEditForm
     };
 })();
