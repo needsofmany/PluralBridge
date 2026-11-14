@@ -5,14 +5,30 @@ using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Controllers;
 
+/// <summary>
+/// The profile procedure returned a result shape this API does not accept.
+/// </summary>
 internal sealed class AnchorProfileContractException : Exception
 {
+	/// <summary>
+	/// Records the contract mismatch that the profile endpoint returns as an installation error.
+	/// </summary>
+	/// <param name="message">Caller-supplied explanation, including the script required when the shape is known.</param>
 	internal AnchorProfileContractException(string message)
 		: base(message)
 	{
 	}
 }
 
+/// <summary>
+/// The six profile result sets after their columns have been checked. Duplicate member IDs are rejected inside the placement, fronting, and avatar sets. Profile member IDs are not checked for duplicates, and supporting IDs are not compared with the profile list.
+/// </summary>
+/// <param name="Profiles">Profile rows in procedure order. Repeated member IDs are preserved.</param>
+/// <param name="BranchValid">The procedure's BranchValid bit. This reader does not revalidate the branch.</param>
+/// <param name="BranchAnchors">Branch-anchor rows in the order the procedure returned them. This reader does not sort by Ordinal, validate the topology, or require the list to be empty when BranchValid is false.</param>
+/// <param name="Placements">Placement rows. A repeated member ID in this set is rejected. An empty set does not remove fronting or avatars.</param>
+/// <param name="Fronting">One member-level fronting bit per member returned by the fronting set.</param>
+/// <param name="Avatars">Avatar timestamps only. Image bytes are not in this bundle.</param>
 internal sealed record AnchorProfileBundle(
 	IReadOnlyList<AnchorMemberProfile> Profiles,
 	bool BranchValid,
@@ -21,6 +37,9 @@ internal sealed record AnchorProfileBundle(
 	IReadOnlyList<AnchorMemberFronting> Fronting,
 	IReadOnlyList<AnchorMemberAvatar> Avatars);
 
+/// <summary>
+/// Stored visibility and permission settings for one member on the selected anchor. Null modes are left null for the caller to resolve.
+/// </summary>
 internal sealed record AnchorMemberPlacement(
 	Guid MemberId,
 	string? VisibilityMode,
@@ -28,10 +47,19 @@ internal sealed record AnchorMemberPlacement(
 	string? PermissionMode,
 	string? PermissionCode);
 
+/// <summary>
+/// Whether the member has an open live fronting interval. This is independent of the profile row's fronting column.
+/// </summary>
 internal sealed record AnchorMemberFronting(Guid MemberId, bool IsFronting);
 
+/// <summary>
+/// The member's avatar timestamp. The image GET uses this value as the cache version and reads the bytes separately.
+/// </summary>
 internal sealed record AnchorMemberAvatar(Guid MemberId, DateTime UpdatedAtUtc);
 
+/// <summary>
+/// One anchor on the selected branch, with the visibility and permission settings used for display inheritance.
+/// </summary>
 internal sealed record AnchorBranchAnchor(
 	string ObjectType,
 	Guid ObjectId,
@@ -40,6 +68,9 @@ internal sealed record AnchorBranchAnchor(
 	string? PermissionMode,
 	string? PermissionCode);
 
+/// <summary>
+/// One member profile row from the first result set. Nullable text and visibility fields stay null when the database value is null.
+/// </summary>
 internal sealed record AnchorMemberProfile(
 	Guid MemberId,
 	string DisplayName,
@@ -51,6 +82,9 @@ internal sealed record AnchorMemberProfile(
 	string? VisibilityTypeName,
 	bool IsFronting);
 
+/// <summary>
+/// One raw procedure result set: column names and SQL type names, plus the unread cell values.
+/// </summary>
 internal sealed class AnchorMemberProfileResultSet
 {
 	public required IReadOnlyList<AnchorMemberProfileColumn> Columns { get; init; }
@@ -58,8 +92,18 @@ internal sealed class AnchorMemberProfileResultSet
 	public required IReadOnlyList<IReadOnlyList<object>> Rows { get; init; }
 }
 
+/// <summary>
+/// A result-set column identified by name and SQL type. Matching is ordinal and case-sensitive for the name.
+/// </summary>
 internal readonly record struct AnchorMemberProfileColumn(string Name, string SqlTypeName);
 
+/// <summary>
+/// Reads and checks the anchor member profile procedure.
+/// </summary>
+/// <remarks>
+/// The procedure returns one set when @BranchJson is omitted. Map accepts only that nine-column set.
+/// The API always passes @BranchJson, so MapBundle requires all six sets and does not treat a shorter result as success.
+/// </remarks>
 internal static class AnchorMemberProfileReader
 {
 	private static readonly AnchorMemberProfileColumn[] ProfileColumns =
@@ -112,6 +156,13 @@ internal static class AnchorMemberProfileReader
 		new("UpdatedAtUtc", "datetime2")
 	];
 
+	/// <summary>
+	/// Copies every result set from the open reader and maps the six-set contract.
+	/// </summary>
+	/// <param name="reader">Reader positioned at the first profile result set. It is advanced through every following set.</param>
+	/// <param name="cancellationToken">Cancels reading a row or moving to the next result set.</param>
+	/// <returns>The mapped bundle when the task completes. The current contract does not return null from MapBundle.</returns>
+	/// <exception cref="AnchorProfileContractException">The sets are not the six-set contract, or a row cannot be read.</exception>
 	internal static async Task<AnchorProfileBundle?> ReadAsync(
 		SqlDataReader reader,
 		CancellationToken cancellationToken)
@@ -147,6 +198,18 @@ internal static class AnchorMemberProfileReader
 		return MapBundle(resultSets);
 	}
 
+	/// <summary>
+	/// Maps the six profile result sets without merging a missing supporting row into another set.
+	/// </summary>
+	/// <param name="resultSets">Profiles, BranchValid, branch anchors, placements, member-level fronting, then avatar timestamps, in that order.</param>
+	/// <returns>The checked bundle. An empty placement, fronting, or avatar set is a valid empty list.</returns>
+	/// <remarks>
+	/// The three supporting sets are independent: an empty placement set does not drop fronting or avatars.
+	/// Duplicate member IDs are rejected within placements, within fronting, and within avatars. Map does not reject duplicate profile member IDs, and supporting IDs are not cross-checked against the profile list.
+	/// BranchValid and anchor row order come from the procedure. This method preserves that anchor order. It does not validate topology, enforce Ordinal order, or require an empty anchor list when BranchValid is false.
+	/// UpdatedAtUtc stays a DateTime so the caller formats the URL version.
+	/// </remarks>
+	/// <exception cref="AnchorProfileContractException">The set count, columns, BranchValid cell, or a member row does not match the installed procedure.</exception>
 	internal static AnchorProfileBundle MapBundle(IReadOnlyList<AnchorMemberProfileResultSet> resultSets)
 	{
 		if (resultSets.Count != 6)
@@ -157,6 +220,7 @@ internal static class AnchorMemberProfileReader
 				+ " result sets. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
 		}
 
+		// Profile rows use the strict nine-column map. A mismatch fails the whole bundle.
 		var profiles = Map([resultSets[0]]);
 		if (profiles is null
 			|| !ColumnsMatch(resultSets[1], BranchValidColumns)
@@ -199,6 +263,7 @@ internal static class AnchorMemberProfileReader
 				permissionCode));
 		}
 
+		// Each supporting set keeps its own member identity. A duplicate in one set does not select a row.
 		var seenMembers = new HashSet<Guid>();
 		var placements = new List<AnchorMemberPlacement>(resultSets[3].Rows.Count);
 		foreach (var row in resultSets[3].Rows)
@@ -258,6 +323,11 @@ internal static class AnchorMemberProfileReader
 		return new AnchorProfileBundle(profiles, branchValid, anchors, placements, fronting, avatars);
 	}
 
+	/// <summary>
+	/// Maps the single nine-column profile set used when the branch parameter is absent from the procedure.
+	/// </summary>
+	/// <param name="resultSets">Exactly one set whose columns match the profile contract, in order.</param>
+	/// <returns>The profiles in row order, including repeated member IDs. Null when the set count, columns, or any row does not match. Null is a contract failure, not an empty anchor.</returns>
 	internal static IReadOnlyList<AnchorMemberProfile>? Map(
 		IReadOnlyList<AnchorMemberProfileResultSet> resultSets)
 	{
@@ -280,6 +350,12 @@ internal static class AnchorMemberProfileReader
 		return profiles;
 	}
 
+	/// <summary>
+	/// Compares column names and SQL types by ordinal.
+	/// </summary>
+	/// <param name="resultSet">The set returned by the procedure.</param>
+	/// <param name="expected">The contract columns. Names are case-sensitive. SQL type names are not.</param>
+	/// <returns>True when both lists have the same length and each position matches.</returns>
 	private static bool ColumnsMatch(
 		AnchorMemberProfileResultSet resultSet,
 		IReadOnlyList<AnchorMemberProfileColumn> expected)
@@ -303,6 +379,12 @@ internal static class AnchorMemberProfileReader
 		return true;
 	}
 
+	/// <summary>
+	/// Reads one nine-column profile row. A null fronting bit fails the row.
+	/// </summary>
+	/// <param name="row">Cells in profile column order. DBNull is accepted for the nullable text and visibility columns.</param>
+	/// <param name="profile">The profile when the method returns true. Unset when it returns false.</param>
+	/// <returns>True when the member id, display name, and fronting bit are present and the optional cells are null or the expected type.</returns>
 	private static bool TryProfileRow(
 		IReadOnlyList<object> row,
 		out AnchorMemberProfile profile)
@@ -335,6 +417,12 @@ internal static class AnchorMemberProfileReader
 		return false;
 	}
 
+	/// <summary>
+	/// Accepts a SQL int or database null.
+	/// </summary>
+	/// <param name="value">The cell. DBNull becomes a null number. Any other non-int fails.</param>
+	/// <param name="number">The integer, or null when <paramref name="value"/> is DBNull. Unset on failure.</param>
+	/// <returns>True for DBNull or an int.</returns>
 	private static bool TryOptionalInt(object value, out int? number)
 	{
 		if (value is DBNull)
@@ -353,6 +441,12 @@ internal static class AnchorMemberProfileReader
 		return false;
 	}
 
+	/// <summary>
+	/// Accepts only a SQL bit. Database null is a contract failure.
+	/// </summary>
+	/// <param name="value">The cell. Only a bool is accepted.</param>
+	/// <param name="flag">The bit when the method returns true. False when it returns false.</param>
+	/// <returns>True when <paramref name="value"/> is a bool.</returns>
 	private static bool TryRequiredBool(object value, out bool flag)
 	{
 		if (value is bool bit)
@@ -365,6 +459,12 @@ internal static class AnchorMemberProfileReader
 		return false;
 	}
 
+	/// <summary>
+	/// Accepts a SQL string or database null.
+	/// </summary>
+	/// <param name="value">The cell. DBNull becomes a null string. Any other non-string fails.</param>
+	/// <param name="text">The string, or null when <paramref name="value"/> is DBNull. Unset on failure.</param>
+	/// <returns>True for DBNull or a string.</returns>
 	private static bool TryOptionalText(object value, out string? text)
 	{
 		if (value is DBNull)

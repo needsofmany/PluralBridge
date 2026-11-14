@@ -11,11 +11,22 @@ using PluralBridge.Api.Tests.Account;
 
 namespace PluralBridge.Api.Tests;
 
+/// <summary>
+/// Checks anchor profile HTTP responses, the six-set reader contract, and inherited Owner decisions.
+/// </summary>
+/// <remarks>
+/// The HTTP cases use a temporary account. The mapping and decision cases do not call the database.
+/// Example 10 ids are the installed Household group and its sibling systems. Other ids are generic chains.
+/// </remarks>
 [Collection(AccountTestGlobals.Collections.AccountDatabase)]
 public sealed class AnchorMemberProfileEndpointTests
 {
 	private const string Route = "/api/me/anchor-member-profiles";
 
+	/// <summary>
+	/// An anonymous profile read is rejected before anchor lookup.
+	/// </summary>
+	/// <returns>The task completes when the response is HTTP 401.</returns>
 	[Fact]
 	public async Task UnauthenticatedRequest_Returns401()
 	{
@@ -30,6 +41,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
 	}
 
+	/// <summary>
+	/// A signed-in account cannot request profiles for an object type other than system, group, or place.
+	/// </summary>
+	/// <returns>The task completes when the response is HTTP 400 and reports that the type must be one of those three.</returns>
 	[Fact]
 	public async Task UnsupportedObjectType_Returns400()
 	{
@@ -64,6 +79,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		}
 	}
 
+	/// <summary>
+	/// A signed-in account cannot request profiles with a blank anchor name.
+	/// </summary>
+	/// <returns>The task completes when the response is HTTP 400 and says the type and name are required.</returns>
 	[Fact]
 	public async Task BlankAnchorName_Returns400()
 	{
@@ -97,6 +116,11 @@ public sealed class AnchorMemberProfileEndpointTests
 		}
 	}
 
+	/// <summary>
+	/// A signed-in account receives not found for an anchor name that is not on its map.
+	/// </summary>
+	/// <returns>The task completes when the response is HTTP 404. A query email does not switch the account.</returns>
+	/// <remarks>The extra email query checks that the route uses the session account rather than a caller-supplied address.</remarks>
 	[Fact]
 	public async Task AnchorMissingFromAccountMap_Returns404()
 	{
@@ -133,6 +157,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		}
 	}
 
+	/// <summary>
+	/// The single profile set keeps row order and leaves null pronouns, description, color, and visibility fields null.
+	/// </summary>
 	[Fact]
 	public void Map_PreservesOrderAndNullableProfileFields()
 	{
@@ -157,6 +184,9 @@ public sealed class AnchorMemberProfileEndpointTests
 			profiles);
 	}
 
+	/// <summary>
+	/// Map accepts only the legacy one-set shape. Two profile sets are a contract failure.
+	/// </summary>
 	[Fact]
 	public void Map_RejectsMoreThanOneResultSet()
 	{
@@ -169,6 +199,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Null(profiles);
 	}
 
+	/// <summary>
+	/// A profile set that stops before description, color, visibility, and fronting is rejected.
+	/// </summary>
 	[Fact]
 	public void Map_RejectsMissingProfileColumn()
 	{
@@ -186,6 +219,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Null(profiles);
 	}
 
+	/// <summary>
+	/// A profile set that has text columns but no color column is rejected.
+	/// </summary>
 	[Fact]
 	public void Map_RejectsProfileResultWithoutColor()
 	{
@@ -204,6 +240,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Null(profiles);
 	}
 
+	/// <summary>
+	/// A profile set that includes color but omits visibility and fronting is rejected.
+	/// </summary>
 	[Fact]
 	public void Map_RejectsProfileResultWithoutVisibilityOrFronting()
 	{
@@ -223,6 +262,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Null(profiles);
 	}
 
+	/// <summary>
+	/// A null fronting bit is not treated as false. The row fails the single-set map.
+	/// </summary>
 	[Fact]
 	public void Map_RejectsNullFrontingFlag()
 	{
@@ -239,6 +281,13 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Null(profiles);
 	}
 
+	/// <summary>
+	/// The six sets stay independent: the profile fronting bit, the open-interval bit, null placement modes, and the avatar timestamp are each preserved.
+	/// </summary>
+	/// <remarks>
+	/// Set 1 says this member is not fronting. Set 5 says the open interval exists.
+	/// Null placement modes stay null, and the avatar time remains the raw datetime2 value. The URL version is formatted separately.
+	/// </remarks>
 	[Fact]
 	public void MapBundle_ReadsSixSetsIndependently()
 	{
@@ -275,6 +324,9 @@ public sealed class AnchorMemberProfileEndpointTests
 			MeController.AvatarReferenceUrl(memberId, updatedAt));
 	}
 
+	/// <summary>
+	/// An invalid branch with no member rows is a valid empty bundle, not a missing contract.
+	/// </summary>
 	[Fact]
 	public void MapBundle_AllowsEmptyMemberLists()
 	{
@@ -288,6 +340,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Empty(bundle.Avatars);
 	}
 
+	/// <summary>
+	/// An empty placement set does not drop the fronting or avatar sets.
+	/// </summary>
+	/// <remarks>An empty placement set must not be treated as missing fronting or avatar storage.</remarks>
 	[Fact]
 	public void MapBundle_KeepsFrontingAndAvatarWhenPlacementRowsAreAbsent()
 	{
@@ -312,6 +368,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(updatedAt, bundle.Avatars[0].UpdatedAtUtc);
 	}
 
+	/// <summary>
+	/// Three result sets, the older branch procedure shape, are rejected.
+	/// </summary>
+	/// <remarks>The current API does not accept that shape as a profile list.</remarks>
 	[Fact]
 	public void MapBundle_RejectsIncompleteContract()
 	{
@@ -326,6 +386,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Contains("3 result sets", exception.Message, StringComparison.Ordinal);
 	}
 
+	/// <summary>
+	/// Two placement rows for one member are a broken contract rather than a row the reader chooses.
+	/// </summary>
 	[Fact]
 	public void MapBundle_RejectsDuplicatePlacementRows()
 	{
@@ -349,6 +412,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Contains("duplicated", exception.Message, StringComparison.Ordinal);
 	}
 
+	/// <summary>
+	/// Example 10's Household root grants write authority because the account has an active Owner role there.
+	/// </summary>
+	/// <remarks>Household is a group, not a system. Inherit on that root still reaches its Owner role.</remarks>
 	[Fact]
 	public void Decide_AllowsDirectOwnerOnTheExample10HouseholdRoot()
 	{
@@ -363,6 +430,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(AnchorWriteDecision.Allowed, decision);
 	}
 
+	/// <summary>
+	/// Main House inherits Household's Owner role through its own parent link.
+	/// </summary>
+	/// <remarks>Main House is a system placed directly under Household. It does not pass through The Harbor.</remarks>
 	[Fact]
 	public void Decide_AllowsMainHouseToInheritHouseholdOwner()
 	{
@@ -379,6 +450,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(AnchorWriteDecision.Allowed, decision);
 	}
 
+	/// <summary>
+	/// The Harbor inherits Household's Owner role as Main House's sibling.
+	/// </summary>
+	/// <remarks>Its branch is Harbor then Household, not Harbor then Main House.</remarks>
 	[Fact]
 	public void Decide_AllowsTheHarborToInheritHouseholdOwner()
 	{
@@ -395,6 +470,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(AnchorWriteDecision.Allowed, decision);
 	}
 
+	/// <summary>
+	/// A generic three-node branch allows the write when only the account child has an Owner role and every node inherits.
+	/// </summary>
+	/// <remarks>These ids are not Example 10. They only form a place, group, and system chain.</remarks>
 	[Fact]
 	public void Decide_AllowsInheritedOwnerThroughAGenericMultiLevelBranch()
 	{
@@ -413,6 +492,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(AnchorWriteDecision.Allowed, decision);
 	}
 
+	/// <summary>
+	/// Inheritance reaches the account boundary and still denies the write when no node has an Owner role.
+	/// </summary>
 	[Fact]
 	public void Decide_DeniesAGenericBranchWithNoOwnerGrant()
 	{
@@ -429,6 +511,9 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(AnchorWriteDecision.OwnerRequired, decision);
 	}
 
+	/// <summary>
+	/// An ancestor whose mode is explicit or null stops the walk before a later Owner role is reached.
+	/// </summary>
 	[Fact]
 	public void Decide_StopsAGenericBranchWhenAnAncestorDoesNotInherit()
 	{
@@ -456,6 +541,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(AnchorWriteDecision.OwnerRequired, notSetStop);
 	}
 
+	/// <summary>
+	/// Decide returns OwnerRequired when the supplied fact uses explicit mode and HasActiveOwner is false.
+	/// </summary>
+	/// <remarks>No permission-code value is passed to Decide. This test does not verify database translation from a permission code to a role.</remarks>
 	[Fact]
 	public void Decide_DoesNotTreatAnOwnerPermissionCodeAsARoleGrant()
 	{
@@ -470,6 +559,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		Assert.Equal(AnchorWriteDecision.OwnerRequired, decision);
 	}
 
+	/// <summary>
+	/// Decide rejects a broken link even when the supplied Owner flags are true, denies a supplied branch that has no Owner, and the parser rejects a branch whose first node is not the selected anchor.
+	/// </summary>
+	/// <remarks>The facts are supplied directly. This test does not create or query a separate off-branch database grant.</remarks>
 	[Fact]
 	public void Decide_RejectsAGenericInvalidBranchAndAnUnrelatedParentGrant()
 	{
@@ -500,6 +593,16 @@ public sealed class AnchorMemberProfileEndpointTests
 			out _));
 	}
 
+	/// <summary>
+	/// Builds one branch fact for a decision test.
+	/// </summary>
+	/// <param name="objectType">system, group, or place.</param>
+	/// <param name="objectId">Anchor id for the fact.</param>
+	/// <param name="permissionMode">inherit, explicit, or null for Not set.</param>
+	/// <param name="owner">True when the fact has an active Owner role.</param>
+	/// <param name="linkedToNext">True when the fact proves its link to the next node.</param>
+	/// <param name="accountChild">True when the fact is a direct child of the account.</param>
+	/// <returns>The fact passed to Decide.</returns>
 	private static AnchorWriteFact Fact(
 		string objectType,
 		Guid objectId,
@@ -511,6 +614,16 @@ public sealed class AnchorMemberProfileEndpointTests
 		return new AnchorWriteFact(objectType, objectId, permissionMode, owner, linkedToNext, accountChild);
 	}
 
+	/// <summary>
+	/// Builds the six result sets in procedure order.
+	/// </summary>
+	/// <param name="profiles">Rows for the nine-column profile set.</param>
+	/// <param name="branchValid">The single BranchValid bit.</param>
+	/// <param name="anchors">Branch anchor rows. An empty array is a valid empty set.</param>
+	/// <param name="placements">Placement rows. An empty array does not remove the later sets.</param>
+	/// <param name="fronting">Fronting rows.</param>
+	/// <param name="avatars">Avatar timestamp rows.</param>
+	/// <returns>Profiles, BranchValid, anchors, placements, fronting, and avatars.</returns>
 	private static AnchorMemberProfileResultSet[] SixSets(
 		object[][] profiles,
 		bool branchValid,
@@ -548,6 +661,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		];
 	}
 
+	/// <summary>
+	/// Returns the branch-anchor column contract in procedure order.
+	/// </summary>
+	/// <returns>Ordinal, object type and id, and the visibility and permission columns.</returns>
 	private static string[][] BranchColumns()
 	{
 		return
@@ -562,6 +679,10 @@ public sealed class AnchorMemberProfileEndpointTests
 		];
 	}
 
+	/// <summary>
+	/// Returns the nine profile columns in procedure order.
+	/// </summary>
+	/// <returns>Member identity, text, color, visibility, and the required fronting bit.</returns>
 	private static string[][] ProfileColumns()
 	{
 		return
@@ -578,6 +699,12 @@ public sealed class AnchorMemberProfileEndpointTests
 		];
 	}
 
+	/// <summary>
+	/// Builds the profile GET route for one anchor type and name.
+	/// </summary>
+	/// <param name="objectType">Query object type. The tests also pass unsupported values.</param>
+	/// <param name="anchorName">Query anchor name, including blank names.</param>
+	/// <returns>The escaped profile route without an account email.</returns>
 	private static string ProfileRoute(string objectType, string anchorName)
 	{
 		return Route
@@ -585,6 +712,12 @@ public sealed class AnchorMemberProfileEndpointTests
 			+ "&anchorName=" + Uri.EscapeDataString(anchorName);
 	}
 
+	/// <summary>
+	/// Wraps column names and cell rows as one raw procedure result set.
+	/// </summary>
+	/// <param name="columns">Name and SQL type pairs, in ordinal order.</param>
+	/// <param name="rows">Cell rows. An empty array is an empty set, not a missing set.</param>
+	/// <returns>The result set passed to the reader.</returns>
 	private static AnchorMemberProfileResultSet ResultSet(string[][] columns, object[][] rows)
 	{
 		return new AnchorMemberProfileResultSet
@@ -594,6 +727,11 @@ public sealed class AnchorMemberProfileEndpointTests
 		};
 	}
 
+	/// <summary>
+	/// Builds a unique runtime account so the HTTP cases do not share a username.
+	/// </summary>
+	/// <param name="testId">Identifier included in the username and email.</param>
+	/// <returns>The username, email, and display name used for registration.</returns>
 	private static RuntimeAccountValues CreateAccountValues(string testId)
 	{
 		var username = $"{AccountTestGlobals.TestAccounts.UsernamePrefix}anchor_profiles_{testId}";
@@ -604,6 +742,12 @@ public sealed class AnchorMemberProfileEndpointTests
 			$"{AccountTestGlobals.TestAccounts.DisplayNamePrefix}Anchor Profiles");
 	}
 
+	/// <summary>
+	/// Registers the runtime account and marks it active so the following login can establish a session.
+	/// </summary>
+	/// <param name="client">Test host client.</param>
+	/// <param name="account">Account values created for this test.</param>
+	/// <returns>The task completes when registration succeeded and the account is active.</returns>
 	private static async Task RegisterAndActivateAsync(HttpClient client, RuntimeAccountValues account)
 	{
 		var registerResponse = await client.PostAsJsonAsync(
@@ -624,6 +768,12 @@ public sealed class AnchorMemberProfileEndpointTests
 		await AccountTestDatabase.ActivateRuntimeTestAccountAsync(accountState.AccountId);
 	}
 
+	/// <summary>
+	/// Signs the test client in as the runtime account.
+	/// </summary>
+	/// <param name="client">Test host client that stores the session cookie.</param>
+	/// <param name="username">Username created for this test.</param>
+	/// <returns>The task completes when login succeeded.</returns>
 	private static async Task LoginAsync(HttpClient client, string username)
 	{
 		var loginResponse = await client.PostAsJsonAsync(
@@ -635,6 +785,12 @@ public sealed class AnchorMemberProfileEndpointTests
 			await loginResponse.Content.ReadAsStringAsync());
 	}
 
+	/// <summary>
+	/// Username, email, and display name for one temporary HTTP test account.
+	/// </summary>
+	/// <param name="Username">Unique runtime username.</param>
+	/// <param name="Email">Email derived from that username.</param>
+	/// <param name="DisplayName">Display name sent at registration.</param>
 	private sealed record RuntimeAccountValues(
 		string Username,
 		string Email,

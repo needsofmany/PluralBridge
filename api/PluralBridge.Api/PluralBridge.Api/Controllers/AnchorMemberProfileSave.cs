@@ -7,6 +7,13 @@ using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Controllers;
 
+/// <summary>
+/// Validates and writes member profile fields, the selected placement, one avatar, and immediate Fronting.
+/// </summary>
+/// <remarks>
+/// Profile, placement, and avatar share the caller's transaction and one authorization. Fronting uses its own transaction and the same branch gate.
+/// Display inheritance is calculated here and does not grant write authority.
+/// </remarks>
 internal static class AnchorMemberProfileSave
 {
 	internal const int DisplayNameMaxLength = 510;
@@ -17,6 +24,9 @@ internal static class AnchorMemberProfileSave
 	internal const int MultipleMemberships = 51012;
 	internal const int InactiveMembership = 51013;
 	internal const int OwnerRequired = 51014;
+	/// <summary>
+	/// The selected branch was missing, unreadable, or not a parent chain in the locked source rows. This is not the same failure as 51014.
+	/// </summary>
 	internal const int InvalidBranch = 51021;
 	internal const int MemberMissing = 51015;
 	internal const int NotStructuralChild = 51016;
@@ -27,6 +37,9 @@ internal static class AnchorMemberProfileSave
 	internal const int AvatarEdgeMax = 2048;
 	internal const int AvatarBytesMax = 2 * 1024 * 1024;
 
+	/// <summary>
+	/// The member row returned after the profile update. Fields that were not submitted keep their stored values.
+	/// </summary>
 	internal sealed record SavedProfile(
 		Guid MemberId,
 		string DisplayName,
@@ -35,6 +48,9 @@ internal static class AnchorMemberProfileSave
 		string? Color,
 		DateTime UpdatedAtUtc);
 
+	/// <summary>
+	/// Profile text accepted for one save. A false set flag means that field was omitted and must not be written.
+	/// </summary>
 	internal sealed record PreparedSave(
 		string AnchorObjectType,
 		Guid AnchorObjectId,
@@ -47,6 +63,13 @@ internal static class AnchorMemberProfileSave
 		bool SetColor,
 		string? Color);
 
+	/// <summary>
+	/// Checks the selected anchor and the profile text fields before any database call.
+	/// </summary>
+	/// <param name="request">The save body. Null fails. Omitted JSON fields are not changes. A submitted blank name fails.</param>
+	/// <param name="prepared">The anchor and the fields that were present when the method returns true. Null when it returns false.</param>
+	/// <param name="error">The validation message when the method returns false. Null when it returns true.</param>
+	/// <returns>True when the anchor type and id are usable and at least one profile field was submitted.</returns>
 	internal static bool TryPrepare(
 		AnchorMemberProfileSaveRequest? request,
 		out PreparedSave? prepared,
@@ -55,6 +78,7 @@ internal static class AnchorMemberProfileSave
 		prepared = null;
 		error = null;
 
+		// Anchor identity is required even when the text fields are otherwise valid.
 		if (request is null)
 		{
 			error = "A member profile is required.";
@@ -120,6 +144,13 @@ internal static class AnchorMemberProfileSave
 		return true;
 	}
 
+	/// <summary>
+	/// Creates the temporary graph tables on this connection before a transaction starts.
+	/// </summary>
+	/// <param name="connection">Open connection. The tables are session-scoped and are not created inside the later write transaction.</param>
+	/// <param name="cancellationToken">Cancels the table creation.</param>
+	/// <returns>The task completes when #TopologyEdges, #SystemEdgeLabels, #WalkTopology, and #GraphEdges exist on <paramref name="connection"/>.</returns>
+	/// <remarks>Callers that write must create these tables before BeginTransaction. A second graph is not built for authorization.</remarks>
 	internal static async Task CreateGraphTablesAsync(
 		SqlConnection connection,
 		CancellationToken cancellationToken)
@@ -166,6 +197,21 @@ internal static class AnchorMemberProfileSave
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
 
+	/// <summary>
+	/// Authorizes the selected branch, then updates the submitted profile fields and writes the audit row.
+	/// </summary>
+	/// <param name="connection">Open connection that owns <paramref name="transaction"/> and the temporary graph tables.</param>
+	/// <param name="transaction">The profile transaction. This method does not commit it.</param>
+	/// <param name="accountId">Authenticated account whose access membership and Owner grant are required.</param>
+	/// <param name="memberId">Member to update. A missing member raises 51015.</param>
+	/// <param name="save">Anchor identity and the profile fields whose set flags are true.</param>
+	/// <param name="branch">Selected occurrence chain. Null or an unreadable chain raises 51021.</param>
+	/// <param name="requestTraceId">Audit trace. Null or whitespace is stored as null. The caller limits the length.</param>
+	/// <param name="cancellationToken">Cancels either command. Cancellation does not commit.</param>
+	/// <returns>The stored profile row when the task completes.</returns>
+	/// <remarks>Placement and avatar commands later in this same transaction do not authorize again.</remarks>
+	/// <exception cref="Microsoft.Data.SqlClient.SqlException">Membership, member, branch, or structural-child failures raised by the first command or by the write gate.</exception>
+	/// <exception cref="InvalidOperationException">The update did not return the member row.</exception>
 	internal static async Task<SavedProfile> ExecuteAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
@@ -176,6 +222,10 @@ internal static class AnchorMemberProfileSave
 		string? requestTraceId,
 		CancellationToken cancellationToken)
 	{
+		// First command in the caller's transaction: lock the selected
+		// anchor's access membership and this member's structural rows,
+		// build the account graph once, and require the member to be a
+		// child of the selected anchor. No profile row is written here.
 		const string sql = """
 			SET NOCOUNT ON;
 			SET XACT_ABORT ON;
@@ -225,6 +275,9 @@ internal static class AnchorMemberProfileSave
 			IF @MemberExists = 0
 			    THROW 51015, 'The member was not found.', 1;
 
+			-- The counts are unused. The locked reads hold this member's group
+			-- and place membership rows until the transaction ends, so the
+			-- graph snapshot cannot outlive those source rows.
 			DECLARE @LockedGroupMembers int;
 			DECLARE @LockedPlaceMembers int;
 
@@ -267,6 +320,9 @@ internal static class AnchorMemberProfileSave
 			await prepare.ExecuteNonQueryAsync(cancellationToken);
 		}
 
+		// Branch links are locked here, before the profile update. Placement
+		// and avatar commands later in this same transaction do not authorize
+		// again.
 		await AnchorWriteAuthorization.RequireAsync(
 			connection,
 			transaction,
@@ -276,6 +332,7 @@ internal static class AnchorMemberProfileSave
 			branch,
 			cancellationToken);
 
+		// Update only the submitted fields, then return the stored row for the response.
 		const string writeSql = """
 			SET NOCOUNT ON;
 			SET XACT_ABORT ON;
@@ -363,6 +420,16 @@ internal static class AnchorMemberProfileSave
 			reader.GetDateTime(5));
 	}
 
+	/// <summary>
+	/// Reads one optional JSON text field. Undefined means the field was omitted.
+	/// </summary>
+	/// <param name="value">The JSON value. Undefined is absent. Null and blank text are present with a null string. Any other non-string fails.</param>
+	/// <param name="maxLength">Maximum trimmed length, or null when the field has no maximum.</param>
+	/// <param name="label">Field name used in the validation message.</param>
+	/// <param name="present">True when the JSON value was not undefined.</param>
+	/// <param name="text">Trimmed text, or null for null, blank, or an omitted field.</param>
+	/// <param name="error">The validation message when the method returns false. Null otherwise.</param>
+	/// <returns>True when the value is omitted, null, blank, or text within <paramref name="maxLength"/>.</returns>
 	private static bool TryReadText(
 		JsonElement value,
 		int? maxLength,
@@ -410,12 +477,22 @@ internal static class AnchorMemberProfileSave
 		return true;
 	}
 
+	/// <summary>
+	/// Adds an nvarchar parameter, storing whitespace as database null.
+	/// </summary>
+	/// <param name="command">Command that receives the parameter.</param>
+	/// <param name="name">Parameter name, including the leading @.</param>
+	/// <param name="value">Text to store. Null or whitespace becomes DBNull.</param>
+	/// <param name="size">Maximum nvarchar length. Use -1 for nvarchar(max).</param>
 	private static void AddNullableString(SqlCommand command, string name, string? value, int size)
 	{
 		var parameter = command.Parameters.Add(name, SqlDbType.NVarChar, size);
 		parameter.Value = string.IsNullOrWhiteSpace(value) ? DBNull.Value : value;
 	}
 
+	/// <summary>
+	/// Placement changes to apply. A false set flag preserves the stored mode and value for that side.
+	/// </summary>
 	internal sealed record PreparedPlacement(
 		bool SetVisibility,
 		string? VisibilityMode,
@@ -424,6 +501,9 @@ internal static class AnchorMemberProfileSave
 		string? PermissionMode,
 		string? PermissionCode);
 
+	/// <summary>
+	/// Placement values returned after the update. The set flags still say which side this request changed.
+	/// </summary>
 	internal sealed record StoredPlacement(
 		bool SetVisibility,
 		string? VisibilityMode,
@@ -432,6 +512,14 @@ internal static class AnchorMemberProfileSave
 		string? PermissionMode,
 		string? PermissionCode);
 
+	/// <summary>
+	/// Checks visibility and permission independently. Omitting both is success with no placement to write.
+	/// </summary>
+	/// <param name="request">Save body. Undefined mode fields are omitted. A mode must be unset, inherit, or explicit.</param>
+	/// <param name="prepared">The changes when at least one side was submitted. Null when both were omitted or validation fails.</param>
+	/// <param name="error">The validation message when the method returns false. Null when it returns true, including when nothing was submitted.</param>
+	/// <returns>True when both sides are omitted or each submitted side is a valid mode and value.</returns>
+	/// <remarks>Omitting one side preserves that side. Inherit and Not set cannot carry a stored type or permission code.</remarks>
 	internal static bool TryPreparePlacement(
 		AnchorMemberProfileSaveRequest request,
 		out PreparedPlacement? prepared,
@@ -460,6 +548,8 @@ internal static class AnchorMemberProfileSave
 			return false;
 		}
 
+		// Visibility and permission are independent. Omitting both leaves
+		// the placement row untouched; omitting one preserves the other.
 		if (!setVisibility && !setPermission)
 		{
 			return true;
@@ -475,6 +565,18 @@ internal static class AnchorMemberProfileSave
 		return true;
 	}
 
+	/// <summary>
+	/// Updates the member's visibility and permission row for the selected system, group, or place placement.
+	/// </summary>
+	/// <param name="connection">Open connection that owns <paramref name="transaction"/>.</param>
+	/// <param name="transaction">The profile transaction. This method does not authorize or commit.</param>
+	/// <param name="memberId">Member whose placement on <paramref name="anchor"/> is updated.</param>
+	/// <param name="anchor">Selected anchor. The member must already have that system, group, or place membership row.</param>
+	/// <param name="placement">Sides to write. An omitted side keeps the stored value, or unset when the settings row is inserted.</param>
+	/// <param name="cancellationToken">Cancels the command. Cancellation does not commit.</param>
+	/// <returns>The stored placement when the task completes, retaining the request's set flags.</returns>
+	/// <exception cref="Microsoft.Data.SqlClient.SqlException">51017 when the member has no placement row on the selected anchor.</exception>
+	/// <exception cref="InvalidOperationException">The settings statement did not return a row.</exception>
 	internal static async Task<StoredPlacement> ApplyPlacementAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
@@ -483,6 +585,7 @@ internal static class AnchorMemberProfileSave
 		PreparedPlacement placement,
 		CancellationToken cancellationToken)
 	{
+		// The structural membership identifies the settings row. It is not an access membership.
 		const string sql = """
 			SET NOCOUNT ON;
 			SET XACT_ABORT ON;
@@ -617,6 +720,14 @@ internal static class AnchorMemberProfileSave
 			reader.IsDBNull(3) ? null : reader.GetString(3));
 	}
 
+	/// <summary>
+	/// Reads a visibility or permission mode.
+	/// </summary>
+	/// <param name="value">JSON value. Undefined is omitted. Any other non-string, or a string other than unset, inherit, or explicit, fails.</param>
+	/// <param name="present">True when the value was not undefined.</param>
+	/// <param name="mode">The accepted mode, or null when the field was omitted.</param>
+	/// <param name="error">The validation message when the method returns false. Null otherwise.</param>
+	/// <returns>True when the field is omitted or is one of the three modes.</returns>
 	private static bool TryReadMode(
 		JsonElement value,
 		out bool present,
@@ -648,6 +759,15 @@ internal static class AnchorMemberProfileSave
 		return true;
 	}
 
+	/// <summary>
+	/// Reads the visibility type id required by an explicit visibility mode.
+	/// </summary>
+	/// <param name="value">JSON value. Undefined or null is accepted for unset and inherit. Explicit requires an integer from 1 through 3.</param>
+	/// <param name="setVisibility">False skips the value because visibility was omitted.</param>
+	/// <param name="mode">The accepted visibility mode, or null when visibility was omitted.</param>
+	/// <param name="typeId">1, 2, or 3 for explicit visibility. Null for unset, inherit, or an omitted field.</param>
+	/// <param name="error">The validation message when the method returns false. Null otherwise.</param>
+	/// <returns>True when no visibility type is allowed, or the explicit type is Only you, Trusted friends, or All friends.</returns>
 	private static bool TryReadVisibilityType(
 		JsonElement value,
 		bool setVisibility,
@@ -683,6 +803,16 @@ internal static class AnchorMemberProfileSave
 		return true;
 	}
 
+	/// <summary>
+	/// Reads the permission code required by an explicit permission mode.
+	/// </summary>
+	/// <param name="value">JSON value. Undefined or null is accepted for unset and inherit. Explicit requires viewer, editor, manager, or owner.</param>
+	/// <param name="setPermission">False skips the value because permission was omitted.</param>
+	/// <param name="mode">The accepted permission mode, or null when permission was omitted.</param>
+	/// <param name="code">The explicit code, or null for unset, inherit, or an omitted field.</param>
+	/// <param name="error">The validation message when the method returns false. Null otherwise.</param>
+	/// <returns>True when no code is allowed, or the explicit code is one of the four stored codes.</returns>
+	/// <remarks>This code is display and placement data. It does not create an Owner role.</remarks>
 	private static bool TryReadPermissionCode(
 		JsonElement value,
 		bool setPermission,
@@ -724,6 +854,9 @@ internal static class AnchorMemberProfileSave
 		return true;
 	}
 
+	/// <summary>
+	/// One member's stored placement settings, used as the start of display inheritance.
+	/// </summary>
 	internal sealed record MemberPlacementRow(
 		Guid MemberId,
 		string? VisibilityMode,
@@ -731,8 +864,18 @@ internal static class AnchorMemberProfileSave
 		string? PermissionMode,
 		string? PermissionCode);
 
+	/// <summary>
+	/// Avatar bytes accepted for storage. Base64 has been decoded, the length is within 2 MiB, and a PNG, JPEG, or WebP signature supplied the header dimensions. The complete image has not been decoded.
+	/// </summary>
 	internal sealed record PreparedAvatar(string ContentType, byte[] Bytes, int Width, int Height);
 
+	/// <summary>
+	/// Accepts an optional avatar from the save body without writing it.
+	/// </summary>
+	/// <param name="request">Save body. Null, or both avatar fields undefined, means no avatar change. One field without the other fails.</param>
+	/// <param name="avatar">The accepted bytes, declared type, and header dimensions when validation succeeds. Null when no avatar was submitted or validation fails.</param>
+	/// <param name="error">The validation message when the method returns false. Null when it returns true.</param>
+	/// <returns>True when no avatar was submitted, or the base64 decodes to a non-empty payload of at most 2 MiB whose declared-format signature yields header dimensions of at most 2048 pixels on an edge. The complete image is not decoded.</returns>
 	internal static bool TryPrepareAvatar(
 		AnchorMemberProfileSaveRequest? request,
 		out PreparedAvatar? avatar,
@@ -768,6 +911,7 @@ internal static class AnchorMemberProfileSave
 			encoded = encoded[(marker + 1)..];
 		}
 
+		// A data URL prefix is ignored. The declared type must still match the decoded bytes.
 		byte[] bytes;
 		try
 		{
@@ -801,6 +945,17 @@ internal static class AnchorMemberProfileSave
 		return true;
 	}
 
+	/// <summary>
+	/// Inserts or replaces the one avatar stored for the member.
+	/// </summary>
+	/// <param name="connection">Open connection that owns <paramref name="transaction"/>.</param>
+	/// <param name="transaction">The profile transaction. This method does not authorize or commit.</param>
+	/// <param name="memberId">Member whose single avatar row is replaced.</param>
+	/// <param name="avatar">Bytes already checked for length and header dimensions. This method stores them and does not decode the image.</param>
+	/// <param name="cancellationToken">Cancels the command. Cancellation does not commit.</param>
+	/// <returns>The task completes when the avatar row has been updated or inserted.</returns>
+	/// <remarks>The profile read returns the timestamp only. These bytes stay on the image GET.</remarks>
+	/// <exception cref="Microsoft.Data.SqlClient.SqlException">51018 when pb_member_avatars is not installed.</exception>
 	internal static async Task ApplyAvatarAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
@@ -856,6 +1011,21 @@ internal static class AnchorMemberProfileSave
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
 
+	/// <summary>
+	/// Opens or closes the member's one live fronting interval after the same branch gate used by profile Save.
+	/// </summary>
+	/// <param name="connection">Open connection that owns <paramref name="transaction"/> and the temporary graph tables.</param>
+	/// <param name="transaction">The fronting transaction. This method does not commit it. It is separate from profile Save.</param>
+	/// <param name="accountId">Authenticated account whose access membership and Owner grant are required.</param>
+	/// <param name="memberId">Member whose open interval is changed. SystemId may be null on the inserted row.</param>
+	/// <param name="anchorObjectType">Selected anchor type: system, group, or place.</param>
+	/// <param name="anchorObjectId">Selected anchor id.</param>
+	/// <param name="fronting">True opens an interval when none is open. False closes the one open interval. The same state writes no interval.</param>
+	/// <param name="branch">Selected occurrence chain. Null or an unreadable chain raises 51021.</param>
+	/// <param name="requestTraceId">Audit trace. Null or whitespace is stored as null.</param>
+	/// <param name="cancellationToken">Cancels either command. Cancellation does not commit.</param>
+	/// <returns>True when an open live interval exists after the write. False when none remains.</returns>
+	/// <exception cref="Microsoft.Data.SqlClient.SqlException">Membership, member, branch, storage, or duplicate-open-interval failures.</exception>
 	internal static async Task<bool> ApplyFrontingAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
@@ -868,6 +1038,7 @@ internal static class AnchorMemberProfileSave
 		string? requestTraceId,
 		CancellationToken cancellationToken)
 	{
+		// Lock the selected access membership and require this member under that anchor before an interval changes.
 		const string sql = """
 			SET NOCOUNT ON;
 			SET XACT_ABORT ON;
@@ -949,6 +1120,7 @@ internal static class AnchorMemberProfileSave
 			branch,
 			cancellationToken);
 
+		// An unchanged fronting state still audits the attempt, but it does not insert or close an interval.
 		const string writeSql = """
 			SET NOCOUNT ON;
 			SET XACT_ABORT ON;
@@ -1053,8 +1225,14 @@ internal static class AnchorMemberProfileSave
 		return result is bool value ? value : result is int number ? number != 0 : result is byte flag && flag != 0;
 	}
 
+	/// <summary>
+	/// One node of the selected branch, ordered from the member's containing anchor toward the account.
+	/// </summary>
 	internal sealed record BranchNode(string ObjectType, Guid ObjectId);
 
+	/// <summary>
+	/// Visibility and permission settings for one branch anchor. A missing mode is treated as unset by the resolver.
+	/// </summary>
 	internal sealed record AnchorSetting(
 		string ObjectType,
 		Guid ObjectId,
@@ -1063,6 +1241,9 @@ internal static class AnchorMemberProfileSave
 		string PermissionMode,
 		string? PermissionCode);
 
+	/// <summary>
+	/// Display values after inheritance. BranchValid false leaves an inheriting member on inherit rather than inventing a parent.
+	/// </summary>
 	internal sealed record ResolvedSetting(
 		bool BranchValid,
 		string VisibilityMode,
@@ -1070,6 +1251,12 @@ internal static class AnchorMemberProfileSave
 		string PermissionMode,
 		string? PermissionCode);
 
+	/// <summary>
+	/// Converts the browser branch string into the JSON array the profile procedure validates.
+	/// </summary>
+	/// <param name="branch">Comma-separated type:id pairs. An empty string is invalid and returns an empty array.</param>
+	/// <returns>A JSON array of object type and id, or "[]" when a segment is malformed, the type is not system, group, or place, the id is missing, invalid, or empty, or the branch has more than 32 nodes. Duplicate nodes and parent links are not checked.</returns>
+	/// <remarks>One bad segment returns "[]" so the procedure rejects the whole branch. The chain is not shortened to the readable prefix.</remarks>
 	internal static string BranchJson(string branch)
 	{
 		var parts = branch.Split(',');
@@ -1107,6 +1294,15 @@ internal static class AnchorMemberProfileSave
 		return json.ToString();
 	}
 
+	/// <summary>
+	/// Resolves the member's visibility and permission for display along the validated selected branch.
+	/// </summary>
+	/// <param name="placement">The member's own settings. Null or a blank mode starts as unset. Explicit keeps the member's type or code.</param>
+	/// <param name="branch">Containing anchor, then its parent anchors. An empty list cannot resolve inherit.</param>
+	/// <param name="anchors">Settings for those anchors. A node with no row is unset and stops inheritance.</param>
+	/// <param name="branchValid">False keeps an inheriting value as inherit. It does not walk an invalid branch.</param>
+	/// <returns>The display modes and values. This result does not grant write authority.</returns>
+	/// <remarks>Unset does not inherit. Explicit stops. A root that is still Inherit stays Inherit. Visibility and permission are resolved separately.</remarks>
 	internal static ResolvedSetting ResolvePlacement(
 		MemberPlacementRow? placement,
 		IReadOnlyList<BranchNode> branch,
@@ -1118,6 +1314,7 @@ internal static class AnchorMemberProfileSave
 		var permissionMode = string.IsNullOrWhiteSpace(placement?.PermissionMode) ? "unset" : placement!.PermissionMode!;
 		string? permissionCode = permissionMode == "explicit" ? placement?.PermissionCode : null;
 
+		// Each side stops at its own first explicit or unset anchor.
 		if (visibilityMode == "inherit")
 		{
 			(visibilityMode, visibilityTypeId) = ResolveInheritedVisibility(branch, anchors, branchValid);
@@ -1131,6 +1328,13 @@ internal static class AnchorMemberProfileSave
 		return new ResolvedSetting(branchValid, visibilityMode, visibilityTypeId, permissionMode, permissionCode);
 	}
 
+	/// <summary>
+	/// Walks visibility from the member's containing anchor toward the account.
+	/// </summary>
+	/// <param name="branch">Selected branch. An invalid branch is not walked.</param>
+	/// <param name="anchors">Anchor settings. A missing row is unset.</param>
+	/// <param name="branchValid">False returns inherit without a type id.</param>
+	/// <returns>The first non-inherit mode and its type id, or inherit when every walked node inherits.</returns>
 	private static (string Mode, int? TypeId) ResolveInheritedVisibility(
 		IReadOnlyList<BranchNode> branch,
 		IReadOnlyList<AnchorSetting> anchors,
@@ -1154,6 +1358,13 @@ internal static class AnchorMemberProfileSave
 		return ("inherit", null);
 	}
 
+	/// <summary>
+	/// Walks permission from the member's containing anchor toward the account.
+	/// </summary>
+	/// <param name="branch">Selected branch. An invalid branch is not walked.</param>
+	/// <param name="anchors">Anchor settings. A missing row is unset.</param>
+	/// <param name="branchValid">False returns inherit without a permission code.</param>
+	/// <returns>The first non-inherit mode and its code, or inherit when every walked node inherits.</returns>
 	private static (string Mode, string? Code) ResolveInheritedPermission(
 		IReadOnlyList<BranchNode> branch,
 		IReadOnlyList<AnchorSetting> anchors,
@@ -1177,6 +1388,12 @@ internal static class AnchorMemberProfileSave
 		return ("inherit", null);
 	}
 
+	/// <summary>
+	/// Finds the settings row for one branch node.
+	/// </summary>
+	/// <param name="anchors">Rows returned for the validated branch. Order is not significant.</param>
+	/// <param name="node">Type and id to match. A different type with the same id does not match.</param>
+	/// <returns>The matching settings, or null when this node has no row.</returns>
 	private static AnchorSetting? FindAnchor(IReadOnlyList<AnchorSetting> anchors, BranchNode node)
 	{
 		foreach (var setting in anchors)
@@ -1190,12 +1407,22 @@ internal static class AnchorMemberProfileSave
 		return null;
 	}
 
+	/// <summary>
+	/// Returns the member's avatar bytes when the account graph contains that member.
+	/// </summary>
+	/// <param name="connection">Open connection. This method creates the temporary graph tables and builds the graph on it.</param>
+	/// <param name="accountId">Account whose graph is built. Owner is not required to read an avatar.</param>
+	/// <param name="memberId">Member whose image is requested.</param>
+	/// <param name="cancellationToken">Cancels graph creation or the image read.</param>
+	/// <returns>The bytes and content type when the task completes and the member appears in the graph. Null when no avatar row matches.</returns>
+	/// <remarks>This read rebuilds the graph. It does not use the profile transaction or the selected branch.</remarks>
 	internal static async Task<(byte[] Bytes, string ContentType)?> ReadAvatarAsync(
 		SqlConnection connection,
 		Guid accountId,
 		Guid memberId,
 		CancellationToken cancellationToken)
 	{
+		// The image is visible when the member is anywhere in this account's graph.
 		await CreateGraphTablesAsync(connection, cancellationToken);
 		await using (var seed = new SqlCommand("EXEC dbo.pb_show_tree_step5_topology_seed_builder @AccountId = @AccountId;", connection))
 		{
@@ -1239,6 +1466,14 @@ internal static class AnchorMemberProfileSave
 		return ((byte[])reader.GetValue(0), reader.GetString(1));
 	}
 
+	/// <summary>
+	/// Reads header width and height for the declared image format.
+	/// </summary>
+	/// <param name="bytes">Image bytes. The selected reader checks a format signature and header dimensions, not the complete image.</param>
+	/// <param name="contentType">image/png and image/jpeg select those readers. Every other value, including image/webp and an unsupported type, is passed to the WebP reader. That dispatch does not itself fail. TryPrepareAvatar allows only PNG, JPEG, and WebP before calling this method.</param>
+	/// <param name="width">Header width when the method returns true. Zero when it returns false.</param>
+	/// <param name="height">Header height when the method returns true. Zero when it returns false.</param>
+	/// <returns>True when the selected reader accepts the signature and reads positive header dimensions.</returns>
 	private static bool TryReadImage(byte[] bytes, string contentType, out int width, out int height)
 	{
 		width = 0;
@@ -1256,6 +1491,13 @@ internal static class AnchorMemberProfileSave
 		return TryReadWebp(bytes, out width, out height);
 	}
 
+	/// <summary>
+	/// Reads the IHDR dimensions of a PNG.
+	/// </summary>
+	/// <param name="bytes">PNG bytes. A missing signature or IHDR fails.</param>
+	/// <param name="width">IHDR width when the method returns true. Zero when it returns false.</param>
+	/// <param name="height">IHDR height when the method returns true. Zero when it returns false.</param>
+	/// <returns>True when the signature, IHDR, and positive dimensions are present.</returns>
 	private static bool TryReadPng(byte[] bytes, out int width, out int height)
 	{
 		width = 0;
@@ -1276,6 +1518,13 @@ internal static class AnchorMemberProfileSave
 		return width > 0 && height > 0;
 	}
 
+	/// <summary>
+	/// Reads dimensions from the first JPEG start-of-frame marker.
+	/// </summary>
+	/// <param name="bytes">JPEG bytes. A missing SOI or a truncated segment fails. The scan itself is not accepted as dimensions.</param>
+	/// <param name="width">Frame width when the method returns true. Zero when it returns false.</param>
+	/// <param name="height">Frame height when the method returns true. Zero when it returns false.</param>
+	/// <returns>True when a supported start-of-frame marker contains positive dimensions.</returns>
 	private static bool TryReadJpeg(byte[] bytes, out int width, out int height)
 	{
 		width = 0;
@@ -1339,6 +1588,13 @@ internal static class AnchorMemberProfileSave
 		return false;
 	}
 
+	/// <summary>
+	/// Reads dimensions from a VP8X, lossy VP8, or lossless VP8L WebP chunk.
+	/// </summary>
+	/// <param name="bytes">WebP bytes. An extended, lossy, or lossless header that is too short fails.</param>
+	/// <param name="width">Canvas width when the method returns true. Zero when it returns false.</param>
+	/// <param name="height">Canvas height when the method returns true. Zero when it returns false.</param>
+	/// <returns>True when the RIFF WebP header and one supported chunk contain positive dimensions.</returns>
 	private static bool TryReadWebp(byte[] bytes, out int width, out int height)
 	{
 		width = 0;
@@ -1376,12 +1632,25 @@ internal static class AnchorMemberProfileSave
 		return false;
 	}
 
+	/// <summary>
+	/// Reads a big-endian 32-bit integer from a PNG IHDR field.
+	/// </summary>
+	/// <param name="bytes">Buffer that contains the four bytes at <paramref name="offset"/>.</param>
+	/// <param name="offset">Index of the first byte.</param>
+	/// <returns>The integer value of those four bytes.</returns>
 	private static int ReadInt32Big(byte[] bytes, int offset)
 	{
 		return (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
 	}
 }
 
+/// <summary>
+/// Body for a member profile Save. JSON fields use undefined to mean the control was not submitted.
+/// </summary>
+/// <remarks>
+/// Anchor type, anchor id, and branch identify the selected occurrence. Profile text, placement, and avatar are optional parts of the same transaction.
+/// Fronting is not accepted on this body.
+/// </remarks>
 public sealed class AnchorMemberProfileSaveRequest
 {
 	public string? AnchorObjectType { get; init; }
@@ -1411,6 +1680,10 @@ public sealed class AnchorMemberProfileSaveRequest
 	public JsonElement AvatarImageBase64 { get; init; }
 }
 
+/// <summary>
+/// Body for an immediate Fronting save. It does not carry profile, placement, or avatar changes.
+/// </summary>
+/// <remarks>Anchor type, anchor id, and branch are the selected occurrence. Fronting null is rejected by the endpoint.</remarks>
 public sealed class MemberFrontingSaveRequest
 {
 	public string? AnchorObjectType { get; init; }

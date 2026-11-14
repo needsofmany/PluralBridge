@@ -13,10 +13,14 @@ using System.Text;
 namespace PluralBridge.Api.Controllers;
 
 /// <summary>
-/// Provides the /api/me endpoint for the Chapter 2 access context and authorization-gated proof data.
-/// This controller verifies that the API can reach the validated PluralBridge cloud proof database
-/// and returns the current access context, resolved system, authorization-gated proof data, and table counts.
+/// Authenticated account endpoints for the legacy access proof, the plural map, and member cards on a selected anchor.
 /// </summary>
+/// <remarks>
+/// GET /api/me is the legacy proof. It returns the access context, a fixed proof system, and table counts, and it does not read or write the plural map.
+/// The newer routes resolve the signed-in account and then read the plural map, anchor member profiles, avatar bytes, or persist a profile Save or an immediate Fronting change.
+/// </remarks>
+/// <param name="configuration">Application configuration. The database connection is read from the PluralBridge connection string.</param>
+/// <param name="logger">Logger that receives request-trace stages for the proof, map, and profile routes.</param>
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
@@ -25,14 +29,15 @@ public sealed class MeController(
 	ILogger<MeController> logger) : ControllerBase
 {
 	/// <summary>
-	/// Provides the /api/me endpoint for the Chapter 2 access context and authorization-gated proof data.
-	/// The response is intentionally read-only and includes the proof system plus validated table counts
-	/// so the browser can confirm that it is receiving real database-backed data.
+	/// Returns the legacy read-only access proof for the authenticated session.
 	/// </summary>
 	/// <returns>
-	/// HTTP 200 with proof metadata, the selected proof system, write capability set to false,
-	/// and counts for the Phase 2B source and 1-6 slice tables.
+	/// HTTP 200 with the access context, the earliest proof system, write capability set to false, and the proof table counts.
+	/// HTTP 500 when the connection string, access context, or proof read is unavailable. This route does not load the plural map or a member profile.
 	/// </returns>
+	/// <remarks>
+	/// This is the older proof endpoint. Account identity for the map and member routes is resolved separately and is not taken from the proof system.
+	/// </remarks>
 	[HttpGet]
 	public async Task<IActionResult> Get()
 	{
@@ -44,7 +49,7 @@ public sealed class MeController(
 
 		try
 		{
-			// get info to connect to the database
+			// The proof read uses the same database as the member routes, but it does not accept a selected anchor.
 			var connectionString = configuration.GetConnectionString(Globals.connectionString);
 			if (string.IsNullOrWhiteSpace(connectionString))
 			{
@@ -59,12 +64,11 @@ public sealed class MeController(
 					statusCode: StatusCodes.Status500InternalServerError);
 			}
 
-			// get connection to the database
 			await using SqlConnection connection = new(connectionString);
 			await connection.OpenAsync();
 			var databaseName = connection.Database;
 
-			// should contain the account and it's available System memberships
+			// Access context is the legacy account, system memberships, and current system. A missing context is a proof failure, not an empty map.
 			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
 				connection,
 				User,
@@ -84,7 +88,6 @@ public sealed class MeController(
 					statusCode: StatusCodes.Status500InternalServerError);
 			}
 
-			// retrieve everything we need to know for this System
 			var currentAccount = accessContext.CurrentAccount;
 			var membershipAccess = accessContext.MembershipAccess;
 			var currentSystem = accessContext.CurrentSystem;
@@ -160,6 +163,14 @@ public sealed class MeController(
 		}
 	}
 
+	/// <summary>
+	/// Returns the signed-in account's plural map.
+	/// </summary>
+	/// <param name="cancellationToken">Cancels the account lookup, map procedure, or anchor-name read. A cancelled request is not reported as a map failure.</param>
+	/// <returns>
+	/// HTTP 200 with the mapped hierarchy when the task completes. HTTP 401 when the session has no account. HTTP 500 when the map procedure result cannot be mapped.
+	/// </returns>
+	/// <remarks>The map is not an authorization decision. Selecting an anchor later still requires that anchor's access membership.</remarks>
 	[HttpGet("plural-map")]
 	public async Task<IActionResult> GetPluralMap(CancellationToken cancellationToken)
 	{
@@ -188,6 +199,7 @@ public sealed class MeController(
 			await using SqlConnection connection = new(connectionString);
 			await connection.OpenAsync(cancellationToken);
 
+			// The signed-in account is the map owner. The proof system is not consulted.
 			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
 			if (account is null)
 			{
@@ -258,6 +270,10 @@ public sealed class MeController(
 		}
 	}
 
+	/// <summary>
+	/// Returns the generic plural-map failure without a database exception message.
+	/// </summary>
+	/// <returns>HTTP 500 whose detail says the plural map could not be read.</returns>
 	private ObjectResult PluralMapProblem()
 	{
 		return Problem(
@@ -268,6 +284,17 @@ public sealed class MeController(
 
 	private const string AnchorMemberProfilesEndpoint = "/api/me/anchor-member-profiles";
 
+	/// <summary>
+	/// Saves the submitted profile fields, placement settings, and avatar for one member on the selected anchor.
+	/// </summary>
+	/// <param name="memberId">Member to update. The route accepts any GUID, including an empty GUID.</param>
+	/// <param name="request">Save body. Null or an anchor that is not a system, group, or place id is HTTP 400. Omitted fields are not written.</param>
+	/// <param name="cancellationToken">Cancels the connection, authorization, or write. A cancelled request is not mapped as a save failure.</param>
+	/// <returns>
+	/// HTTP 200 with the stored profile when the transaction commits. The profile object always includes the placement and avatar properties. Placement values are null for settings this response does not return as saved. avatarSaved says whether this request saved an avatar, and avatarUrl is null when it did not.
+	/// HTTP 401 when the session has no account. Validation and SQL authorization failures use their mapped status codes.
+	/// </returns>
+	/// <remarks>Profile, placement, and avatar commit in one transaction after authorization. Fronting is not part of this save.</remarks>
 	[HttpPut("anchor-member-profiles/{memberId:guid}")]
 	public async Task<IActionResult> SaveAnchorMemberProfile(
 		Guid memberId,
@@ -281,6 +308,7 @@ public sealed class MeController(
 				: null);
 		var endpoint = AnchorMemberProfilesEndpoint + "/" + memberId.ToString("D");
 
+		// Reject the body before opening a connection. Placement and avatar are validated even when the profile text is accepted.
 		if (!AnchorMemberProfileSave.TryPrepare(request, out var prepared, out var validationError) || prepared is null)
 		{
 			return AnchorProfileSaveError(
@@ -346,8 +374,11 @@ public sealed class MeController(
 				});
 			}
 
+			// Temporary graph tables must exist before the transaction. The write itself authorizes inside that transaction.
 			await AnchorMemberProfileSave.CreateGraphTablesAsync(connection, cancellationToken);
 
+			// Profile fields, placement settings, and avatar bytes commit
+			// together. ExecuteAsync authorizes before any of those writes.
 			await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 			try
 			{
@@ -463,6 +494,16 @@ public sealed class MeController(
 		}
 	}
 
+	/// <summary>
+	/// Maps a profile or Fronting SQL error number to the HTTP response for that failure.
+	/// </summary>
+	/// <param name="exception">SQL exception raised inside the write. Its number selects the message. The SQL text is not returned.</param>
+	/// <param name="endpoint">Route written into the response.</param>
+	/// <param name="memberId">Member named by the route.</param>
+	/// <returns>The status and error body for a known number, or HTTP 500 for a number this method does not recognize.</returns>
+	/// <remarks>
+	/// A missing member is 404. A missing placement or a duplicate open front is 409. Missing storage and the unmapped numbers are 500. The remaining known authorization numbers are 403.
+	/// </remarks>
 	private IActionResult MapAnchorProfileSaveSqlError(SqlException exception, string endpoint, Guid memberId)
 	{
 		var message = exception.Number switch
@@ -506,6 +547,14 @@ public sealed class MeController(
 		return AnchorProfileSaveError(status, endpoint, message, memberId);
 	}
 
+	/// <summary>
+	/// Builds the save and Fronting error body. The response says writes are possible even when this attempt failed.
+	/// </summary>
+	/// <param name="statusCode">HTTP status for this failure.</param>
+	/// <param name="endpoint">Route written into the body.</param>
+	/// <param name="error">Client-facing message. It is not a SQL exception text.</param>
+	/// <param name="memberId">Member named by the route, or null when the failure is not tied to one member.</param>
+	/// <returns>A status-code result containing the error body.</returns>
 	private ObjectResult AnchorProfileSaveError(int statusCode, string endpoint, string error, Guid? memberId = null)
 	{
 		return StatusCode(statusCode, new
@@ -519,6 +568,15 @@ public sealed class MeController(
 		});
 	}
 
+	/// <summary>
+	/// Returns the member's stored avatar bytes when that member appears in the signed-in account's graph.
+	/// </summary>
+	/// <param name="memberId">Member whose image is requested.</param>
+	/// <param name="cancellationToken">Cancels the account lookup or image read. A cancelled request is not reported as a missing image.</param>
+	/// <returns>
+	/// The image file when the task completes and a row exists. HTTP 404 when no row matches or avatar storage is absent. HTTP 401 when the session has no account.
+	/// </returns>
+	/// <remarks>Owner is not required. This read does not use the selected branch or the profile transaction.</remarks>
 	[HttpGet("members/{memberId:guid}/avatar")]
 	public async Task<IActionResult> GetMemberAvatar(Guid memberId, CancellationToken cancellationToken)
 	{
@@ -573,6 +631,17 @@ public sealed class MeController(
 		}
 	}
 
+	/// <summary>
+	/// Persists Fronting immediately for one member on the selected anchor.
+	/// </summary>
+	/// <param name="memberId">Member whose open interval is changed.</param>
+	/// <param name="request">Fronting body. Null, a null state, or an anchor that is not a system, group, or place id is HTTP 400.</param>
+	/// <param name="cancellationToken">Cancels the account lookup or the fronting transaction. A cancelled request is not mapped as a save failure.</param>
+	/// <returns>
+	/// HTTP 200 with the stored fronting bit when the transaction commits. The same state does not open or close an interval.
+	/// HTTP 401 when the session has no account. Authorization and storage failures use the shared SQL map.
+	/// </returns>
+	/// <remarks>This transaction does not update profile text, placement, or avatar.</remarks>
 	[HttpPut("members/{memberId:guid}/fronting")]
 	public async Task<IActionResult> SaveMemberFronting(
 		Guid memberId,
@@ -580,6 +649,7 @@ public sealed class MeController(
 		CancellationToken cancellationToken)
 	{
 		var endpoint = "/api/me/members/" + memberId.ToString("D") + "/fronting";
+		// The selected occurrence and an explicit true or false are required before a transaction starts.
 		if (request is null
 			|| request.Fronting is null
 			|| request.AnchorObjectType is not ("system" or "group" or "place")
@@ -631,6 +701,7 @@ public sealed class MeController(
 				traceId = traceId[..100];
 			}
 
+			// Fronting commits alone. Profile Save does not call this transaction.
 			await AnchorMemberProfileSave.CreateGraphTablesAsync(connection, cancellationToken);
 			await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 			try
@@ -684,6 +755,19 @@ public sealed class MeController(
 		}
 	}
 
+	/// <summary>
+	/// Returns member profiles for one named anchor on the signed-in account.
+	/// </summary>
+	/// <param name="objectType">system, group, or place. Null, blank, or any other type is HTTP 400.</param>
+	/// <param name="anchorName">Anchor display name. Null, blank, or longer than 510 characters is HTTP 400.</param>
+	/// <param name="objectId">Selected anchor id. Null, blank, or an empty guid returns the profile rows without placement, fronting, or avatar overlay.</param>
+	/// <param name="branch">Selected occurrence chain. Null is sent as an empty branch and is not treated as a valid chain. The procedure still must return six sets.</param>
+	/// <param name="cancellationToken">Cancels the account lookup or procedure. A cancelled request is not mapped as a profile failure.</param>
+	/// <returns>
+	/// HTTP 200 with the profile rows, or with placement, resolved display settings, fronting, and avatar URLs when <paramref name="objectId"/> is a guid.
+	/// HTTP 401 when the session has no account. Procedure and contract failures use their mapped status codes.
+	/// </returns>
+	/// <remarks>The branch is always passed. A procedure that does not accept it is an installation error and is not retried without the branch.</remarks>
 	[HttpGet("anchor-member-profiles")]
 	public async Task<IActionResult> GetAnchorMemberProfiles(
 		[FromQuery] string? objectType,
@@ -698,6 +782,7 @@ public sealed class MeController(
 				? correlationId.ToString()
 				: null);
 
+		// Type and name are required before the account or procedure is touched.
 		if (string.IsNullOrWhiteSpace(objectType) || string.IsNullOrWhiteSpace(anchorName))
 		{
 			return AnchorProfileBadRequest("Anchor object type and anchor name are required.");
@@ -750,6 +835,9 @@ public sealed class MeController(
 				});
 			}
 
+			// @BranchJson is always sent, so a one-set or three-set result is
+			// an installation failure rather than a profile list without
+			// placement, fronting, and avatar.
 			var bundle = await ReadAnchorProfilesAsync(connection, account.Email, objectType, anchorName, branch, cancellationToken);
 			var profiles = bundle.Profiles;
 
@@ -758,6 +846,9 @@ public sealed class MeController(
 				nameof(LogStageParts.endpoint),
 				nameof(LogStageParts.completed));
 
+			// Without an anchor id the response stays the profile rows. The six
+			// sets were already required. Placement, fronting, and avatar are
+			// overlaid only when the id is present, each from its own set.
 			if (!Guid.TryParse(objectId, out var anchorObjectId) || anchorObjectId == Guid.Empty)
 			{
 				return Ok(profiles);
@@ -858,6 +949,17 @@ public sealed class MeController(
 		}
 	}
 
+	/// <summary>
+	/// Calls the profile procedure with the account email and the selected branch, then requires the six-set contract.
+	/// </summary>
+	/// <param name="connection">Open connection for the signed-in account's database.</param>
+	/// <param name="email">Account email used by the procedure to resolve the account. It is not taken from the query string.</param>
+	/// <param name="objectType">system, group, or place. The caller has already rejected other values.</param>
+	/// <param name="anchorName">Anchor display name, already limited to 510 characters.</param>
+	/// <param name="branch">Browser branch. Null is passed as an empty string, which BranchJson turns into an empty array.</param>
+	/// <param name="cancellationToken">Cancels the procedure or the result-set read.</param>
+	/// <returns>The six-set bundle when the task completes.</returns>
+	/// <exception cref="AnchorProfileContractException">The reader did not produce the six-set bundle.</exception>
 	private static async Task<AnchorProfileBundle> ReadAnchorProfilesAsync(
 		SqlConnection connection,
 		string email,
@@ -875,6 +977,7 @@ public sealed class MeController(
 		command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = email;
 		command.Parameters.Add("@AnchorObjectType", SqlDbType.NVarChar, 64).Value = objectType;
 		command.Parameters.Add("@AnchorName", SqlDbType.NVarChar, 510).Value = anchorName;
+		// An empty or unreadable branch is still sent. The procedure reports it as invalid instead of dropping the parameter.
 		command.Parameters.Add("@BranchJson", SqlDbType.NVarChar, -1).Value =
 			AnchorMemberProfileSave.BranchJson(branch ?? "");
 
@@ -884,6 +987,13 @@ public sealed class MeController(
 				"The profile procedure did not return the six-result-set contract. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
 	}
 
+	/// <summary>
+	/// Builds the avatar URL and cache version from the timestamp returned with the profile.
+	/// </summary>
+	/// <param name="memberId">Member whose image route is addressed.</param>
+	/// <param name="updatedAtUtc">Avatar timestamp. It is formatted to three fractional digits so a later read can change the version.</param>
+	/// <returns>The avatar route with an escaped v query value. The profile result carries no image bytes.</returns>
+	/// <remarks>The format matches the three-digit timestamp the old SQL CONVERT style 126 put in the query string.</remarks>
 	internal static string AvatarReferenceUrl(Guid memberId, DateTime updatedAtUtc)
 	{
 		return "/api/me/members/"
@@ -892,6 +1002,11 @@ public sealed class MeController(
 			+ Uri.EscapeDataString(updatedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture));
 	}
 
+	/// <summary>
+	/// Maps a profile-procedure error number to the read response.
+	/// </summary>
+	/// <param name="errorNumber">SQL error number. 8144 means the installed procedure has no branch parameter and is not retried without one.</param>
+	/// <returns>The bad-request, not-found, forbidden, conflict, installation, or generic problem result for that number.</returns>
 	private IActionResult MapAnchorProfileProcedureError(int errorNumber)
 	{
 		return errorNumber switch
@@ -904,12 +1019,19 @@ public sealed class MeController(
 			50007 => AnchorProfileBadRequest("More than one access membership matches this anchor."),
 			50008 => Forbid(),
 			50009 => AnchorProfileConflict("More than one membership row matches a selected member on this anchor."),
+			// The installed procedure has no @BranchJson parameter. Do not
+			// retry the read without it.
 			8144 => AnchorProfileInstallationError(
 				"The profile procedure does not accept branch context. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API."),
 			_ => AnchorProfileProblem()
 		};
 	}
 
+	/// <summary>
+	/// Returns HTTP 500 for a profile procedure that is missing or does not match the six-set contract.
+	/// </summary>
+	/// <param name="error">Installation message. It names the required script when the caller has one.</param>
+	/// <returns>HTTP 500 with writes reported as false.</returns>
 	private ObjectResult AnchorProfileInstallationError(string error)
 	{
 		return StatusCode(StatusCodes.Status500InternalServerError, new
@@ -922,6 +1044,11 @@ public sealed class MeController(
 		});
 	}
 
+	/// <summary>
+	/// Returns HTTP 409 when one selected member has more than one membership row on the anchor.
+	/// </summary>
+	/// <param name="error">Conflict message returned to the client.</param>
+	/// <returns>HTTP 409 with writes reported as false.</returns>
 	private ConflictObjectResult AnchorProfileConflict(string error)
 	{
 		return Conflict(new
@@ -934,6 +1061,11 @@ public sealed class MeController(
 		});
 	}
 
+	/// <summary>
+	/// Returns HTTP 400 for an anchor type, name, or procedure validation failure.
+	/// </summary>
+	/// <param name="error">Validation message returned to the client.</param>
+	/// <returns>HTTP 400 with writes reported as false.</returns>
 	private BadRequestObjectResult AnchorProfileBadRequest(string error)
 	{
 		return BadRequest(new
@@ -946,6 +1078,10 @@ public sealed class MeController(
 		});
 	}
 
+	/// <summary>
+	/// Returns HTTP 404 when the named anchor is not on the signed-in account's map.
+	/// </summary>
+	/// <returns>HTTP 404 whose error says the requested anchor was not found.</returns>
 	private NotFoundObjectResult AnchorProfileNotFound()
 	{
 		return NotFound(new
@@ -958,6 +1094,10 @@ public sealed class MeController(
 		});
 	}
 
+	/// <summary>
+	/// Returns the generic profile-read failure without a database exception message.
+	/// </summary>
+	/// <returns>HTTP 500 whose detail says the anchor member profiles could not be read.</returns>
 	private ObjectResult AnchorProfileProblem()
 	{
 		return Problem(
@@ -967,11 +1107,12 @@ public sealed class MeController(
 	}
 
 	/// <summary>
-	/// Reads count totals from the source and 1-6 proof tables in the validated database.
-	/// These totals are used as a compact integrity check for the Phase 2B browser proof.
+	/// Counts the legacy proof tables for the systems in the supplied memberships.
 	/// </summary>
-	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
-	/// <returns>A dictionary keyed by API-facing count names.</returns>
+	/// <param name="connection">Open connection. The count commands run on it without a transaction.</param>
+	/// <param name="memberships">System memberships from the access context. An empty list returns zero counts and does not query.</param>
+	/// <returns>The proof count names and their totals when the task completes. A scalar that is not a long, int, or decimal becomes zero.</returns>
+	/// <remarks>These totals belong to the legacy proof response. The plural map and member routes do not call this method.</remarks>
 	private static async Task<Dictionary<string, long>> ReadCountsAsync(
 		SqlConnection connection,
 		IReadOnlyList<AccessContextHelper.SystemMembership> memberships)
@@ -994,6 +1135,7 @@ public sealed class MeController(
 			[nameof(CountKeys.sourceIdMappings)] = 0
 		};
 
+		// No memberships means there is no system list to count. The names are still returned.
 		if (systemIds.Length == 0)
 		{
 			return counts;
@@ -1015,6 +1157,11 @@ public sealed class MeController(
 		var sourceIdMapFilter = $"TRY_CONVERT(uniqueidentifier, sim.PluralBridgeId) IN ({systemIdInClause})";
 		var sourceBatchFilter = $"SELECT DISTINCT sim.ImportBatchId FROM dbo.pb_source_id_map AS sim WHERE {sourceIdMapFilter}";
 
+		/// <summary>
+		/// Runs one proof count for the membership system ids.
+		/// </summary>
+		/// <param name="sql">A single SELECT that returns one numeric count. It may refer to the @SystemId parameters added here.</param>
+		/// <returns>The count when the task completes. Zero when the scalar is null or not a long, int, or decimal.</returns>
 		async Task<long> ReadCountAsync(string sql)
 		{
 			await using var command = new SqlCommand(sql, connection);
@@ -1069,11 +1216,11 @@ public sealed class MeController(
 	}
 
 	/// <summary>
-	/// Reads the first proof system from the validated database.
-	/// Phase 2B uses this fixed proof context until Phase 3 replaces it with login/session mapping.
+	/// Reads the earliest system row for the legacy proof response.
 	/// </summary>
-	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
-	/// <returns>The selected proof system, or null when the proof database has no system row.</returns>
+	/// <param name="connection">Open connection. The read is not filtered by the signed-in account.</param>
+	/// <returns>The earliest system by creation time and id when the task completes, or null when pb_systems has no row.</returns>
+	/// <remarks>Only the legacy proof GET uses this row. Map and member routes resolve the authenticated account instead.</remarks>
 	private static async Task<ProofSystem?> ReadProofSystemAsync(SqlConnection connection)
 	{
 		const string sql = """
@@ -1098,10 +1245,10 @@ public sealed class MeController(
 	}
 
 	/// <summary>
-	/// Current System name and id token
+	/// The earliest system row returned by the legacy proof. It is not the account's selected anchor.
 	/// </summary>
-	/// <param name="SystemId"></param>
-	/// <param name="SystemName"></param>
+	/// <param name="SystemId">System id from pb_systems.</param>
+	/// <param name="SystemName">System name, or null when the stored name is null.</param>
 	private sealed record ProofSystem(
 		Guid SystemId, 
 		string? SystemName);
