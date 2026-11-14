@@ -44,6 +44,7 @@
             }
         };
     </script>
+    <script src="../src/js/member-card.js"></script>
     <script src="../src/js/legacy-app.js"></script>
     <script>
         (function () {
@@ -777,6 +778,30 @@
                 await tick();
                 press("Discard changes");
                 await tick();
+
+                var legacyEdits = [];
+                window.PluralBridge.apiClient = window.PluralBridge.apiClient || {};
+                window.PluralBridge.apiClient.editMember = function (memberId, request) {
+                    legacyEdits.push({ memberId: memberId, request: request });
+                    return Promise.resolve({});
+                };
+                var requestsBeforeLegacySave = requests.length;
+                var legacyCard = window.PluralBridge.createMemberAccordion(member("15151515-1515-1515-1515-151515151515", "Lex"));
+                check(legacyCard.classList.contains("member-card") && !legacyCard.classList.contains("member-card-preview"), "the older caller builds a member card without the preview header");
+                legacyCard.open = true;
+                host.appendChild(legacyCard);
+                typeField(legacyCard, "Name", "Lex Two");
+                legacyCard.querySelector(".member-profile-save-button").click();
+                await tick();
+                await tick();
+                check(requests.length === requestsBeforeLegacySave, "a card without saveProfile does not use the anchor save callback");
+                check(legacyEdits.length === 1 && legacyEdits[0].memberId === "15151515-1515-1515-1515-151515151515", "the older caller saves through editMember");
+                check(legacyEdits[0].request.displayName === "Lex Two" && legacyEdits[0].request.pronouns === "she/her" && legacyEdits[0].request.description === "First", "the older save sends the text fields");
+                check(!Object.prototype.hasOwnProperty.call(legacyEdits[0].request, "color") && !Object.prototype.hasOwnProperty.call(legacyEdits[0].request, "fronting"), "the older save omits unfinished and color fields");
+                check(!changes.dirty(legacyCard), "the older save clears the saved name");
+                check(legacyCard.querySelector(".member-name").textContent === "Lex Two", "the older save shows the saved name");
+                check(legacyCard.open === true, "the older save keeps the card expanded");
+                delete window.PluralBridge.apiClient.editMember;
 
                 var dynamicCard = makeCard(member("ffffffff-ffff-ffff-ffff-ffffffffffff", "Faye"), true);
                 var nickname = document.createElement("input");

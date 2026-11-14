@@ -204,6 +204,26 @@
         });
     }
 
+    function refreshSnapshots(container, controls) {
+        var session = sessionFor(container);
+        if (!session || !controls) {
+            return;
+        }
+
+        Array.prototype.forEach.call(controls, function (control) {
+            if (!control || !control.classList || control.classList.contains(modifiedClass)) {
+                return;
+            }
+            if (session.container !== container) {
+                return;
+            }
+            if (!container.contains(control) && !session.snapshots.has(control)) {
+                return;
+            }
+            session.snapshots.set(control, readControl(session, control));
+        });
+    }
+
     function isDirty(container) {
         return modifiedControls(container).length > 0;
     }
@@ -816,6 +836,7 @@
         clear: clearMarkers,
         commit: commit,
         capture: capture,
+        refreshSnapshots: refreshSnapshots,
         restore: restoreMarked,
         rebind: rebind,
         suppress: suppress,

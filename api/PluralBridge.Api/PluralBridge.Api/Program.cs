@@ -155,6 +155,7 @@ var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase
 	"developer-tools.js",
 	"navigator.js",
 	"member-change-tracking.js",
+	"member-card.js",
 	"legacy-app.js",
 	"account-screens.js",
 	"shell.js"
