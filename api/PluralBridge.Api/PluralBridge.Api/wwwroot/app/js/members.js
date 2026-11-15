@@ -1,6 +1,20 @@
+/**
+ * Member forms, local profile previews, and the account-scoped profile and Fronting saves used by the card.
+ * Depends on window.PluralBridge.apiClient, the navigator account and map snapshot, and window.PluralBridge.developerTools for the write switch.
+ * When database writes are disabled, profile Save returns the local preview and does not report persisted true. Fronting then returns saved false. Failures from the API are caught and returned as saved false. They do not reject.
+ */
 window.PluralBridge = window.PluralBridge || {};
 
+/**
+ * Creates the members module.
+ * @returns {object} The members API, including saveMemberProfile and saveMemberFronting.
+ */
 window.PluralBridge.members = (function () {
+    /**
+     * Creates the polite status line used by the add and edit forms.
+     *
+     * @returns {HTMLParagraphElement} An empty status element.
+     */
     function createStatusMessage() {
         const status = document.createElement("p");
         status.className = "member-form-status";
@@ -9,6 +23,14 @@ window.PluralBridge.members = (function () {
         return status;
     }
 
+    /**
+     * Creates a labeled text input.
+     *
+     * @param {string} id Input id and name.
+     * @param {string} labelText Label text.
+     * @param {boolean} required True marks the input required.
+     * @returns {object} row and input.
+     */
     function createTextField(id, labelText, required) {
         const row = document.createElement("div");
         row.className = "field-row";
@@ -36,6 +58,13 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Creates a labeled description textarea.
+     *
+     * @param {string} id Textarea id and name.
+     * @param {string} labelText Label text.
+     * @returns {object} row and input.
+     */
     function createDescriptionField(id, labelText) {
         const row = document.createElement("div");
         row.className = "field-row";
@@ -58,18 +87,45 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Disables or enables every input, textarea, and button in a form.
+     *
+     * @param {HTMLFormElement} form Form whose controls change.
+     * @param {boolean} isBusy True disables the controls.
+     * @returns {void} Nothing is returned.
+     */
     function setFormBusy(form, isBusy) {
         const controls = form.querySelectorAll("input, textarea, button");
 
+        /**
+         * Disables or enables one form control.
+         *
+         * @param {Element} control Input, textarea, or button.
+         * @returns {void} Nothing is returned.
+         */
         controls.forEach(function (control) {
             control.disabled = isBusy;
         });
     }
 
+    /**
+     * Reads a member id.
+     *
+     * @param {object} member Member record. A missing member or id yields an empty string.
+     * @returns {string} The member id.
+     */
     function getMemberId(member) {
         return member && member.memberId ? member.memberId : "";
     }
 
+    /**
+     * Builds an add or edit body from the form fields.
+     *
+     * @param {HTMLInputElement} displayNameInput Name field. The value is trimmed and always included.
+     * @param {HTMLInputElement} pronounsInput Pronouns field. A blank value is omitted.
+     * @param {HTMLTextAreaElement} descriptionInput Description field. A blank value is omitted.
+     * @returns {object} displayName, and pronouns or description when those values are present.
+     */
     function buildMemberRequest(displayNameInput, pronounsInput, descriptionInput) {
         const request = {
             displayName: displayNameInput.value.trim()
@@ -89,6 +145,12 @@ window.PluralBridge.members = (function () {
         return request;
     }
 
+    /**
+     * Draws a toolbar icon.
+     *
+     * @param {string} iconName tree, add, addGroup, addMember, expanded, compact, sun, moon, or any other name, which draws the fallback mark.
+     * @returns {SVGElement} The icon.
+     */
     function createToolbarIcon(iconName) {
         const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -131,6 +193,14 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Builds a toolbar button and attaches its click handler when one is supplied.
+     *
+     * @param {string} iconName Icon passed to createToolbarIcon.
+     * @param {string} labelText Visible label.
+     * @param {object} options Optional disabled, title, ariaLabel, pressed, and onClick. A disabled button uses the planned title.
+     * @returns {HTMLButtonElement} The button.
+     */
     function createToolbarButton(iconName, labelText, options) {
         const button = document.createElement("button");
         button.type = "button";
@@ -166,12 +236,23 @@ window.PluralBridge.members = (function () {
         return button;
     }
 
+    /**
+     * Chooses the tree-toggle label.
+     *
+     * @param {boolean} isVisible True when the tree panel is open.
+     * @returns {string} Hide Tree or Show Tree.
+     */
     function treeToggleLabel(isVisible) {
         return isVisible ? "Hide Tree" : "Show Tree";
     }
 
     let addMenuController = null;
 
+    /**
+     * Aborts the listeners owned by the current Add menu.
+     *
+     * @returns {void} A missing controller does nothing.
+     */
     function releaseAddMenuHandlers() {
         if (addMenuController) {
             addMenuController.abort();
@@ -179,6 +260,13 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Updates the tree toggle to the current panel visibility.
+     *
+     * @param {HTMLButtonElement} button Tree button. A missing button does nothing.
+     * @param {boolean} isVisible True when the panel is open.
+     * @returns {void} Nothing is returned.
+     */
     function setTreeToggleVisible(button, isVisible) {
         if (!button) {
             return;
@@ -196,6 +284,12 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Builds the Add menu and replaces any previous menu listeners.
+     *
+     * @param {object} options Callbacks toggleAddMember, toggleAddGroup, toggleAddPlace, toggleAddSystem, and toggleAddRelationship. memberActionsEnabled false disables Member.
+     * @returns {HTMLDetailsElement} The menu. A missing callback leaves that option disabled.
+     */
     function createAddMenu(options) {
         releaseAddMenuHandlers();
         const controller = new AbortController();
@@ -223,6 +317,15 @@ window.PluralBridge.members = (function () {
         const popover = document.createElement("div");
         popover.className = "member-toolbar-add-popover";
 
+        /**
+         * Builds one Add-menu option.
+         *
+         * @param {string} labelText Option label.
+         * @param {string} iconType Icon name passed to dialogOutlineIcon.
+         * @param {boolean} isEnabled False disables the option and marks it planned.
+         * @param {function} clickHandler Called when an enabled option is chosen. A missing handler leaves the button without a click.
+         * @returns {HTMLButtonElement} The option.
+         */
         function createAddOption(labelText, iconType, isEnabled, clickHandler) {
             const button = document.createElement("button");
             button.type = "button";
@@ -241,6 +344,11 @@ window.PluralBridge.members = (function () {
                 button.disabled = true;
                 button.title = labelText + " planned";
             } else if (typeof clickHandler === "function") {
+                /**
+                 * Runs the option handler and closes the menu.
+                 *
+                 * @returns {void} Nothing is returned.
+                 */
                 button.addEventListener("click", function () {
                     clickHandler();
                     details.open = false;
@@ -251,21 +359,41 @@ window.PluralBridge.members = (function () {
         }
 
         const memberAddEnabled = !(options && options.memberActionsEnabled === false);
+        /**
+         * Opens the member add action when that callback exists.
+         *
+         * @returns {void} Nothing is returned.
+         */
         popover.appendChild(createAddOption("Member", "member", memberAddEnabled, function () {
             if (options && typeof options.toggleAddMember === "function") {
                 options.toggleAddMember();
             }
         }));
+        /**
+         * Opens the group add action when that callback exists.
+         *
+         * @returns {void} Nothing is returned.
+         */
         popover.appendChild(createAddOption("Group", "group", Boolean(options && typeof options.toggleAddGroup === "function"), function () {
             if (options && typeof options.toggleAddGroup === "function") {
                 options.toggleAddGroup();
             }
         }));
+        /**
+         * Opens the place add action when that callback exists.
+         *
+         * @returns {void} Nothing is returned.
+         */
         popover.appendChild(createAddOption("Place", "place", Boolean(options && typeof options.toggleAddPlace === "function"), function () {
             if (options && typeof options.toggleAddPlace === "function") {
                 options.toggleAddPlace();
             }
         }));
+        /**
+         * Opens the system add action when that callback exists.
+         *
+         * @returns {void} Nothing is returned.
+         */
         popover.appendChild(createAddOption("System", "system", Boolean(options && typeof options.toggleAddSystem === "function"), function () {
             if (options && typeof options.toggleAddSystem === "function") {
                 options.toggleAddSystem();
@@ -276,6 +404,11 @@ window.PluralBridge.members = (function () {
         relationshipSeparator.className = "member-toolbar-add-separator";
         relationshipSeparator.setAttribute("role", "separator");
         popover.appendChild(relationshipSeparator);
+        /**
+         * Opens the relationship add action when that callback exists.
+         *
+         * @returns {void} Nothing is returned.
+         */
         popover.appendChild(createAddOption("Relationship", "relationship", Boolean(options && typeof options.toggleAddRelationship === "function"), function () {
             if (options && typeof options.toggleAddRelationship === "function") {
                 options.toggleAddRelationship();
@@ -285,10 +418,20 @@ window.PluralBridge.members = (function () {
         details.appendChild(summary);
         details.appendChild(popover);
 
+        /**
+         * Copies the menu open state into aria-expanded.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function syncExpanded() {
             summary.setAttribute("aria-expanded", details.open ? "true" : "false");
         }
 
+        /**
+         * Closes the Add menu when it is open.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function closeMenu() {
             if (details.open) {
                 details.open = false;
@@ -297,7 +440,17 @@ window.PluralBridge.members = (function () {
 
         details.addEventListener("toggle", syncExpanded, { signal: signal });
 
+        /**
+         * Closes the menu after focus leaves it.
+         *
+         * @returns {void} The check waits one turn so the new focus is known.
+         */
         details.addEventListener("focusout", function () {
+            /**
+             * Closes the menu unless focus is still inside it or the menu was aborted.
+             *
+             * @returns {void} Nothing is returned.
+             */
             window.setTimeout(function () {
                 if (signal.aborted || !details.isConnected || !details.open) {
                     return;
@@ -312,6 +465,12 @@ window.PluralBridge.members = (function () {
             }, 0);
         }, { signal: signal });
 
+        /**
+         * Closes the menu on Escape and returns focus to its summary.
+         *
+         * @param {KeyboardEvent} event Escape while the menu is open. Other keys are ignored.
+         * @returns {void} Nothing is returned.
+         */
         details.addEventListener("keydown", function (event) {
             if (event.key !== "Escape" || !details.open) {
                 return;
@@ -323,6 +482,12 @@ window.PluralBridge.members = (function () {
             summary.focus();
         }, { signal: signal });
 
+        /**
+         * Closes the menu on a pointer outside it, and releases its listeners after it leaves the document.
+         *
+         * @param {PointerEvent} event Document pointerdown.
+         * @returns {void} Nothing is returned.
+         */
         document.addEventListener("pointerdown", function (event) {
             if (!details.isConnected) {
                 releaseAddMenuHandlers();
@@ -339,6 +504,12 @@ window.PluralBridge.members = (function () {
         return details;
     }
 
+    /**
+     * Builds the member toolbar, including the tree toggle, Add menu, planned view buttons, and theme button.
+     *
+     * @param {object} options isSystemPanelOpen and the Add-menu callbacks. toggleSystemPanel runs from the tree button.
+     * @returns {HTMLDivElement} The toolbar.
+     */
     function createMemberToolbar(options) {
         const toolbar = document.createElement("div");
         toolbar.className = "member-toolbar";
@@ -355,6 +526,11 @@ window.PluralBridge.members = (function () {
             pressed: treeVisible,
             title: treeToggleLabel(treeVisible),
             ariaLabel: treeToggleLabel(treeVisible),
+            /**
+             * Toggles the system panel when that callback exists.
+             *
+             * @returns {void} Nothing is returned.
+             */
             onClick: function () {
                 if (options && typeof options.toggleSystemPanel === "function") {
                     options.toggleSystemPanel();
@@ -362,6 +538,11 @@ window.PluralBridge.members = (function () {
             }
         });
         treeButton.classList.add("member-toolbar-tree-toggle");
+        /**
+         * Rewrites the tree-toggle label after its pressed state changes.
+         *
+         * @returns {void} Nothing is returned.
+         */
         treeButton.addEventListener("click", function () {
             setTreeToggleVisible(treeButton, treeButton.getAttribute("aria-pressed") === "true");
         });
@@ -387,6 +568,11 @@ window.PluralBridge.members = (function () {
         }));
 
         const themeButton = createToolbarButton("moon", "Dark", {
+            /**
+             * Switches the theme when window.PluralBridge.theme.toggle exists.
+             *
+             * @returns {void} Nothing is returned.
+             */
             onClick: function () {
                 if (window.PluralBridge.theme && typeof window.PluralBridge.theme.toggle === "function") {
                     window.PluralBridge.theme.toggle();
@@ -395,6 +581,11 @@ window.PluralBridge.members = (function () {
         });
         themeButton.classList.add("member-toolbar-theme");
 
+        /**
+         * Paints the theme button for the active light or dark theme.
+         *
+         * @returns {void} A missing theme reader is treated as dark.
+         */
         function paintThemeButton() {
             const active = window.PluralBridge.theme && typeof window.PluralBridge.theme.get === "function"
                 ? window.PluralBridge.theme.get()
@@ -418,7 +609,17 @@ window.PluralBridge.members = (function () {
 
         paintThemeButton();
         if (window.PluralBridge.theme && typeof window.PluralBridge.theme.subscribe === "function") {
+            /**
+             * Placeholder unsubscribe used until the theme subscription returns the real one.
+             *
+             * @returns {void} Nothing is returned.
+             */
             let unsubscribe = function () {};
+            /**
+             * Repaints the theme button, and unsubscribes after the button leaves the document.
+             *
+             * @returns {void} Nothing is returned.
+             */
             unsubscribe = window.PluralBridge.theme.subscribe(function () {
                 if (!themeButton.isConnected) {
                     unsubscribe();
@@ -435,6 +636,12 @@ window.PluralBridge.members = (function () {
         return toolbar;
     }
 
+    /**
+     * Draws a form action icon.
+     *
+     * @param {string} iconName save, add, or any other name, which draws the cancel mark.
+     * @returns {SVGElement} The icon.
+     */
     function createFormActionIcon(iconName) {
         const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -461,6 +668,14 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Builds a labeled form action button.
+     *
+     * @param {string} iconName Icon name.
+     * @param {string} labelText Button label.
+     * @param {string} buttonType Button type, such as submit or button.
+     * @returns {HTMLButtonElement} The button.
+     */
     function createFormActionButton(iconName, labelText, buttonType) {
         const button = document.createElement("button");
         button.type = buttonType;
@@ -479,6 +694,11 @@ window.PluralBridge.members = (function () {
     const memberPreviewsByAccount = {};
     const memberProfilePreviewsByAccount = {};
 
+    /**
+     * Reports whether profile and Fronting writes must stay local.
+     * Writes are disabled unless developerTools exists and databaseWritesDisabled is strictly false.
+     * @returns {boolean} True when writes must not be sent.
+     */
     function databaseWritesAreDisabled() {
         const tools = window.PluralBridge && window.PluralBridge.developerTools
             ? window.PluralBridge.developerTools
@@ -487,6 +707,11 @@ window.PluralBridge.members = (function () {
         return !tools || tools.databaseWritesDisabled !== false;
     }
 
+    /**
+     * Reads the signed-in account id from the navigator.
+     *
+     * @returns {string} The account id, or an empty string when the navigator cannot supply one.
+     */
     function currentAccountId() {
         const navigatorView = window.PluralBridge && window.PluralBridge.navigator
             ? window.PluralBridge.navigator
@@ -500,6 +725,12 @@ window.PluralBridge.members = (function () {
         return accountId ? String(accountId) : "";
     }
 
+    /**
+     * Copies the destination fields from an add request.
+     *
+     * @param {object} request Request with a destination object. A missing destination returns null.
+     * @returns {object|null} objectType, objectId, pathKey, and anchorName.
+     */
     function previewDestination(request) {
         if (!request || !request.destination || typeof request.destination !== "object") {
             return null;
@@ -513,6 +744,12 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Keeps a known preview kind.
+     *
+     * @param {string} kind group, system, place, relationship, member, or any other value, which becomes member.
+     * @returns {string} The preview noun.
+     */
     function previewNounFor(kind) {
         if (kind === "group" || kind === "system" || kind === "place" || kind === "relationship" || kind === "member") {
             return kind;
@@ -521,6 +758,14 @@ window.PluralBridge.members = (function () {
         return "member";
     }
 
+    /**
+     * Holds an add-member, anchor, or relationship draft in memory for the current account.
+     * When writes are enabled, this returns the not-connected status and stores nothing. A missing or changed account stores nothing. A second outgoing relationship from the same source is refused.
+     *
+     * @param {string} kind Preview kind passed to previewNounFor.
+     * @param {object} request Draft fields, destination, and relationship endpoints when present.
+     * @returns {Promise<object>} Fulfills with status and, for a stored preview, reset true. It does not reject.
+     */
     async function holdAccountPreview(kind, request) {
         const previewNoun = previewNounFor(kind);
         const isMember = previewNoun === "member";
@@ -572,6 +817,12 @@ window.PluralBridge.members = (function () {
             record.target = request && request.target ? request.target : null;
             record.previewLabel = request && request.previewLabel ? String(request.previewLabel) : "";
             const sourceKey = relationshipObjectKey(record.source);
+            /**
+             * Reports whether this account already has an outgoing relationship preview from the same source.
+             *
+             * @param {object} stored One held preview record.
+             * @returns {boolean} True for an existing outgoing relationship from that source.
+             */
             const existingOutgoing = sourceKey && memberPreviewsByAccount[accountId].some(function (stored) {
                 return stored &&
                     stored.previewKind === "relationship" &&
@@ -596,22 +847,52 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Holds a member add draft through the account preview.
+     *
+     * @param {object} request Member draft passed to holdAccountPreview.
+     * @returns {Promise<object>} The preview result. It fulfills and does not reject.
+     */
     async function previewAddMember(request) {
         return holdAccountPreview("member", request);
     }
 
+    /**
+     * Builds the account or member key used by profile previews.
+     *
+     * @param {*} value Account or member id. A missing value becomes an empty string.
+     * @returns {string} The lowercased key.
+     */
     function profilePreviewKey(value) {
         return value ? String(value).toLowerCase() : "";
     }
 
+    /**
+     * Accepts only a #RRGGBB preview color.
+     *
+     * @param {*} value Candidate color.
+     * @returns {string|null} The color, or null.
+     */
     function explicitPreviewColor(value) {
         return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
     }
 
+    /**
+     * Keeps only a boolean Fronting preview value.
+     *
+     * @param {*} value Candidate Fronting value.
+     * @returns {boolean|null} true, false, or null.
+     */
     function explicitPreviewFronting(value) {
         return value === true || value === false ? value : null;
     }
 
+    /**
+     * Keeps visibility type ids 1 through 4.
+     *
+     * @param {*} value Candidate id.
+     * @returns {number|null} The id, or null.
+     */
     function canonicalVisibilityId(value) {
         if (value === 1 || value === 2 || value === 3 || value === 4) {
             return value;
@@ -620,6 +901,12 @@ window.PluralBridge.members = (function () {
         return null;
     }
 
+    /**
+     * Keeps inherit, viewer, editor, manager, and owner.
+     *
+     * @param {*} value Candidate permission.
+     * @returns {string|null} The permission, or null.
+     */
     function canonicalPermission(value) {
         if (value === "inherit" || value === "viewer" || value === "editor" || value === "manager" || value === "owner") {
             return value;
@@ -628,6 +915,14 @@ window.PluralBridge.members = (function () {
         return null;
     }
 
+    /**
+     * Copies visibility onto a profile preview when the new fields include it or the previous preview already marked it explicit.
+     *
+     * @param {object} record Preview being written.
+     * @param {object} previous Previous preview, or null.
+     * @param {object} fields Incoming fields, or null when reading the stored preview back.
+     * @returns {void} A preview with neither source is left unchanged.
+     */
     function assignVisibilityPreview(record, previous, fields) {
         const incoming = Boolean(fields) && (
             Object.prototype.hasOwnProperty.call(fields, "visibilityTypeId")
@@ -644,6 +939,14 @@ window.PluralBridge.members = (function () {
         record.visibilityTypeId = record.visibilityInherit ? null : canonicalVisibilityId(source.visibilityTypeId);
     }
 
+    /**
+     * Copies permission onto a profile preview when the new fields include it or the previous preview already marked it explicit.
+     *
+     * @param {object} record Preview being written.
+     * @param {object} previous Previous preview.
+     * @param {object} fields Incoming fields, or null when reading the stored preview back.
+     * @returns {void} A preview with neither source is left unchanged.
+     */
     function assignPermissionPreview(record, previous, fields) {
         const incoming = Boolean(fields) && Object.prototype.hasOwnProperty.call(fields, "permission");
         const retained = !incoming && Boolean(previous) && previous.permissionExplicit === true;
@@ -656,10 +959,24 @@ window.PluralBridge.members = (function () {
         record.permission = canonicalPermission(source.permission);
     }
 
+    /**
+     * Keeps a non-empty avatar preview URL.
+     *
+     * @param {*} value Candidate URL.
+     * @returns {string|null} The URL, or null.
+     */
     function explicitPreviewAvatar(value) {
         return typeof value === "string" && value ? value : null;
     }
 
+    /**
+     * Copies color onto a profile preview. An incoming null clears it. A non-hex incoming color leaves the stored color unchanged.
+     *
+     * @param {object} record Preview being written.
+     * @param {object} previous Previous preview used when color is absent.
+     * @param {object} fields Incoming fields, or null when retaining the previous color.
+     * @returns {void} Nothing is returned.
+     */
     function assignColorPreview(record, previous, fields) {
         const incoming = Boolean(fields) && Object.prototype.hasOwnProperty.call(fields, "color");
         if (incoming) {
@@ -680,6 +997,16 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Copies one explicit preview value when the incoming fields or the previous preview contain that key.
+     *
+     * @param {object} record Preview being written.
+     * @param {object} previous Previous preview.
+     * @param {object} fields Incoming fields. A present key wins over previous.
+     * @param {string} key Field name.
+     * @param {function} explicitValue Converts the source value. Null means the key is not copied.
+     * @returns {void} Nothing is returned.
+     */
     function assignExplicitPreview(record, previous, fields, key, explicitValue) {
         const source = fields && Object.prototype.hasOwnProperty.call(fields, key)
             ? fields
@@ -694,6 +1021,13 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Reads the in-memory profile preview for one member.
+     *
+     * @param {string} accountId Account key.
+     * @param {string} memberId Member key.
+     * @returns {object|null} The stored fields, or null when this account has no preview for the member.
+     */
     function readMemberProfilePreview(accountId, memberId) {
         const accountKey = profilePreviewKey(accountId);
         const memberKey = profilePreviewKey(memberId);
@@ -722,6 +1056,15 @@ window.PluralBridge.members = (function () {
         return record;
     }
 
+    /**
+     * Stores a profile preview in memory while database writes are disabled.
+     * When writes are enabled, it returns saved false and the not-connected status. A missing or changed account also returns saved false.
+     *
+     * @param {string} accountId Account that owns the preview.
+     * @param {string} memberId Member being previewed.
+     * @param {object} fields Name, pronouns, and description are stored from the fields. Color and the other explicit values are merged with the previous preview.
+     * @returns {Promise<object>} Fulfills with saved true for a stored preview, or saved false. It does not reject.
+     */
     async function saveMemberProfilePreview(accountId, memberId, fields) {
         if (!databaseWritesAreDisabled()) {
             return {
@@ -773,6 +1116,13 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Removes the persisted text and color from a stored profile preview after a database save.
+     *
+     * @param {string} accountId Account key.
+     * @param {string} memberId Member key. A missing preview does nothing.
+     * @returns {void} The member entry is removed when no remaining key is defined.
+     */
     function forgetPersistedProfilePreview(accountId, memberId) {
         const accountKey = profilePreviewKey(accountId);
         const memberKey = profilePreviewKey(memberId);
@@ -787,6 +1137,12 @@ window.PluralBridge.members = (function () {
         delete stored.description;
         delete stored.color;
 
+        /**
+         * Reports whether a preview key is still defined.
+         *
+         * @param {string} key Stored preview key.
+         * @returns {boolean} True when the value is not undefined.
+         */
         const remaining = Object.keys(stored).some(function (key) {
             return stored[key] !== undefined;
         });
@@ -795,6 +1151,15 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Saves one member profile for the selected anchor, or keeps a local preview when database writes are disabled.
+     * The disabled path must not report the change as persisted. The branch is the selected occurrence chain the server uses for inherited Owner authority. A missing anchor type or id returns saved false without a request. API rejection is returned as saved false.
+     * @param {string} accountId Account that owns the preview and the save.
+     * @param {string} memberId Member to update.
+     * @param {object} anchor Selected anchor. objectType must be system, group, or place, and objectId must be present. branch may be empty. The server rejects an empty or invalid branch.
+     * @param {object} fields Profile fields. Name, pronouns, and description are always sent. Color, placement, and avatar are sent only when those keys are present.
+     * @returns {Promise<object>} saved true and persisted true when the API returns a profile. Otherwise saved false and a status string. The disabled-write path returns the preview result.
+     */
     async function saveMemberProfile(accountId, memberId, anchor, fields) {
         if (databaseWritesAreDisabled()) {
             return saveMemberProfilePreview(accountId, memberId, fields);
@@ -834,6 +1199,8 @@ window.PluralBridge.members = (function () {
             pronouns: fields ? fields.pronouns : "",
             description: fields ? fields.description : ""
         };
+        // Color is included only when the card marked it. Sending a missing
+        // color would clear a stored value the user did not edit.
         if (fields && Object.prototype.hasOwnProperty.call(fields, "color")) {
             body.color = fields.color;
         }
@@ -881,6 +1248,15 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Saves Fronting immediately and independently of profile Save. The same anchor and branch authorize it.
+     * Database writes disabled returns saved false and does not change the server. A missing anchor, missing API, or rejection also returns saved false. The card keeps the marked draft.
+     * @param {string} accountId Accepted by the signature and unused by this function.
+     * @param {string} memberId Member whose open interval changes.
+     * @param {object} anchor Selected anchor. Type and id are required. branch is sent as an empty string when absent.
+     * @param {boolean} fronting Requested state. The sent body always includes fronting as a boolean: strict true becomes true, and every other value becomes false.
+     * @returns {Promise<object>} saved true and the boolean fronting value from the response, or saved false and a status string.
+     */
     async function saveMemberFronting(accountId, memberId, anchor, fronting) {
         if (databaseWritesAreDisabled()) {
             return {
@@ -936,6 +1312,12 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Builds the legacy add-member form.
+     *
+     * @param {object} options cancelAddMember, submitMember, and refreshMembers callbacks. A missing submitMember uses apiClient.addMember.
+     * @returns {HTMLElement} The form section.
+     */
     function createMemberAddForm(options) {
         const section = document.createElement("section");
         section.className = "member-add-panel";
@@ -970,6 +1352,11 @@ window.PluralBridge.members = (function () {
         form.appendChild(buttonRow);
         form.appendChild(status);
 
+        /**
+         * Clears the add form and calls cancelAddMember when that callback exists.
+         *
+         * @returns {void} Nothing is returned.
+         */
         cancelButton.addEventListener("click", function () {
             form.reset();
             status.textContent = "";
@@ -979,6 +1366,13 @@ window.PluralBridge.members = (function () {
             }
         });
 
+        /**
+         * Submits the legacy add form.
+         * A blank name sets the status and returns. submitMember is used when supplied. Otherwise apiClient.addMember runs and refreshMembers follows a successful add. A rejection sets the status and does not leave the form busy.
+         *
+         * @param {SubmitEvent} event Form submission. The browser submit is cancelled.
+         * @returns {Promise<void>} The promise settles after the status is written. A failed add is caught.
+         */
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
 
@@ -1048,6 +1442,13 @@ window.PluralBridge.members = (function () {
         return section;
     }
 
+    /**
+     * Builds the legacy edit-member form and fills it from the member.
+     *
+     * @param {object} member Member being edited. A missing member id is reported on submit.
+     * @param {object} options cancelEdit and refreshMembers callbacks.
+     * @returns {HTMLElement} The form section.
+     */
     function createMemberEditForm(member, options) {
         const section = document.createElement("section");
         section.className = "member-edit-panel";
@@ -1086,12 +1487,24 @@ window.PluralBridge.members = (function () {
         form.appendChild(buttonRow);
         form.appendChild(status);
 
+        /**
+         * Calls cancelEdit when that callback exists.
+         *
+         * @returns {void} Nothing is returned.
+         */
         cancelButton.addEventListener("click", function () {
             if (options && typeof options.cancelEdit === "function") {
                 options.cancelEdit();
             }
         });
 
+        /**
+         * Saves the legacy edit through apiClient.editMember.
+         * A missing member id, missing client, or blank name sets the status and returns. refreshMembers runs after a successful edit. A rejection sets the status.
+         *
+         * @param {SubmitEvent} event Form submission. The browser submit is cancelled.
+         * @returns {Promise<void>} The promise settles after the status is written. A failed edit is caught.
+         */
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
 
@@ -1153,6 +1566,12 @@ window.PluralBridge.members = (function () {
     let addMemberDialogOwnedUrls = [];
     const addMemberDialogCommittedUrls = {};
 
+    /**
+     * Returns focus to the Add-menu summary, or to the opener when that summary is gone.
+     *
+     * @param {Element} opener Element that opened the dialog.
+     * @returns {void} Nothing is returned.
+     */
     function focusAddMemberOpener(opener) {
         const details = opener && typeof opener.closest === "function"
             ? opener.closest(".member-toolbar-add-menu")
@@ -1168,7 +1587,18 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Revokes avatar object URLs created by the add dialog and not kept by a stored preview.
+     *
+     * @returns {void} The owned-url list is cleared.
+     */
     function revokeUncommittedAvatarUrls() {
+        /**
+         * Revokes one uncommitted avatar URL.
+         *
+         * @param {string} url Object URL. A URL recorded as committed is kept.
+         * @returns {void} Nothing is returned.
+         */
         addMemberDialogOwnedUrls.forEach(function (url) {
             if (!addMemberDialogCommittedUrls[url]) {
                 URL.revokeObjectURL(url);
@@ -1177,6 +1607,11 @@ window.PluralBridge.members = (function () {
         addMemberDialogOwnedUrls = [];
     }
 
+    /**
+     * Aborts the dialog listeners, revokes uncommitted avatar URLs, and removes the dialog.
+     *
+     * @returns {void} Nothing is returned.
+     */
     function destroyAddMemberDialog() {
         if (addMemberDialogController) {
             addMemberDialogController.abort();
@@ -1197,6 +1632,11 @@ window.PluralBridge.members = (function () {
         dialog.remove();
     }
 
+    /**
+     * Closes the add dialog and returns focus to its opener.
+     *
+     * @returns {void} The dialog epoch advances so a queued open from the previous dialog does not continue.
+     */
     function closeAddMemberDialog() {
         addMemberDialogEpoch += 1;
         const opener = addMemberDialogOpener;
@@ -1205,6 +1645,11 @@ window.PluralBridge.members = (function () {
         focusAddMemberOpener(opener);
     }
 
+    /**
+     * Reads the navigator map snapshot.
+     *
+     * @returns {object} The snapshot, or an empty rows list when the navigator cannot supply one.
+     */
     function readMapSnapshot() {
         const navigatorView = window.PluralBridge && window.PluralBridge.navigator
             ? window.PluralBridge.navigator
@@ -1220,6 +1665,12 @@ window.PluralBridge.members = (function () {
         return navigatorView.getMapSnapshot();
     }
 
+    /**
+     * Reports whether a row can contain a new member.
+     *
+     * @param {object} row Map row. Headers are excluded. system, group, and place are destinations.
+     * @returns {boolean} True for a destination anchor.
+     */
     function isDestinationAnchor(row) {
         return Boolean(
             row &&
@@ -1228,8 +1679,20 @@ window.PluralBridge.members = (function () {
         );
     }
 
+    /**
+     * Walks from the selected row to the nearest destination anchor.
+     *
+     * @param {object} snapshot Map snapshot with rows and selectedPathKey.
+     * @returns {object|null} The anchor row, or null when the walk does not find one.
+     */
     function containingAnchor(snapshot) {
         const byKey = {};
+        /**
+         * Indexes one snapshot row by its path key.
+         *
+         * @param {object} row Map row. A row without pathKey is skipped.
+         * @returns {void} Nothing is returned.
+         */
         snapshot.rows.forEach(function (row) {
             if (row.pathKey) {
                 byKey[row.pathKey] = row;
@@ -1249,6 +1712,12 @@ window.PluralBridge.members = (function () {
         return null;
     }
 
+    /**
+     * Labels a destination type.
+     *
+     * @param {string} objectType system, group, place, or another type, which returns an empty string.
+     * @returns {string} The label.
+     */
     function destinationTypeLabel(objectType) {
         if (objectType === "system") {
             return "System";
@@ -1262,6 +1731,12 @@ window.PluralBridge.members = (function () {
         return "";
     }
 
+    /**
+     * Reads the visible name of a destination row.
+     *
+     * @param {object} row Map row. anchorName wins over nodeLabel.
+     * @returns {string} The name, or an empty string.
+     */
     function destinationDisplayName(row) {
         if (row && row.anchorName) {
             return row.anchorName;
@@ -1269,6 +1744,12 @@ window.PluralBridge.members = (function () {
         return row && row.nodeLabel ? row.nodeLabel : "";
     }
 
+    /**
+     * Draws a small dialog SVG from one path.
+     *
+     * @param {string} pathData SVG path data.
+     * @returns {SVGElement} The icon.
+     */
     function dialogSvg(pathData) {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNamespace, "svg");
@@ -1282,6 +1763,12 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Draws the outline icon for a dialog object type.
+     *
+     * @param {string} objectType account, system, group, place, member, relationship, or another type, which draws the unset mark.
+     * @returns {SVGElement} The icon.
+     */
     function dialogOutlineIcon(objectType) {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNamespace, "svg");
@@ -1297,8 +1784,21 @@ window.PluralBridge.members = (function () {
         svg.setAttribute("aria-hidden", "true");
         svg.setAttribute("focusable", "false");
 
+        /**
+         * Appends one SVG shape to the dialog icon being drawn.
+         *
+         * @param {string} tagName SVG element name.
+         * @param {object} attributes Attribute names and values.
+         * @returns {void} Nothing is returned.
+         */
         function shape(tagName, attributes) {
             const node = document.createElementNS(svgNamespace, tagName);
+            /**
+             * Copies one attribute onto that shape.
+             *
+             * @param {string} name Attribute name.
+             * @returns {void} Nothing is returned.
+             */
             Object.keys(attributes).forEach(function (name) {
                 node.setAttribute(name, attributes[name]);
             });
@@ -1335,6 +1835,12 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Draws an expanded or collapsed tree chevron.
+     *
+     * @param {boolean} expanded True adds the expanded class.
+     * @returns {SVGElement} The chevron.
+     */
     function dialogChevron(expanded) {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNamespace, "svg");
@@ -1353,6 +1859,11 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Draws the shared edit pencil.
+     *
+     * @returns {SVGElement} The pencil icon.
+     */
     function createEditPencil() {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNamespace, "svg");
@@ -1363,8 +1874,21 @@ window.PluralBridge.members = (function () {
         svg.setAttribute("aria-hidden", "true");
         svg.setAttribute("focusable", "false");
 
+        /**
+         * Appends one SVG shape to the pencil.
+         *
+         * @param {string} tagName SVG element name.
+         * @param {object} attributes Attribute names and values.
+         * @returns {void} Nothing is returned.
+         */
         function addShape(tagName, attributes) {
             const node = document.createElementNS(svgNamespace, tagName);
+            /**
+             * Copies one attribute onto the pencil shape.
+             *
+             * @param {string} name Attribute name.
+             * @returns {void} Nothing is returned.
+             */
             Object.keys(attributes).forEach(function (name) {
                 node.setAttribute(name, attributes[name]);
             });
@@ -1406,12 +1930,22 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Draws the pencil used inside the add dialog.
+     *
+     * @returns {SVGElement} The pencil icon.
+     */
     function dialogPencil() {
         const icon = createEditPencil();
         icon.classList.add("member-add-dialog-pencil-icon");
         return icon;
     }
 
+    /**
+     * Draws the relationship arrow.
+     *
+     * @returns {SVGElement} The arrow icon.
+     */
     function relationshipArrow() {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNamespace, "svg");
@@ -1433,6 +1967,12 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Draws the Fronting icon for the add dialog.
+     *
+     * @param {boolean} isFronting True draws the upward arrow. False draws the downward arrow.
+     * @returns {SVGElement} The icon.
+     */
     function dialogFrontingIcon(isFronting) {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNamespace, "svg");
@@ -1466,18 +2006,42 @@ window.PluralBridge.members = (function () {
     ];
     const customRelationshipTypesByAccount = {};
 
+    /**
+     * Builds an id for a custom relationship label.
+     *
+     * @param {string} label Typed label. Non-letters become hyphens, and a random suffix keeps repeated labels distinct.
+     * @returns {string} The custom id.
+     */
     function customRelationshipId(label) {
         const slug = String(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "type";
         return "custom:" + slug + ":" + Math.random().toString(36).slice(2, 8);
     }
 
+    /**
+     * Lists the built-in relationship types and the custom types stored for one account.
+     *
+     * @param {string} accountId Account whose custom types are appended. A missing account adds none.
+     * @returns {Array<object>} Choice objects with id, label, icon, disabled, and custom.
+     */
     function relationshipTypeChoices(accountId) {
+        /**
+         * Copies one built-in relationship type into a choice.
+         *
+         * @param {object} item Supported type with id and label.
+         * @returns {object} The choice.
+         */
         const choices = supportedRelationshipTypes.map(function (item) {
             return { id: item.id, label: item.label, icon: "link", disabled: false, custom: false };
         });
         const custom = accountId && customRelationshipTypesByAccount[accountId]
             ? customRelationshipTypesByAccount[accountId]
             : [];
+        /**
+         * Appends one custom relationship type.
+         *
+         * @param {object} item Custom type with id and label.
+         * @returns {void} Nothing is returned.
+         */
         custom.forEach(function (item) {
             choices.push({
                 id: item.id,
@@ -1490,6 +2054,14 @@ window.PluralBridge.members = (function () {
         return choices;
     }
 
+    /**
+     * Shows or hides an inheritance hint.
+     *
+     * @param {HTMLElement} hint Hint element.
+     * @param {boolean} show True only shows the hint when sourceName is also present.
+     * @param {string} sourceName Name of the source the value inherits from.
+     * @returns {void} Nothing is returned.
+     */
     function paintInheritanceHint(hint, show, sourceName) {
         hint.textContent = sourceName ? "Inherited from " + sourceName : "\u00a0";
         const visible = Boolean(show && sourceName);
@@ -1497,6 +2069,13 @@ window.PluralBridge.members = (function () {
         hint.setAttribute("aria-hidden", visible ? "false" : "true");
     }
 
+    /**
+     * Builds visibility or permission choices.
+     *
+     * @param {string} kind permission returns the permission list. Any other kind returns the visibility list.
+     * @param {boolean} includeUnset True adds Not set as the first choice.
+     * @returns {Array<object>} The choices. Selected people is present and disabled.
+     */
     function policyChoices(kind, includeUnset) {
         const choices = [];
         if (includeUnset) {
@@ -1523,6 +2102,12 @@ window.PluralBridge.members = (function () {
         return choices;
     }
 
+    /**
+     * Draws a policy or relationship icon.
+     *
+     * @param {string} kind inherit, viewer, editor, manager, owner, only-you, trusted, all-friends, link, or any other kind, which draws the unset mark.
+     * @returns {SVGElement} The icon.
+     */
     function policyOutlineIcon(kind) {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNamespace, "svg");
@@ -1538,8 +2123,21 @@ window.PluralBridge.members = (function () {
         svg.setAttribute("aria-hidden", "true");
         svg.setAttribute("focusable", "false");
 
+        /**
+         * Appends one SVG shape to the policy icon.
+         *
+         * @param {string} tagName SVG element name.
+         * @param {object} attributes Attribute names and values.
+         * @returns {void} Nothing is returned.
+         */
         function addShape(tagName, attributes) {
             const node = document.createElementNS(svgNamespace, tagName);
+            /**
+             * Copies one attribute onto the policy shape.
+             *
+             * @param {string} name Attribute name.
+             * @returns {void} Nothing is returned.
+             */
             Object.keys(attributes).forEach(function (name) {
                 node.setAttribute(name, attributes[name]);
             });
@@ -1585,6 +2183,12 @@ window.PluralBridge.members = (function () {
         return svg;
     }
 
+    /**
+     * Chooses an icon kind from a choice's icon or id.
+     *
+     * @param {object} choice Choice with an optional icon and id.
+     * @returns {string} The icon kind. An unrecognized id returns unset.
+     */
     function policyIconKind(choice) {
         if (choice && choice.icon) {
             return choice.icon;
@@ -1616,6 +2220,12 @@ window.PluralBridge.members = (function () {
         return "unset";
     }
 
+    /**
+     * Draws the policy-menu chevron.
+     *
+     * @param {boolean} open True adds the open class.
+     * @returns {HTMLSpanElement} The chevron.
+     */
     function policyChevron(open) {
         const svgNamespace = "http://www.w3.org/2000/svg";
         const chevron = document.createElement("span");
@@ -1639,6 +2249,12 @@ window.PluralBridge.members = (function () {
         return chevron;
     }
 
+    /**
+     * Builds a policy dropdown bound to getValue and setValue.
+     *
+     * @param {object} options label, choices, getValue, and setValue. A missing choices list is empty.
+     * @returns {object} root and refresh. refresh repaints the button from getValue.
+     */
     function createPolicyDropdown(options) {
         const choices = options && options.choices ? options.choices : [];
         const root = document.createElement("div");
@@ -1659,6 +2275,11 @@ window.PluralBridge.members = (function () {
         button.setAttribute("aria-controls", listId);
         let optionsEls = [];
 
+        /**
+         * Finds the choice matching the current value.
+         *
+         * @returns {object} The matching choice, or the first choice, or a Not set fallback when the list is empty.
+         */
         function currentChoice() {
             const current = options && typeof options.getValue === "function" ? String(options.getValue() || "") : "";
             for (let index = 0; index < choices.length; index += 1) {
@@ -1669,6 +2290,11 @@ window.PluralBridge.members = (function () {
             return choices[0] || { id: "", label: "Not set", disabled: false };
         }
 
+        /**
+         * Repaints the policy button and rebuilds its option list.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function paint() {
             const choice = currentChoice();
             value.textContent = choice.label;
@@ -1676,6 +2302,13 @@ window.PluralBridge.members = (function () {
             button.setAttribute("aria-label", accessible);
             button.title = accessible;
             list.replaceChildren();
+            /**
+             * Builds one policy option.
+             *
+             * @param {object} item Choice id, label, and disabled.
+             * @param {number} index Option index.
+             * @returns {HTMLDivElement} The option.
+             */
             optionsEls = choices.map(function (item, index) {
                 const option = document.createElement("div");
                 option.className = "member-sharing-option";
@@ -1705,6 +2338,11 @@ window.PluralBridge.members = (function () {
             button.replaceChildren(policyOutlineIcon(policyIconKind(choice)), value, policyChevron(!list.hidden));
         }
 
+        /**
+         * Places the open policy list under the button, or above it when there is no room.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function place() {
             const rect = button.getBoundingClientRect();
             const height = list.offsetHeight;
@@ -1717,6 +2355,12 @@ window.PluralBridge.members = (function () {
             list.style.width = Math.max(rect.width, 180) + "px";
         }
 
+        /**
+         * Opens or closes the policy list.
+         *
+         * @param {boolean} open True opens the list and focuses the selected option.
+         * @returns {void} Nothing is returned.
+         */
         function setOpen(open) {
             list.hidden = !open;
             button.setAttribute("aria-expanded", open ? "true" : "false");
@@ -1724,6 +2368,12 @@ window.PluralBridge.members = (function () {
             if (!open) {
                 return;
             }
+            /**
+             * Finds the option that should receive focus.
+             *
+             * @param {HTMLElement} option Option element.
+             * @returns {boolean} True when the option is selected.
+             */
             const selected = optionsEls.findIndex(function (option) {
                 return option.getAttribute("aria-selected") === "true";
             });
@@ -1732,6 +2382,12 @@ window.PluralBridge.members = (function () {
             place();
         }
 
+        /**
+         * Stores the chosen policy value and closes the list.
+         *
+         * @param {HTMLElement} option Chosen option. A missing or disabled option only closes the list.
+         * @returns {void} setValue receives the option id.
+         */
         function choose(option) {
             if (!option || option.getAttribute("aria-disabled") === "true") {
                 setOpen(false);
@@ -1745,20 +2401,50 @@ window.PluralBridge.members = (function () {
             button.focus();
         }
 
+        /**
+         * Stops a policy event from reaching the surrounding dialog or card.
+         *
+         * @param {Event} event Event to cancel and stop.
+         * @returns {void} Nothing is returned.
+         */
         function keepLocal(event) {
             event.preventDefault();
             event.stopPropagation();
         }
+        /**
+         * Stops a policy pointerdown from reaching the surrounding control.
+         *
+         * @param {MouseEvent} event Pointerdown on the policy root.
+         * @returns {void} Nothing is returned.
+         */
         root.addEventListener("mousedown", function (event) {
             event.stopPropagation();
         });
+        /**
+         * Stops a policy click from reaching the surrounding control.
+         *
+         * @param {MouseEvent} event Click on the policy root.
+         * @returns {void} Nothing is returned.
+         */
         root.addEventListener("click", function (event) {
             event.stopPropagation();
         });
+        /**
+         * Toggles the policy list.
+         *
+         * @param {MouseEvent} event Click on the policy button.
+         * @returns {void} Nothing is returned.
+         */
         button.addEventListener("click", function (event) {
             keepLocal(event);
             setOpen(list.hidden);
         });
+        /**
+         * Opens the policy list from ArrowDown, Enter, or Space.
+         *
+         * @param {KeyboardEvent} event Keydown on the policy button.
+         * @returns {void} Nothing is returned.
+         */
         button.addEventListener("keydown", function (event) {
             if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
@@ -1766,12 +2452,30 @@ window.PluralBridge.members = (function () {
                 setOpen(true);
             }
         });
+        /**
+         * Keeps a list pointerdown from moving focus before the click chooses an option.
+         *
+         * @param {MouseEvent} event Pointerdown in the list.
+         * @returns {void} Nothing is returned.
+         */
         list.addEventListener("mousedown", function (event) {
             event.preventDefault();
             event.stopPropagation();
         });
+        /**
+         * Moves, chooses, or closes the policy list from the keyboard.
+         *
+         * @param {KeyboardEvent} event Arrow keys, Home, End, Enter, Space, and Escape.
+         * @returns {void} Nothing is returned.
+         */
         list.addEventListener("keydown", function (event) {
             event.stopPropagation();
+            /**
+             * Finds the index of the focused policy option.
+             *
+             * @param {HTMLElement} option Option element.
+             * @returns {boolean} True when the option is the active element.
+             */
             const current = optionsEls.findIndex(function (option) {
                 return option === document.activeElement;
             });
@@ -1794,6 +2498,12 @@ window.PluralBridge.members = (function () {
                 optionsEls[index].focus();
             }
         });
+        /**
+         * Chooses the policy option under the pointer.
+         *
+         * @param {MouseEvent} event Click in the list.
+         * @returns {void} Nothing is returned.
+         */
         list.addEventListener("click", function (event) {
             const option = event.target.closest(".member-sharing-option");
             event.preventDefault();
@@ -1802,6 +2512,12 @@ window.PluralBridge.members = (function () {
                 choose(option);
             }
         });
+        /**
+         * Closes the policy list on a pointer outside it, and removes itself after the control leaves the document.
+         *
+         * @param {PointerEvent} event Document pointerdown.
+         * @returns {void} Nothing is returned.
+         */
         function onPointerDown(event) {
             if (!root.isConnected) {
                 document.removeEventListener("pointerdown", onPointerDown, true);
@@ -1825,6 +2541,12 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Builds the This account row used as a standalone destination.
+     *
+     * @param {string} accountId Account id. A missing id returns null.
+     * @returns {object|null} The synthetic account row.
+     */
     function accountDestinationRow(accountId) {
         if (!accountId) {
             return null;
@@ -1842,6 +2564,13 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Reports whether a row can be chosen for this add mode.
+     *
+     * @param {object} row Map row. Headers cannot be chosen.
+     * @param {string} mode group, system, and place can choose the account row. Every mode can choose a system, group, or place.
+     * @returns {boolean} True when the row is a valid destination.
+     */
     function isModeDestination(row, mode) {
         if (!row || row.header === true) {
             return false;
@@ -1852,8 +2581,20 @@ window.PluralBridge.members = (function () {
         return row.objectType === "system" || row.objectType === "group" || row.objectType === "place";
     }
 
+    /**
+     * Groups map rows under their parent path and opens structural branches.
+     *
+     * @param {Array<object>} rows Map rows. Rows without a parent path are roots.
+     * @returns {object} children, structureOpen, and membersOpen. Member lists start closed.
+     */
     function createTreeExpansion(rows) {
         const children = {};
+        /**
+         * Adds one child row to its parent list.
+         *
+         * @param {object} row Map row. A row without parentPathKey is skipped.
+         * @returns {void} Nothing is returned.
+         */
         rows.forEach(function (row) {
             if (!row.parentPathKey) {
                 return;
@@ -1865,8 +2606,20 @@ window.PluralBridge.members = (function () {
         });
         const structureOpen = {};
         const membersOpen = {};
+        /**
+         * Opens a parent that has a non-member child and leaves its member list closed.
+         *
+         * @param {string} key Parent path key.
+         * @returns {void} Nothing is returned.
+         */
         Object.keys(children).forEach(function (key) {
             const list = children[key];
+            /**
+             * Reports whether a child list contains a structural row.
+             *
+             * @param {object} row Child row.
+             * @returns {boolean} True when the row is not a member.
+             */
             const hasStructure = list.some(function (row) {
                 return row.objectType !== "member";
             });
@@ -1882,18 +2635,43 @@ window.PluralBridge.members = (function () {
         };
     }
 
+    /**
+     * Reads the children stored for one path.
+     *
+     * @param {object} expansion Expansion from createTreeExpansion.
+     * @param {string} pathKey Parent path. A missing key returns an empty list.
+     * @returns {Array<object>} The child rows.
+     */
     function treeChildren(expansion, pathKey) {
         return pathKey && expansion.children[pathKey] ? expansion.children[pathKey] : [];
     }
 
+    /**
+     * Reports whether every structural branch and member list is open.
+     *
+     * @param {object} expansion Tree expansion state.
+     * @returns {boolean} True when nothing that can open is still closed.
+     */
     function treeFullyOpen(expansion) {
         const keys = Object.keys(expansion.children);
         for (let index = 0; index < keys.length; index += 1) {
             const key = keys[index];
             const list = expansion.children[key];
+            /**
+             * Reports whether a child list contains a structural row.
+             *
+             * @param {object} row Child row.
+             * @returns {boolean} True when the row is not a member.
+             */
             const hasStructure = list.some(function (row) {
                 return row.objectType !== "member";
             });
+            /**
+             * Reports whether a child list contains a member.
+             *
+             * @param {object} row Child row.
+             * @returns {boolean} True when the row is a member.
+             */
             const hasMembers = list.some(function (row) {
                 return row.objectType === "member";
             });
@@ -1907,13 +2685,35 @@ window.PluralBridge.members = (function () {
         return true;
     }
 
+    /**
+     * Opens or closes every structural branch and member list.
+     *
+     * @param {object} expansion Tree expansion state.
+     * @param {boolean} open True opens both kinds of list.
+     * @returns {void} Nothing is returned.
+     */
     function setTreeFullyOpen(expansion, open) {
+        /**
+         * Sets one parent branch and its member list.
+         *
+         * @param {string} key Parent path key.
+         * @returns {void} Nothing is returned.
+         */
         Object.keys(expansion.children).forEach(function (key) {
             expansion.structureOpen[key] = open;
             expansion.membersOpen[key] = open;
         });
     }
 
+    /**
+     * Redraws a dialog tree and restores its scroll and focused row.
+     *
+     * @param {HTMLElement} host Tree container.
+     * @param {Array<object>} rows Map rows.
+     * @param {object} expansion Open and closed state.
+     * @param {object} options leadingRows, selectedPathKey, canSelect, onSelect, onChange, memberTitle, and emptyText.
+     * @returns {void} Nothing is returned.
+     */
     function renderDialogTree(host, rows, expansion, options) {
         const scrollTop = host.scrollTop;
         const active = document.activeElement;
@@ -1922,15 +2722,33 @@ window.PluralBridge.members = (function () {
         host.replaceChildren();
         const canSelect = options && typeof options.canSelect === "function"
             ? options.canSelect
+            /**
+             * Default selection rule used when the tree options do not supply canSelect.
+             *
+             * @returns {boolean} Always true.
+             */
             : function () { return true; };
         const selectedPathKey = options && options.selectedPathKey ? options.selectedPathKey : "";
 
+        /**
+         * Tells the dialog that the tree changed.
+         *
+         * @returns {void} A missing onChange does nothing.
+         */
         function notify() {
             if (options && typeof options.onChange === "function") {
                 options.onChange();
             }
         }
 
+        /**
+         * Draws the member-list toggle under a structural row.
+         *
+         * @param {object} parent Row that owns the members.
+         * @param {Array<object>} members Member rows shown when the list is open.
+         * @param {number} level Indent level.
+         * @returns {void} Nothing is returned.
+         */
         function appendMembersToggle(parent, members, level) {
             const open = expansion.membersOpen[parent.pathKey] === true;
             const nodeRow = document.createElement("div");
@@ -1946,6 +2764,11 @@ window.PluralBridge.members = (function () {
             const text = document.createElement("span");
             text.textContent = "Members";
             toggle.appendChild(text);
+            /**
+             * Toggles this member list and notifies the dialog.
+             *
+             * @returns {void} Nothing is returned.
+             */
             toggle.addEventListener("click", function () {
                 expansion.membersOpen[parent.pathKey] = !open;
                 notify();
@@ -1953,17 +2776,42 @@ window.PluralBridge.members = (function () {
             nodeRow.appendChild(toggle);
             host.appendChild(nodeRow);
             if (open) {
+                /**
+                 * Draws one member under the open member list.
+                 *
+                 * @param {object} child Member row.
+                 * @returns {void} Nothing is returned.
+                 */
                 members.forEach(function (child) {
                     appendRow(child, level + 1);
                 });
             }
         }
 
+        /**
+         * Draws one tree row, its children, and its selection button.
+         *
+         * @param {object} row Map row.
+         * @param {number} level Indent level.
+         * @returns {void} Nothing is returned.
+         */
         function appendRow(row, level) {
             const list = treeChildren(expansion, row.pathKey);
+            /**
+             * Keeps the structural children of a row.
+             *
+             * @param {object} child Child row.
+             * @returns {boolean} True when the child is not a member.
+             */
             const structural = list.filter(function (child) {
                 return child.objectType !== "member";
             });
+            /**
+             * Keeps the member children of a row.
+             *
+             * @param {object} child Child row.
+             * @returns {boolean} True when the child is a member.
+             */
             const members = list.filter(function (child) {
                 return child.objectType === "member";
             });
@@ -1979,6 +2827,11 @@ window.PluralBridge.members = (function () {
                 toggle.setAttribute("aria-expanded", String(structureShown));
                 toggle.setAttribute("aria-label", structureShown ? "Collapse" : "Expand");
                 toggle.appendChild(dialogChevron(structureShown));
+                /**
+                 * Toggles this structural branch and notifies the dialog.
+                 *
+                 * @returns {void} Nothing is returned.
+                 */
                 toggle.addEventListener("click", function () {
                     expansion.structureOpen[row.pathKey] = !structureShown;
                     notify();
@@ -2014,6 +2867,11 @@ window.PluralBridge.members = (function () {
             text.className = "member-tree-node-text";
             text.textContent = row.nodeLabel || "";
             selectButton.appendChild(text);
+            /**
+             * Selects this row when canSelect allows it.
+             *
+             * @returns {void} A row that cannot be selected does nothing.
+             */
             selectButton.addEventListener("click", function () {
                 if (!selectable || !options || typeof options.onSelect !== "function") {
                     return;
@@ -2025,12 +2883,24 @@ window.PluralBridge.members = (function () {
             if (!structureShown) {
                 return;
             }
+            /**
+             * Draws one open structural child.
+             *
+             * @param {object} child Structural child row.
+             * @returns {void} Nothing is returned.
+             */
             structural.forEach(function (child) {
                 appendRow(child, level + 1);
             });
             if (members.length && structural.length) {
                 appendMembersToggle(row, members, level + 1);
             } else if (members.length) {
+                /**
+                 * Draws one member child when the row has no separate member toggle.
+                 *
+                 * @param {object} child Member row.
+                 * @returns {void} Nothing is returned.
+                 */
                 members.forEach(function (child) {
                     appendRow(child, level + 1);
                 });
@@ -2038,6 +2908,12 @@ window.PluralBridge.members = (function () {
         }
 
         const leading = options && options.leadingRows ? options.leadingRows : [];
+        /**
+         * Keeps a row that has no parent, so it is a root.
+         *
+         * @param {object} row Map row.
+         * @returns {boolean} True when parentPathKey is null or undefined.
+         */
         const roots = leading.concat(rows.filter(function (row) {
             return row.parentPathKey == null;
         }));
@@ -2049,6 +2925,12 @@ window.PluralBridge.members = (function () {
                 : "The signed-in account map is not available.";
             host.appendChild(empty);
         } else {
+            /**
+             * Draws one root row.
+             *
+             * @param {object} row Root row.
+             * @returns {void} Nothing is returned.
+             */
             roots.forEach(function (row) {
                 appendRow(row, 0);
             });
@@ -2067,6 +2949,13 @@ window.PluralBridge.members = (function () {
         }
     }
 
+    /**
+     * Opens the add dialog for a member, group, system, or place and holds the result as a preview.
+     *
+     * @param {Element} opener Element that opened the dialog.
+     * @param {string} addMode group, system, place, or any other value, which opens the member dialog.
+     * @returns {void} The dialog is modal. Closing it returns focus to the opener.
+     */
     function presentAddMemberDialog(opener, addMode) {
         const mode = addMode === "group" || addMode === "system" || addMode === "place" ? addMode : "member";
         const memberOnly = mode === "member";
@@ -2218,6 +3107,15 @@ window.PluralBridge.members = (function () {
         media.appendChild(colorField);
         media.appendChild(avatarField);
 
+        /**
+         * Wraps a dialog control with its label and pencil.
+         *
+         * @param {string} fieldId Label and control id.
+         * @param {string} labelText Visible label.
+         * @param {HTMLElement} control Input or textarea.
+         * @param {object} fieldOptions mode add hides the pencil.
+         * @returns {HTMLDivElement} The field.
+         */
         function labeledField(fieldId, labelText, control, fieldOptions) {
             const field = document.createElement("div");
             field.className = "member-add-dialog-field";
@@ -2230,6 +3128,11 @@ window.PluralBridge.members = (function () {
             pencil.className = "member-add-dialog-pencil";
             pencil.setAttribute("aria-label", "Edit " + labelText);
             pencil.appendChild(dialogPencil());
+            /**
+             * Moves focus to the labeled control.
+             *
+             * @returns {void} Nothing is returned.
+             */
             pencil.addEventListener("click", function () {
                 control.focus();
             });
@@ -2257,9 +3160,19 @@ window.PluralBridge.members = (function () {
                     : "Enter member name";
         nameInput.value = "";
         let anchorNameEdited = false;
+        /**
+         * Remembers that the user typed an anchor name, so later destination changes do not clear it.
+         *
+         * @returns {void} Nothing is returned.
+         */
         nameInput.addEventListener("input", function () {
             anchorNameEdited = true;
         });
+        /**
+         * Clears a generated anchor name until the user types one.
+         *
+         * @returns {void} A member dialog, or a name the user already edited, is left as typed.
+         */
         function keepTypedAnchorName() {
             if (memberOnly || anchorNameEdited) {
                 return;
@@ -2281,6 +3194,11 @@ window.PluralBridge.members = (function () {
         const status = createStatusMessage();
         status.classList.add("member-add-dialog-status");
 
+        /**
+         * Redraws the add-dialog Fronting button from the local draft.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function paintFronting() {
             frontingButton.replaceChildren(dialogFrontingIcon(fronting));
             const label = document.createElement("span");
@@ -2290,6 +3208,11 @@ window.PluralBridge.members = (function () {
             frontingButton.setAttribute("aria-label", fronting ? "Fronting" : "Not fronting");
         }
 
+        /**
+         * Paints the add-dialog avatar through the avatars helper when it exists.
+         *
+         * @returns {void} Without that helper, an empty draft shows No avatar selected.
+         */
         function paintAvatar() {
             avatarFrame.replaceChildren();
             const avatars = window.PluralBridge.avatars;
@@ -2300,10 +3223,20 @@ window.PluralBridge.members = (function () {
             avatarFrame.textContent = draftAvatarUrl ? "" : "No avatar selected";
         }
 
+        /**
+         * Reads the selected destination when it is valid for this mode.
+         *
+         * @returns {object|null} The selected row, or null.
+         */
         function currentDestination() {
             return isModeDestination(selectedRow, mode) ? selectedRow : null;
         }
 
+        /**
+         * Sets visibility and permission defaults for the current destination unless the user already changed them.
+         *
+         * @returns {void} An account destination uses Only you and owner. Another destination uses inherit.
+         */
         function applyDestinationDefaults() {
             const destination = currentDestination();
             const standalone = Boolean(destination && destination.objectType === "account");
@@ -2315,10 +3248,20 @@ window.PluralBridge.members = (function () {
             }
         }
 
+        /**
+         * Enables Save only when a valid destination is selected.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function syncSave() {
             saveButton.disabled = !currentDestination();
         }
 
+        /**
+         * Updates the expand-all button for the current tree state.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function syncExpandAll() {
             const collapseAll = treeFullyOpen(expansion);
             const label = collapseAll ? "Collapse all" : "Expand all";
@@ -2332,6 +3275,11 @@ window.PluralBridge.members = (function () {
             icon.classList.toggle("is-expanded", collapseAll);
         }
 
+        /**
+         * Shows the selected destination type and name.
+         *
+         * @returns {void} No selection shows None and Select a destination.
+         */
         function paintDestination() {
             const destination = currentDestination();
             if (!destination) {
@@ -2346,6 +3294,12 @@ window.PluralBridge.members = (function () {
             destinationName.classList.remove("is-empty");
         }
 
+        /**
+         * Selects a destination row and refreshes the defaults, policy, tree, and name.
+         *
+         * @param {object} row Clicked row. An account change closes the dialog. A row that is not valid for the mode is ignored.
+         * @returns {void} Nothing is returned.
+         */
         function selectOccurrence(row) {
             if (accountChanged()) {
                 return;
@@ -2366,6 +3320,11 @@ window.PluralBridge.members = (function () {
             keepTypedAnchorName();
         }
 
+        /**
+         * Closes the dialog when the signed-in account is no longer the account that opened it.
+         *
+         * @returns {boolean} True when the account changed and the dialog was closed.
+         */
         function accountChanged() {
             const now = currentAccountId();
             if (openedAccountId && now !== openedAccountId) {
@@ -2375,14 +3334,30 @@ window.PluralBridge.members = (function () {
             return false;
         }
 
+        /**
+         * Redraws the destination tree for the current account snapshot.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function paintTree() {
             renderDialogTree(tree, snapshot.rows, expansion, {
                 leadingRows: accountRow && !memberOnly ? [accountRow] : [],
                 selectedPathKey: selectedRow && selectedRow.pathKey ? selectedRow.pathKey : "",
+                /**
+                 * Allows selection of rows that are valid destinations for this add mode.
+                 *
+                 * @param {object} row Tree row.
+                 * @returns {boolean} True when the row can be the destination.
+                 */
                 canSelect: function (row) {
                     return isModeDestination(row, mode);
                 },
                 onSelect: selectOccurrence,
+                /**
+                 * Repaints the tree after an expansion change, unless the account changed.
+                 *
+                 * @returns {void} Nothing is returned.
+                 */
                 onChange: function () {
                     if (accountChanged()) {
                         return;
@@ -2419,7 +3394,18 @@ window.PluralBridge.members = (function () {
         const visibilityMenu = createPolicyDropdown({
             label: "Visible to",
             choices: policyChoices("visibility", false),
+            /**
+             * Reads the add-dialog visibility choice.
+             *
+             * @returns {string} The current visibility id.
+             */
             getValue: function () { return visibilityChoice; },
+            /**
+             * Stores a visibility choice and marks it as chosen by the user.
+             *
+             * @param {string} next Choice id. A missing value becomes inherit.
+             * @returns {void} Nothing is returned.
+             */
             setValue: function (next) {
                 visibilityChoice = next || "inherit";
                 visibilityOverridden = true;
@@ -2429,7 +3415,18 @@ window.PluralBridge.members = (function () {
         const permissionMenu = createPolicyDropdown({
             label: "Permissions",
             choices: policyChoices("permission", false),
+            /**
+             * Reads the add-dialog permission choice.
+             *
+             * @returns {string} The current permission id.
+             */
             getValue: function () { return permissionChoice; },
+            /**
+             * Stores a permission choice and marks it as chosen by the user.
+             *
+             * @param {string} next Choice id. A missing value becomes inherit.
+             * @returns {void} Nothing is returned.
+             */
             setValue: function (next) {
                 permissionChoice = next || "inherit";
                 permissionOverridden = true;
@@ -2455,6 +3452,11 @@ window.PluralBridge.members = (function () {
         policyRow.appendChild(visibilityField);
         policyRow.appendChild(permissionField);
 
+        /**
+         * Refreshes the inheritance hints and both policy menus.
+         *
+         * @returns {void} An account destination supplies no inheritance source name.
+         */
         function paintPolicy() {
             const destination = currentDestination();
             const sourceName = destination && destination.objectType !== "account"
@@ -2496,6 +3498,11 @@ window.PluralBridge.members = (function () {
         paintTree();
         keepTypedAnchorName();
 
+        /**
+         * Expands or collapses the whole destination tree.
+         *
+         * @returns {void} An account change closes the dialog instead.
+         */
         expandAllButton.addEventListener("click", function () {
             if (accountChanged()) {
                 return;
@@ -2505,6 +3512,11 @@ window.PluralBridge.members = (function () {
             paintTree();
         }, { signal: signal });
 
+        /**
+         * Toggles the local Fronting draft. This dialog does not persist it.
+         *
+         * @returns {void} An account change closes the dialog instead.
+         */
         frontingButton.addEventListener("click", function () {
             if (accountChanged()) {
                 return;
@@ -2513,22 +3525,52 @@ window.PluralBridge.members = (function () {
             paintFronting();
         }, { signal: signal });
 
+        /**
+         * Closes the add dialog from the close button.
+         *
+         * @returns {void} Nothing is returned.
+         */
         closeButton.addEventListener("click", function () {
             closeAddMemberDialog();
         }, { signal: signal });
+        /**
+         * Closes the add dialog from Cancel.
+         *
+         * @returns {void} Nothing is returned.
+         */
         cancelButton.addEventListener("click", function () {
             closeAddMemberDialog();
         }, { signal: signal });
 
+        /**
+         * Opens the add-dialog color picker.
+         *
+         * @returns {void} Nothing is returned.
+         */
         colorPencil.addEventListener("click", function () {
             colorInput.click();
         }, { signal: signal });
+        /**
+         * Opens the add-dialog avatar chooser from the pencil.
+         *
+         * @returns {void} Nothing is returned.
+         */
         avatarPencil.addEventListener("click", function () {
             fileInput.click();
         }, { signal: signal });
+        /**
+         * Opens the add-dialog avatar chooser from the frame.
+         *
+         * @returns {void} Nothing is returned.
+         */
         avatarFrame.addEventListener("click", function () {
             fileInput.click();
         }, { signal: signal });
+        /**
+         * Replaces the add-dialog avatar preview with the chosen file.
+         *
+         * @returns {void} An empty selection returns. The previous uncommitted object URL is revoked.
+         */
         fileInput.addEventListener("change", function () {
             const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
             if (!file) {
@@ -2547,15 +3589,33 @@ window.PluralBridge.members = (function () {
             paintAvatar();
         }, { signal: signal });
 
+        /**
+         * Closes the add dialog when the browser cancel event fires.
+         *
+         * @param {Event} event Dialog cancel event. The browser close is prevented so this dialog can clean up.
+         * @returns {void} Nothing is returned.
+         */
         dialog.addEventListener("cancel", function (event) {
             event.preventDefault();
             closeAddMemberDialog();
         }, { signal: signal });
 
+        /**
+         * Closes the add dialog if the account changed while the window was unfocused.
+         *
+         * @returns {void} Nothing is returned.
+         */
         window.addEventListener("focus", function () {
             accountChanged();
         }, { signal: signal });
 
+        /**
+         * Holds the add dialog as an account preview.
+         * A blank name, missing destination, missing account, or account change returns without storing. A stored member preview keeps its avatar URL.
+         *
+         * @param {SubmitEvent} event Form submission. The browser submit is cancelled.
+         * @returns {Promise<void>} The promise settles after the status is written. holdAccountPreview does not reject.
+         */
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
             if (accountChanged()) {
@@ -2624,6 +3684,11 @@ window.PluralBridge.members = (function () {
         if (currentDestination()) {
             nameInput.focus();
         }
+        /**
+         * Clears an untouched generated anchor name after the dialog has opened.
+         *
+         * @returns {void} A disconnected input is ignored.
+         */
         window.setTimeout(function () {
             if (nameInput.isConnected) {
                 keepTypedAnchorName();
@@ -2631,6 +3696,12 @@ window.PluralBridge.members = (function () {
         }, 0);
     }
 
+    /**
+     * Builds the type and id key used to compare relationship endpoints.
+     *
+     * @param {object} row Map or endpoint row. A header, member, or row without type and id returns an empty string.
+     * @returns {string} The lowercased type:id key.
+     */
     function relationshipObjectKey(row) {
         if (!row || row.header === true || !row.objectType || !row.objectId || row.objectType === "member") {
             return "";
@@ -2638,6 +3709,12 @@ window.PluralBridge.members = (function () {
         return String(row.objectType).toLowerCase() + ":" + String(row.objectId).toLowerCase();
     }
 
+    /**
+     * Reports whether a row can be a relationship endpoint.
+     *
+     * @param {object} row Map row. Headers and rows without an id are excluded. system, group, and place qualify.
+     * @returns {boolean} True for an endpoint.
+     */
     function anchorEndpoint(row) {
         return Boolean(
             row &&
@@ -2647,6 +3724,14 @@ window.PluralBridge.members = (function () {
         );
     }
 
+    /**
+     * Reports whether a parent relationship would point a child at one of its own ancestors.
+     *
+     * @param {object} snapshot Map snapshot whose rows supply parent links.
+     * @param {object} parentRow Proposed parent, the left endpoint.
+     * @param {object} childRow Proposed child, the right endpoint.
+     * @returns {boolean} True for the same endpoint or when the proposed parent is already under the proposed child.
+     */
     function parentLinkWouldCycle(snapshot, parentRow, childRow) {
         const parentKey = relationshipObjectKey(parentRow);
         const childKey = relationshipObjectKey(childRow);
@@ -2655,12 +3740,25 @@ window.PluralBridge.members = (function () {
         }
 
         const byPath = {};
+        /**
+         * Indexes one snapshot row by path key for the cycle walk.
+         *
+         * @param {object} row Map row. A row without pathKey is skipped.
+         * @returns {void} Nothing is returned.
+         */
         (snapshot.rows || []).forEach(function (row) {
             if (row.pathKey) {
                 byPath[row.pathKey] = row;
             }
         });
         const parentsOf = {};
+        /**
+         * Records one parent key for a child key.
+         *
+         * @param {string} child Child object key.
+         * @param {string} parent Parent object key. Equal or empty keys are ignored.
+         * @returns {void} Nothing is returned.
+         */
         function addParent(child, parent) {
             if (!child || !parent || child === parent) {
                 return;
@@ -2672,6 +3770,12 @@ window.PluralBridge.members = (function () {
                 parentsOf[child].push(parent);
             }
         }
+        /**
+         * Adds the nearest keyed ancestor of one map row.
+         *
+         * @param {object} row Map row. A row without an object key or parent path is skipped.
+         * @returns {void} Nothing is returned.
+         */
         (snapshot.rows || []).forEach(function (row) {
             const child = relationshipObjectKey(row);
             if (!child || !row.parentPathKey) {
@@ -2691,6 +3795,12 @@ window.PluralBridge.members = (function () {
         });
         const accountId = currentAccountId();
         const previews = accountId && memberPreviewsByAccount[accountId] ? memberPreviewsByAccount[accountId] : [];
+        /**
+         * Adds a stored parent-relationship preview to the cycle graph.
+         *
+         * @param {object} record Preview record. Other kinds and relationship types are skipped.
+         * @returns {void} Nothing is returned.
+         */
         previews.forEach(function (record) {
             if (!record || record.previewKind !== "relationship" || record.relationshipType !== "parent") {
                 return;
@@ -2709,6 +3819,12 @@ window.PluralBridge.members = (function () {
                 return true;
             }
             seen[key] = true;
+            /**
+             * Continues the ancestor walk through one parent.
+             *
+             * @param {string} next Parent object key.
+             * @returns {void} Nothing is returned.
+             */
             (parentsOf[key] || []).forEach(function (next) {
                 stack.push(next);
             });
@@ -2716,6 +3832,12 @@ window.PluralBridge.members = (function () {
         return false;
     }
 
+    /**
+     * Opens the relationship dialog and holds a chosen relationship as a preview.
+     *
+     * @param {Element} opener Element that opened the dialog.
+     * @returns {void} The dialog is modal.
+     */
     function presentRelationshipDialog(opener) {
         const snapshot = readMapSnapshot();
         const openedAccountId = snapshot.accountId || currentAccountId();
@@ -2751,6 +3873,12 @@ window.PluralBridge.members = (function () {
         const layout = document.createElement("div");
         layout.className = "member-relationship-layout";
 
+        /**
+         * Reads the visible name of a relationship endpoint.
+         *
+         * @param {object} row Endpoint row. A missing row returns an empty string.
+         * @returns {string} anchorName, otherwise nodeLabel.
+         */
         function endpointName(row) {
             if (!row) {
                 return "";
@@ -2758,15 +3886,34 @@ window.PluralBridge.members = (function () {
             return row.anchorName || row.nodeLabel || "";
         }
 
+        /**
+         * Redraws one side of the relationship tree.
+         *
+         * @param {HTMLElement} host Tree container for this side.
+         * @param {string} side left uses the source selection. Any other value uses the target selection.
+         * @returns {void} Nothing is returned.
+         */
         function paintTree(host, side) {
             const selected = side === "left" ? leftRow : rightRow;
             renderDialogTree(host, snapshot.rows, side === "left" ? leftExpansion : rightExpansion, {
                 selectedPathKey: selected && selected.pathKey ? selected.pathKey : "",
                 memberTitle: "Members stay visible and cannot be relationship endpoints.",
                 headingTitle: "This heading cannot be a relationship endpoint.",
+                /**
+                 * Allows selection of system, group, and place endpoints.
+                 *
+                 * @param {object} row Tree row.
+                 * @returns {boolean} True when the row can be an endpoint.
+                 */
                 canSelect: function (row) {
                     return anchorEndpoint(row);
                 },
+                /**
+                 * Stores the selected endpoint for this side.
+                 *
+                 * @param {object} row Selected row. The left side is the source and the other side is the target.
+                 * @returns {void} Nothing is returned.
+                 */
                 onSelect: function (row) {
                     if (side === "left") {
                         leftRow = row;
@@ -2775,6 +3922,11 @@ window.PluralBridge.members = (function () {
                     }
                     paint();
                 },
+                /**
+                 * Redraws this side after its expansion changes.
+                 *
+                 * @returns {void} Nothing is returned.
+                 */
                 onChange: function () {
                     paintTree(host, side);
                 },
@@ -2782,6 +3934,13 @@ window.PluralBridge.members = (function () {
             });
         }
 
+        /**
+         * Builds one labeled relationship column and its tree.
+         *
+         * @param {string} labelText Column label.
+         * @param {string} side left or the target side.
+         * @returns {object} The column element and its tree host.
+         */
         function column(labelText, side) {
             const wrap = document.createElement("div");
             wrap.className = "member-relationship-column";
@@ -2811,7 +3970,18 @@ window.PluralBridge.members = (function () {
         const kindMenu = createPolicyDropdown({
             label: "Relationship type",
             choices: relationshipChoices,
+            /**
+             * Reads the selected relationship type.
+             *
+             * @returns {string} The type id.
+             */
             getValue: function () { return relationshipType; },
+            /**
+             * Stores the selected relationship type.
+             *
+             * @param {string} next Type id. A missing value becomes sibling.
+             * @returns {void} Nothing is returned.
+             */
             setValue: function (next) {
                 relationshipType = next || "sibling";
                 paint();
@@ -2864,7 +4034,18 @@ window.PluralBridge.members = (function () {
         const visibilityMenu = createPolicyDropdown({
             label: "Visible to",
             choices: policyChoices("visibility", false),
+            /**
+             * Reads the relationship visibility choice.
+             *
+             * @returns {string} The visibility id.
+             */
             getValue: function () { return visibilityChoice; },
+            /**
+             * Stores the relationship visibility choice.
+             *
+             * @param {string} next Choice id. A missing value becomes inherit.
+             * @returns {void} Nothing is returned.
+             */
             setValue: function (next) {
                 visibilityChoice = next || "inherit";
                 paint();
@@ -2873,13 +4054,32 @@ window.PluralBridge.members = (function () {
         const permissionMenu = createPolicyDropdown({
             label: "Permissions",
             choices: policyChoices("permission", false),
+            /**
+             * Reads the relationship permission choice.
+             *
+             * @returns {string} The permission id.
+             */
             getValue: function () { return permissionChoice; },
+            /**
+             * Stores the relationship permission choice.
+             *
+             * @param {string} next Choice id. A missing value becomes inherit.
+             * @returns {void} Nothing is returned.
+             */
             setValue: function (next) {
                 permissionChoice = next || "inherit";
                 paint();
             }
         });
 
+        /**
+         * Wraps a relationship policy control with its label and hint.
+         *
+         * @param {string} text Label text.
+         * @param {HTMLElement} control Policy dropdown root.
+         * @param {HTMLElement} hint Inheritance hint.
+         * @returns {HTMLDivElement} The field.
+         */
         function labeled(text, control, hint) {
             const field = document.createElement("div");
             field.className = "member-add-dialog-policy-field";
@@ -2921,6 +4121,11 @@ window.PluralBridge.members = (function () {
         actions.appendChild(saveButton);
         actions.appendChild(cancelButton);
 
+        /**
+         * Repaints both relationship trees, the inheritance hints, and the preview sentence.
+         *
+         * @returns {void} Nothing is returned.
+         */
         function paint() {
             paintTree(leftColumn.tree, "left");
             paintTree(rightColumn.tree, "right");
@@ -2930,6 +4135,12 @@ window.PluralBridge.members = (function () {
             visibilityMenu.refresh();
             permissionMenu.refresh();
             kindMenu.refresh();
+            /**
+             * Finds the choice for the selected relationship type.
+             *
+             * @param {object} item Relationship choice.
+             * @returns {boolean} True when the choice id is the selected type.
+             */
             const typeLabel = relationshipChoices.filter(function (item) {
                 return item.id === relationshipType;
             })[0];
@@ -2959,6 +4170,12 @@ window.PluralBridge.members = (function () {
         dialog.appendChild(form);
         paint();
 
+        /**
+         * Adds a custom relationship type for the current account and selects it.
+         *
+         * @param {string} label Typed label. A blank or duplicate label sets the status and does not add a type.
+         * @returns {void} A missing account sets the status and stores nothing.
+         */
         function rememberRelationshipType(label) {
             const name = label.trim();
             if (!name) {
@@ -2971,6 +4188,12 @@ window.PluralBridge.members = (function () {
                 typeStatus.textContent = "The signed-in account is not available, so this relationship type was not stored.";
                 return;
             }
+            /**
+             * Reports whether a relationship label is already in the choice list.
+             *
+             * @param {object} item Relationship choice.
+             * @returns {boolean} True when the labels match, ignoring case.
+             */
             const duplicate = relationshipChoices.some(function (item) {
                 return item.label.toLowerCase() === name.toLowerCase();
             });
@@ -3002,18 +4225,39 @@ window.PluralBridge.members = (function () {
             paint();
         }
 
+        /**
+         * Shows the custom relationship-type editor.
+         *
+         * @returns {void} Nothing is returned.
+         */
         kindPencil.addEventListener("click", function () {
             typeEditor.hidden = false;
             typeStatus.textContent = "";
             typeInput.focus();
         }, { signal: signal });
+        /**
+         * Hides the custom relationship-type editor.
+         *
+         * @returns {void} Nothing is returned.
+         */
         typeCancel.addEventListener("click", function () {
             typeEditor.hidden = true;
             typeStatus.textContent = "";
         }, { signal: signal });
+        /**
+         * Adds the typed relationship type.
+         *
+         * @returns {void} Nothing is returned.
+         */
         typeAdd.addEventListener("click", function () {
             rememberRelationshipType(typeInput.value);
         }, { signal: signal });
+        /**
+         * Adds the typed relationship type when Enter is pressed.
+         *
+         * @param {KeyboardEvent} event Enter is prevented so the dialog form does not submit.
+         * @returns {void} Nothing is returned.
+         */
         typeInput.addEventListener("keydown", function (event) {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -3023,10 +4267,23 @@ window.PluralBridge.members = (function () {
 
         closeButton.addEventListener("click", closeAddMemberDialog, { signal: signal });
         cancelButton.addEventListener("click", closeAddMemberDialog, { signal: signal });
+        /**
+         * Closes the relationship dialog when the browser cancel event fires.
+         *
+         * @param {Event} event Dialog cancel event.
+         * @returns {void} Nothing is returned.
+         */
         dialog.addEventListener("cancel", function (event) {
             event.preventDefault();
             closeAddMemberDialog();
         }, { signal: signal });
+        /**
+         * Holds the relationship as an account preview.
+         * Missing endpoints, a parent cycle, the same anchor on both sides, or a missing account set the status and store nothing.
+         *
+         * @param {SubmitEvent} event Form submission. The browser submit is cancelled.
+         * @returns {Promise<void>} The promise settles after the status is written. holdAccountPreview does not reject.
+         */
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
             if (!anchorEndpoint(leftRow) || !anchorEndpoint(rightRow)) {
@@ -3085,6 +4342,12 @@ window.PluralBridge.members = (function () {
         dialog.showModal();
     }
 
+    /**
+     * Schedules the add or relationship dialog for the next turn.
+     *
+     * @param {object} options opener and mode. An unrecognized mode opens the member dialog.
+     * @returns {void} A dialog closed before the turn runs is not opened again.
+     */
     function openAddMemberDialog(options) {
         const opener = options && options.opener instanceof Element ? options.opener : null;
         const requested = options && options.mode ? String(options.mode) : "member";
@@ -3092,6 +4355,11 @@ window.PluralBridge.members = (function () {
             ? requested
             : "member";
         const scheduledEpoch = addMemberDialogEpoch;
+        /**
+         * Opens the scheduled dialog unless a newer close advanced the dialog epoch.
+         *
+         * @returns {void} Nothing is returned.
+         */
         window.setTimeout(function () {
             if (scheduledEpoch !== addMemberDialogEpoch) {
                 return;

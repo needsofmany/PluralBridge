@@ -1,7 +1,9 @@
-﻿/* Member browser app styles.
-   Consolidated Task 6 member management styles. */
+﻿/* Member workspace, cards, add and relationship dialogs, and the unsaved-changes prompt.
+   Theme colors come from the variables in base.css. This file does not switch light or dark.
+   The red modified-control outline is .pb-control-modified in base.css. */
 
-/* App/header compression for member-management view */
+/* Shared app-card, explainer, action-row, and developer-panel sizing.
+   These selectors are not limited to the member workspace. */
 
 .app-card {
 	padding: 1.05rem 1.2rem 1rem;
@@ -59,7 +61,9 @@
 	line-height: 1.05;
 }
 
-/* Member output shell */
+/* Member output shell.
+   legacy-app.css later sets .output-box to a 34rem scroller. The :has rule below is more specific, so a member list keeps max-height none and overflow visible.
+   shell.css also clears that limit for .application-main .output-box. */
 
 .output-box {
 	max-height: none;
@@ -76,6 +80,7 @@
 	background: var(--pb-members-frame-gradient) 0 0 / 100% 100% no-repeat;
 }
 
+/* The shell centers .application-content at 1100px. A workspace cancels that limit. */
 .application-content:has(.member-workspace) {
 	width: 100%;
 	max-width: none;
@@ -95,6 +100,8 @@
 	padding-right: 0;
 }
 
+/* isolation keeps the photo, map panel, and card stack in one stacking context.
+   The photo is object-positioned at center 46%. This file does not say why that offset was chosen. */
 .member-list > .member-workspace {
 	position: relative;
 	isolation: isolate;
@@ -144,6 +151,8 @@
 	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
 }
 
+/* The panel is the first child of the workspace. Unpinned, it is removed from the flex row and covers the cards. Pinned, it returns to normal flow beside them.
+   Its z-index stays inside the workspace, below an open toolbar menu on the member list. */
 .member-systems-panel.is-overlay {
 	position: absolute;
 	top: 0;
@@ -212,6 +221,7 @@
 	opacity: 1;
 }
 
+/* The unpinned icon is the same pin, mirrored and tilted. */
 .member-systems-pin-icon.is-unpinned {
 	transform: scaleX(-1) rotate(-35deg);
 	opacity: 1;
@@ -222,6 +232,7 @@
 	gap: 0.08rem;
 }
 
+/* --system-node-level is set on the row by the tree renderer. */
 .member-system-node-row {
 	display: grid;
 	grid-template-columns: 1.75rem minmax(0, 1fr);
@@ -266,6 +277,7 @@
 	transition: transform 150ms ease;
 }
 
+/* Preview cards add is-expanded from script. The plain summary chevron is rotated by legacy-app.css when the card is open. */
 .member-tree-chevron.is-expanded {
 	transform: rotate(90deg);
 }
@@ -400,6 +412,7 @@
 	margin: 0;
 }
 
+/* An empty focus line stays in the layout so the notes block does not collapse. */
 .member-focus-note.is-placeholder {
 	visibility: hidden;
 }
@@ -420,6 +433,7 @@
 	display: none !important;
 }
 
+/* The 11.5rem subtracted here is not the logo's own max-width. No other source rule explains that reserve. */
 .member-screen-header .member-brand-nameplate {
 	display: block;
 	flex: 0 1 auto;
@@ -434,6 +448,7 @@
 	pointer-events: none;
 }
 
+/* Resets position, float, and stacking. No other source rule currently sets those on this logo. */
 .member-screen-header .member-brand-logo {
 	position: static;
 	top: auto;
@@ -454,7 +469,8 @@
 	z-index: auto;
 }
 
-/* Member toolbar */
+/* Member toolbar.
+   z-index 1 sits with the list. An open Add menu raises the toolbar to 6 so its popover, at 7, paints above the workspace and the map overlay. */
 
 .member-toolbar {
 	display: flex;
@@ -524,6 +540,7 @@
 	white-space: nowrap;
 }
 
+/* Disabled toolbar buttons keep the resting background, so hover does not show the shared button outline. */
 	.member-toolbar-button:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
@@ -548,6 +565,7 @@
 	font-size: 0.78rem;
 }
 
+/* The Add trigger is a summary. The marker is removed so it can look like the other toolbar buttons. */
 .member-toolbar-add-trigger {
 	list-style: none;
 	cursor: pointer;
@@ -711,6 +729,7 @@
 	font-weight: 700;
 }
 
+/* An empty status line is removed. Error and success only change its color. */
 	.member-form-status:empty {
 		display: none;
 	}
@@ -723,7 +742,8 @@
 		color: var(--pb-success);
 	}
 
-/* Member list/card spacing */
+/* Member list and card summary.
+   The card list is a fixed 42rem scroller. The map panel's max-height is also 42rem. Text inside a card may wrap, but it cannot widen the scroller. */
 
 .member-scroll-list {
 	display: block;
@@ -838,7 +858,10 @@
 	flex: 0 0 auto;
 }
 
-/* Field-local member profile editing */
+/* Field-local member profile editing.
+   Name and Pronouns use a static surface with the same height, padding, and border as the short editor.
+   The description surface and its textarea share an 8rem minimum. field-sizing lets the textarea grow with its text.
+   The pencil stays out of the way until the row is hovered, focused, or being edited. */
 
 .member-profile-panel {
 	display: grid;
@@ -997,6 +1020,7 @@
 	outline-offset: 2px;
 }
 
+/* Negative top margin pulls the Save row toward the fields. The amount is not explained elsewhere. */
 .member-profile-action-row {
 	display: flex;
 	align-items: center;
@@ -1053,6 +1077,9 @@
 		padding: 0.02rem 0;
 	}
 
+/* Add, group, system, place, and relationship dialog.
+   The dialog scrolls as a whole. Each tree scrolls inside a 14rem to 22rem box.
+   Member-only controls are removed in group, system, and place modes. */
 .member-add-dialog {
 	width: min(68rem, calc(100vw - 2rem));
 	max-width: calc(100vw - 2rem);
@@ -1223,6 +1250,7 @@
 	grid-template-columns: minmax(0, 1fr);
 }
 
+/* display:none !important wins over the inline-flex in the next rule, so this Fronting control is not shown. The next rule still supplies its box. This file does not say why both rules are present. */
 .member-add-dialog .member-add-dialog-fronting,
 .member-add-dialog .member-add-dialog-fronting[hidden] {
 	display: none !important;
@@ -1351,6 +1379,7 @@
 	text-align: center;
 }
 
+/* The file input stays in the grid but is clipped out of view. Script opens it from the frame and pencil. */
 .member-add-dialog-file {
 	position: absolute;
 	width: 1px;
@@ -1439,6 +1468,7 @@
 	display: none;
 }
 
+/* Pointer devices hide the dialog pencil until the field is hovered, focused, or marked revealed. */
 @media (hover: hover) {
 	.member-add-dialog .member-add-dialog-pencil {
 		opacity: 0;
@@ -1456,6 +1486,7 @@
 	margin: 0;
 }
 
+/* Below 720px the dialog becomes one column and the tree is shortened. */
 @media (max-width: 720px) {
 	.member-add-dialog {
 		width: calc(100vw - 1rem);
@@ -1478,6 +1509,8 @@
 	}
 }
 
+/* Preview card summary.
+   This three-column grid reserves a strip column. A later rule removes that column and pins the strip to the card instead. */
 .member-card-preview > .member-summary {
 	display: grid;
 	grid-template-columns: 0.42rem minmax(8rem, 1fr) minmax(0, max-content);
@@ -1498,6 +1531,7 @@
 	border-radius: 0.7rem 0 0 0.7rem;
 }
 
+/* Script adds is-generated when the strip is not an explicit #RRGGBB color. */
 .member-color-strip.is-generated {
 	background-image: repeating-linear-gradient(
 		45deg,
@@ -1543,6 +1577,8 @@
 	background: var(--pb-fill-subtle);
 }
 
+/* The avatar pencil and color pencil are hidden until the control is hovered or focused.
+   The file and color inputs are kept in the document for script to open, but they do not receive pointer events. */
 .member-avatar-pencil,
 .member-color-pencil {
 	opacity: 0;
@@ -1662,6 +1698,9 @@
 	transform: rotate(270deg);
 }
 
+/* Visibility menu.
+   The list is position:fixed. Script sets its left, top, and width from the button.
+   z-index 40 puts it above the open card. While the menu is open the card also clears overflow and raises itself to 30. */
 .member-sharing-list {
 	position: fixed;
 	z-index: 40;
@@ -1713,6 +1752,7 @@
 	outline-offset: 1px;
 }
 
+/* Selected people is marked aria-disabled. It keeps its place and does not take the hover fill. */
 .member-sharing-option[aria-disabled="true"] {
 	color: var(--pb-disabled);
 	cursor: not-allowed;
@@ -1731,6 +1771,8 @@
 	overflow-wrap: anywhere;
 }
 
+/* The control declares a normal 1px border. Pressed true uses the button colors. Mixed and false use the card-control background.
+   The red modified-control indicator is separate from this normal border. */
 .member-card-preview .member-card-fronting,
 .member-card-preview .member-card-fronting:hover,
 .member-card-preview .member-card-fronting:focus,
@@ -1763,6 +1805,7 @@
 	color: var(--pb-accent);
 }
 
+/* Preview fields shrink to their content, except Description, which keeps a flexible second column. */
 .member-card-preview .member-profile-fields {
 	grid-template-columns: minmax(0, 1fr);
 }
@@ -1815,6 +1858,8 @@
 	width: 11.5rem;
 }
 
+/* Below 720px the summary stacks. Control labels are clipped and the buttons become icon-sized.
+   A later 720px block repeats the button size on the hover and focus selectors, which are more specific than this block. */
 @media (max-width: 720px) {
 	.member-card-preview > .member-summary {
 		grid-template-columns: minmax(0, 1fr);
@@ -1850,6 +1895,7 @@
 	position: relative;
 }
 
+/* The strip is positioned on the card, so the summary no longer needs the first grid column. */
 .member-card-preview > .member-color-strip {
 	position: absolute;
 	top: 0;
@@ -1861,6 +1907,7 @@
 	border-radius: 0.7rem 0 0 0.7rem;
 }
 
+/* Replaces the earlier three-column summary. The strip is no longer a grid item. */
 .member-card-preview > .member-summary {
 	grid-template-columns: minmax(8rem, 1fr) minmax(0, max-content);
 	padding-left: 0.9rem;
@@ -1906,6 +1953,7 @@
 	outline-offset: 2px;
 }
 
+/* Resting summary controls are pinned back to the card-control colors. The shared button rule would otherwise change a pressed or focused control. */
 .member-summary-controls .member-card-sharing:not(:hover):not(:focus-visible),
 .member-summary-controls .member-card-fronting:not(:hover):not(:focus-visible):not([aria-pressed="true"]),
 .member-summary-controls .member-policy-button:not(:hover):not(:focus-visible):not([aria-expanded="true"]) {
@@ -1914,6 +1962,7 @@
 	outline: none;
 }
 
+/* A quiet or hidden hint stays in the row. visibility hides the text without collapsing the reserved line. */
 .member-policy-hint,
 .member-policy-hint.is-quiet {
 	display: block !important;
@@ -1985,6 +2034,8 @@
 	height: 1.7rem;
 }
 
+/* Relationship dialog. The center column shares the side columns' rows through subgrid.
+   Below 900px the subgrid is replaced by stacked columns and the trees shrink to 14rem. */
 .member-relationship-heading {
 	display: flex;
 	align-items: center;
@@ -2116,6 +2167,7 @@
 	user-select: none;
 }
 
+/* A row that cannot be a destination uses the default cursor. Script also sets aria-disabled. */
 .member-add-dialog .member-system-node-button.is-not-destination,
 .member-add-dialog .member-system-node-button.is-not-destination:hover,
 .member-add-dialog .member-system-node-button.is-not-destination:focus {
@@ -2204,6 +2256,7 @@
 	}
 }
 
+/* The wide control rules also match hover and focus. This repeat keeps the icon size from losing to those selectors. */
 @media (max-width: 720px) {
 	.member-card-preview .member-card-sharing,
 	.member-card-preview .member-card-sharing:hover,
@@ -2227,6 +2280,7 @@
 	}
 }
 
+/* Devices that do not hover keep the avatar pencil hidden. The wrap :hover rule is more specific when :hover still matches. */
 @media (hover: none) {
 	.member-avatar-pencil {
 		opacity: 0;
@@ -2243,6 +2297,7 @@
 	user-select: none;
 }
 
+/* Disabled controls that can otherwise look pressable. */
 .member-policy-button:disabled,
 .member-profile-field-edit-button:disabled,
 .member-toolbar-add-option:disabled,
@@ -2251,6 +2306,8 @@
 	cursor: not-allowed;
 }
 
+/* The unsaved label reserves its space while hidden. Script adds is-visible while the card is dirty.
+   Cancel uses the hidden attribute, which removes it until the card is dirty. */
 .member-card-unsaved-indicator {
 	visibility: hidden;
 	color: var(--pb-danger);
@@ -2263,6 +2320,7 @@
 	visibility: visible;
 }
 
+/* Leave prompt. Each changed field is indented. The actions stay on one line. */
 .member-change-dialog {
 	border: 1px solid var(--pb-danger);
 	border-radius: 12px;
