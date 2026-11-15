@@ -25,9 +25,11 @@ I’d organize the work in these broad stages, defining individual tasks as we r
 
 Those are stages of work. **Before each individual task, we agree on its outcome, verification, and recovery path.** Cursor prepares that task; we review it; you apply and verify it; then you commit before we begin the next task.
 
+Standing commenting requirement: all code Cursor creates or modifies, including C#, JavaScript, and CSS, receives comments in the same way as the surrounding repository files. File headers stay the copyright and SPDX lines. C# types and methods use XML documentation for purpose, parameters, results, validation, and the invariants that are not obvious from the code. Comments explain intent. They do not restate every statement. This requirement applies to later tasks.
+
 For database changes, the checkpoint includes the migration script and an appropriate recovery method. Git preserves the script; database recovery must also be accounted for.
 
-Task 1, below, records the change-tracking investigation. Inventory is complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
+Task 1, below, records the change-tracking investigation. Inventory is complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. Database implementation is not authorized. Task 3, at the end of this file, is the isolated in-memory messaging core. Its focused verification passed and its checkpoint is still pending.
 
 ---
 
@@ -375,4 +377,51 @@ Items 1, 2, 3, 4, 7, 8, 9, and 10 are resolved by the authorized clarifications.
 9. Resolved. Stage 2 verifies that restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected.
 
 10. Resolved. Shared server-side graph and access context is approved. The Implementation Rules opening statement is corrected. Concrete context freshness and lifecycle mechanisms remain open.
+
+---
+
+# Task 3 — In-memory messaging core
+
+Status: checkpoint pending. The project owner’s focused verification passed: 17 tests, zero failures, zero skipped, and no build warnings. A commenting review of the messaging files is prepared and is part of this paused checkpoint. Flood testing has not started.
+
+Scope: an isolated in-memory messaging core and focused tests. This is the first implementation of lifecycle and accounting behavior. Database durability, application integration, controllers, workspace behavior, triggers, and startup registration are not part of this slice.
+
+For this in-memory transport, send is acceptance through `Publish` or `PublishCompletion`. The send instant is the monotonic clock value captured during that call. Elapsed time greater than or equal to TTL is expiration. Accounting transitions use one gate per core instance. Subscriber code is not called. Lifecycle observations are copied out after the gate is released. They are not messages, they carry no separate TTL, and they are not published back into the core. Publishing them as new messages would require the deferred bounded-feedback policy, which this slice does not decide.
+
+A completion report is a typed envelope with its own identity and positive TTL. `PublishCompletion` captures its send instant and does not discharge. `AcceptCompletion` discharges the identified obligation only while that report is unexpired and the work message is still active. A single call cannot observe an expired report, because elapsed time at the send instant is zero.
+
+Corrections prepared, still not built or tested:
+
+- A second completion report that arrives after the parent is Completed or Poisoned is `TerminalMessage`. `ObligationAlreadyDischarged` applies only while that parent is still active because another obligation is unfinished. Neither path discharges an obligation twice or records a second terminal outcome.
+- Public results, message snapshots, and lifecycle history return `ReadOnlyCollection` wrappers over defensive copies, including nested obligation and identity lists. A caller cannot change retained history through a returned collection. The accounting gate is unchanged, and subscriber code stays outside it.
+- Unknown-target and unknown-obligation rejection consumes that completion-report identity. A later `AcceptCompletion` for the same identity returns `DuplicateCompletionReport` and does not discharge, even if the target or obligation now exists. A newly published report with a new identity can discharge the now-existing active obligation only while both that report's TTL and the work message's TTL are unexpired.
+
+The owner's focused verification, including the warning fixes, passed: 17 tests, zero failures, zero skipped, and no build warnings. Those warning fixes replaced single-item count assertions with `Assert.Single` and made the concurrency test wait with `await Task.WhenAll` after an asynchronous start signal. The concurrent work and the assertions were unchanged.
+
+Commenting review, prepared while the checkpoint is paused. Executable behavior was not changed. The four messaging production files and `InMemoryMessagingCoreTests.cs` now document the send boundary, the monotonic clock, the greater-than-or-equal TTL boundary, accounting ownership, the single gate, exactly-once discharge, the two terminal transitions, poison cleanup, immutable snapshots, retained outcome evidence, each focused test, and the limits of this in-memory slice. The standing commenting requirement is recorded above with the working method.
+
+## Follow-up — concurrency and flood testing
+
+Not started. Flood testing stays deferred until this checkpoint is complete. The commenting review does not authorize it.
+
+The follow-up covers TTL boundaries, duplicate and out-of-order reports, registration/completion/expiration races, poisoning, and accounting integrity under load. It does not add application integration, lifecycle publication, database work, or a resolution of the deferred adapter and bounded-feedback contracts.
+
+Recovery: revert only this slice. Remove the four production files and the test file listed below, and remove this Task 3 section from this plan. Do not revert Task 1, Task 2, or unrelated files.
+
+Files:
+
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\IMessagingClock.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\ManualMessagingClock.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\MessagingContracts.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\InMemoryMessagingCore.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Messaging\InMemoryMessagingCoreTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
+
+Verification, to be run by the project owner from the repository root:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter FullyQualifiedName~InMemoryMessagingCoreTests`
+
+That command builds the test project and its API reference. The API project already contains a browser-app sync target, so the build can copy browser assets. This slice does not change that target.
+
+The deferred contracts remain deferred. The database-adapter transaction and publication-failure contract is not written. The bounded lifecycle-reporting policy is not designed. No message envelope created by this slice is exempt from TTL. No implementation beyond this isolated core is authorized.
 
