@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 using System.Data;
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 
@@ -1413,57 +1414,114 @@ internal static class AnchorMemberProfileSave
 	/// <param name="connection">Open connection. This method creates the temporary graph tables and builds the graph on it.</param>
 	/// <param name="accountId">Account whose graph is built. Owner is not required to read an avatar.</param>
 	/// <param name="memberId">Member whose image is requested.</param>
+	/// <param name="timing">Stage timings for this read. A failed stage is recorded here before its exception continues to the caller.</param>
 	/// <param name="cancellationToken">Cancels graph creation or the image read.</param>
 	/// <returns>The bytes and content type when the task completes and the member appears in the graph. Null when no avatar row matches.</returns>
-	/// <remarks>This read rebuilds the graph. It does not use the profile transaction or the selected branch.</remarks>
+	/// <remarks>This read rebuilds the graph. It does not use the profile transaction or the selected branch. The timings do not change the SQL or the returned bytes.</remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="timing"/> is null.</exception>
 	internal static async Task<(byte[] Bytes, string ContentType)?> ReadAvatarAsync(
 		SqlConnection connection,
 		Guid accountId,
 		Guid memberId,
+		AvatarReadTiming timing,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(timing);
+
 		// The image is visible when the member is anywhere in this account's graph.
-		await CreateGraphTablesAsync(connection, cancellationToken);
-		await using (var seed = new SqlCommand("EXEC dbo.pb_show_tree_step5_topology_seed_builder @AccountId = @AccountId;", connection))
+		await MeasureAvatarStageAsync(
+			timing,
+			AvatarReadTiming.GraphTablesStage,
+			() => CreateGraphTablesAsync(connection, cancellationToken));
+
+		await MeasureAvatarStageAsync(timing, AvatarReadTiming.TopologySeedStage, async () =>
 		{
+			await using var seed = new SqlCommand("EXEC dbo.pb_show_tree_step5_topology_seed_builder @AccountId = @AccountId;", connection);
 			seed.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
 			await seed.ExecuteNonQueryAsync(cancellationToken);
-		}
+		});
 
-		await using (var walker = new SqlCommand("EXEC dbo.pb_show_tree_step5_topology_walker @AccountId = @AccountId;", connection))
+		await MeasureAvatarStageAsync(timing, AvatarReadTiming.TopologyWalkerStage, async () =>
 		{
+			await using var walker = new SqlCommand("EXEC dbo.pb_show_tree_step5_topology_walker @AccountId = @AccountId;", connection);
 			walker.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
 			await walker.ExecuteNonQueryAsync(cancellationToken);
-		}
+		});
 
-		await using (var expansion = new SqlCommand("EXEC dbo.pb_show_tree_step5_graph_expansion @AccountId = @AccountId;", connection))
+		await MeasureAvatarStageAsync(timing, AvatarReadTiming.GraphExpansionStage, async () =>
 		{
+			await using var expansion = new SqlCommand("EXEC dbo.pb_show_tree_step5_graph_expansion @AccountId = @AccountId;", connection);
 			expansion.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
 			await expansion.ExecuteNonQueryAsync(cancellationToken);
-		}
+		});
 
-		await using var command = new SqlCommand(
-			"""
-			SELECT a.ImageBytes, a.ContentType
-			FROM dbo.pb_member_avatars AS a
-			WHERE a.MemberId = @MemberId
-			  AND EXISTS
-			  (
-			      SELECT 1
-			      FROM #GraphEdges AS ge
-			      WHERE ge.ChildObjectType = N'member'
-			        AND ge.ChildObjectId = @MemberId
-			  );
-			""",
-			connection);
-		command.Parameters.Add("@MemberId", SqlDbType.UniqueIdentifier).Value = memberId;
-		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		if (!await reader.ReadAsync(cancellationToken))
+		(byte[] Bytes, string ContentType)? image = null;
+		var avatarQuery = Stopwatch.StartNew();
+		try
 		{
-			return null;
+			await using var command = new SqlCommand(
+				"""
+				SELECT a.ImageBytes, a.ContentType
+				FROM dbo.pb_member_avatars AS a
+				WHERE a.MemberId = @MemberId
+				  AND EXISTS
+				  (
+				      SELECT 1
+				      FROM #GraphEdges AS ge
+				      WHERE ge.ChildObjectType = N'member'
+				        AND ge.ChildObjectId = @MemberId
+				  );
+				""",
+				connection);
+			command.Parameters.Add("@MemberId", SqlDbType.UniqueIdentifier).Value = memberId;
+			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			if (await reader.ReadAsync(cancellationToken))
+			{
+				var bytes = (byte[])reader.GetValue(0);
+				var contentType = reader.GetString(1);
+				timing.ByteLength = bytes.Length;
+				image = (bytes, contentType);
+			}
+		}
+		catch
+		{
+			avatarQuery.Stop();
+			timing.FailStage(AvatarReadTiming.AvatarQueryStage, avatarQuery.ElapsedMilliseconds);
+			throw;
 		}
 
-		return ((byte[])reader.GetValue(0), reader.GetString(1));
+		avatarQuery.Stop();
+		timing.CompleteStage(AvatarReadTiming.AvatarQueryStage, avatarQuery.ElapsedMilliseconds);
+		return image;
+	}
+
+	/// <summary>
+	/// Runs one avatar-read stage and stores its elapsed milliseconds.
+	/// </summary>
+	/// <param name="timing">Stage timings for this avatar read. A failure records the stage name before the exception continues.</param>
+	/// <param name="stage">Stage name stored when this attempt finishes or fails.</param>
+	/// <param name="action">The stage work. Cancellation and SQL behavior stay in the action.</param>
+	/// <returns>The task completes when the stage finishes.</returns>
+	/// <remarks>The stopwatch includes the awaited work and command disposal. It does not include later stages.</remarks>
+	/// <exception cref="Exception">An exception from <paramref name="action"/> is stored on <paramref name="timing"/> and thrown again.</exception>
+	private static async Task MeasureAvatarStageAsync(
+		AvatarReadTiming timing,
+		string stage,
+		Func<Task> action)
+	{
+		var watch = Stopwatch.StartNew();
+		try
+		{
+			await action();
+			watch.Stop();
+			timing.CompleteStage(stage, watch.ElapsedMilliseconds);
+		}
+		catch
+		{
+			watch.Stop();
+			timing.FailStage(stage, watch.ElapsedMilliseconds);
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -1641,6 +1699,93 @@ internal static class AnchorMemberProfileSave
 	private static int ReadInt32Big(byte[] bytes, int offset)
 	{
 		return (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+	}
+
+	/// <summary>
+	/// Elapsed milliseconds for one avatar GET's graph build and byte read.
+	/// </summary>
+	/// <remarks>
+	/// A stage that did not run stays null. The first failed stage name is kept. The byte length is set only after the image bytes have been materialized.
+	/// This object carries timings to the controller. It does not log them.
+	/// </remarks>
+	internal sealed class AvatarReadTiming
+	{
+		internal const string GraphTablesStage = "graphTables";
+
+		internal const string TopologySeedStage = "topologySeed";
+
+		internal const string TopologyWalkerStage = "topologyWalker";
+
+		internal const string GraphExpansionStage = "graphExpansion";
+
+		internal const string AvatarQueryStage = "avatarQuery";
+
+		internal long? GraphTablesMilliseconds { get; private set; }
+
+		internal long? TopologySeedMilliseconds { get; private set; }
+
+		internal long? TopologyWalkerMilliseconds { get; private set; }
+
+		internal long? GraphExpansionMilliseconds { get; private set; }
+
+		internal long? AvatarQueryMilliseconds { get; private set; }
+
+		internal string? FailedStage { get; private set; }
+
+		internal int? ByteLength { get; set; }
+
+		/// <summary>
+		/// Stores the elapsed time for a stage that finished.
+		/// </summary>
+		/// <param name="stage">One of the avatar-read stage names.</param>
+		/// <param name="elapsedMilliseconds">Elapsed time for that stage.</param>
+		/// <returns>This method does not return a value.</returns>
+		/// <remarks>A stage that already failed is not replaced by a later completion.</remarks>
+		internal void CompleteStage(string stage, long elapsedMilliseconds)
+		{
+			Assign(stage, elapsedMilliseconds);
+		}
+
+		/// <summary>
+		/// Stores the elapsed time and keeps the first failed stage name.
+		/// </summary>
+		/// <param name="stage">The stage that threw.</param>
+		/// <param name="elapsedMilliseconds">Elapsed time before the exception left the stage.</param>
+		/// <returns>This method does not return a value.</returns>
+		/// <remarks>A later failure does not replace the first failed stage.</remarks>
+		internal void FailStage(string stage, long elapsedMilliseconds)
+		{
+			FailedStage ??= stage;
+			Assign(stage, elapsedMilliseconds);
+		}
+
+		/// <summary>
+		/// Writes one stage elapsed time onto the matching property.
+		/// </summary>
+		/// <param name="stage">Stage name. An unrecognized name is ignored.</param>
+		/// <param name="elapsedMilliseconds">Elapsed time to store.</param>
+		/// <returns>This method does not return a value.</returns>
+		private void Assign(string stage, long elapsedMilliseconds)
+		{
+			switch (stage)
+			{
+				case GraphTablesStage:
+					GraphTablesMilliseconds = elapsedMilliseconds;
+					break;
+				case TopologySeedStage:
+					TopologySeedMilliseconds = elapsedMilliseconds;
+					break;
+				case TopologyWalkerStage:
+					TopologyWalkerMilliseconds = elapsedMilliseconds;
+					break;
+				case GraphExpansionStage:
+					GraphExpansionMilliseconds = elapsedMilliseconds;
+					break;
+				case AvatarQueryStage:
+					AvatarQueryMilliseconds = elapsedMilliseconds;
+					break;
+			}
+		}
 	}
 }
 

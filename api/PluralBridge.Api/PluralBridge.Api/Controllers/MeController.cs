@@ -20,7 +20,7 @@ namespace PluralBridge.Api.Controllers;
 /// The newer routes resolve the signed-in account and then read the plural map, anchor member profiles, avatar bytes, or persist a profile Save or an immediate Fronting change.
 /// </remarks>
 /// <param name="configuration">Application configuration. The database connection is read from the PluralBridge connection string.</param>
-/// <param name="logger">Logger that receives request-trace stages for the proof, map, and profile routes.</param>
+/// <param name="logger">Logger that receives request-trace stages for the proof, map, and profile routes, and one completion log for each avatar GET.</param>
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
@@ -576,26 +576,99 @@ public sealed class MeController(
 	/// <returns>
 	/// The image file when the task completes and a row exists. HTTP 404 when no row matches or avatar storage is absent. HTTP 401 when the session has no account.
 	/// </returns>
-	/// <remarks>Owner is not required. This read does not use the selected branch or the profile transaction.</remarks>
+	/// <remarks>
+	/// Owner is not required. This read does not use the selected branch or the profile transaction.
+	/// One completion log records the stage timings, the UTC time captured once beside the total stopwatch, and the SQL client connection id captured after the connection opens.
+	/// A cancelled request is logged as cancelled and is not turned into an error response by this method.
+	/// </remarks>
 	[HttpGet("members/{memberId:guid}/avatar")]
 	public async Task<IActionResult> GetMemberAvatar(Guid memberId, CancellationToken cancellationToken)
 	{
+		var total = Stopwatch.StartNew();
+		var actionStartedAtUtc = DateTime.UtcNow.ToString(
+			"yyyy-MM-ddTHH:mm:ss.fffffff'Z'",
+			CultureInfo.InvariantCulture);
+		var requestTrace = RequestTraceContext.Create(
+			HttpContext.TraceIdentifier,
+			HttpContext.Request.Headers.TryGetValue(Globals.correlationID, out var correlationId)
+				? correlationId.ToString()
+				: null);
+		var timing = new AnchorMemberProfileSave.AvatarReadTiming();
+		long? connectionOpenMilliseconds = null;
+		long? accountResolutionMilliseconds = null;
+		var activeStage = "connectionString";
+		Guid? clientConnectionId = null;
+
 		try
 		{
 			var connectionString = configuration.GetConnectionString(Globals.connectionString);
 			if (string.IsNullOrWhiteSpace(connectionString))
 			{
+				total.Stop();
+				LogAvatarGet(
+					requestTrace,
+					memberId,
+					clientConnectionId,
+					actionStartedAtUtc,
+					StatusCodes.Status500InternalServerError,
+					"failed",
+					total.ElapsedMilliseconds,
+					connectionOpenMilliseconds,
+					accountResolutionMilliseconds,
+					timing,
+					activeStage,
+					null,
+					null);
 				return Problem(
 					title: Globals.missingConnectionString,
 					detail: Globals.missingConnStringDetail,
 					statusCode: StatusCodes.Status500InternalServerError);
 			}
 
+			activeStage = "connectionOpen";
 			await using SqlConnection connection = new(connectionString);
-			await connection.OpenAsync(cancellationToken);
-			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
+			var connectionOpen = Stopwatch.StartNew();
+			try
+			{
+				await connection.OpenAsync(cancellationToken);
+			}
+			finally
+			{
+				connectionOpen.Stop();
+				connectionOpenMilliseconds = connectionOpen.ElapsedMilliseconds;
+			}
+
+			clientConnectionId = connection.ClientConnectionId;
+
+			activeStage = "accountResolution";
+			var accountResolution = Stopwatch.StartNew();
+			AccessContextHelper.Account? account;
+			try
+			{
+				account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, User);
+			}
+			finally
+			{
+				accountResolution.Stop();
+				accountResolutionMilliseconds = accountResolution.ElapsedMilliseconds;
+			}
 			if (account is null)
 			{
+				total.Stop();
+				LogAvatarGet(
+					requestTrace,
+					memberId,
+					clientConnectionId,
+					actionStartedAtUtc,
+					StatusCodes.Status401Unauthorized,
+					"unauthorized",
+					total.ElapsedMilliseconds,
+					connectionOpenMilliseconds,
+					accountResolutionMilliseconds,
+					timing,
+					null,
+					null,
+					null);
 				return Unauthorized(new
 				{
 					api = Globals.apiName,
@@ -606,29 +679,200 @@ public sealed class MeController(
 				});
 			}
 
+			activeStage = AnchorMemberProfileSave.AvatarReadTiming.GraphTablesStage;
 			var image = await AnchorMemberProfileSave.ReadAvatarAsync(
 				connection,
 				account.AccountId,
 				memberId,
+				timing,
 				cancellationToken);
 			if (image is null)
 			{
+				total.Stop();
+				LogAvatarGet(
+					requestTrace,
+					memberId,
+					clientConnectionId,
+					actionStartedAtUtc,
+					StatusCodes.Status404NotFound,
+					"notFound",
+					total.ElapsedMilliseconds,
+					connectionOpenMilliseconds,
+					accountResolutionMilliseconds,
+					timing,
+					null,
+					timing.ByteLength,
+					null);
 				return NotFound();
 			}
 
+			total.Stop();
+			LogAvatarGet(
+				requestTrace,
+				memberId,
+				clientConnectionId,
+				actionStartedAtUtc,
+				StatusCodes.Status200OK,
+				"completed",
+				total.ElapsedMilliseconds,
+				connectionOpenMilliseconds,
+				accountResolutionMilliseconds,
+				timing,
+				null,
+				timing.ByteLength,
+				null);
 			return File(image.Value.Bytes, image.Value.ContentType);
 		}
-		catch (SqlException exception) when (exception.Number == 208)
+		catch (Exception exception)
 		{
-			return NotFound();
-		}
-		catch (Exception) when (!cancellationToken.IsCancellationRequested)
-		{
+			total.Stop();
+			var failedStage = timing.FailedStage ?? activeStage;
+			if (exception is SqlException { Number: 208 })
+			{
+				LogAvatarGet(
+					requestTrace,
+					memberId,
+					clientConnectionId,
+					actionStartedAtUtc,
+					StatusCodes.Status404NotFound,
+					"failed",
+					total.ElapsedMilliseconds,
+					connectionOpenMilliseconds,
+					accountResolutionMilliseconds,
+					timing,
+					failedStage,
+					timing.ByteLength,
+					exception);
+				return NotFound();
+			}
+
+			if (cancellationToken.IsCancellationRequested)
+			{
+				LogAvatarGet(
+					requestTrace,
+					memberId,
+					clientConnectionId,
+					actionStartedAtUtc,
+					null,
+					"cancelled",
+					total.ElapsedMilliseconds,
+					connectionOpenMilliseconds,
+					accountResolutionMilliseconds,
+					timing,
+					failedStage,
+					timing.ByteLength,
+					exception);
+				throw;
+			}
+
+			LogAvatarGet(
+				requestTrace,
+				memberId,
+				clientConnectionId,
+				actionStartedAtUtc,
+				StatusCodes.Status500InternalServerError,
+				"failed",
+				total.ElapsedMilliseconds,
+				connectionOpenMilliseconds,
+				accountResolutionMilliseconds,
+				timing,
+				failedStage,
+				timing.ByteLength,
+				exception);
 			return Problem(
 				title: Globals.requestFailed,
 				detail: "The member avatar could not be read.",
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
+	}
+
+	/// <summary>
+	/// Writes one avatar GET completion log.
+	/// </summary>
+	/// <param name="requestTrace">Trace and correlation identifiers for this request.</param>
+	/// <param name="memberId">Member whose image was requested.</param>
+	/// <param name="clientConnectionId">SQL client connection id captured after open succeeds. Null when opening never succeeds. Every path for this request logs this same captured value, formatted as uppercase hexadecimal with hyphens.</param>
+	/// <param name="actionStartedAtUtc">UTC time captured once from <see cref="DateTime.UtcNow"/> at the start of the action, beside the total stopwatch, formatted yyyy-MM-ddTHH:mm:ss.fffffffZ. Every path for this request logs this same value.</param>
+	/// <param name="httpStatus">Status prepared for the response. Null when the request was cancelled before this method produced a response.</param>
+	/// <param name="outcome">completed, notFound, unauthorized, failed, or cancelled.</param>
+	/// <param name="totalMilliseconds">Elapsed time from entering the action through preparing the response.</param>
+	/// <param name="connectionOpenMilliseconds">Connection open time. Null when the connection was not opened.</param>
+	/// <param name="accountResolutionMilliseconds">Account resolution time. Null when resolution did not run.</param>
+	/// <param name="timing">Graph and avatar-query timings. Stages that did not run are null.</param>
+	/// <param name="failedStage">Stage that failed or was cancelled. Null when the request finished without one.</param>
+	/// <param name="byteLength">Materialized image length. Null when no image bytes were read.</param>
+	/// <param name="exception">The failure or cancellation exception. Null for a completed, unauthorized, or ordinary not-found result.</param>
+	/// <returns>This method does not return a value.</returns>
+	/// <remarks>
+	/// ClientConnectionId is the value read from the open connection. It is not read again on a later path. ActionStartedAtUtc is the captured <see cref="DateTime.UtcNow"/> value, not the request-trace start and not the completion time.
+	/// The log does not include credentials, the connection string, image bytes, profile text, or an account email.
+	/// A failure is logged as an error and includes the SQL error number when the exception is a SQL exception. Cancellation is logged as information and includes the exception without being classified as a failure.
+	/// TotalMs ends when the action has prepared its result. It does not include the time spent sending the image bytes to the browser.
+	/// </remarks>
+	private void LogAvatarGet(
+		RequestTraceContext requestTrace,
+		Guid memberId,
+		Guid? clientConnectionId,
+		string actionStartedAtUtc,
+		int? httpStatus,
+		string outcome,
+		long totalMilliseconds,
+		long? connectionOpenMilliseconds,
+		long? accountResolutionMilliseconds,
+		AnchorMemberProfileSave.AvatarReadTiming timing,
+		string? failedStage,
+		int? byteLength,
+		Exception? exception)
+	{
+		var sqlErrorNumber = exception is SqlException sqlException ? sqlException.Number : (int?)null;
+		var clientConnectionIdText = clientConnectionId?.ToString("D").ToUpperInvariant();
+		if (outcome == "failed")
+		{
+			logger.LogError(
+				exception,
+				"AvatarGet TraceId={TraceId} CorrelationId={CorrelationId} ClientConnectionId={ClientConnectionId} ActionStartedAtUtc={ActionStartedAtUtc} MemberId={MemberId} HttpStatus={HttpStatus} Outcome={Outcome} FailedStage={FailedStage} SqlErrorNumber={SqlErrorNumber} ConnectionOpenMs={ConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} GraphTablesMs={GraphTablesMs} TopologySeedMs={TopologySeedMs} TopologyWalkerMs={TopologyWalkerMs} GraphExpansionMs={GraphExpansionMs} AvatarQueryMs={AvatarQueryMs} TotalMs={TotalMs} ByteLength={ByteLength}",
+				requestTrace.TraceId,
+				requestTrace.CorrelationId,
+				clientConnectionIdText,
+				actionStartedAtUtc,
+				memberId,
+				httpStatus,
+				outcome,
+				failedStage,
+				sqlErrorNumber,
+				connectionOpenMilliseconds,
+				accountResolutionMilliseconds,
+				timing.GraphTablesMilliseconds,
+				timing.TopologySeedMilliseconds,
+				timing.TopologyWalkerMilliseconds,
+				timing.GraphExpansionMilliseconds,
+				timing.AvatarQueryMilliseconds,
+				totalMilliseconds,
+				byteLength);
+			return;
+		}
+
+		logger.LogInformation(
+			exception,
+			"AvatarGet TraceId={TraceId} CorrelationId={CorrelationId} ClientConnectionId={ClientConnectionId} ActionStartedAtUtc={ActionStartedAtUtc} MemberId={MemberId} HttpStatus={HttpStatus} Outcome={Outcome} FailedStage={FailedStage} SqlErrorNumber={SqlErrorNumber} ConnectionOpenMs={ConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} GraphTablesMs={GraphTablesMs} TopologySeedMs={TopologySeedMs} TopologyWalkerMs={TopologyWalkerMs} GraphExpansionMs={GraphExpansionMs} AvatarQueryMs={AvatarQueryMs} TotalMs={TotalMs} ByteLength={ByteLength}",
+			requestTrace.TraceId,
+			requestTrace.CorrelationId,
+			clientConnectionIdText,
+			actionStartedAtUtc,
+			memberId,
+			httpStatus,
+			outcome,
+			failedStage,
+			sqlErrorNumber,
+			connectionOpenMilliseconds,
+			accountResolutionMilliseconds,
+			timing.GraphTablesMilliseconds,
+			timing.TopologySeedMilliseconds,
+			timing.TopologyWalkerMilliseconds,
+			timing.GraphExpansionMilliseconds,
+			timing.AvatarQueryMilliseconds,
+			totalMilliseconds,
+			byteLength);
 	}
 
 	/// <summary>
