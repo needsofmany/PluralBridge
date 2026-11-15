@@ -6,7 +6,7 @@ I’d organize the work in these broad stages, defining individual tasks as we r
    Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
 
 2. **Make recorded changes usable.**  
-   Add revision checks and deferred processing incrementally. Verify that concurrent transactions, retries, and restarts cannot lose changes.
+   Add revision checks and deferred processing incrementally. Verify that concurrent transactions cannot lose changes. Restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected here.
 
 3. **Establish the parallel workspace foundation.**  
    Add the developer switch and the new model. Verify that the existing path remains operational and switching resets state correctly.
@@ -27,29 +27,29 @@ Those are stages of work. **Before each individual task, we agree on its outcome
 
 For database changes, the checkpoint includes the migration script and an appropriate recovery method. Git preserves the script; database recovery must also be accounted for.
 
-Task 1, below, records the change-tracking investigation. Inventory is complete. Messaging boundaries are approved. Concrete freshness, revision, queue, and subscriber mechanisms remain open. Database implementation is not authorized.
+Task 1, below, records the change-tracking investigation. Inventory is complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
 
 ---
 
 # Task 1 — Database change-tracking contract
 
-Status: inventory complete. Messaging boundaries are approved. Concrete freshness, revision, queue, and subscriber mechanisms remain open. No database implementation is authorized.
+Status: inventory complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
 
-Shared server-side graph and access context is approved. A retained context does not, by itself, prove that application data is current. Outstanding queue accounting does not prove that either.
+Shared server-side graph and access context is approved. A retained context does not, by itself, prove that application data is current. Messaging accounting does not prove that either.
 
-Messaging responsibilities are governed by:
+The messaging pattern is governed by:
 
-D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Queue Model.txt
+D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Messaging Pattern — Governing Rules.txt
 
-The approved boundaries are:
+Task 2 records those rules. The list below matches the reconciled queue model. Earlier wording that the generic TTL start was undecided, that workers must not touch completion counters, and that accounting must not depend on FIFO with no exception is superseded.
 
 1. The publisher publishes a typed notification with identity, subject or payload, and a TTL it chooses. Lifetime policy belongs to the publisher. Publication stays small. Task processing is deferred.
-2. Each message carries its own immutable lifetime. Workers, completion handlers, and queue management do not reset or extend it. A subscriber may publish a new message with a newly chosen TTL. The TTL start point is undecided.
-3. Queue infrastructure owns delivery tracking, outstanding-work accounting, expiration, and queue health, including poisoned and stalled work. Poisoned work must not indefinitely obstruct unrelated work. Infrastructure enforces lifetime and publishes generic lifecycle outcomes. It does not construct domain-specific recovery or replacement tasks.
-4. Workers receive assignments and report completion through messages. They never directly modify shared completion counters. The matching subscriber owns the task-specific response and any decision to publish replacement work. Subscriber internals are black boxes and are outside the current task.
-5. Tasks may complete in any order. Accounting must not depend on FIFO completion. Completions identify their assignments. Duplicate, late, expired, or obsolete completions must not corrupt accounting.
+2. Every message has a publisher-chosen immutable TTL. TTL begins when the publisher sends the message. Every transport must define its precise send boundary and clock semantics. Those details remain open. Recovery and restart do not reset or extend the lifetime. A subscriber may publish a new message with a newly chosen TTL.
+3. Queue infrastructure owns delivery tracking, reference-counted outstanding obligations, dirty state, expiration, and queue health. Completed and Poisoned are the two terminal outcomes. Expired means the TTL has elapsed, and expiration before completion produces Poisoned. Stalled means unfinished work and is not a third terminal state. Infrastructure does not automatically retry domain work or create replacement assignments.
+4. Workers report through messages. They never directly modify shared accounting. The physical representation of the accounting remains open. The matching subscriber owns the task-specific response and any decision to publish replacement work. Subscriber internals are black boxes and are outside this task.
+5. Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected. Completions identify their assignments. Duplicate, late, expired, unknown, or obsolete completions must not double-discharge accounting or revive a terminal message.
 
-These boundaries do not select a mechanism. They do not claim zero deadlocks, unlimited throughput, or guaranteed freshness. Durability, commit and rollback, missed wake-ups, restart, fan-out, atomic accounting, overload, TTL timing, and expiration enforcement remain open, as listed in the messaging document.
+That earlier summary does not select a mechanism. It does not claim zero deadlocks, unlimited throughput, or guaranteed freshness. Its open list is durability, commit and rollback, missed wake-ups, restart, fan-out, atomic accounting, overload, TTL timing, and expiration enforcement. The governing open list is rules section 12, recorded in Task 2.
 
 The first inventory results are in `scripts/sqlserver/Diagnostics/Workspace/db-schema-inquiry-for-refactor.txt`, produced from `01_inventory_change_tracking.sql`. That file is the live evidence for those 21 tables and seven procedures. The 13 November catalog is not a substitute for it.
 
@@ -61,16 +61,16 @@ The follow-up inventory was executed by the project owner at 2026-11-14 17:56:12
 - The new workspace builds the account graph once and retains a server-side snapshot for later detail and image requests. The opening request returns the navigation structure and an opaque context id. Later requests send that id and the keys they need. The context belongs to the authenticated account and is checked on every request. It holds topology and access facts. Profile fields, fronting, and image bytes stay on their own reads.
 - Changing anchors keeps the context. A workspace refresh replaces it. Profile text, fronting, and avatar edits do not by themselves force a graph rebuild.
 - Detail batches identify occurrences, at most 20. Image batches identify distinct member ids, at most 20.
-- Freshness has to come from authoritative database changes. The concrete revision, queue, and subscriber mechanisms are open. Publication of a change stays small, and heavier processing is deferred, under the messaging boundaries above. Correctness, concurrency, and robustness come before speed tuning.
+- The database remains authoritative for workspace data changes. Messaging completion establishes accounting completion. Subscriber contracts govern application-specific freshness. These statements are compatible. Messaging accounting does not solve database freshness. The concrete revision, queue, and subscriber mechanisms remain unresolved. Publication of a change stays small, and heavier processing is deferred, under the governing rules in Task 2. Correctness, concurrency, and robustness come before speed tuning.
 - The existing navigator route keeps `pb_show_tree_step4_members_by_email`. That measured call remains the baseline for the current path.
 
 ## Conflicts in the other documents
 
-These are recorded for review. This task does not edit those files.
+The opening conflict is corrected in the Implementation Rules file. The freshness mechanism below remains open.
 
-1. `Members Workspace — Model and Loading Implementation Rules.txt` begins by saying graph reuse is unresolved. The same file then recommends the retained snapshot. The approved direction is the snapshot. The opening sentence conflicts with that recommendation and with the decision above.
+1. `Members Workspace — Model and Loading Implementation Rules.txt` now states that the shared server-side graph and access context is approved. The earlier sentence that called graph reuse unresolved is superseded. Concrete context freshness and lifecycle mechanisms remain open.
 
-2. The same file leaves expiry and invalidation open and says to accept the snapshot before settling freshness. The snapshot is approved. The freshness mechanism is open. Proposals that update revision rows inside the writer’s transaction are not approved. They require revision against the messaging boundaries. A time backstop is not decided.
+2. The same file leaves the concrete expiry and invalidation mechanism open. The snapshot is approved. The database remains authoritative for workspace data changes, and messaging accounting does not solve that freshness. Proposals that update revision rows inside the writer’s transaction are historical. Where they conflict with the governing rules in Task 2, they are superseded. A time backstop is not decided.
 
 3. That file says the 2.278 second tree procedure stays unchanged. That matches the existing route. It does not require the new opening path to call step 4. The new path can run the same inner procedures once on caller-owned temp tables. No edit to step 4 is proposed.
 
@@ -202,9 +202,11 @@ The 13 November catalog script contains no `CREATE TRIGGER`, no change-tracking 
 
 ## Proposed contract
 
-Not approved. The categories below record which data a change affects. They replace the earlier idea that a context becomes stale only when a queue row names an object id the snapshot already contains. That rule misses a new grant, a new root, and any new child whose id is not yet in the snapshot.
+Historical. Not approved. Superseded where it conflicts with the governing rules recorded in Task 2. The text is kept. It is not an instruction to implement.
 
-Any part of this proposal that assigns revision-counter updates, dependency lookups, or domain-specific recovery to a trigger or to queue management requires revision against the approved messaging boundaries. Publication stays small. Domain response and replacement work belong to the matching subscriber. Queue infrastructure does not construct that work.
+The categories below record which data a change affects. They replace the earlier idea that a context becomes stale only when a queue row names an object id the snapshot already contains. That rule misses a new grant, a new root, and any new child whose id is not yet in the snapshot.
+
+Any part of this proposal that assigns revision-counter updates, dependency lookups, or domain-specific recovery to a trigger or to queue management conflicts with those rules where it chooses a database transport, restarts or extends a lifetime, retries domain work from infrastructure, or leaves outstanding accounting in place after TTL expiration. Publication stays small under the governing rules. Domain response and replacement work belong to the matching subscriber. Queue infrastructure does not construct that work.
 
 ### Categories
 
@@ -241,7 +243,7 @@ New reachability that this covers:
 - Relationship change: every old and new system id moves. A context that holds any of them is stale.
 - Change that only creates an object nobody’s context contains, and that has no `AccountId`: no current context can display it. The next opening load sees it. No broadcast.
 
-Checking only the object ids already displayed is not enough for labels. The live seed and labeler embed the name of an anchor-relationship target that may not appear in the walk. A rename or delete of that target updates `pb_systems`, `pb_groups`, or `pb_places`, not the relationship row. Who performs that lookup is not decided. Putting it in a trigger or in queue management requires revision against the messaging boundaries.
+Checking only the object ids already displayed is not enough for labels. The live seed and labeler embed the name of an anchor-relationship target that may not appear in the walk. A rename or delete of that target updates `pb_systems`, `pb_groups`, or `pb_places`, not the relationship row. Who performs that lookup is not decided. Putting it in a trigger or in queue management is part of this historical proposal and is superseded where it conflicts with the governing rules.
 
 Earlier drafts both called the queue a diagnostic log and left that job unresolved. Neither draft is approved. Whether a queue carries freshness, history, or only a generic notification is open.
 
@@ -258,7 +260,11 @@ The unique source key means one relationship row per source object. The target i
 
 ## Proposals requiring revision
 
-The notes below preserve the earlier design discussion. They are not approved. The items that put revision-counter updates, dependency lookups, or domain-specific recovery on a trigger or on queue management require revision against the messaging boundaries.
+Historical. Not approved. Superseded where they conflict with the governing rules recorded in Task 2. The notes are kept. They are not current instructions.
+
+These ideas are superseded where they conflict with rules sections 3, 5, and 9: a database insert or commit mandated as the TTL start; recovery or restart starting a new lifetime; infrastructure automatically retrying domain work or creating a replacement assignment; TTL expiration leaving outstanding accounting outstanding indefinitely; poison cleanup treated as Completed because outstanding accounting fell to zero.
+
+The notes below preserve the earlier design discussion. The items that put revision-counter updates, dependency lookups, or domain-specific recovery on a trigger or on queue management are in that superseded set.
 
 1. Trigger publication and deferred cleanup. The draft had the trigger collect revision keys and publish those revisions in the writer's transaction, then insert queue rows, while a processor only deleted old queue rows. Alternatives were a queue-only trigger with the processor publishing revisions, or revisions with no queue. The tradeoff was lock time against a gap while a processor is down. This assigns domain publication and recovery shape to the trigger and the processor. It requires revision. Retention length, column names, and whether write-authorization changes are notified while saves stay on the live write query remain open.
 
@@ -298,9 +304,75 @@ Both inventories are complete. Do not edit the scripts.
 
 ## Smallest next implementation task
 
-There is no authorized database slice. Inventory is complete, and the messaging boundaries are approved. The concrete freshness, revision, queue, and subscriber mechanisms are not.
+There is no authorized implementation slice. Inventory is complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
 
-The earlier conditional slice, empty revision tables and an empty queue with no triggers, is not authorized. It depended on approving the trigger and revision design that now requires revision. No migration is prepared.
+The earlier conditional slice, empty revision tables and an empty queue with no triggers, is not authorized. It depended on a trigger and revision design that is historical and superseded where it conflicts with the governing rules. No migration is prepared.
 
-When a later review approves a mechanism that fits the messaging boundaries, that review still has to name the outcome, the verification, and the recovery path before any script is written. Recovery for a future new table would be dropping only that new table. No existing table is altered by this document.
+A later task still has to name its outcome, verification, and recovery path before any script is written. No existing table is altered by this document.
+
+---
+
+# Task 2 — Messaging pattern reset
+
+Status: Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
+
+Authority for the messaging pattern:
+
+D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Messaging Pattern — Governing Rules.txt
+
+That file is the authority and supersedes conflicting earlier messaging proposals. D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Queue Model.txt is reconciled to it. The historical proposals earlier in this file are kept and remain superseded where they conflict.
+
+This reconciliation does not change the approved workspace redesign, the approved shared server-side context, the completed inventory findings, the checkpoint history, or the working method at the top of this file. It does not mark review or checkpoint complete. Messaging accounting does not solve database freshness.
+
+The governing requirements, by section:
+
+1. Authority and scope. The pattern is transport-independent. A database, an in-memory queue, or another transport may implement it. Subscriber internals are black boxes and are outside this task. Storage, synchronization, transport, and recovery mechanisms remain subject to review.
+
+2. Separation of responsibilities. The publisher creates a typed message, supplies its identity, subject or key, payload, and TTL, and sends it through the publication interface. Publication stays small. The queue infrastructure owns delivery tracking, reference-counted outstanding-work accounting, expiration enforcement, and queue health. It publishes generic results and lifecycle notifications. It does not take task-specific processing or recovery decisions. The subscriber reports completion and the result through messages, does not directly modify shared reference counts or dirty state, and decides whether to publish replacement work as a new message with its own identity and TTL.
+
+3. Message lifetime. Every message has a publisher-chosen TTL. That includes domain notifications, completion reports, result messages, error notifications, poison notifications, and other lifecycle messages. TTL begins when the publisher sends the message. The generic TTL start is that send. It is not undecided. Every transport must define its precise send boundary and clock semantics. Those details remain open. The generic pattern does not mandate a database insert, a commit, subscriber activation, or a processing-start boundary. The lifetime is immutable. Delivery, processing, persistence, recovery, and restart do not reset, pause, or extend it. A replacement is a new message with a newly chosen TTL. It does not revive or extend the original.
+
+4. Reference-counted dirty state. Infrastructure owns outstanding obligations and dirty state for a defined message or task scope. Accepted work registers its obligations. An accepted completion report discharges only its identified obligation, exactly once. The scope remains dirty while obligations remain. Completion of older work must not erase newer obligations. Workers report through messages and never directly modify that shared accounting. The physical representation, including a counter, a bitset, or records, remains open.
+
+5. Two terminal outcomes. Completed means the registered outstanding obligations were accounted for before TTL expiration. Infrastructure closes the message and publishes its result. Poisoned means TTL expires before the message completes. Infrastructure retires the message, closes its remaining bookkeeping obligations, and publishes the poison outcome. Exactly one terminal outcome applies. Expired means the TTL has elapsed. Expiration before completion produces Poisoned. Stalled means unfinished work and may produce a health notification. It is not a third terminal state. Poison cleanup must not manufacture a Completed outcome because the cleanup reduced outstanding accounting to zero. An accepted completion report may carry an error result and still discharge its identified obligation. Publishing Error or StillDirty alone does not discharge an obligation of the original work. An error does not, by itself, create a third terminal message state.
+
+6. Completed does not mean successful. Completed is lifecycle accounting. The published result carries success, error, or another defined result. A message may complete with an error result. Zero outstanding obligations is accounting completion for that scope only. The database remains authoritative for workspace data changes. Subscriber contracts govern application-specific freshness. Those statements are compatible with accounting completion. Messaging accounting does not solve database freshness.
+
+7. Completion and concurrency. Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected. Every completion identifies the work it reports. An accepted completion report discharges only that obligation, exactly once. A duplicate, late, expired, unknown, or obsolete completion must not double-discharge accounting, close another obligation, or revive a terminal message. Every completion report has its own TTL and must be valid when accepted. The atomic transition and the exact deadline boundary remain open. Retiring a message does not stop an executing worker or undo that worker’s effects. A late report cannot revive the message.
+
+8. Results, errors, dirty notifications, and poison notifications. Infrastructure publishes typed outcomes that can be associated with the original message and work. These include completion and results, errors, poison, and relevant nonterminal health or StillDirty notifications. StillDirty reports outstanding work. Publishing Error or StillDirty alone does not discharge an obligation belonging to the original work. StillDirty does not authorize infrastructure to construct a domain-specific replacement. The matching subscriber decides whether to publish replacement work with a new identity and TTL. Every resulting message follows the same TTL rules. No message is exempt from TTL.
+
+9. Queue health. Poisoned, expired, or stalled work must not indefinitely obstruct unrelated work. Supervision must remain effective when a worker fails, disappears, or never reports completion. Infrastructure owns detection, accounting cleanup, retirement, and generic outcome reporting. Subscribers own domain recovery and reposting. Infrastructure must not introduce automatic domain retries, replacement assignments, or lifetime extensions. Lifecycle reporting needs a bounded feedback policy so health-notification failures cannot form an endless chain. That policy is not designed. TTL still applies to every message.
+
+10. Multiple subscribers. Message type determines which subscribers are interested. One subscriber’s completion must not discharge another subscriber’s obligation. How registration and completion are tracked across subscribers is unresolved. No particular notification, delivery, assignment, or report identity is mandated.
+
+11. Durability and overload. Required pending work must remain discoverable after a missed wake-up or restart under the selected transport’s durability contract. Recovery preserves message identity, accounting integrity, and the original TTL. Expired messages remain expired. Retained metadata or outcome evidence does not make a message eligible for delivery again. Capacity limits, publication refusal, transaction coupling, and storage-failure behavior require explicit decisions. Required work must not be silently discarded. A database adapter’s commit and rollback coupling, and its publication-failure behavior, require a separate review. No schema, lock strategy, transport, retry threshold, or numeric capacity limit is approved.
+
+12. Open implementation decisions. The precise send boundary and clock remain open. The generic TTL start is send and is not open. The obligation representation, atomic handling of arrivals, completions, and expiration, fan-out and subscriber registration, durable publication and transaction coupling, missed wake-up and restart recovery, capacity and publication failure, queue-health execution and bounded lifecycle reporting, evidence retention and cleanup, any task-specific processing or result ordering, the concrete subscriber freshness mechanism, and subscriber internals remain open. No workspace-specific ordering contract is selected. Database authority, accounting completion, and subscriber-governed application freshness are compatible.
+
+13. Working method. The method at the top of this file stands. One later task is one verifiable piece. This reset does not authorize that task.
+
+## Problem list
+
+Items 1, 2, 3, 4, 7, 8, 9, and 10 are resolved by the authorized clarifications. Items 5 and 6 stay deferred. This list does not reopen the resolved rules. Review and checkpoint of this documentation are not complete.
+
+1. Resolved. TTL begins when the publisher sends the message. Every transport must define its precise send boundary and clock semantics. Those details remain open. The generic start is not undecided. Every message keeps its publisher-chosen immutable TTL. Recovery does not reset or extend it.
+
+2. Resolved. Completed and Poisoned are the two terminal outcomes. Expired means the TTL has elapsed. Expiration before completion produces Poisoned, retirement, and closure of the remaining bookkeeping obligations. Stalled means unfinished work and may produce a health notification. It is not a third terminal state. Poison cleanup cannot produce Completed merely because outstanding accounting falls to zero.
+
+3. Resolved. An accepted completion report discharges only its identified obligation, exactly once. Its result may be success, error, or another defined result. Publishing Error or StillDirty alone does not discharge an obligation of the original work. StillDirty reports outstanding work. The matching subscriber decides whether to publish replacement work with a new identity and TTL. Duplicate, late, expired, unknown, or obsolete reports cannot double-discharge accounting or revive a terminal message.
+
+4. Resolved. The statements are compatible. The database remains authoritative for workspace data changes. Messaging completion is accounting completion. Subscriber contracts govern application-specific freshness. Messaging accounting does not solve database freshness. The concrete freshness mechanism remains open.
+
+5. Deferred for a later implementation task. The database-adapter contract for transaction coupling and publication-failure behavior is not written. Required work must not be silently discarded. No message is exempt from TTL. Capacity, publication refusal, and storage-failure behavior remain open with that contract.
+
+6. Deferred for a later implementation task. Bounded lifecycle reporting that prevents an endless notification chain is not designed. No message is exempt from TTL.
+
+7. Resolved. Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected.
+
+8. Resolved. Infrastructure owns reference-counted outstanding obligations and dirty state. Their physical representation remains open. Workers report through messages and never directly modify shared accounting.
+
+9. Resolved. Stage 2 verifies that restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected.
+
+10. Resolved. Shared server-side graph and access context is approved. The Implementation Rules opening statement is corrected. Concrete context freshness and lifecycle mechanisms remain open.
 
