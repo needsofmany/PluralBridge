@@ -1,0 +1,60 @@
+Members Workspace — Model and Loading Redesign
+
+1. Establish the two collections.
+   The refreshable collection holds the tree, member information, fronting,
+   and placement context. A separate image collection retains one avatar
+   per member, shared across every placement.
+
+2. Build the navigation structure first.
+   Load the names, relationships, and keys required to display the tree and
+   identify each member occurrence. Preserve that structure while loading
+   additional details.
+
+3. Load member details for the current selection.
+   Begin with visible cards and a generous buffer ahead of scrolling.
+   Fetch additional details in batches of up to 20 as needed. Retain loaded
+   details for reuse until refresh or invalidation. Large selections must
+   be able to display their first useful batch promptly.
+
+4. Load and retain images independently.
+   Request needed avatars in batches of up to 20 distinct member IDs.
+   Store each image once in the image collection and share it across
+   placements. Changing anchors releases the cards’ references while
+   retaining the images. Replacement, deletion, and explicit invalidation
+   update the image collection; signing out clears account-specific data.
+
+5. Preserve member-level and placement-level rules.
+   Each member has one shared avatar and one shared fronting state.
+   Fronting belongs to refreshable member information, saves immediately,
+   and updates every displayed occurrence. It needs no separate cache.
+   Visibility and permissions remain specific to each placement.
+
+6. Make server retrieval support the model.
+   Fetch member details and images in sets. Reuse established server-side
+   graph/access context wherever safely possible, eliminating redundant
+   graph construction while preserving authorization for every requested
+   member. Define refresh and invalidation behavior explicitly.
+
+7. Verify correctness and measure improvement.
+   Test anchor changes, scrolling, returning to loaded selections, edits,
+   avatar replacement/deletion, fronting, and members appearing in multiple
+   placements. Prevent obsolete responses from overwriting current state.
+   Compare request counts and timings with the captured baseline.
+
+Parallel Implementation and Design Principles
+
+Build the new model and loading path alongside the existing implementation.
+A developer switch selects which path runs, with a clean workspace reset
+when switching. Keep existing API routes operational during the transition.
+
+The existing path provides a working fallback and a comparison baseline.
+The agreed model drives the new implementation’s architecture. Use the old
+code to identify required behavior and compatibility contracts.
+
+Give the new code clear responsibilities, ownership, collection lifetimes,
+and loading rules. Reuse presentation and editing components where they fit
+those boundaries.
+
+Review Cursor’s plan against this map before authorizing implementation.
+After the new path is tested and accepted, remove the old path in a separate
+cleanup.

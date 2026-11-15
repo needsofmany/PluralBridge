@@ -1,0 +1,306 @@
+Yes. **Each task should deliver one working piece of functionality, leave the existing system usable, and end with verification and a commit.** The number of tasks follows from the work.
+
+I’d organize the work in these broad stages, defining individual tasks as we reach them:
+
+1. **Establish database change tracking.**  
+   Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
+
+2. **Make recorded changes usable.**  
+   Add revision checks and deferred processing incrementally. Verify that concurrent transactions, retries, and restarts cannot lose changes.
+
+3. **Establish the parallel workspace foundation.**  
+   Add the developer switch and the new model. Verify that the existing path remains operational and switching resets state correctly.
+
+4. **Load the tree and establish its server context.**  
+   Deliver the new opening load, verify tree and authorization parity, then connect database freshness checks to the retained context.
+
+5. **Load member details incrementally.**  
+   Add batch retrieval, then connect current selection, scrolling, and retained member information. Verify shared member identity and placement-specific state.
+
+6. **Load images independently.**  
+   Add batch retrieval and the retained image collection, followed by replacement, deletion, and unused-image cleanup.
+
+7. **Complete integration and acceptance.**  
+   Connect saves, immediate fronting, refresh, navigation, and session cleanup. Compare both paths for correctness, concurrency, and performance.
+
+Those are stages of work. **Before each individual task, we agree on its outcome, verification, and recovery path.** Cursor prepares that task; we review it; you apply and verify it; then you commit before we begin the next task.
+
+For database changes, the checkpoint includes the migration script and an appropriate recovery method. Git preserves the script; database recovery must also be accounted for.
+
+Task 1, below, records the change-tracking investigation. Inventory is complete. Messaging boundaries are approved. Concrete freshness, revision, queue, and subscriber mechanisms remain open. Database implementation is not authorized.
+
+---
+
+# Task 1 — Database change-tracking contract
+
+Status: inventory complete. Messaging boundaries are approved. Concrete freshness, revision, queue, and subscriber mechanisms remain open. No database implementation is authorized.
+
+Shared server-side graph and access context is approved. A retained context does not, by itself, prove that application data is current. Outstanding queue accounting does not prove that either.
+
+Messaging responsibilities are governed by:
+
+D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Queue Model.txt
+
+The approved boundaries are:
+
+1. The publisher publishes a typed notification with identity, subject or payload, and a TTL it chooses. Lifetime policy belongs to the publisher. Publication stays small. Task processing is deferred.
+2. Each message carries its own immutable lifetime. Workers, completion handlers, and queue management do not reset or extend it. A subscriber may publish a new message with a newly chosen TTL. The TTL start point is undecided.
+3. Queue infrastructure owns delivery tracking, outstanding-work accounting, expiration, and queue health, including poisoned and stalled work. Poisoned work must not indefinitely obstruct unrelated work. Infrastructure enforces lifetime and publishes generic lifecycle outcomes. It does not construct domain-specific recovery or replacement tasks.
+4. Workers receive assignments and report completion through messages. They never directly modify shared completion counters. The matching subscriber owns the task-specific response and any decision to publish replacement work. Subscriber internals are black boxes and are outside the current task.
+5. Tasks may complete in any order. Accounting must not depend on FIFO completion. Completions identify their assignments. Duplicate, late, expired, or obsolete completions must not corrupt accounting.
+
+These boundaries do not select a mechanism. They do not claim zero deadlocks, unlimited throughput, or guaranteed freshness. Durability, commit and rollback, missed wake-ups, restart, fan-out, atomic accounting, overload, TTL timing, and expiration enforcement remain open, as listed in the messaging document.
+
+The first inventory results are in `scripts/sqlserver/Diagnostics/Workspace/db-schema-inquiry-for-refactor.txt`, produced from `01_inventory_change_tracking.sql`. That file is the live evidence for those 21 tables and seven procedures. The 13 November catalog is not a substitute for it.
+
+The follow-up inventory was executed by the project owner at 2026-11-14 17:56:12 Pacific. No results file from that execution is in the repository. The findings below are attributed to that supplied execution, not to a saved script output.
+
+## Approved direction
+
+- Build the new workspace beside the current one. The Redesign document requires a developer switch, a clean reset, and the existing routes remaining available.
+- The new workspace builds the account graph once and retains a server-side snapshot for later detail and image requests. The opening request returns the navigation structure and an opaque context id. Later requests send that id and the keys they need. The context belongs to the authenticated account and is checked on every request. It holds topology and access facts. Profile fields, fronting, and image bytes stay on their own reads.
+- Changing anchors keeps the context. A workspace refresh replaces it. Profile text, fronting, and avatar edits do not by themselves force a graph rebuild.
+- Detail batches identify occurrences, at most 20. Image batches identify distinct member ids, at most 20.
+- Freshness has to come from authoritative database changes. The concrete revision, queue, and subscriber mechanisms are open. Publication of a change stays small, and heavier processing is deferred, under the messaging boundaries above. Correctness, concurrency, and robustness come before speed tuning.
+- The existing navigator route keeps `pb_show_tree_step4_members_by_email`. That measured call remains the baseline for the current path.
+
+## Conflicts in the other documents
+
+These are recorded for review. This task does not edit those files.
+
+1. `Members Workspace — Model and Loading Implementation Rules.txt` begins by saying graph reuse is unresolved. The same file then recommends the retained snapshot. The approved direction is the snapshot. The opening sentence conflicts with that recommendation and with the decision above.
+
+2. The same file leaves expiry and invalidation open and says to accept the snapshot before settling freshness. The snapshot is approved. The freshness mechanism is open. Proposals that update revision rows inside the writer’s transaction are not approved. They require revision against the messaging boundaries. A time backstop is not decided.
+
+3. That file says the 2.278 second tree procedure stays unchanged. That matches the existing route. It does not require the new opening path to call step 4. The new path can run the same inner procedures once on caller-owned temp tables. No edit to step 4 is proposed.
+
+## Confirmed live findings
+
+Source: `scripts/sqlserver/Diagnostics/Workspace/db-schema-inquiry-for-refactor.txt`. The login had `VIEW DEFINITION` and `VIEW DATABASE STATE`, so the empty trigger and change-tracking results are not permission skips.
+
+- All 21 inventoried tables are present: placements, accounts, anchor visibility, custom fields, front history and its member table, group members, groups, member avatars, member visibility, members, object membership roles, object memberships, place members, places, roles, system membership roles, system membership statuses, system memberships, system relationships, and systems.
+- `pb_object_membership_roles`, `pb_anchor_visibility_permissions`, `pb_member_visibility_permissions`, and `pb_member_avatars` are installed. The disputed columns in the result are present.
+- `pb_front_history.SystemId` is nullable. `MemberId` is not. `EndTimeMs` is nullable.
+- `READ_COMMITTED_SNAPSHOT` is on (`is_read_committed_snapshot_on` = 1). `ALLOW_SNAPSHOT_ISOLATION` is on (`snapshot_isolation_state_desc` = `ON`). The database collation is `SQL_Latin1_General_CP1_CI_AS`.
+- No trigger rows were returned for the inventoried tables. The count of dbo table triggers outside that list is 0.
+- SQL Server Change Tracking is `not-enabled` for the database and for every inventoried table. No `rowversion` column was reported among the columns the script returned.
+- All seven procedures are present and `definition-available`: step 4 (4182 characters), seed (8228, modified 2026-11-12 04:42:52), walker (4278), expansion (7953), labeler (8489, modified 2026-11-12 04:46:08), render (4483, no parameters), and `pb_get_anchor_member_profiles_by_email` (16934, modified 2026-11-14 07:50:43, with `@BranchJson`).
+- The inventory omitted `ImageBytes` and account columns whose names matched password, secret, or credential. Those omissions are script filters, not evidence that the columns are absent. Index filters and included columns were not returned.
+
+Live nullability that the 13 November catalog does not show, and that the graph uses: `pb_members.SystemId`, `pb_groups.SystemId`, and `pb_group_members.SystemId` are nullable.
+
+### Live render result sets
+
+`pb_show_tree_step5_render_layer` has no parameters. It requires `#GraphEdges`. It uses `#GraphNodes` and `#WalkGraph` when they exist, and otherwise copies `##GraphNodes` or `##WalkGraph`. It then returns three result sets:
+
+1. `GraphNodeCounts`: `Section`, `ObjectType`, `NodeCount`, grouped from `#GraphNodes`.
+2. `GraphEdges`: `Section`, `ParentObjectType`, `ParentObjectId`, `ChildObjectType`, `ChildObjectId`, `EdgeRank`, `EdgeSource`.
+3. `HierarchyPreview`: `Section`, `TreeLine`, `PathKey`.
+
+`HierarchyPreview` adds a synthetic header that is not a graph node. For each walk row whose object is a group and whose parent is a system, the render inserts a row labeled `Groups`. Its path is the parent system path plus `.15|000000|groups|00000000-0000-0000-0000-000000000000`. Its display depth is the parent system depth plus one. Walk rows under that group path are shifted one level deeper so they draw under the header. The zero guid is not an object id and is not an authorization target.
+
+Step 4 selects `Context` (`Section`, `Email`, `AccountId`) before it calls the inner procedures. A client of step 4 therefore receives Context, then these three render sets, provided the inner procedures do not emit result sets of their own. The live seed, walker, expansion, and labeler bodies in the inventory write temp tables and do not end in a client `SELECT`.
+
+### One caller-owned build
+
+The new opening path can still do this on one connection, without changing a procedure:
+
+1. Create `#TopologyEdges`, `#SystemEdgeLabels`, `#WalkTopology`, `#GraphEdges`, `#WalkGraph`, and `#GraphNodes` on that connection.
+2. Execute seed, walker, expansion, labeler, and render once.
+3. Take `HierarchyPreview` as the navigation body, including the synthetic `Groups` rows. Take `GraphEdges` as the connectivity result set render already returns.
+4. Before the connection closes, copy `#WalkGraph`, `#GraphNodes`, and `#SystemEdgeLabels` as well. Render’s edge result set does not include path, depth, or the label text stored beside a system.
+5. Read access-membership facts for the anchors in that copy in the same construction boundary described below.
+
+The existing route keeps calling step 4. Calling step 4 from the new path would drop the temp tables at return. The edge and preview result sets would still arrive, and the structured walk would not.
+
+### Live label dependencies
+
+The live seed, in the inventory definition, builds system edge labels for legacy roots from two sources. Custom-field names come from placements whose child type is `customField`. Relationship text comes from `pb_anchor_relationships` where the source type is `system` and the source id is that root, plus parent text from `pb_system_relationships`. The anchor-relationship target is a system, group, or place. The label uses that target’s name. The target does not have to be a node in this account’s walk.
+
+The live labeler joins `pb_anchor_relationships` for every group and place node. The label appends `RelationshipType` and the target system, group, or place name. That target can also lie outside the navigable graph.
+
+The checked-in seed file still labels relationships from `pb_system_relationships` and `TargetSystemId`. It is behind the live procedure. The contract follows the live definition.
+
+The live profile procedure returns `vt.VisibilityTypeId`, `vt.VisibilityCode` as `VisibilityTypeCode`, and `vt.DisplayName` as `VisibilityTypeName` from `pb_visibility_types` joined on `pb_members.VisibilityTypeId`. Live foreign keys also point `pb_anchor_visibility_permissions.VisibilityTypeId` and `pb_member_visibility_permissions.VisibilityTypeId` at that lookup. A change to the lookup changes the code and name shown for every member and setting that stores the id. The lookup row does not carry those member or account ids.
+
+## Confirmed repository findings
+
+### One graph stack, one execution
+
+`scripts/sqlserver/Left Panel Tree/pb_show_tree_step4_members_by_email.sql` is the procedure `MeController.GetPluralMap` calls. Inside that procedure, after resolving `pb_accounts.AccountId` from `@Email` and selecting a Context result set, the body executes, in order:
+
+- `dbo.pb_show_tree_step5_topology_seed_builder` at line 52, after creating `#TopologyEdges` and `#SystemEdgeLabels`
+- `dbo.pb_show_tree_step5_topology_walker` at line 69, after creating `#WalkTopology`
+- `dbo.pb_show_tree_step5_graph_expansion` at line 86, after creating `#GraphEdges`
+- `dbo.pb_show_tree_step5_final_graph_walk_and_node_labeler` at line 111, after creating `#WalkGraph` and `#GraphNodes`
+- `dbo.pb_show_tree_step5_render_layer` at line 117
+
+The checked-in seed, walker, expansion, and labeler files are in `scripts/sqlserver/Left Panel Tree/`. The render procedure has no file there. The live definitions are in the inventory results and are cited under the live findings. The checked-in seed and labeler do not contain the `pb_anchor_relationships` reads that the live procedures contain.
+
+The inner procedures do not build a second topology. Avatar and profile graph reads in `AnchorMemberProfileSave.CreateGraphTablesAsync` create `#TopologyEdges`, `#SystemEdgeLabels`, `#WalkTopology`, and `#GraphEdges` on the open connection, then execute seed, walker, and expansion. They do not call the labeler or render. They also do not create `#WalkGraph` or `#GraphNodes`.
+
+SQL Server drops a temp table that was created inside a procedure when that procedure returns. Step 4 creates its temp tables, so they are gone when `GetPluralMap` finishes reading step 4. The API cannot copy `#GraphEdges` after that call.
+
+A temp table the caller creates before `EXEC` survives the inner procedures and lasts until the connection closes. That is already how the avatar path keeps `#GraphEdges` for its own query.
+
+Proposed opening execution, not implemented. On one connection the new path:
+
+1. Creates the caller-owned tables step 4 creates today: `#TopologyEdges`, `#SystemEdgeLabels`, `#WalkTopology`, `#GraphEdges`, `#WalkGraph`, and `#GraphNodes`.
+2. Executes seed, walker, expansion, labeler, and render once.
+3. Reads the render result sets as the navigation body.
+4. Copies `#GraphEdges`, `#WalkGraph`, `#GraphNodes`, and `#SystemEdgeLabels` into process memory before the connection closes.
+5. Reads current access-membership facts for the anchors in that copy. That read is not another graph build.
+
+The existing plural-map route continues to call step 4 unchanged.
+
+No procedure change is required for that shape. A procedure change would be required only if the new path called step 4 itself and also needed the edges back. Step 4 would then have to emit extra result sets, which changes the contract `PluralMapReader` already consumes. That change is not proposed.
+
+The labeler requires `#GraphEdges` to exist and inserts into `#WalkGraph` and `#GraphNodes`; it does not create those two tables. The walker inserts into `#WalkTopology` and does not create it. The caller has to create all three. The live render procedure reads those tables and returns the navigation result sets documented below.
+
+### What a retained context must be able to answer
+
+From the live procedures in the inventory and from `AnchorWriteAuthorization`. The profile procedure is installed. Its parameter list includes `@BranchJson`.
+
+Graph connectivity and occurrence identity:
+
+- `pb_account_object_placements` for the account, including parent and child type and id and `PlacementRank`.
+- `pb_system_memberships` with `pb_system_membership_statuses.StatusName = N'Active'`. The seed does not read `IsActive`.
+- `pb_system_relationships` parent links (`ParentSystemId`, `TargetSystemId IS NULL`) and, separately, label text.
+- `pb_groups` (`SystemId`, `ParentGroupId`, `ParentSourceGroupId`, `SourceGroupId`, `GroupName`).
+- `pb_group_members` and `pb_members`.
+- `pb_members.SystemId` for system-member edges, suppressed when the member is already on a place under that system.
+- `pb_place_members` (`PlaceId`, `MemberId`, `MembershipRank`).
+- Names and `EdgeRank` feed labels and order. `PathKey` is produced by the walk. It is not a stored key.
+
+Read authorization, which is not the avatar rule:
+
+- Profile reads use `pb_object_memberships` plus a status row with `StatusName = N'Active'` and `IsActive = 1` (`008_profile_supporting_reads.sql`). Anchor failures are 50004 through 50008. Ambiguous group or place membership is 50009. A supplied `@BranchJson` is checked against the graph.
+- Avatar reads require a member child in `#GraphEdges` only.
+- `AnchorWriteAuthorization.Decide` grants a write only from an active Owner role on the selected branch. The locked read joins `pb_object_memberships`, `pb_object_membership_roles`, and `pb_roles` with `RoleName = N'Owner'`. A permission code of owner is not that role. `pb_system_membership_roles` is not part of that join.
+
+`pb_members.IsArchived` and `pb_systems.IsArchived` are not filters in this stack. Archive is not removal.
+
+`pb_anchor_relationships` is read by the live seed and the live labeler. It is in the contract. The earlier statement that the current step 5 scripts do not read it was wrong.
+
+These tables are still not read by the live step 5 definitions in the inventory. They stay out of the contract until a current reader uses them: `pb_account_object_links`, `pb_system_object_links`, `pb_system_object_placements`, `pb_system_relationship_edges`, `pb_group_system_contexts`, `pb_member_system_contexts`, `pb_visibility_scopes`, `pb_visibility_scope_members`.
+
+`pb_visibility_types` is not a step 5 graph table. The live profile procedure reads it. It is in the refresh contract, below.
+
+### Writers and schema evidence
+
+The product API does not insert, update, or delete placements, system relationships, group membership, place membership, object membership, or system membership. Those changes arrive from tests, import scripts, and SQL outside the API. The API has no `DELETE` against these tables. External SQL can delete. `TRUNCATE` does not fire DML triggers. `BULK INSERT` does not fire them unless `FIRE_TRIGGERS` is set.
+
+Product writes that do exist:
+
+- `AnchorMemberProfileSave` updates `pb_members`, inserts or updates `pb_member_visibility_permissions`, `pb_member_avatars`, and `pb_front_history`, and inserts `pb_member_write_audit`.
+- `MembersController` inserts and updates `pb_members`. An insert sets `SystemId`, which is a graph edge.
+- Account code updates `pb_accounts`, including email. `UQ_pb_accounts_Email` is in the catalog script. An email change changes step 4’s lookup and does not change an edge. The retained context is bound to `AccountId`.
+- `AccountTestDatabase` inserts systems, system memberships, object memberships, system membership roles, and members.
+- `009_inherit_example_visibility_permissions.sql` inserts visibility rows only, and only when applied.
+
+The 13 November catalog script contains no `CREATE TRIGGER`, no change-tracking enablement, and no `rowversion` on these tables. That catalog also omits `pb_object_membership_roles`, both visibility tables, and `pb_member_avatars`, and it shows `pb_front_history.SystemId` as not null. Script 001 says the role table was created. Scripts 004, 005, and 006 say they have not been executed. None of those statements establishes the live database. The inventory script is the check.
+
+## Proposed contract
+
+Not approved. The categories below record which data a change affects. They replace the earlier idea that a context becomes stale only when a queue row names an object id the snapshot already contains. That rule misses a new grant, a new root, and any new child whose id is not yet in the snapshot.
+
+Any part of this proposal that assigns revision-counter updates, dependency lookups, or domain-specific recovery to a trigger or to queue management requires revision against the approved messaging boundaries. Publication stays small. Domain response and replacement work belong to the matching subscriber. Queue infrastructure does not construct that work.
+
+### Categories
+
+A change belongs to every category it actually affects. Display name is member content and navigation display. It is not a connectivity change.
+
+| Category | What changes | Effect on the retained read context |
+| --- | --- | --- |
+| GraphAccess | Placements; object memberships; system memberships; status lookup rows; relationship parent or target links; group structure; group, place, and system member edges; `pb_members.SystemId` | The account’s connectivity and read-authorization snapshot is stale. |
+| NavigationDisplay | Names, `PlacementRank`, `EdgeRank`, `MembershipRank`, `RelationshipRank`, `GroupName`, `SystemName`, `PlaceName`, `DisplayName` as a sort key, custom-field labels, relationship type and label text | Navigation labels and order are stale. Connectivity and read authorization are not. |
+| Member | Profile fields on `pb_members` other than `SystemId` | That member’s detail record is stale. The graph context is not. |
+| PlacementSetting | `pb_anchor_visibility_permissions`, `pb_member_visibility_permissions` | That anchor or placement setting is stale. The graph context is not. |
+| Fronting | `pb_front_history`, `pb_front_history_members` | That member’s fronting is stale. The graph context is not. |
+| Avatar | `pb_member_avatars` | That member’s image is stale. The graph context is not. |
+| WriteAuthorization | `pb_object_membership_roles`, `pb_roles` where the row is the Owner role the write path joins, and `pb_system_membership_roles` | No effect on the read context. Saves keep using the live write query. |
+
+`pb_system_membership_roles` is included so a later change in the write path cannot silently depend on an untracked table. Current `AnchorWriteAuthorization` does not read it. Role changes do not invalidate navigator, profile-read, or avatar authorization, because those paths do not consult roles. They also do not need a snapshot bump while writes stay on the live query. The queue still records them so the evidence exists if a later design snapshots write facts.
+
+### Scope without a graph walk
+
+The trigger does not discover accounts. It writes the keys that are on the changed row, including the deleted image and the inserted image.
+
+- The row has `AccountId`. Bump that account’s graph or display revision, including when the new object id is not in any snapshot. This covers a new placement, a new legacy root, a new access grant, and removal of any of those.
+- The row has no `AccountId`. Bump a revision for each old and new endpoint key: parent and child, system and group, place and member. A context is stale when it contains any of those keys. An added child is noticed because the parent key moves, not because the new child was already stored. An account whose context contains neither endpoint does not show that object today. Its next opening load reads the database directly.
+- The row is `pb_system_membership_statuses`, or the trigger cannot name an account or an endpoint. Bump one global graph revision. Every retained context stores that value and becomes stale. This is the conservative case, used for a lookup change that rewrites the meaning of many memberships.
+- A navigation-display column on the same row bumps the display revision for that same account, endpoint, or global scope. It does not bump the graph revision.
+
+A context built for account A stores four kinds of values: A’s graph revision, A’s display revision, the global graph and display revisions, and the graph and display revisions of each object id it contains. The next request treats the context as stale for connectivity when any stored graph revision differs. It treats navigation as stale when any stored display revision differs. A difference is enough. The numbers are not an order of commits.
+
+New reachability that this covers:
+
+- New grant or new root with `AccountId`: the account revision moves even though the new id is absent from the snapshot.
+- Addition under a parent the account already reaches: the parent endpoint revision moves.
+- Removal: the deleted endpoint and the account id, when present, both move.
+- Relationship change: every old and new system id moves. A context that holds any of them is stale.
+- Change that only creates an object nobody’s context contains, and that has no `AccountId`: no current context can display it. The next opening load sees it. No broadcast.
+
+Checking only the object ids already displayed is not enough for labels. The live seed and labeler embed the name of an anchor-relationship target that may not appear in the walk. A rename or delete of that target updates `pb_systems`, `pb_groups`, or `pb_places`, not the relationship row. Who performs that lookup is not decided. Putting it in a trigger or in queue management requires revision against the messaging boundaries.
+
+Earlier drafts both called the queue a diagnostic log and left that job unresolved. Neither draft is approved. Whether a queue carries freshness, history, or only a generic notification is open.
+
+### Follow-up inventory
+
+Owner-supplied execution at 2026-11-14 17:56:12 Pacific. Inventory is complete.
+
+- `pb_anchor_relationships` and `pb_visibility_types` both exist.
+- Neither table has triggers. Neither reported a `rowversion` column.
+- `pb_anchor_relationships` primary key is `AnchorRelationshipId`. The unique source key is `SourceObjectType`, `SourceObjectId`. The target index is `TargetObjectType`, `TargetObjectId`. There are no incoming or outgoing foreign keys. Trusted, enabled checks restrict both endpoints to system, group, or place, prohibit a direct self-reference, and require a nonblank `RelationshipType`. Defaults exist for `AnchorRelationshipId` and `CreatedAtUtc`.
+- `pb_visibility_types` primary key is `VisibilityTypeId`. `VisibilityCode` is unique. Incoming foreign keys come from `pb_members`, `pb_anchor_visibility_permissions`, and `pb_member_visibility_permissions`. No outgoing foreign keys, included index columns, or filters were reported.
+
+The unique source key means one relationship row per source object. The target index can return many sources for one target. The live profile read still supplies `VisibilityCode` and `DisplayName` from this lookup.
+
+## Proposals requiring revision
+
+The notes below preserve the earlier design discussion. They are not approved. The items that put revision-counter updates, dependency lookups, or domain-specific recovery on a trigger or on queue management require revision against the messaging boundaries.
+
+1. Trigger publication and deferred cleanup. The draft had the trigger collect revision keys and publish those revisions in the writer's transaction, then insert queue rows, while a processor only deleted old queue rows. Alternatives were a queue-only trigger with the processor publishing revisions, or revisions with no queue. The tradeoff was lock time against a gap while a processor is down. This assigns domain publication and recovery shape to the trigger and the processor. It requires revision. Retention length, column names, and whether write-authorization changes are notified while saves stay on the live write query remain open.
+
+2. Where a revision becomes visible. The draft preferred counters updated in the writer's transaction over waiting for a processor. It also said a queue identity is not commit order. Both the direct update and the queued update are mechanisms. Neither is approved. Overlapping writers and a crashed processor are still open problems, not solved by the messaging boundaries.
+
+3. Opening-build isolation. The draft used one SNAPSHOT transaction to read counters, build the graph, and read access facts, with later requests reading current counters under the database default. The alternative was one statement at a time under read committed snapshot. Two reads inside one snapshot do not prove that nobody committed during the build. This construction is not approved. A time backstop beside any later check is open.
+
+4. A request already running after revocation. The draft treated the counter compare, plus the account binding, as the point where a request may use the retained context, and allowed that request to finish if revocation committed afterward. Cancelling the in-flight response was the alternative. This policy is not approved. How long a context id lives, and which session may hold it, are open.
+
+5. What survives cleanup. The draft kept revision rows, allowed queue history to be deleted, and required a full opening build when a reader still needed a deleted history row. Keeping history forever, or deleting the revision rows, were the alternatives. This is not approved. Who deletes history, and how a cleanup crash is retried, are open.
+
+6. Labels for targets outside the displayed graph. The draft had the trigger seek pb_anchor_relationships on the target index and update display revisions for each source. A global display revision, or the same seek in a processor or a reader, were the alternatives. The target index can support that seek. Placing the seek and the revision update in the trigger, or placing domain recovery in queue management, requires revision. Whether a label change reruns the opening build or patches labels is open.
+
+7. Visibility lookup. The draft had a visibility-type change update one global member revision and one global placement-setting revision, without a graph revision. The alternative was a fan-out across pb_members and both permission tables. The profile dependency on VisibilityCode and DisplayName is confirmed. Which component publishes the notification, and whether the response is global or per row, is open.
+
+The same drafts also specified lock order, an update-then-insert for a missing revision row, duplicate-key handling, and no retry inside the trigger after deadlock 1205. Those are mechanisms. They are not approved, and they do not establish zero deadlocks.
+
+A proposed stored shape, also not approved, was one account revision row, one object revision row, one global revision row, one content revision row, and an append-only queue row per changed source key. A sequence on that queue would not be commit order.
+
+TRUNCATE and bulk load without FIRE_TRIGGERS still bypass a database trigger. What happens after those statements is unresolved.
+
+These questions stay open with the messaging questions. None is accepted.
+
+- Concrete freshness, revision, queue, and subscriber mechanisms.
+- Column names, types, and any retention threshold.
+- Whether write-authorization changes are notified while saves use the live write query.
+- Whether a navigation-display change reruns the opening build or patches labels.
+- Context ownership and lifetime across sessions and API instances. Process memory is not shared. Restart drops it.
+- A time backstop beside whatever later check is chosen.
+
+## Inventory
+
+Both inventories are complete. Do not edit the scripts.
+
+- `D:\Src\Needs of the Many\PluralBridge\scripts\sqlserver\Diagnostics\Workspace\01_inventory_change_tracking.sql`, with results in `scripts/sqlserver/Diagnostics/Workspace/db-schema-inquiry-for-refactor.txt`.
+- `D:\Src\Needs of the Many\PluralBridge\scripts\sqlserver\Diagnostics\Workspace\02_inventory_remaining_dependencies.sql`. The owner ran it at 2026-11-14 17:56:12 Pacific. The findings are recorded above. A results file from that run is not in the repository.
+
+## Smallest next implementation task
+
+There is no authorized database slice. Inventory is complete, and the messaging boundaries are approved. The concrete freshness, revision, queue, and subscriber mechanisms are not.
+
+The earlier conditional slice, empty revision tables and an empty queue with no triggers, is not authorized. It depended on approving the trigger and revision design that now requires revision. No migration is prepared.
+
+When a later review approves a mechanism that fits the messaging boundaries, that review still has to name the outcome, the verification, and the recovery path before any script is written. Recovery for a future new table would be dropping only that new table. No existing table is altered by this document.
+
