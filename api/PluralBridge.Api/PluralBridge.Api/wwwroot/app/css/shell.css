@@ -1,18 +1,189 @@
 /*
  * Application shell layout.
+ * The first row is one header band. The sidebar column sizes that band's left cell,
+ * and the navigation fills the same column beneath it.
  */
+@property --pb-shell-sidebar-width {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 16.5rem;
+}
+
+
 .app-shell {
+	--pb-shell-sidebar-width: 16.5rem;
+	height: 100vh;
 	min-height: 100vh;
+	overflow: hidden;
 	display: grid;
-	grid-template-columns: 15rem minmax(0, 1fr);
+	grid-template-columns: var(--pb-shell-sidebar-width) minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr);
 	place-items: stretch;
+	padding: 0;
+	transition: --pb-shell-sidebar-width 180ms ease;
+}
+
+
+/*
+ * Collapsing changes the shared column width. The account row, search, sections, and
+ * sign-out hide. The restore control remains in the header's left cell. Reduced motion
+ * below removes the width transition with the section animations.
+ */
+.app-shell.is-sidebar-collapsed {
+	--pb-shell-sidebar-width: 2.75rem;
+}
+
+
+/*
+ * One band across the page. The account cell shares the sidebar column.
+ * The divider is the band's own bottom edge, so the sidebar does not add a second line.
+ */
+.application-header {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: var(--pb-shell-sidebar-width) minmax(0, 1fr);
+	align-items: center;
+	min-width: 0;
+	background: var(--pb-nav-bg);
+	border-bottom: 1px solid var(--pb-border);
+}
+
+
+.application-header-account {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	height: 100%;
+	padding: 0.35rem 0.6rem;
+	border-right: 1px solid var(--pb-border);
+}
+
+
+.app-shell.is-sidebar-collapsed .application-header-account {
+	justify-content: center;
+	padding-inline: 0;
+}
+
+
+.app-shell.is-sidebar-collapsed .application-nav-account {
+	display: none;
+}
+
+
+.application-header-brand {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.85rem;
+	min-width: 0;
+	padding: 0.15rem 1rem 0.15rem 0.85rem;
+}
+
+
+.application-header-artwork {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.85rem;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+
+/*
+ * Support, notifications, and account have no destination. They stay visible
+ * and do not shrink when the girder gives up width.
+ */
+.application-header-actions {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: 0.35rem;
+}
+
+
+.application-header-action-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	height: 2rem;
+	margin: 0;
+	padding: 0 0.45rem;
+	border: 0;
+	border-radius: 0.4rem;
+	color: var(--pb-text);
+	background: transparent;
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 400;
+	line-height: 1;
+	white-space: nowrap;
+	cursor: default;
+}
+
+
+.application-header-action-icon {
+	width: 2rem;
 	padding: 0;
 }
 
 
-.application-main {
+.application-header-action-button:disabled,
+.application-header-action-button:disabled:hover,
+.application-header-action-button:disabled:focus-visible {
+	color: var(--pb-text);
+	background: transparent;
+	opacity: 0.85;
+	outline: none;
+}
+
+
+.application-header-brand .member-brand-nameplate,
+.application-header-brand .member-brand-logo {
+	display: block;
+	border: 0;
+	background: transparent;
+	pointer-events: none;
+}
+
+
+.application-header-brand .member-brand-nameplate {
+	flex: 0 1 auto;
+	width: auto;
+	height: 2.75rem;
+	max-width: min(26rem, calc(100% - 11.5rem));
 	min-width: 0;
-	padding: 2rem;
+	object-fit: contain;
+	object-position: center;
+}
+
+
+.application-header-brand .member-brand-logo {
+	flex: 0 0 auto;
+	width: auto;
+	height: 4.5rem;
+	max-height: 4.5rem;
+	max-width: min(16rem, 42%);
+	object-fit: contain;
+	object-position: right center;
+	border-radius: 0.65rem;
+}
+
+
+.application-header-brand .member-brand-nameplate[hidden],
+.application-header-brand .member-brand-logo[hidden] {
+	display: none;
+}
+
+
+.application-main {
+	grid-column: 2;
+	grid-row: 2;
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+	padding: 0.75rem 1rem 1rem;
 }
 
 
@@ -23,7 +194,7 @@
 
 
 .application-main .output-box {
-	min-height: calc(100vh - 4rem);
+	min-height: 0;
 	max-height: none;
 	overflow: visible;
 }
@@ -38,61 +209,383 @@
  * Application navigation.
  */
 .application-navigation {
-	position: sticky;
-	top: 0;
-	height: 100vh;
+	grid-column: 1;
+	grid-row: 2;
+	position: relative;
+	top: auto;
+	height: auto;
+	min-height: 0;
 	overflow-y: auto;
 	display: flex;
 	flex-direction: column;
-	gap: 1.5rem;
-	padding: 1.5rem 1rem;
+	gap: 0.35rem;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.55rem 0.6rem 0.75rem;
 	border-right: 1px solid var(--pb-border);
 	background: var(--pb-nav-bg);
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--pb-text-muted) 55%, transparent) var(--pb-border-subtle);
+}
+
+
+/*
+ * Chromium can use a 6px sidebar scroller. Firefox uses scrollbar-width: thin above.
+ * The thumb stays distinct from the navigation surface in both themes.
+ */
+.application-navigation::-webkit-scrollbar {
+	width: 6px;
+}
+
+
+.application-navigation::-webkit-scrollbar-track {
+	background: var(--pb-border-subtle);
+}
+
+
+.application-navigation::-webkit-scrollbar-thumb {
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--pb-text-muted) 55%, transparent);
+}
+
+
+/*
+ * The shell class owns whether the sidebar is open. Collapsing hides the chrome
+ * and leaves one restore control. It does not build an icon rail.
+ */
+.app-shell.is-sidebar-collapsed .application-navigation {
+	overflow: hidden;
+	padding-inline: 0;
+}
+
+
+.app-shell.is-sidebar-collapsed .application-nav-body {
+	display: none;
+}
+
+
+.application-nav-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 0.35rem;
+	min-height: 0;
+}
+
+
+/*
+ * The person icon and the signed-in name share one row inside the header band.
+ * The band supplies the divider, so this row does not draw its own.
+ */
+.application-nav-account {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+	width: 100%;
+	padding: 0;
+	color: var(--pb-text);
+}
+
+
+.application-nav-account-icon {
+	color: var(--pb-text-muted);
+}
+
+
+.application-nav-account-name {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--pb-text);
+	font-size: 0.8125rem;
+	font-weight: 400;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+
+.application-nav-tools {
+	display: flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+
+.application-nav-search {
+	position: relative;
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	min-width: 0;
+}
+
+
+.application-nav-search .application-nav-control-icon {
+	position: absolute;
+	left: 0.45rem;
+	pointer-events: none;
+}
+
+
+.application-nav-search input {
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0.28rem 0.55rem 0.28rem 1.55rem;
+	border: 1px solid var(--pb-border);
+	border-radius: 999px;
+	color: var(--pb-text-muted);
+	background: transparent;
+	font: inherit;
+	font-size: 0.78rem;
+}
+
+
+.application-nav-search input:disabled {
+	opacity: 1;
+	cursor: default;
+}
+
+
+.application-nav-icon-button {
+	display: grid;
+	flex: 0 0 auto;
+	place-items: center;
+	width: 2rem;
+	height: 2rem;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0.4rem;
+	color: var(--pb-text-muted);
+	background: transparent;
+	cursor: pointer;
+}
+
+
+.application-nav-icon-button:hover {
+	color: var(--pb-text);
+	background: var(--pb-fill-subtle);
+}
+
+
+.application-nav-icon-button:focus-visible {
+	color: var(--pb-text);
+	background: var(--pb-fill-subtle);
+	outline: 2px solid var(--pb-accent);
+	outline-offset: 2px;
+}
+
+
+/*
+ * The icon-button rule above sets display. This later rule is what keeps the
+ * restore control hidden until the sidebar is collapsed, so only one visibility
+ * control is on screen.
+ */
+.application-nav-icon-button.application-nav-restore {
+	display: none;
+	justify-self: center;
+}
+
+
+.app-shell.is-sidebar-collapsed .application-nav-icon-button.application-nav-restore {
+	display: grid;
+}
+
+
+.application-nav-control-icon {
+	width: 16px;
+	height: 16px;
+	display: block;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
 
 .application-nav-section {
 	display: grid;
-	gap: 0.25rem;
 }
 
 
 .application-nav-heading {
-	margin: 0 0 0.35rem;
-	padding: 0 0.75rem;
-	color: var(--pb-accent);
-	font-size: 0.75rem;
-	font-weight: 800;
-	letter-spacing: 0.12em;
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	width: 100%;
+	box-sizing: border-box;
+	margin: 0 0 0.15rem;
+	padding: 0.28rem 0;
+	color: var(--pb-text);
+	font-size: 0.8125rem;
+	font-weight: 400;
+	letter-spacing: 0;
+	cursor: pointer;
+}
+
+
+.application-nav-heading-label {
+	min-width: 0;
+	letter-spacing: 0;
+	text-align: left;
+}
+
+
+/*
+ * Decorative. The heading text remains the accessible name.
+ */
+.application-nav-heading-icon {
+	width: 16px;
+	height: 16px;
+	display: block;
+	flex: 0 0 auto;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+
+.application-nav-heading:focus-visible {
+	border-radius: 0.5rem;
+	background: var(--pb-accent-16);
+	outline: none;
+}
+
+
+/*
+ * The path points right. Expansion rotates it 90 degrees so it points down.
+ * The same convention is used by the member tree chevron.
+ */
+.application-nav-chevron {
+	width: 16px;
+	height: 16px;
+	display: block;
+	flex: 0 0 auto;
+	margin-left: auto;
+	transform: rotate(0deg);
+	transform-origin: 50% 50%;
+	transition: transform 150ms ease;
+}
+
+
+.application-nav-section.is-expanded .application-nav-chevron {
+	transform: rotate(90deg);
+}
+
+
+/*
+ * 1fr follows the content's own height. The inner min-height lets the row shrink
+ * to zero without a fixed max-height. The transition reverses if the heading is
+ * toggled again before it finishes.
+ */
+.application-nav-panel {
+	display: grid;
+	grid-template-rows: 0fr;
+	transition: grid-template-rows 180ms ease;
+}
+
+
+.application-nav-section.is-expanded .application-nav-panel {
+	grid-template-rows: 1fr;
+}
+
+
+/*
+ * The guide is part of the sliding group, so it closes with the items.
+ * The inset keeps the child labels clear of the line. Selected item styling stays on the button.
+ */
+.application-nav-panel-inner {
+	min-height: 0;
+	overflow: hidden;
+	display: grid;
+	gap: 0.25rem;
+	margin-left: 0.45rem;
+	padding-left: 0.4rem;
+	border-left: 1px solid var(--pb-border);
+}
+
+
+/*
+ * Before the shell marks the navigation ready, MAIN stays open and every other
+ * section stays closed. This is only the first paint. Later toggles use the panel.
+ */
+.application-navigation:not(.is-accordion-ready) .application-nav-section:not(:has(#nav-main-heading)) > :not(.application-nav-heading) {
+	display: none;
+}
+
+
+.application-navigation.is-accordion-settling .application-nav-chevron,
+.application-navigation.is-accordion-settling .application-nav-panel {
+	transition: none;
+}
+
+
+/* The shell transition is the shared sidebar column. Section height and chevron rotation stop with it. */
+@media (prefers-reduced-motion: reduce) {
+	.app-shell,
+	.application-nav-chevron,
+	.application-nav-panel,
+	.application-navigation {
+		transition: none;
+	}
+}
+
+
+/*
+ * The members screen keeps its own copy of the artwork for the phone layout.
+ * On a wide page the shell header is the copy that shows, and the title row
+ * does not reserve the artwork's height.
+ */
+@media (min-width: 721px) {
+	.member-screen-header .member-screen-brand {
+		display: none;
+	}
+
+
+	.member-screen-header {
+		min-height: 0;
+		overflow: visible;
+	}
 }
 
 
 .application-nav-item {
 	width: 100%;
 	display: block;
-	padding: 0.55rem 0.75rem;
+	padding: 0.28rem 0.35rem;
 	border: 0;
-	border-radius: 0.5rem;
-	color: var(--pb-text-muted);
+	border-radius: 0.4rem;
+	color: var(--pb-text);
 	background: transparent;
 	text-align: left;
-	font-weight: 600;
-	opacity: 0.62;
+	font-size: 0.8125rem;
+	font-weight: 400;
+	letter-spacing: 0;
 }
 
 
 	.application-nav-item:hover:not(:disabled),
-	.application-nav-item:focus-visible,
+	.application-nav-item:focus-visible {
+		background: var(--pb-fill-subtle);
+		outline: none;
+	}
+
+
 	.application-nav-item[aria-pressed="true"] {
 		color: var(--pb-button-text);
 		background: var(--pb-button-bg);
-		opacity: 1;
+		font-weight: 400;
 		outline: none;
 	}
 
 
 .application-nav-signout {
-	margin-top: 0.5rem;
+	margin-top: auto;
 }
 
 
@@ -155,7 +648,41 @@
 	 * Desktop's two-column grid becomes one content column.
 	 */
 	.app-shell {
+		height: auto;
+		overflow: visible;
 		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto;
+	}
+
+
+	.application-header {
+		display: none;
+	}
+
+
+	.app-shell.is-sidebar-collapsed .application-header {
+		display: block;
+		position: fixed;
+		width: 0;
+		height: 0;
+		overflow: visible;
+		border: 0;
+		padding: 0;
+		background: transparent;
+	}
+
+
+	.app-shell.is-sidebar-collapsed .application-header-brand,
+	.app-shell.is-sidebar-collapsed .application-nav-account {
+		display: none;
+	}
+
+
+	.application-main {
+		grid-column: 1;
+		grid-row: 1;
+		height: auto;
+		overflow: visible;
 	}
 
 
@@ -166,6 +693,8 @@
 		position: fixed;
 		top: 0;
 		left: 0;
+		grid-column: auto;
+		grid-row: auto;
 		z-index: 1001;
 		width: min(18rem, 85vw);
 		height: 100vh;
@@ -177,6 +706,14 @@
 
 	body.shell-menu-open .application-navigation {
 		transform: translateX(0);
+	}
+
+
+	.app-shell.is-sidebar-collapsed .application-nav-restore {
+		position: fixed;
+		top: 0.55rem;
+		left: 0.55rem;
+		z-index: 1002;
 	}
 
 

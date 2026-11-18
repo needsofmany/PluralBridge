@@ -37,7 +37,8 @@ For database changes, the checkpoint includes the migration script and an approp
 Task 1, below, records the change-tracking investigation. Inventory is complete. 
 Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. Database implementation is not authorized. 
 Task 3, at the end of this file, is the isolated in-memory messaging core. Its checkpoint is commit 8801ca8. 
-Task 3B, after that section, is the concurrency and flood verification. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings. The commenting review is recorded there. Checkpoint pending.
+Task 3B, after that section, is the concurrency and flood verification. Its checkpoint is commit c19ed42. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings.
+Task 4, after Task 3B, is the workspace opening tree and its server context. The full commenting review is complete. The final isolated result is 28 passed, zero failed, zero skipped, with no build warnings. The owner approved the final sidebar and header appearance and confirmed tree-only behavior. Manual fallback testing was omitted at the owner's direction. Failed refresh, sign-out cleanup, live tree parity, and the four database-backed plural-map tests remain unverified. Checkpoint not yet taken.
 
 ---
 
@@ -437,7 +438,7 @@ The deferred contracts remain deferred. The database-adapter transaction and pub
 
 # Task 3B — Concurrency and flood verification
 
-Status: commenting review complete. Checkpoint pending.
+Status: checkpoint confirmed at commit c19ed42. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings.
 
 The first owner run was 31 tests, 30 passed, one failed, zero skipped. Both projects compiled. `RejectedAndLateReports_DoNotChangeUnrelatedAccounting` expected `Completed` and observed a null terminal value because the test discharged `added` and left `keep` outstanding. The correction completes `keep` with its own report, then `added`, while the manual clock is still zero.
 
@@ -473,4 +474,137 @@ That command builds the test project and its API reference. The API project alre
 Limitations: database-adapter transaction coupling and bounded lifecycle publication stay deferred. Lifecycle observations are still not published back into the core. Scheduler-dependent repetitions are not an exhaustive interleaving proof.
 
 Recovery: remove `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Messaging\InMemoryMessagingCoreConcurrencyTests.cs` and remove this Task 3B section. Do not remove the Task 3 checkpoint or its files.
+
+---
+
+# Task 4 — Load the tree and establish its server context
+
+Status: commenting review complete and prepared for checkpoint. The owner approved the final sidebar and header and confirmed tree-only behavior. The checkpoint itself has not been taken.
+
+The first owner build stopped with five compilation errors before tests ran. `WorkspaceOpeningException` was sealed while three opening failures derived from it. The public workspace controller constructor also took `WorkspaceTreeService` and `WorkspaceContextStore` while those types were internal. The corrections remove `sealed` from the base exception, make the service and store public, and make the store's clock and settings contracts public so the public store constructor stays consistent. The SQL session, captured rows, and context models stay internal. The service's public constructor creates that SQL session; tests still pass a session through the internal constructor.
+
+Build, 2026-11-17, from the repository root: `dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj"`. Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:01:17.78. Restore retried several NuGet lookups after "No such host is known" and then restored both projects. No output-file lock. The existing browser-asset sync ran and reported `SYNC_BROWSER_APP_OK`, `SYNC_CHECK_OK`, and `ALLOWLIST_CHECK_OK`. The build log shows copies of `developer-tools.js`, `legacy-app.js`, and `navigator.js` into `wwwroot\app\js`. No source files were changed by that build.
+
+Owner test run: 32 tests, 31 passed, one failed, zero skipped. `Store_KeepsAnAcquiredCopyAfterEviction` failed at line 240 with `WorkspaceContextTooLargeException`: estimate 962 bytes, budget 948 bytes. The fixture set the budget to the first context's estimate. The replacement path is longer, so the size estimator correctly counted a larger second context and the store rejected it before eviction. The production estimator and budget check were not changed. The fixture now uses the larger of the two actual estimates, asserts that each context fits, asserts that both together exceed the budget, and still checks that publishing the second evicts the first while the acquired copy remains readable.
+
+Build after that fixture correction, 2026-11-17: the same `dotnet build` succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:09.09. Restore was up to date. No output-file lock. The browser-asset sync reported the same three OK results. No production source changed. Tests were not run again.
+
+Commenting review before the isolated rerun: the Task 4 C# files keep copyright and SPDX headers, and their declarations describe the current public and internal split. `developer-tools.js`, `navigator.js`, and `legacy-app.js` document the workspace-tree flag, the path switch, and sign-out release. No Task 4 CSS was added. `ReadAnchorNamesAsync` had only the transaction parameter documented; its summary, the other parameters, and the return value are now documented. That documentation change does not change the read.
+
+Isolated test command, 2026-11-17, from the repository root:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter "FullyQualifiedName~WorkspaceTreeTests|FullyQualifiedName~PluralMapEndpointTests.Map_|FullyQualifiedName~PluralMapEndpointTests.DerivePreview_|FullyQualifiedName~PluralMapEndpointTests.SelectFirstAnchor_|FullyQualifiedName~PluralMapEndpointTests.ImmediateChildren_|FullyQualifiedName~PluralMapEndpointTests.ApplyAnchorNames_"`
+
+Result: Passed, Failed 0, Passed 28, Skipped 0, Total 28, duration 143 ms. The build reported 0 Warning(s) and 0 Error(s). Restore was up to date. No output-file lock. The browser-asset sync reported `SYNC_BROWSER_APP_OK`, `SYNC_CHECK_OK`, and `ALLOWLIST_CHECK_OK`, including `SYNC_CHECK_CONTENT_DRIFT=0`.
+
+The requested filter also names `PluralMapEndpointTests` as a whole, which is 17 tests plus the 15 workspace-tree tests, 32 in total. These four were not run because each opens the account database through `AccountTestDatabase` or `SqlConnection`, and `HttpOutput_MatchesDirectProcedureOutput` also executes `dbo.pb_show_tree_step4_members_by_email`:
+
+- `UnauthenticatedRequest_Returns401`
+- `SeparateRuntimeAccounts_ReceiveTheirOwnContext`
+- `AccountWithoutSystemMembership_Succeeds`
+- `HttpOutput_MatchesDirectProcedureOutput`
+
+Owner browser result: after Control+F5, the new workspace showed the intended tree-only behavior. The owner later confirmed that the new tree path works and chose to omit manual fallback testing. The `workspaceTreeEnabled` default remains true. `setWorkspaceTreeEnabled(false)` remains the explicit fallback in code. The initializer runs only when the property is absent. This file does not read or write browser storage, so a value set during the page does not survive a fresh load. The exported initializer is still named `ensureWorkspaceTreeDisabledByDefault`.
+
+Additional owner-requested UI change for testing: on each page load the MAIN sidebar section is expanded and every other sidebar section is collapsed, including sections that are not in the supplied screenshot. The sidebar interaction is now complete in `shell.js` and `shell.css`, including the later account header, disabled search preview, section and sidebar controls, sentence-case labels, and tighter rows. Each heading row is the keyboard toggle, with `aria-expanded` and `aria-controls` pointing at that section's content region. A decorative outline icon sits at the left of the label. A right-pointing chevron sits at the right edge of the row and rotates down when the section is expanded. The content height slides open and closed with the content's own height, and a second toggle during the animation reverses that transition. An expanded group shows a thin guide under the heading icon, and that guide closes with the group. Expand-all opens every section when any is closed and collapses every section when all are open. Collapsing the sidebar hides the account header, search row, sections, and sign-out, and leaves one restore control. The account name is the authenticated account display name. The search field does not search. The sidebar scroller is 6px in Chromium and `scrollbar-width: thin` in Firefox. `prefers-reduced-motion` removes the animation. The Members page remains the selected route. Sidebar expansion is not read from storage, so a saved expansion cannot replace those initial defaults. `workspaceTreeEnabled` and the workspace loading path were not changed. Browser verification of this combined sidebar is pending.
+
+Sidebar verification, 2026-11-17: `dotnet build "api\PluralBridge.Api\PluralBridge.Api\PluralBridge.Api.csproj" -p:UseAppHost=false` succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:20.83. The output was not locked. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The same isolated 28-test filter then passed: Failed 0, Passed 28, Skipped 0, duration 226 ms. Those tests do not exercise the sidebar. No database connection was opened.
+
+Sidebar interaction completion, 2026-11-17. The default output was locked by `PluralBridge.Api` process 13636 and Visual Studio process 6060. Those processes were left running. `PluralBridge.Api.exe` and `PluralBridge.Api.dll` could not be replaced there. The successful build used an output directory outside the repository:
+
+`dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" -p:UseAppHost=false -p:OutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar\ -p:IntermediateOutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar-obj\`
+
+Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:14.69. The browser sync copied `shell.js` and `shell.css` into `wwwroot\app` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`.
+
+`dotnet test "C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar\PluralBridge.Api.Tests.dll"` with the same isolated filter: Passed, Failed 0, Passed 28, Skipped 0, duration 341 ms. Those tests do not exercise the sidebar. Browser verification of the accordion is pending.
+
+Sidebar refinements, 2026-11-17. The same default output remained locked by `PluralBridge.Api` process 13636 and Visual Studio process 6060. The successful build repeated the outside-repository command above. Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:06.53. Sync again copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter then passed: Failed 0, Passed 28, Skipped 0, duration 204 ms. Those tests do not exercise the sidebar. Browser verification of the icons, guide, and thin scrollbar is pending.
+
+Sidebar account header and controls, 2026-11-17. Build command:
+
+`dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" -p:UseAppHost=false -p:OutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar\ -p:IntermediateOutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar-obj\`
+
+Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:08.54. Sync copied `index.html`, `shell.js`, and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter then passed: Failed 0, Passed 28, Skipped 0, duration 157 ms. Those tests do not establish browser-layout correctness. The owner browser check and the checkpoint remain pending.
+
+Sidebar visual match, 2026-11-17. The account row uses the nameplate at its own aspect ratio, with a divider beneath it. The restore control stays hidden while the sidebar is open. Whole-sidebar visibility uses a left or right double chevron, and expand-all keeps its own vertical pair. Section headings and child items use the same regular weight and size. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:07.87. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 202 ms. Those tests do not establish browser-layout correctness. Commenting review for this pass covered `shell.js`, `shell.css`, and the existing Task 4 C# and JavaScript comments. Browser verification and the checkpoint remain pending.
+
+Sidebar account mark, 2026-11-17. The account row now uses the existing person icon beside the signed-in name. Truncation, the full-name tooltip, and the divider remain. The large nameplate and girder on the right were not changed. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:10.11. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 259 ms. Those tests do not establish browser-layout correctness. Browser verification and the checkpoint remain pending.
+
+Shared header band, 2026-11-17. The account row and the existing girder and bridge artwork share one band. The sidebar column sizes the left cell, and the navigation continues that column below a full-width divider. Search, section controls, and the left double chevron stay in the sidebar. Collapsing hides the account, search, navigation, and sign-out, and leaves the right double chevron in the left edge of the band. The members title, toolbar, and tree stay in the workspace. The phone layout still uses its own header and the members-screen copy of the artwork. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:10.19. It did not update the running application's binaries. Sync copied `legacy-app.js`, `shell.js`, and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 231 ms. Those tests do not establish browser-layout correctness. Commenting review for this pass covered the shell header, the desktop artwork handoff in `legacy-app.js`, and the existing Task 4 C# and JavaScript comments, including `WorkspaceTreeViewSession`. Browser verification and the checkpoint remain pending.
+
+Header actions, 2026-11-17. Support, the notification bell, and the header account icon sit to the right of the girder and bridge artwork. None of the three has an implemented destination, so each is a disabled placeholder. Support shows its label. The bell's accessible name is Notifications. The person icon's accessible name is Account. Tooltips say the action is not available. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:07.60. It did not update the running application's binaries. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 202 ms. Those tests do not establish browser-layout correctness. Browser verification and the checkpoint remain pending.
+
+Checkpoint commenting review: comments on the flag now say the absent property becomes true, and the navigator comment says strict false keeps the plural-map path. `WorkspaceTreeViewSession` still starts with the flag off because that class is the test specification, not the browser initializer. The workspace service registration comment states that the service creates its SQL session and that idle timeout and budget come from configuration.
+
+Checkpoint build and test, 2026-11-17. The running API, process 37700, and Visual Studio, process 6060, held `PluralBridge.Api.exe` and `PluralBridge.Api.dll`. Those processes were left running. The default output path therefore could not be updated. The successful command redirected output and intermediate files outside the repository and did not produce an application host:
+
+`dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" -p:UseAppHost=false -p:OutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-out\ -p:IntermediateOutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-obj\`
+
+Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:15.34. The browser-asset sync reported `SYNC_BROWSER_APP_OK`, `SYNC_CHECK_OK` with `SYNC_CHECK_CONTENT_DRIFT=0`, and `ALLOWLIST_CHECK_OK`. Authoritative `app\src` and generated `wwwroot\app` matched.
+
+`dotnet test "C:\Users\stacy\AppData\Local\Temp\pb-task4-out\PluralBridge.Api.Tests.dll" --filter "FullyQualifiedName~WorkspaceTreeTests|FullyQualifiedName~PluralMapEndpointTests.Map_|FullyQualifiedName~PluralMapEndpointTests.DerivePreview_|FullyQualifiedName~PluralMapEndpointTests.SelectFirstAnchor_|FullyQualifiedName~PluralMapEndpointTests.ImmediateChildren_|FullyQualifiedName~PluralMapEndpointTests.ApplyAnchorNames_"`
+
+Result: Passed, Failed 0, Passed 28, Skipped 0, Total 28, duration 286 ms. The four database-backed plural-map tests were not run. No database connection was opened.
+
+Approved behavior implemented in this preparation:
+
+- `GET /api/me/workspace-tree` runs beside `GET /api/me/plural-map`. The plural-map route still calls step 4.
+- The browser flag is `workspaceTreeEnabled`. When the property is absent, initialization sets it to true. On loads only the new tree, keeps its context id, and changes anchor selection as focus only. It does not request profiles, member details, or avatars, and it does not fall back to the old path. `setWorkspaceTreeEnabled(false)` keeps the existing plural-map, profile, and avatar behavior.
+- Switching paths clears the visible cards, selection, and pending load. A late response from the previous generation or mode does not paint. Sign-out releases the client-held context while the session is still authenticated, then continues the existing logout if release fails.
+- One connection and one SNAPSHOT transaction perform account resolution, caller-owned temp tables, the installed seed, walker, expansion, labeler, and render procedures once, the graph and membership copies, and the anchor-name reads. The transaction commits before the immutable context is published. A failed or cancelled build publishes nothing. SQL error 3952 stops the build and does not switch isolation. No procedure or database-option change is included.
+- The response is `contextId`, `accountId`, and `hierarchyPreview`. Graph edges, walk occurrences, labels, and access-membership facts stay on the server. The zero guid on a Groups header is not an access fact. The retained facts can show seed Active status, the profile procedure's single Active-and-IsActive membership, and duplicate memberships. They are not a current authorization decision.
+- Each opening creates an independent context. Lookup and release require the authenticated account. Missing, expired, evicted, and wrong-account lookups share `context_unavailable`. Release is repeatable and the HTTP result does not distinguish those cases.
+- Idle expiration defaults to 30 minutes in `WorkspaceContext:IdleTimeout`. The server measures elapsed UTC time. Account-bound use renews that period. A longer setting does not revive a context that has already expired. A context larger than `WorkspaceContext:BudgetBytes` (default 128 MiB) is rejected. Expired contexts are reclaimed before least-recently-used contexts. The estimate counts string and row overhead. It is not a measured GC size. A hosted cleanup pass runs once a minute and does not overlap itself. The store lock is not held during SQL.
+- Database freshness detection is deferred. Later detail and image requests must not treat this context as current authorization until that contract is approved. The messaging core stays unwired. No triggers, revision tables, queue processing, detail batches, or avatar batches were added.
+
+There is no existing developer-settings endpoint or access policy. The idle timeout and budget are process configuration, not a value an ordinary workspace request can send, and not a browser control. They are not messaging TTLs.
+
+Files:
+
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceClock.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextOptions.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextModels.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextStore.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextCleanupService.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceOpeningPlan.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceOpeningSession.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceTreeViewSession.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Controllers\WorkspaceTreeController.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Controllers\PluralMap.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Controllers\AccessContextHelper.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Program.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\appsettings.json`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\developer-tools.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\navigator.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\legacy-app.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\shell.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\css\shell.css`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\developer-tools.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\navigator.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\legacy-app.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\shell.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\css\shell.css`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\WorkspaceTreeTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
+
+The full plural-map class remains an owner command because four of its tests open the account database. It was not run for this checkpoint:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter "FullyQualifiedName~PluralMapEndpointTests|FullyQualifiedName~WorkspaceTreeTests"`
+
+That command builds the test project and its API reference. The API project already contains a browser-app sync target, so the build can copy browser assets. This task does not change that target. The isolated unit tests do not open a database connection and do not prove live render parity. The default output path is locked while the API process is running.
+
+Manual checks:
+
+- Confirmed by the owner: the new tree path works. Manual fallback testing was omitted by the owner.
+- Pending: `PluralBridge.navigator.refresh()` reloads the current path. If that workspace reload fails, the previous tree remains.
+- Pending: sign-out releases the client-held context and still completes logout when release fails.
+- Confirmed by the owner: the final sidebar and header appearance. The person icon and account name occupy the sidebar column of the shared band, the girder and bridge artwork stay on the right with Support, the notification bell, and the account icon after them, and one divider runs under the band. Those three header actions are disabled placeholders. The checkpoint has not been taken.
+- The idle timeout and budget are in `api/PluralBridge.Api/PluralBridge.Api/appsettings.json` under `WorkspaceContext`. The defaults are `00:30:00` and `134217728`. Their runtime enforcement has not been checked against a live process.
+- Pending: live tree parity against the installed procedures. Compare one account's new hierarchy with the existing plural map.
+
+Commenting review, 2026-11-17, completed for the whole Task 4 set before checkpointing. Comments only. The review covered the workspace opening session, plan, store, cleanup, models, clock, options, controller, plural-map render mapping, account resolution, view-session specification, tests, Program.cs registration, and the browser shell, navigator, developer-tools flag, and sign-out release. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:20.68. It did not update the running application's binaries. Sync copied `developer-tools.js`, `navigator.js`, `shell.js`, and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 152 ms. Those tests do not prove live render parity or browser layout. The owner approved the final sidebar and header and confirmed tree-only behavior. Manual fallback testing was omitted at the owner's direction. Failed refresh, sign-out cleanup, live tree parity, and the four database-backed plural-map tests were not run and are not claimed as passed. The checkpoint has not been taken.
+
+Limitations: database freshness detection remains deferred, and the retained context is not current authorization for later detail or image reads. Idle expiration is server configuration, not a browser developer control. JavaScript behavior has no automated browser test coverage. Initial-load performance tuning is deferred. The messaging core remains unwired. The database-adapter contract and bounded lifecycle publication also remain deferred. A context that was already acquired can still be read after the store evicts it. That is resource lifetime, not an access or freshness guarantee.
+
+Recovery: remove the new Workspace files, `WorkspaceTreeController.cs`, and `WorkspaceTreeTests.cs`. Revert the Task 4 edits in `PluralMap.cs`, `AccessContextHelper.cs`, `Program.cs`, `appsettings.json`, `developer-tools.js`, `navigator.js`, `legacy-app.js`, `shell.js`, `shell.css`, `index.html`, and this Task 4 section. Do not remove the Task 3 or Task 3B files.
 

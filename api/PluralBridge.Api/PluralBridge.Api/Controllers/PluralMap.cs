@@ -32,6 +32,12 @@ internal sealed record PluralMapEdgeRow(
 	int EdgeRank,
 	string EdgeSource);
 
+/// <summary>The three render result sets after column and row checks. Hierarchy rows are already derived.</summary>
+internal sealed record WorkspaceRenderOutput(
+	IReadOnlyList<PluralMapNodeCountRow> GraphNodeCounts,
+	IReadOnlyList<PluralMapEdgeRow> GraphEdges,
+	IReadOnlyList<PluralMapPreviewRow> HierarchyPreview);
+
 internal sealed record PluralMapPreviewRow(
 	string Section,
 	string TreeLine,
@@ -179,6 +185,62 @@ internal static class PluralMapReader
 		return new PluralMapResponse([context], nodeCounts, edges, DerivePreview(preview));
 	}
 
+	/// <summary>
+	/// Maps the three result sets returned by the installed render procedure.
+	/// </summary>
+	/// <param name="resultSets">GraphNodeCounts, GraphEdges, then HierarchyPreview.</param>
+	/// <returns>The mapped rows, or null when the captured column contract does not match.</returns>
+	/// <remarks>
+	/// This is the live inventory contract recorded for <c>pb_show_tree_step5_render_layer</c>.
+	/// It does not include step 4's Context result set. A mismatch is a failed build, not a guessed shape.
+	/// </remarks>
+	internal static WorkspaceRenderOutput? MapRenderOutput(
+		IReadOnlyList<PluralMapRawResultSet> resultSets)
+	{
+		if (resultSets.Count != 3
+			|| !ColumnsMatch(resultSets[0], NodeCountColumns)
+			|| !ColumnsMatch(resultSets[1], EdgeColumns)
+			|| !ColumnsMatch(resultSets[2], PreviewColumns))
+		{
+			return null;
+		}
+
+		var nodeCounts = new List<PluralMapNodeCountRow>(resultSets[0].Rows.Count);
+		foreach (var row in resultSets[0].Rows)
+		{
+			if (!TryNodeCountRow(row, out var nodeCount))
+			{
+				return null;
+			}
+
+			nodeCounts.Add(nodeCount);
+		}
+
+		var edges = new List<PluralMapEdgeRow>(resultSets[1].Rows.Count);
+		foreach (var row in resultSets[1].Rows)
+		{
+			if (!TryEdgeRow(row, out var edge))
+			{
+				return null;
+			}
+
+			edges.Add(edge);
+		}
+
+		var preview = new List<PluralMapPreviewRow>(resultSets[2].Rows.Count);
+		foreach (var row in resultSets[2].Rows)
+		{
+			if (!TryPreviewRow(row, out var previewRow))
+			{
+				return null;
+			}
+
+			preview.Add(previewRow);
+		}
+
+		return new WorkspaceRenderOutput(nodeCounts, edges, DerivePreview(preview));
+	}
+
 	internal static IReadOnlyList<PluralMapPreviewRow> DerivePreview(
 		IReadOnlyList<PluralMapPreviewRow> rows)
 	{
@@ -268,15 +330,22 @@ internal static class PluralMapReader
 		return named;
 	}
 
+	/// <summary>Reads system, group, and place names for the anchors in the preview.</summary>
+	/// <param name="connection">The connection that owns the opening transaction, or the plural-map connection.</param>
+	/// <param name="rows">The derived preview rows.</param>
+	/// <param name="cancellationToken">Cancels the name reads.</param>
+	/// <param name="transaction">The open snapshot transaction. The plural-map route leaves it unset.</param>
+	/// <returns>Names keyed by anchor type and id. A missing name is null.</returns>
 	internal static async Task<IReadOnlyDictionary<AnchorNameKey, string?>> ReadAnchorNamesAsync(
 		SqlConnection connection,
 		IReadOnlyList<PluralMapPreviewRow> rows,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		SqlTransaction? transaction = null)
 	{
 		var names = new Dictionary<AnchorNameKey, string?>();
-		await ReadAnchorNameBatchAsync(connection, rows, "system", names, cancellationToken);
-		await ReadAnchorNameBatchAsync(connection, rows, "group", names, cancellationToken);
-		await ReadAnchorNameBatchAsync(connection, rows, "place", names, cancellationToken);
+		await ReadAnchorNameBatchAsync(connection, rows, "system", names, cancellationToken, transaction);
+		await ReadAnchorNameBatchAsync(connection, rows, "group", names, cancellationToken, transaction);
+		await ReadAnchorNameBatchAsync(connection, rows, "place", names, cancellationToken, transaction);
 		return names;
 	}
 
@@ -285,7 +354,8 @@ internal static class PluralMapReader
 		IReadOnlyList<PluralMapPreviewRow> rows,
 		string objectType,
 		Dictionary<AnchorNameKey, string?> names,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		SqlTransaction? transaction)
 	{
 		var ids = rows
 			.Where(row => string.Equals(row.ObjectType, objectType, StringComparison.Ordinal) && row.ObjectId is Guid)
@@ -311,6 +381,7 @@ internal static class PluralMapReader
 		{
 			var count = Math.Min(batchSize, ids.Length - offset);
 			await using var command = connection.CreateCommand();
+			command.Transaction = transaction;
 			var parameterNames = new string[count];
 			for (var index = 0; index < count; index++)
 			{

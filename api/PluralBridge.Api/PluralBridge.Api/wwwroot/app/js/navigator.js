@@ -1,5 +1,6 @@
 /**
  * Plural-map navigator. Loads /api/me/plural-map, draws the occurrence tree, and loads anchor member profiles for the selected anchor.
+ * When developerTools.workspaceTreeEnabled is strictly true, the same view loads /api/me/workspace-tree, keeps that context id, and does not request profiles or avatars. The developer-tools initializer sets that flag to true when it is absent. Strict false keeps the plural-map path.
  * Depends on window.PluralBridge.apiClient, window.PluralBridge.members, window.PluralBridge.memberChanges, and createMemberAccordion.
  * A newer selection aborts the previous profile request. A response is painted only when its generation and selected path still match.
  */
@@ -11,6 +12,7 @@ window.PluralBridge = window.PluralBridge || {};
  */
 window.PluralBridge.navigator = (function () {
     const pluralMapEndpoint = "/api/me/plural-map";
+    const workspaceTreeEndpoint = "/api/me/workspace-tree";
     const anchorTypes = {
         system: true,
         group: true,
@@ -28,6 +30,8 @@ window.PluralBridge.navigator = (function () {
     let heldExpansion = null;
     let heldAccountId = null;
     let selectedPathKey = null;
+    // Opaque server context id for this view. Cleared before release on clear, path switch, and sign-out.
+    let contextId = null;
 
     /**
      * Reports whether a row is a top-level system, group, or place anchor.
@@ -93,7 +97,22 @@ window.PluralBridge.navigator = (function () {
      * @param {object} payload Plural-map response. A missing context or account id returns an empty string.
      * @returns {string} The lower-case account id, or an empty string.
      */
+    /**
+     * Reports whether the developer flag selects the new tree path.
+     * @returns {boolean} True only when workspaceTreeEnabled is strictly true.
+     */
+    function workspaceTreeEnabled() {
+        const tools = window.PluralBridge && window.PluralBridge.developerTools
+            ? window.PluralBridge.developerTools
+            : null;
+        return Boolean(tools && tools.workspaceTreeEnabled === true);
+    }
+
     function mapAccountId(payload) {
+        if (payload && payload.accountId) {
+            return String(payload.accountId).toLowerCase();
+        }
+
         const context = payload && Array.isArray(payload.context) ? payload.context : [];
         const row = context.length > 0 ? context[0] : null;
         if (!row || !row.accountId) {
@@ -1117,6 +1136,11 @@ window.PluralBridge.navigator = (function () {
             selectionGeneration += 1;
             selectedPathKey = row.pathKey;
             renderTree();
+            if (workspaceTreeEnabled()) {
+                clearDetail();
+                return;
+            }
+
             loadAnchorProfiles(row);
         };
         const changes = window.PluralBridge && window.PluralBridge.memberChanges;
@@ -1129,19 +1153,63 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
+     * Asks the server to drop one context. A repeated or rejected release does not throw to the caller.
+     * @param {string} id The context id to release.
+     * @returns {Promise<void>} Resolves when the request finishes or fails.
+     */
+    function releaseContext(id) {
+        if (!id) {
+            return Promise.resolve();
+        }
+
+        return fetch(workspaceTreeEndpoint + "/" + encodeURIComponent(id), {
+            method: "DELETE",
+            credentials: "same-origin"
+        }).then(function () {
+            return undefined;
+        }, function () {
+            return undefined;
+        });
+    }
+
+    /**
+     * Shows an error in the detail pane without clearing the tree.
+     * @param {string} text The error text.
+     * @returns {void}
+     */
+    function showDetailError(text) {
+        clearDetail();
+        if (!detail) {
+            return;
+        }
+
+        const status = document.createElement("p");
+        status.className = "navigator-status navigator-status-error";
+        status.textContent = text;
+        detail.appendChild(status);
+    }
+
+    /**
      * Drops the current map, cancels the active request, and clears the tree and detail.
+     * A held context id is released without blocking the clear.
      * @returns {void}
      */
     function clear() {
         selectionGeneration += 1;
         beginRequest();
         activeController = null;
+        const previousContextId = contextId;
+        contextId = null;
         rows = [];
         selectedPathKey = null;
         clearDetail();
 
         if (tree) {
             tree.replaceChildren();
+        }
+
+        if (previousContextId) {
+            releaseContext(previousContextId);
         }
     }
 
@@ -1155,10 +1223,61 @@ window.PluralBridge.navigator = (function () {
         selectionGeneration += 1;
         tree = containers && containers.tree ? containers.tree : null;
         detail = containers && containers.detail ? containers.detail : null;
+        const previousContextId = contextId;
+        rows = [];
+        selectedPathKey = null;
+        contextId = null;
+        clearDetail();
+        if (previousContextId) {
+            releaseContext(previousContextId);
+        }
+
+        startLoad(false);
+    }
+
+    /**
+     * Reloads the current path. A workspace replacement keeps the previous tree when the new load fails.
+     * @returns {void}
+     */
+    function refresh() {
+        startLoad(workspaceTreeEnabled() && rows.length > 0 && !!contextId);
+    }
+
+    /**
+     * Clears this view and loads whichever path the developer flag now selects.
+     * The previous path is not used to fill a failed load.
+     * @returns {void}
+     */
+    function applyWorkspacePath() {
+        const previousContextId = contextId;
+        selectionGeneration += 1;
+        contextId = null;
         rows = [];
         selectedPathKey = null;
         clearDetail();
+        if (previousContextId) {
+            releaseContext(previousContextId);
+        }
 
+        startLoad(false);
+    }
+
+    /**
+     * Releases the context held by this view while the session is still authenticated.
+     * @returns {Promise<void>} Resolves after the release attempt, including when it fails.
+     */
+    function releaseWorkspaceContext() {
+        const previousContextId = contextId;
+        contextId = null;
+        return releaseContext(previousContextId);
+    }
+
+    /**
+     * Starts one tree load. The captured mode and generation decide whether a response may paint.
+     * @param {boolean} replacing True when a failed workspace load must keep the current tree and context.
+     * @returns {void}
+     */
+    function startLoad(replacing) {
         if (!tree || !detail) {
             beginRequest();
             activeController = null;
@@ -1166,9 +1285,13 @@ window.PluralBridge.navigator = (function () {
         }
 
         const request = beginRequest();
-        renderStatus("Loading plural map.");
+        request.workspaceMode = workspaceTreeEnabled();
+        request.replacing = replacing === true;
+        if (!request.replacing) {
+            renderStatus(request.workspaceMode ? "Loading workspace tree." : "Loading plural map.");
+        }
 
-        fetch(pluralMapEndpoint, {
+        fetch(request.workspaceMode ? workspaceTreeEndpoint : pluralMapEndpoint, {
             headers: {
                 Accept: "application/json"
             },
@@ -1176,35 +1299,44 @@ window.PluralBridge.navigator = (function () {
             signal: request.signal
         })
             /**
-             * Rejects a non-OK map response and otherwise parses its JSON.
+             * Rejects a non-OK response and otherwise parses its JSON.
              * @param {Response} response Fetch response.
              * @returns {Promise<object>} The parsed body.
-             * @throws {Error} When the status is not OK. Invalid JSON rejects through response.json.
+             * @throws {Error} When the status is not OK.
              */
             .then(function (response) {
                 if (!response.ok) {
-                    throw new Error("The plural map could not be loaded.");
+                    throw new Error("The tree could not be loaded.");
                 }
 
                 return response.json();
             })
             /**
-             * Stores the hierarchy when this load is still current, expands it, and selects the first top-level anchor.
-             * An empty hierarchy shows a status and does not select an anchor. A missing hierarchyPreview rejects into the following catch.
-             * @param {object} payload Map response.
+             * Stores the hierarchy when this load is still the visible mode and generation.
+             * Workspace mode requires a context id and does not request profiles. A failed check falls through to the catch.
+             * @param {object} payload Map or workspace-tree response.
              * @returns {void}
-             * @throws {Error} When the payload has no hierarchyPreview array.
              */
             .then(function (payload) {
-                if (request.generation !== requestGeneration) {
+                if (!loadIsCurrent(request)) {
                     return;
                 }
 
                 if (!payload || !Array.isArray(payload.hierarchyPreview)) {
-                    throw new Error("The plural map could not be loaded.");
+                    throw new Error("The tree could not be loaded.");
                 }
 
+                if (request.workspaceMode && !payload.contextId) {
+                    throw new Error("The tree could not be loaded.");
+                }
+
+                const previousContextId = contextId;
                 rows = payload.hierarchyPreview;
+                contextId = request.workspaceMode ? String(payload.contextId) : null;
+                if (previousContextId && previousContextId !== contextId) {
+                    releaseContext(previousContextId);
+                }
+
                 initializeExpansionForAccount(mapAccountId(payload), rows);
                 if (rows.length === 0) {
                     selectedPathKey = null;
@@ -1221,8 +1353,8 @@ window.PluralBridge.navigator = (function () {
                 }
             })
             /**
-             * Ignores an abort or a stale map load. Any other failure clears the rows and shows the load error.
-             * @param {*} error Rejection from the map request.
+             * Ignores an abort or a stale load. A replacement failure keeps the previous tree and context.
+             * @param {*} error Rejection from the tree request.
              * @returns {void}
              */
             .catch(function (error) {
@@ -1230,20 +1362,38 @@ window.PluralBridge.navigator = (function () {
                     return;
                 }
 
-                if (request.generation !== requestGeneration) {
+                if (!loadIsCurrent(request)) {
+                    return;
+                }
+
+                if (request.replacing) {
+                    showDetailError("The workspace tree could not be replaced. The previous tree is still shown.");
                     return;
                 }
 
                 rows = [];
                 selectedPathKey = null;
+                contextId = null;
                 clearDetail();
-                renderStatus("The plural map could not be loaded.", true);
+                renderStatus(request.workspaceMode ? "The workspace tree could not be loaded." : "The plural map could not be loaded.", true);
             });
+    }
+
+    /**
+     * Reports whether a tree response still belongs to the visible generation and path mode.
+     * @param {{generation: number, workspaceMode: boolean}} request The load that produced the response.
+     * @returns {boolean} True when both the generation and the developer flag still match.
+     */
+    function loadIsCurrent(request) {
+        return request.generation === requestGeneration && request.workspaceMode === workspaceTreeEnabled();
     }
 
     return {
         mount: mount,
         clear: clear,
+        refresh: refresh,
+        applyWorkspacePath: applyWorkspacePath,
+        releaseWorkspaceContext: releaseWorkspaceContext,
         getAccountId: getAccountId,
         getMapSnapshot: getMapSnapshot,
         toggleAllExpansion: toggleAllExpansion,

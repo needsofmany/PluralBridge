@@ -73,9 +73,13 @@ namespace PluralBridge.Api.Controllers
 		/// <param name="connection">The current database connection.</param>
 		/// <param name="accountId">The account identifier.</param>
 		/// <returns>The matching account record, or null when no account is found.</returns>
+		/// <param name="cancellationToken">Cancels the account read. The default does not cancel.</param>
+		/// <param name="transaction">The snapshot transaction for an opening build. Existing callers leave it unset.</param>
 		internal static async Task<Account?> ReadAccountByIdAsync(
 			SqlConnection connection,
-			Guid accountId)
+			Guid accountId,
+			CancellationToken cancellationToken = default,
+			SqlTransaction? transaction = null)
 		{
 			const string sql = """
 			                   SELECT TOP (1)
@@ -95,12 +99,14 @@ namespace PluralBridge.Api.Controllers
 			                   WHERE a.AccountId = @AccountId;
 			                   """;
 
-			await using SqlCommand command = new(sql, connection);
+			await using SqlCommand command = transaction == null
+				? new SqlCommand(sql, connection)
+				: new SqlCommand(sql, connection, transaction);
 			command.Parameters.AddWithValue("@AccountId", accountId);
 
-			await using var reader = await command.ExecuteReaderAsync();
+			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-			if (!await reader.ReadAsync())
+			if (!await reader.ReadAsync(cancellationToken))
 			{
 				return null;
 			}
@@ -483,9 +489,13 @@ namespace PluralBridge.Api.Controllers
 		/// <param name="connection">The current database connection.</param>
 		/// <param name="user">The authenticated principal for the current request.</param>
 		/// <returns>The authenticated account, or null when the account identifier is absent, malformed, or unknown.</returns>
+		/// <param name="cancellationToken">Cancels the account read.</param>
+		/// <param name="transaction">The snapshot transaction for an opening build. Existing callers leave it unset.</param>
 		internal static async Task<Account?> ResolveCurrentAccountAsync(
 			SqlConnection connection,
-			ClaimsPrincipal user)
+			ClaimsPrincipal user,
+			CancellationToken cancellationToken = default,
+			SqlTransaction? transaction = null)
 		{
 			var accountIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -494,7 +504,7 @@ namespace PluralBridge.Api.Controllers
 				return null;
 			}
 
-			return await ReadAccountByIdAsync(connection, accountId);
+			return await ReadAccountByIdAsync(connection, accountId, cancellationToken, transaction);
 		}
 
 		/// <summary>

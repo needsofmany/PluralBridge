@@ -3,8 +3,10 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
 using PluralBridge.Api;
 using PluralBridge.Api.Account;
+using PluralBridge.Api.Workspace;
 using Serilog;
 using Serilog.Events;
 using System.Security.Claims;
@@ -104,6 +106,17 @@ else
 }
 
 builder.Services.AddScoped<IAccountService, AccountService>();
+// The workspace tree is a second opening path. The service constructs its SQL session.
+// Idle timeout and budget come from WorkspaceContext configuration, not from the browser flag.
+builder.Services.AddOptions<WorkspaceContextOptions>()
+	.Bind(builder.Configuration.GetSection(WorkspaceContextOptions.SectionName))
+	.ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<WorkspaceContextOptions>, WorkspaceContextOptionsValidator>();
+builder.Services.AddSingleton<IWorkspaceClock, SystemWorkspaceClock>();
+builder.Services.AddSingleton<IWorkspaceContextSettings, OptionsWorkspaceContextSettings>();
+builder.Services.AddSingleton<WorkspaceContextStore>();
+builder.Services.AddSingleton<WorkspaceTreeService>();
+builder.Services.AddHostedService<WorkspaceContextCleanupService>();
 
 var app = builder.Build();
 

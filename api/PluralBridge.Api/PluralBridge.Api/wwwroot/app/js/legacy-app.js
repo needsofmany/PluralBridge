@@ -2027,6 +2027,8 @@ function createMembersScreenFrame() {
     const note = document.createElement("p");
     note.className = "output-note";
 
+    // Desktop shows this artwork in the shell header. This copy remains for the phone
+    // layout, where that header is not used.
     const logo = document.createElement("img");
     logo.className = "member-brand-logo";
     logo.src = "/app/images/pluralbridge-about-logo-smaller.png";
@@ -2899,6 +2901,16 @@ async function logout() {
     : null;
   if (membersApi && typeof membersApi.closeAddMemberDialog === "function") {
     membersApi.closeAddMemberDialog();
+  }
+  const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+    ? window.PluralBridge.navigator
+    : null;
+  if (navigatorView && typeof navigatorView.releaseWorkspaceContext === "function") {
+    try {
+      await navigatorView.releaseWorkspaceContext();
+    } catch (releaseError) {
+      // Sign-out continues when context release fails.
+    }
   }
   clearPluralMapDisplay();
 
