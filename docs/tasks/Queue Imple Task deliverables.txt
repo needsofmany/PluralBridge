@@ -1,0 +1,38 @@
+Yes. **Each task should deliver one working piece of functionality, leave the existing system usable, and end with verification and a commit.** The number of tasks follows from the work.
+
+I’d organize the work in these broad stages, defining individual tasks as we reach them:
+
+1.  **Establish database change tracking.**  
+    Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
+
+2.  **Make recorded changes usable.**  
+    Add revision checks and deferred processing incrementally. Verify that concurrent transactions cannot lose changes. Restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not  automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected here.
+
+3.  **Establish the parallel workspace foundation.**  
+    Add the developer switch and the new model. Verify that the existing path remains operational and switching resets state correctly.
+   
+3B. **concurrency and flood-testing work** (added)
+    Verify the in-memory messaging core with concurrency and flood tests covering TTL boundaries, duplicate and out-of-order completion reports, obligation registration races, poisoning, and accounting integrity under load. Keep this work isolated from application and database integration, then review the results and commit the verified tests before beginning Task 4.
+	
+4.  **Load the tree and establish its server context.**  
+    Deliver the new opening load, verify tree and authorization parity, then connect database freshness checks to the retained context.
+
+5.  **Load member details incrementally.**  
+    Add batch retrieval, then connect current selection, scrolling, and retained member information. Verify shared member identity and placement-specific state.
+
+6.  **Load images independently.**  
+    Add batch retrieval and the retained image collection, followed by replacement, deletion, and unused-image cleanup.
+
+7.  **Complete integration and acceptance.**  
+    Connect saves, immediate fronting, refresh, navigation, and session cleanup. Compare both paths for correctness, concurrency, and performance.
+
+Those are stages of work. **Before each individual task, we agree on its outcome, verification, and recovery path.** Cursor prepares that task; we review it; you apply and verify it; then you commit before we begin the next task.
+
+Standing commenting requirement: all code Cursor creates or modifies, including C#, JavaScript, and CSS, receives comments in the same way as the surrounding repository files. File headers stay the copyright and SPDX lines. C# types and methods use XML documentation for purpose, parameters, results, validation, and the invariants that are not obvious from the code. Comments explain intent. They do not restate every statement. This requirement applies to later tasks.
+
+For database changes, the checkpoint includes the migration script and an appropriate recovery method. Git preserves the script; database recovery must also be accounted for.
+
+Task 1, below, records the change-tracking investigation. Inventory is complete. 
+Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. Database implementation is not authorized. 
+Task 3, at the end of this file, is the isolated in-memory messaging core. Its checkpoint is commit 8801ca8. 
+Task 3B, after that section, is the concurrency and flood verification. The first owner run failed on a test-setup omission. The correction awaits verification. Checkpoint pending.
