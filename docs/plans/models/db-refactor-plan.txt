@@ -2,34 +2,42 @@ Yes. **Each task should deliver one working piece of functionality, leave the ex
 
 I’d organize the work in these broad stages, defining individual tasks as we reach them:
 
-1. **Establish database change tracking.**  
-   Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
+1.  **Establish database change tracking.**  
+    Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
 
-2. **Make recorded changes usable.**  
-   Add revision checks and deferred processing incrementally. Verify that concurrent transactions cannot lose changes. Restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected here.
+2.  **Make recorded changes usable.**  
+    Add revision checks and deferred processing incrementally. Verify that concurrent transactions cannot lose changes. Restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not  automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected here.
 
-3. **Establish the parallel workspace foundation.**  
-   Add the developer switch and the new model. Verify that the existing path remains operational and switching resets state correctly.
+3.  **Establish the parallel workspace foundation.**  
+    Add the developer switch and the new model. Verify that the existing path remains operational and switching resets state correctly.
+   
+3B. **concurrency and flood-testing work** (added)
+    Verify the in-memory messaging core with concurrency and flood tests covering TTL boundaries, duplicate and out-of-order completion reports, obligation registration races, poisoning, and accounting integrity under load. Keep this work isolated from application and database integration, then review the results and commit the verified tests before beginning Task 4.
+	
+4.  **Load the tree and establish its server context.**  
+    Deliver the new opening load, verify tree and authorization parity, then connect database freshness checks to the retained context.
 
-4. **Load the tree and establish its server context.**  
-   Deliver the new opening load, verify tree and authorization parity, then connect database freshness checks to the retained context.
+5.  **Load member details incrementally.**  
+    Add batch retrieval, then connect current selection, scrolling, and retained member information. Verify shared member identity and placement-specific state.
 
-5. **Load member details incrementally.**  
-   Add batch retrieval, then connect current selection, scrolling, and retained member information. Verify shared member identity and placement-specific state.
+6.  **Load images independently.**  
+    Add batch retrieval and the retained image collection, followed by replacement, deletion, and unused-image cleanup.
 
-6. **Load images independently.**  
-   Add batch retrieval and the retained image collection, followed by replacement, deletion, and unused-image cleanup.
-
-7. **Complete integration and acceptance.**  
-   Connect saves, immediate fronting, refresh, navigation, and session cleanup. Compare both paths for correctness, concurrency, and performance.
+7.  **Complete integration and acceptance.**  
+    Connect saves, immediate fronting, refresh, navigation, and session cleanup. Compare both paths for correctness, concurrency, and performance.
 
 Those are stages of work. **Before each individual task, we agree on its outcome, verification, and recovery path.** Cursor prepares that task; we review it; you apply and verify it; then you commit before we begin the next task.
 
 Standing commenting requirement: all code Cursor creates or modifies, including C#, JavaScript, and CSS, receives comments in the same way as the surrounding repository files. File headers stay the copyright and SPDX lines. C# types and methods use XML documentation for purpose, parameters, results, validation, and the invariants that are not obvious from the code. Comments explain intent. They do not restate every statement. This requirement applies to later tasks.
 
+Standing end-of-task requirement: before a task is checkpointed, review every outstanding C#, JavaScript, and CSS file created or modified for that task. Complete their commenting before the checkpoint, including files from earlier passes that still lack the required documentation. The review does not change executable behavior.
+
 For database changes, the checkpoint includes the migration script and an appropriate recovery method. Git preserves the script; database recovery must also be accounted for.
 
-Task 1, below, records the change-tracking investigation. Inventory is complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. Database implementation is not authorized. Task 3, at the end of this file, is the isolated in-memory messaging core. Its focused verification passed and its checkpoint is still pending.
+Task 1, below, records the change-tracking investigation. Inventory is complete. 
+Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. Database implementation is not authorized. 
+Task 3, at the end of this file, is the isolated in-memory messaging core. Its checkpoint is commit 8801ca8. 
+Task 3B, after that section, is the concurrency and flood verification. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings. The commenting review is recorded there. Checkpoint pending.
 
 ---
 
@@ -42,6 +50,8 @@ Shared server-side graph and access context is approved. A retained context does
 The messaging pattern is governed by:
 
 D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Messaging Pattern — Governing Rules.txt
+
+---
 
 Task 2 records those rules. The list below matches the reconciled queue model. Earlier wording that the generic TTL start was undecided, that workers must not touch completion counters, and that accounting must not depend on FIFO with no exception is superseded.
 
@@ -382,7 +392,7 @@ Items 1, 2, 3, 4, 7, 8, 9, and 10 are resolved by the authorized clarifications.
 
 # Task 3 — In-memory messaging core
 
-Status: checkpoint pending. The project owner’s focused verification passed: 17 tests, zero failures, zero skipped, and no build warnings. A commenting review of the messaging files is prepared and is part of this paused checkpoint. Flood testing has not started.
+Status: checkpoint confirmed at commit 8801ca8. The project owner’s focused verification passed: 17 tests, zero failures, zero skipped, and no build warnings. The commenting review is included in that commit. Flood verification is Task 3B.
 
 Scope: an isolated in-memory messaging core and focused tests. This is the first implementation of lifecycle and accounting behavior. Database durability, application integration, controllers, workspace behavior, triggers, and startup registration are not part of this slice.
 
@@ -402,9 +412,7 @@ Commenting review, prepared while the checkpoint is paused. Executable behavior 
 
 ## Follow-up — concurrency and flood testing
 
-Not started. Flood testing stays deferred until this checkpoint is complete. The commenting review does not authorize it.
-
-The follow-up covers TTL boundaries, duplicate and out-of-order reports, registration/completion/expiration races, poisoning, and accounting integrity under load. It does not add application integration, lifecycle publication, database work, or a resolution of the deferred adapter and bounded-feedback contracts.
+This follow-up is Task 3B. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings. The commenting review is recorded there, and the checkpoint is still pending. It is not part of commit 8801ca8. It does not add application integration, lifecycle publication, database work, or a resolution of the deferred adapter and bounded-feedback contracts.
 
 Recovery: revert only this slice. Remove the four production files and the test file listed below, and remove this Task 3 section from this plan. Do not revert Task 1, Task 2, or unrelated files.
 
@@ -424,4 +432,45 @@ Verification, to be run by the project owner from the repository root:
 That command builds the test project and its API reference. The API project already contains a browser-app sync target, so the build can copy browser assets. This slice does not change that target.
 
 The deferred contracts remain deferred. The database-adapter transaction and publication-failure contract is not written. The bounded lifecycle-reporting policy is not designed. No message envelope created by this slice is exempt from TTL. No implementation beyond this isolated core is authorized.
+
+---
+
+# Task 3B — Concurrency and flood verification
+
+Status: commenting review complete. Checkpoint pending.
+
+The first owner run was 31 tests, 30 passed, one failed, zero skipped. Both projects compiled. `RejectedAndLateReports_DoNotChangeUnrelatedAccounting` expected `Completed` and observed a null terminal value because the test discharged `added` and left `keep` outstanding. The correction completes `keep` with its own report, then `added`, while the manual clock is still zero.
+
+The owner’s verification after that correction passed: 31 tests, zero failures, zero skipped, and no build warnings.
+
+Commenting review, before the checkpoint. Executable behavior and assertions were not changed. `InMemoryMessagingCoreConcurrencyTests.cs` is the only code file this task created. Its comments now cover each test, the helpers, the shared start signal, the manual clock, the workload sizes, the hang watchdogs, the ledger invariants, and the legal race outcomes. Production messaging files were not modified for this task.
+
+Baseline: Task 3 checkpoint commit 8801ca8 is confirmed. That commit’s focused verification passed: 17 tests, zero failures, zero skipped, and no build warnings. Those tests stay intact. This task does not change production code, the governing rules, application integration, or database objects.
+
+Scope: concurrency and flood tests for the isolated in-memory core, through its public API. The manual clock arranges TTL. A wall-clock watchdog fails a stuck test. It is test supervision, not message TTL and not a throughput requirement. Eight workers pull indexes. There is not one task per message. Shuffles use seed 8801. Each work message in the flood has two obligations.
+
+The tests cover:
+
+- Concurrent publication and completion of 100, 1,000, and 10,000 work messages, with the clock held steady, mixed success and error results, shuffled completion order, and duplicate submissions. Every accepted obligation discharges at most once, the accepted result stays on that identity, each parent is Completed once, and none are Poisoned.
+- Concurrent duplicate work identities and, separately, duplicate completion-report identities. Exactly one publication of each identity is accepted. A rejected duplicate does not replace payload, TTL, send instant, or the accepted result.
+- Work and completion-report TTL one tick before expiration, exactly at expiration, and after expiration. Elapsed time greater than or equal to TTL is expired. An expired report does not discharge active work. Expired unfinished work is Poisoned once and is not Completed.
+- Controlled registration-before-completion and completion-before-registration. Repeated races among final completion, additional registration, and expiration, plus concurrent supervision. The assertion accepts whichever legal outcome the race produced: an accepted extra obligation is present, a rejected registration adds nothing, Completed means every accepted obligation is discharged, Poisoned means each accepted obligation is discharged or retired, and exactly one terminal outcome exists. Later calls do not revive the parent. Repeating the race does not prove every interleaving.
+- A mixed workload: some messages are completed, some are left unfinished and then expired, and fresh work is published and completed while supervision runs and again afterward. A pass shows progress for this workload. It does not show zero deadlocks or unlimited throughput.
+- Unknown targets, unknown obligations, repeated acceptance of a consumed report, and reports after completion or poison. Rejection does not change unrelated accounting. Unknown-target and unknown-obligation rejection consumes that report identity. A new report identity can discharge once the active obligation exists. Every report keeps its own TTL.
+- Evidence is read at phase boundaries, not inside the publish or accept loops. Settlement checks unique identities, exactly-once discharge, one terminal outcome, preserved error results, and unchanged TTL and send instants against a ledger the test recorded when each publication was accepted.
+
+Files:
+
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Messaging\InMemoryMessagingCoreConcurrencyTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
+
+Verification, to be run by the project owner from the repository root with the API stopped:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter "FullyQualifiedName~InMemoryMessagingCoreTests|FullyQualifiedName~InMemoryMessagingCoreConcurrencyTests"`
+
+That command builds the test project and its API reference. The API project already contains a browser-app sync target, so the build can copy browser assets. This task does not change that target.
+
+Limitations: database-adapter transaction coupling and bounded lifecycle publication stay deferred. Lifecycle observations are still not published back into the core. Scheduler-dependent repetitions are not an exhaustive interleaving proof.
+
+Recovery: remove `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Messaging\InMemoryMessagingCoreConcurrencyTests.cs` and remove this Task 3B section. Do not remove the Task 3 checkpoint or its files.
 
