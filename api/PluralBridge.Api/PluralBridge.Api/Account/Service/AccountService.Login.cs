@@ -1,12 +1,15 @@
 // Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-using Microsoft.Data.SqlClient;
-
 namespace PluralBridge.Api.Account;
 
 public sealed partial class AccountService
 {
+	/// <summary>
+	/// Checks one account's password. Unknown identifiers, ambiguous identifiers, and failed passwords share the invalid-credentials result.
+	/// One ineligible account keeps the unavailable result. A successful result is the only result that records last login.
+	/// The controller and the browser login post issue a session only from that successful result.
+	/// </summary>
 	public async Task<AccountServiceResult<LoginResponse>> LoginAsync(
 		LoginRequest request,
 		CancellationToken cancellationToken)
@@ -34,14 +37,8 @@ public sealed partial class AccountService
 
 		var normalizedIdentifier = AccountText.NormalizeEmail(request.UsernameOrEmail);
 
-		// The repository handles either username or email lookup using the normalized identifier.
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync(cancellationToken);
-
-		var account = await AccountRepository.ReadLoginAccountAsync(
-			connection,
-			normalizedIdentifier,
-			cancellationToken);
+		// Null covers an unknown identifier and an identifier that matches more than one account.
+		var account = await _credentials.ReadLoginAccountAsync(normalizedIdentifier, cancellationToken);
 
 		if (account is null)
 		{
@@ -101,10 +98,7 @@ public sealed partial class AccountService
 				Globals.accountLoginCouldNotBeCompleted);
 		}
 
-		await AccountRepository.UpdateLastLoginAsync(
-			connection,
-			account.AccountId,
-			cancellationToken);
+		await _credentials.RecordSuccessfulLoginAsync(account.AccountId, cancellationToken);
 
 		var accountResponse = new AccountResponse(
 			account.AccountId,

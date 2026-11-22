@@ -7,6 +7,10 @@ namespace PluralBridge.Api.Account;
 
 public sealed partial class AccountService
 {
+	/// <summary>
+	/// Requests a reset code for one active, verified account. Unknown, ineligible, and ambiguous identifiers get the same accepted response and no mail.
+	/// The code is stored before delivery. This method does not change a password or issue a session.
+	/// </summary>
 	public async Task<AccountServiceResult<AccountOperationResponse>> ForgotPasswordAsync(
 		ForgotPasswordRequest request,
 		CancellationToken cancellationToken)
@@ -32,14 +36,7 @@ public sealed partial class AccountService
 		}
 
 		var normalizedIdentifier = AccountText.NormalizeEmail(request.UsernameOrEmail);
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync(cancellationToken);
-
-		var account = await AccountRepository.ReadPasswordResetAccountAsync(
-			connection,
-			normalizedIdentifier,
-			cancellationToken);
+		var account = await _credentials.ReadPasswordResetAccountAsync(normalizedIdentifier, cancellationToken);
 
 		if (account is null)
 		{
@@ -66,8 +63,7 @@ public sealed partial class AccountService
 		var resetHash = _passwordHasher.HashPassword(resetCode);
 
 		// The reset code is scoped to the account's verified normalized email, not arbitrary request text.
-		await AccountCodeService.InsertPasswordResetCodeAsync(
-			connection,
+		await _credentials.IssuePasswordResetCodeAsync(
 			account.AccountId,
 			account.NormalizedEmail,
 			resetHash,

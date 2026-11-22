@@ -33,6 +33,10 @@ public interface IAccountCodeDelivery
 		CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Development delivery writes the code to the outbox table. It does not compose an expiry sentence.
+/// The ten-minute and fifteen-minute wording belongs to the email body builders.
+/// </summary>
 public sealed class DevelopmentAccountCodeDelivery(IConfiguration configuration) : IAccountCodeDelivery
 {
 	private readonly string _connectionString = configuration.GetConnectionString(AccountConfigurationKeys.ConnectionStringName)
@@ -83,6 +87,7 @@ public sealed class DevelopmentAccountCodeDelivery(IConfiguration configuration)
 	}
 }
 
+/// <summary>Delivery substitute that accepts the command and sends nothing, including no expiry sentence.</summary>
 public sealed class DisabledAccountCodeDelivery : IAccountCodeDelivery
 {
 	public Task DeliverAsync(

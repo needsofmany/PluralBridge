@@ -180,7 +180,8 @@ internal static class AccountCodeService
 			AccountCodePurposes.PasswordReset,
 			destinationNormalized,
 			resetHash,
-			correlationId);
+			correlationId,
+			AccountCodeLifetimes.MinutesFor(AccountCodePurposes.PasswordReset));
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
@@ -228,7 +229,8 @@ internal static class AccountCodeService
 			AccountCodePurposes.UsernameRecovery,
 			normalizedEmail,
 			recoveryHash,
-			correlationId);
+			correlationId,
+			AccountCodeLifetimes.MinutesFor(AccountCodePurposes.UsernameRecovery));
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
@@ -276,7 +278,8 @@ internal static class AccountCodeService
 			AccountCodePurposes.ContactVerification,
 			destinationNormalized,
 			verificationHash,
-			correlationId);
+			correlationId,
+			AccountCodeLifetimes.MinutesFor(AccountCodePurposes.ContactVerification));
 
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
@@ -328,7 +331,8 @@ internal static class AccountCodeService
 			AccountCodePurposes.RegistrationVerification,
 			normalizedEmail,
 			verificationHash,
-			correlationId);
+			correlationId,
+			AccountCodeLifetimes.MinutesFor(AccountCodePurposes.RegistrationVerification));
 
 		// The registration path needs the inserted id and expiry for SafeDetailJson.
 		// OUTPUT gives us the database-assigned values without a second lookup.
@@ -378,16 +382,19 @@ internal static class AccountCodeService
 		return await ReadCodeRecordAsync(reader, cancellationToken);
 	}
 
+	/// <summary>
+	/// Binds one code insert. Registration verification passes its own lifetime. Every other purpose keeps the shared lifetime.
+	/// </summary>
+	// expirationMinutes is chosen by purpose. Registration verification passes ten. The other purposes pass fifteen.
 	private static void AddCodeInsertParameters(
 		SqlCommand command,
 		Guid accountId,
 		string codePurpose,
 		string destinationNormalized,
 		PasswordHashResult codeHash,
-		string correlationId)
+		string correlationId,
+		int expirationMinutes)
 	{
-		// All code insert paths share the same destination type and expiry policy.
-		// The purpose decides which workflow will later be allowed to consume the row.
 		command.Parameters.AddWithValue(Globals.sqlParameterAccountId, accountId);
 		AddCodePurposeParameter(command, codePurpose);
 		AddDestinationTypeParameter(command);
@@ -395,7 +402,7 @@ internal static class AccountCodeService
 		command.Parameters.AddWithValue(Globals.sqlParameterCodeHash, codeHash.PasswordHash);
 		command.Parameters.AddWithValue(Globals.sqlParameterCodeHashAlgorithm, codeHash.Algorithm);
 		command.Parameters.AddWithValue(Globals.sqlParameterCodeHashVersion, codeHash.Version);
-		command.Parameters.AddWithValue(Globals.sqlParameterExpirationMinutes, Globals.accountCodeExpirationMinutes);
+		command.Parameters.AddWithValue(Globals.sqlParameterExpirationMinutes, expirationMinutes);
 		command.Parameters.AddWithValue(Globals.sqlParameterCorrelationId, correlationId);
 	}
 

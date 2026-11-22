@@ -294,6 +294,17 @@ app.MapGet(Globals.browserLoginRoute, () =>
 	return Results.File(path, "text/html");
 });
 
+// Registration is an auth page, not an app/src asset. The API register route stays under /api/account/register.
+app.MapGet(Globals.browserRegisterRoute, () =>
+{
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"register.html");
+
+	return Results.File(path, "text/html");
+});
+
 app.MapGet($"/{Globals.forgotUsernameEndpointSegment}", () =>
 {
 	var path = Path.Combine(
@@ -362,6 +373,7 @@ app.MapPost(Globals.browserLoginRoute, async (
 
 	var usernameOrEmail = form[Globals.browserLoginUserNameField].FirstOrDefault() ?? string.Empty;
 	var password = form[Globals.browserLoginPasswordField].FirstOrDefault() ?? string.Empty;
+	var requestedReturn = form[Globals.browserLoginReturnField].FirstOrDefault();
 
 	var result = await accountService.LoginAsync(
 		new LoginRequest(
@@ -375,7 +387,14 @@ app.MapPost(Globals.browserLoginRoute, async (
 			Value: { Account: not null } loginResponse
 		})
 	{
-		return Results.Redirect($"{Globals.browserLoginRoute}?error=1");
+		// A failed password returns to identity entry. A local return path is kept; an external one is dropped.
+		var failureLocation = $"{Globals.browserLoginRoute}?error=1";
+		if (AuthReturnDestination.IsLocal(requestedReturn))
+		{
+			failureLocation += "&ReturnUrl=" + Uri.EscapeDataString(requestedReturn!.Trim());
+		}
+
+		return Results.Redirect(failureLocation);
 	}
 
 	var claims = new List<Claim>
@@ -398,7 +417,7 @@ app.MapPost(Globals.browserLoginRoute, async (
 		CookieAuthenticationDefaults.AuthenticationScheme,
 		principal);
 
-	return Results.Redirect(Globals.browserAppRoute);
+	return Results.Redirect(AuthReturnDestination.OrApp(requestedReturn));
 });
 
 // add logout endpoint

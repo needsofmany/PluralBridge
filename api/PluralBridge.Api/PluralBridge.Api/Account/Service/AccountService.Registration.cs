@@ -8,6 +8,10 @@ namespace PluralBridge.Api.Account;
 
 public sealed partial class AccountService
 {
+	/// <summary>
+	/// Creates a pending account, stores the password hash, and issues the registration code in one transaction.
+	/// Mail is sent after that transaction commits. This method does not sign the caller in.
+	/// </summary>
 	public async Task<AccountServiceResult<AccountOperationResponse>> RegisterAsync(
 		RegisterAccountRequest request,
 		CancellationToken cancellationToken)
@@ -125,9 +129,10 @@ public sealed partial class AccountService
 
 			if (!registrationCodeDelivered)
 			{
+				// The account and code row stay committed. The message must not say that registration was rolled back.
 				return AccountServiceResult<AccountOperationResponse>.Failed(
 					AccountReasonCodes.DeliveryFailed,
-					Globals.accountRegistrationCouldNotBeCompleted);
+					Globals.accountRegistrationDeliveryFailed);
 			}
 
 			var registrationCreatedDetailJson = CreateRegistrationCreatedAuditDetailJson(
@@ -196,253 +201,6 @@ public sealed partial class AccountService
 		}
 	}
 
-	public async Task<AccountServiceResult<AccountOperationResponse>> VerifyRegistrationAsync(
-		VerifyRegistrationRequest request,
-		CancellationToken cancellationToken)
-	{
-		// Verification gets a new correlation id because it is a separate request from registration.
-		// The account/code row links the verification back to the issued code.
-		var correlationId = Guid.NewGuid().ToString(Globals.guidFormatNoHyphens);
-
-		// Do not disclose whether the email is known or whether a code exists.
-		// SafeDetailJson records which required fields were present.
-		if (!AccountText.HasText(request.Email) || !AccountText.HasText(request.Code))
-		{
-			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-				AccountAuditEvents.RegistrationVerificationRejected,
-				AccountOutcomes.Rejected,
-				AccountReasonCodes.ValidationFailed,
-				null,
-				null,
-				correlationId,
-				Globals.accountOperationRegistrationVerification,
-				JsonSerializer.Serialize(new
-				{
-					emailProvided = AccountText.HasText(request.Email),
-					codeProvided = AccountText.HasText(request.Code)
-				}),
-				cancellationToken);
-
-			return AccountServiceResult<AccountOperationResponse>.Rejected(
-				AccountReasonCodes.ValidationFailed,
-				Globals.accountCodeCouldNotBeAccepted);
-		}
-
-		var normalizedEmail = AccountText.NormalizeEmail(request.Email);
-
-		// The submitted email is the lookup key. A different plus-tagged address selects a different
-		// account/code row, which is exactly what happened during the manual Swagger test.
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync(cancellationToken);
-
-		var codeRecord = await AccountCodeService.ReadLatestRegistrationCodeAsync(
-			connection,
-			normalizedEmail,
-			cancellationToken);
-
-		var nowUtc = DateTime.UtcNow;
-
-		// Null means no registration code exists for this normalized email. We still audit the
-		// submitted lookup key, but never the submitted plaintext code.
-		if (codeRecord is null)
-		{
-			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-				AccountAuditEvents.RegistrationVerificationRejected,
-				AccountOutcomes.Rejected,
-				AccountReasonCodes.InvalidCode,
-				null,
-				null,
-				correlationId,
-				Globals.accountOperationRegistrationVerification,
-				CreateRegistrationVerificationAuditDetailJson(
-					normalizedEmail,
-					null,
-					nowUtc),
-				cancellationToken);
-
-			return AccountServiceResult<AccountOperationResponse>.Rejected(
-				AccountReasonCodes.InvalidCode,
-				Globals.accountCodeCouldNotBeAccepted);
-		}
-
-		var safeDetailJson = CreateRegistrationVerificationAuditDetailJson(
-			normalizedEmail,
-			codeRecord,
-			nowUtc);
-
-		// The checks below run before hash verification. That means an expired/consumed/rate-limited
-		// row can be rejected without revealing whether the submitted code text was correct.
-		if (codeRecord.ConsumedAtUtc is not null)
-		{
-			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-				AccountAuditEvents.CodeRejected,
-				AccountOutcomes.Consumed,
-				AccountReasonCodes.ConsumedCode,
-				codeRecord.AccountId,
-				codeRecord.AccountId,
-				correlationId,
-				Globals.accountOperationRegistrationVerification,
-				safeDetailJson,
-				cancellationToken);
-
-			return AccountServiceResult<AccountOperationResponse>.Rejected(
-				AccountReasonCodes.ConsumedCode,
-				Globals.accountCodeCouldNotBeAccepted);
-		}
-
-		if (codeRecord.ExpiresAtUtc <= nowUtc)
-		{
-			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-				AccountAuditEvents.CodeRejected,
-				AccountOutcomes.Expired,
-				AccountReasonCodes.ExpiredCode,
-				codeRecord.AccountId,
-				codeRecord.AccountId,
-				correlationId,
-				Globals.accountOperationRegistrationVerification,
-				safeDetailJson,
-				cancellationToken);
-
-			return AccountServiceResult<AccountOperationResponse>.Rejected(
-				AccountReasonCodes.ExpiredCode,
-				Globals.accountCodeExpiredOrCouldNotBeAccepted);
-		}
-
-		if (codeRecord.AttemptCount >= codeRecord.MaxAttempts)
-		{
-			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-				AccountAuditEvents.CodeRejected,
-				AccountOutcomes.Blocked,
-				AccountReasonCodes.RateLimited,
-				codeRecord.AccountId,
-				codeRecord.AccountId,
-				correlationId,
-				Globals.accountOperationRegistrationVerification,
-				safeDetailJson,
-				cancellationToken);
-
-			return AccountServiceResult<AccountOperationResponse>.Rejected(
-				AccountReasonCodes.RateLimited,
-				Globals.accountCodeCouldNotBeAccepted);
-		}
-
-		// Verification uses the same password hasher interface because account codes are stored as
-		// salted hashes, not plaintext. Invalid attempts increment the stored attempt counter.
-		var codeAccepted = _passwordHasher.VerifyPassword(
-			request.Code.Trim(),
-			codeRecord.CodeHash,
-			codeRecord.CodeHashAlgorithm,
-			codeRecord.CodeHashVersion);
-
-		if (!codeAccepted)
-		{
-			await AccountCodeService.IncrementCodeAttemptAsync(
-				connection,
-				codeRecord.AccountCodeId,
-				cancellationToken);
-
-			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-				AccountAuditEvents.CodeRejected,
-				AccountOutcomes.Rejected,
-				AccountReasonCodes.InvalidCode,
-				codeRecord.AccountId,
-				codeRecord.AccountId,
-				correlationId,
-				Globals.accountOperationRegistrationVerification,
-				safeDetailJson,
-				cancellationToken);
-
-			return AccountServiceResult<AccountOperationResponse>.Rejected(
-				AccountReasonCodes.InvalidCode,
-				Globals.accountCodeCouldNotBeAccepted);
-		}
-
-		// Once the code is accepted, consuming the code and activating the account must be atomic.
-		// A committed transaction means the code cannot be reused and the account is active together.
-		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
-
-		try
-		{
-			await AccountCodeService.ConsumeCodeAsync(
-				connection,
-				transaction,
-				codeRecord.AccountCodeId,
-				cancellationToken);
-
-			await AccountRepository.ActivateAccountAsync(
-				connection,
-				transaction,
-				codeRecord.AccountId,
-				cancellationToken);
-
-			await transaction.CommitAsync(cancellationToken);
-		}
-		catch
-		{
-			// Storage failure after a correct code keeps the public response generic while preserving
-			// selected code/account detail for operations.
-			await transaction.RollbackAsync(cancellationToken);
-
-			await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-				AccountAuditEvents.RegistrationVerificationRejected,
-				AccountOutcomes.Failed,
-				AccountReasonCodes.StorageFailed,
-				codeRecord.AccountId,
-				codeRecord.AccountId,
-				correlationId,
-				Globals.accountOperationRegistrationVerification,
-				safeDetailJson,
-				cancellationToken);
-
-			return AccountServiceResult<AccountOperationResponse>.Failed(
-				AccountReasonCodes.StorageFailed,
-				Globals.accountRequestCouldNotBeCompleted);
-		}
-
-		// These three audit events intentionally describe the same successful transition from
-		// different operational angles: code accepted, code consumed, registration verified.
-		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-			AccountAuditEvents.CodeAccepted,
-			AccountOutcomes.Succeeded,
-			AccountReasonCodes.None,
-			codeRecord.AccountId,
-			codeRecord.AccountId,
-			correlationId,
-			Globals.accountOperationRegistrationVerification,
-			safeDetailJson,
-			cancellationToken);
-
-		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-			AccountAuditEvents.CodeConsumed,
-			AccountOutcomes.Consumed,
-			AccountReasonCodes.None,
-			codeRecord.AccountId,
-			codeRecord.AccountId,
-			correlationId,
-			Globals.accountOperationRegistrationVerification,
-			safeDetailJson,
-			cancellationToken);
-
-		await AccountInfrastructure.WriteAuditAsync(_auditWriter,
-			AccountAuditEvents.RegistrationVerified,
-			AccountOutcomes.Succeeded,
-			AccountReasonCodes.None,
-			codeRecord.AccountId,
-			codeRecord.AccountId,
-			correlationId,
-			Globals.accountOperationRegistration,
-			safeDetailJson,
-			cancellationToken);
-
-		return AccountServiceResult<AccountOperationResponse>.Success(
-			new AccountOperationResponse(
-				true,
-				AccountOutcomes.Succeeded,
-				AccountReasonCodes.None,
-				Globals.accountRegistrationVerificationCompleted),
-			Globals.accountRegistrationVerificationCompleted);
-	}
-
 	private static bool IsValidRegistrationRequest(RegisterAccountRequest request)
 	{
 		// Registration validation is intentionally local and cheap. Detailed diagnostics belong in
@@ -488,25 +246,4 @@ public sealed partial class AccountService
 		});
 	}
 
-	private static string CreateRegistrationVerificationAuditDetailJson(
-		string submittedEmailNormalized,
-		AccountCodeRecord? codeRecord,
-		DateTime nowUtc)
-	{
-		// This is safe operational detail: lookup key, selected row, and timing state.
-		// It deliberately excludes the plaintext verification code and request body.
-		return JsonSerializer.Serialize(new
-		{
-			submittedEmailNormalized,
-			codePurpose = AccountCodePurposes.RegistrationVerification,
-			destinationType = AccountDestinationTypes.Email,
-			selectedAccountCodeId = codeRecord?.AccountCodeId,
-			selectedAccountId = codeRecord?.AccountId,
-			expiresAtUtc = codeRecord?.ExpiresAtUtc,
-			consumedAtUtc = codeRecord?.ConsumedAtUtc,
-			attemptCount = codeRecord?.AttemptCount,
-			maxAttempts = codeRecord?.MaxAttempts,
-			nowUtc
-		});
-	}
 }
