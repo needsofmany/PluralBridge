@@ -2,22 +2,22 @@ Each task should deliver one working piece of functionality, leave the existing 
 
 The work is organized into these broad stages, defining individual tasks as we reach them:
 
-1. **Establish database change tracking.**  
+[x] 1. **Establish database change tracking.**  
    Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
 
-2. **Make recorded changes usable.**  
+[x] 2. **Make recorded changes usable.**  
    Add revision checks and deferred processing incrementally. Verify that concurrent transactions cannot lose changes. Restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected here.
 
-3a. **Establish the in-memory messaging core.**  
+[x] 3a. **Establish the in-memory messaging core.**  
     Implement the isolated messaging core with publisher-send TTL, infrastructure-owned obligation accounting, and Completed or Poisoned terminal outcomes. Verify that completion can carry success, error, or another result, and that duplicate, late, expired, or unknown reports cannot corrupt accounting. Keep application and database integration separate.
 
-3b. **Verify concurrency and flood behavior.**  
+[x] 3b. **Verify concurrency and flood behavior.**  
     Verify the in-memory messaging core with concurrency and flood tests covering TTL boundaries, duplicate and out-of-order completion reports, obligation registration races, poisoning, and accounting integrity under load. Keep this work isolated from application and database integration, then review the results and commit the verified tests before beginning Task 4.
 
-4. **Load the tree and establish its server context.**  
+[x] 4. **Load the tree and establish its server context.**  
    Establish the parallel workspace foundation, including the developer switch and preservation of the existing fallback. Deliver the new opening tree load and its account-bound, immutable server context. Verify tree parity, occurrence and access facts, context lifecycle, and isolation between workspace paths. Database freshness checks remain a deferred dependency before later detail or image requests rely on the retained context for current authorization.
 
-5a. **Change the login workflow.**  
+[in progress] 5a. **Change the login workflow.**  
     Change the current login workflow to initially ask for the username or email address, with buttons for forgotten username and forgotten password. Depending on the account creation state, ask for either the six-digit verification code or the password. The verification code expires ten minutes after issuance, with expiration enforced by the server, and an accepted code is single-use. Agree on resend behavior and the transition after successful verification before implementation.
 
 5b. **Build the C# test-data generator.**  

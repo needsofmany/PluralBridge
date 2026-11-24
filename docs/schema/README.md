@@ -22,6 +22,7 @@ This folder contains public schema references for PluralBridge import and recove
 | `samsung-smart-switch-photo-info-format.md` | Observed `PHOTO_INFO` shape reference for media metadata correlation. |
 | `samsung-smart-switch-sp-recovery.md` | Generalized recovery workflow notes linking backup artifacts to import planning. |
 | `pluralbridge-db-schema-format.md` | Human-readable reference for current PluralBridge working SQL schema. |
+| `account-deletion-dependency-map.md` | Account-deletion dependency map for the 22 November 2026 catalog script. Repository evidence only. |
 | `script.sql` | SQL schema script snapshot used as provenance for `pluralbridge-db-schema-format.md`. |
 | `PluralBridge-DB-Schema.png` | Visual ERD-style diagram of the working database schema. |
 
