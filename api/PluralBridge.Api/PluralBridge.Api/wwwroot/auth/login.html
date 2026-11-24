@@ -160,29 +160,45 @@
 				<label class="auth-label" for="registerDisplayName">Display name</label>
 				<input class="auth-input" id="registerDisplayName" name="displayName" autocomplete="name" maxlength="200" required>
 
+				<p class="auth-label">Passkey</p>
+				<button class="auth-submit auth-passkey-button" id="createWithPasskey" type="button" disabled aria-disabled="true">Create with a passkey</button>
+				<p class="auth-note auth-choice-note">Use your device's fingerprint, face recognition, or unlock PIN.</p>
+				<p class="auth-divider">OR</p>
+
 				<label class="auth-label" for="registerPassword">Password</label>
-				<div class="auth-input-wrap">
-					<input
-						class="auth-input auth-input-password"
-						id="registerPassword"
-						name="password"
-						type="password"
-						autocomplete="new-password"
-						minlength="12"
-						required>
-					<button
-						class="auth-password-toggle"
-						type="button"
-						data-password-toggle
-						data-toggle-target="registerPassword"
-						aria-label="Show password"
-						aria-pressed="false">
-						<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-							<path d="M12 5c-4.6 0-8.4 2.9-10 7 1.6 4.1 5.4 7 10 7s8.4-2.9 10-7c-1.6-4.1-5.4-7-10-7Zm0 12c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"></path>
-						</svg>
-					</button>
+				<div class="auth-password-block" id="registerPasswordBlock">
+					<div class="auth-input-wrap">
+						<input
+							class="auth-input auth-input-password"
+							id="registerPassword"
+							name="password"
+							type="password"
+							autocomplete="new-password"
+							minlength="8"
+							placeholder="Create with a password"
+							required>
+						<button
+							class="auth-password-toggle"
+							type="button"
+							data-password-toggle
+							data-toggle-target="registerPassword"
+							aria-label="Show password"
+							aria-pressed="false">
+							<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+								<path d="M12 5c-4.6 0-8.4 2.9-10 7 1.6 4.1 5.4 7 10 7s8.4-2.9 10-7c-1.6-4.1-5.4-7-10-7Zm0 12c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"></path>
+							</svg>
+						</button>
+					</div>
+					<div id="registerPasswordRules" class="auth-password-rules" hidden>
+						<p class="auth-password-rules-title">Try a password that contains at least:</p>
+						<ul>
+							<li data-password-rule="length"><span class="auth-rule-mark" aria-hidden="true"></span><span>8 characters</span></li>
+							<li data-password-rule="number"><span class="auth-rule-mark" aria-hidden="true"></span><span>1 number</span></li>
+							<li data-password-rule="special"><span class="auth-rule-mark" aria-hidden="true"></span><span>1 special character e.g., $, !, @, %, &amp;</span></li>
+							<li data-password-rule="edges"><span class="auth-rule-mark" aria-hidden="true"></span><span>No leading or trailing whitespace</span></li>
+						</ul>
+					</div>
 				</div>
-				<p class="auth-note">Use at least 12 characters. Nothing is created until you submit this form.</p>
 
 				<button class="auth-submit" id="registerSubmit" type="submit">Create account</button>
 			</form>

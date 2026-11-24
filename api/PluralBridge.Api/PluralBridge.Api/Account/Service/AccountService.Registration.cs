@@ -74,6 +74,7 @@ public sealed partial class AccountService
 			}
 
 			var accountId = Guid.NewGuid();
+			// Stored as submitted. A password with leading or trailing whitespace is rejected before this line.
 			var passwordHash = _passwordHasher.HashPassword(request.Password);
 			var verificationCode = AccountCodeService.CreateNumericCode();
 			var verificationHash = _passwordHasher.HashPassword(verificationCode);
@@ -212,7 +213,7 @@ public sealed partial class AccountService
 			&& request.Username.Trim().Length <= 100
 			&& request.Email.Trim().Length <= 320
 			&& request.DisplayName.Trim().Length <= 200
-			&& request.Password.Length >= 12;
+			&& AccountRegistrationPassword.IsAccepted(request.Password);
 	}
 
 	private static string CreateRegistrationCreatedAuditDetailJson(

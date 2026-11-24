@@ -232,6 +232,18 @@
 		statusElement.textContent = message;
 	}
 
+	function clearStatus() {
+		var statusElement = document.getElementById("authStatus");
+
+		if (!statusElement) {
+			return;
+		}
+
+		statusElement.hidden = true;
+		statusElement.textContent = "";
+		statusElement.removeAttribute("data-variant");
+	}
+
 	function clearSecrets() {
 		var password = document.getElementById("password");
 		var code = document.getElementById("verificationCode");
@@ -452,6 +464,97 @@
 		});
 	}
 
+	// Same four rules as AccountRegistrationPassword. An empty password meets none of them.
+	function registrationPasswordRules(password) {
+		return {
+			length: password.length >= 8,
+			number: /\d/.test(password),
+			special: /[^A-Za-z0-9\s]/.test(password),
+			edges: password.length > 0 && password === password.trim()
+		};
+	}
+
+	function registrationPasswordAccepted(password) {
+		var rules = registrationPasswordRules(password);
+		return rules.length && rules.number && rules.special && rules.edges;
+	}
+
+	var registrationPasswordStatus = "Check the account fields. The password needs at least 8 characters, one number, one special character, and no leading or trailing whitespace.";
+	var registrationPasswordEdited = false;
+
+	// Follows the checklist after the password has been edited. Another status message is left alone.
+	function syncRegistrationPasswordStatus(password) {
+		var statusElement = document.getElementById("authStatus");
+
+		if (!statusElement) {
+			return;
+		}
+
+		var showingPasswordWarning = !statusElement.hidden && statusElement.textContent === registrationPasswordStatus;
+
+		if (password.length === 0 || registrationPasswordAccepted(password)) {
+			if (showingPasswordWarning) {
+				clearStatus();
+			}
+			return;
+		}
+
+		if (!registrationPasswordEdited || (!statusElement.hidden && !showingPasswordWarning)) {
+			return;
+		}
+
+		setStatus(registrationPasswordStatus, "error");
+	}
+
+	function bindPasswordRules() {
+		var input = document.getElementById("registerPassword");
+		var rules = document.getElementById("registerPasswordRules");
+		var block = document.getElementById("registerPasswordBlock");
+
+		if (!input || !rules || !block || block.getAttribute("data-bound") === "true") {
+			return;
+		}
+
+		block.setAttribute("data-bound", "true");
+
+		function setRule(name, met) {
+			var item = rules.querySelector("[data-password-rule='" + name + "']");
+
+			if (!item) {
+				return;
+			}
+
+			item.classList.toggle("is-met", met);
+		}
+
+		function refreshPasswordRules() {
+			var rules = registrationPasswordRules(input.value);
+
+			setRule("length", rules.length);
+			setRule("number", rules.number);
+			setRule("special", rules.special);
+			setRule("edges", rules.edges);
+			syncRegistrationPasswordStatus(input.value);
+		}
+
+		input.addEventListener("input", function () {
+			registrationPasswordEdited = true;
+			refreshPasswordRules();
+		});
+		block.addEventListener("focusin", function () {
+			rules.hidden = false;
+			refreshPasswordRules();
+		});
+		block.addEventListener("focusout", function (event) {
+			if (block.contains(event.relatedTarget)) {
+				return;
+			}
+
+			rules.hidden = true;
+		});
+		refreshPasswordRules();
+	}
+
 	// Both pages share this submit. Showing the form does not call it.
 	function bindRegistrationForm() {
 		var form = document.getElementById("registerForm");
@@ -475,8 +578,15 @@
 			var displayName = document.getElementById("registerDisplayName").value.trim();
 			var password = document.getElementById("registerPassword").value;
 
-			if (!username || username.length > 100 || !email || email.length > 320 || !displayName || displayName.length > 200 || password.length < 12) {
-				setStatus("Check the account fields. The password needs at least 12 characters.", "error");
+			if (!username || username.length > 100 || !email || email.length > 320 || !displayName || displayName.length > 200) {
+				setStatus("Check the account fields.", "error");
+				return;
+			}
+
+			if (!registrationPasswordAccepted(password)) {
+				if (password.length > 0) {
+					setStatus(registrationPasswordStatus, "error");
+				}
 				return;
 			}
 
@@ -520,7 +630,10 @@
 				}
 
 				showRegistrationForm();
-				setStatus(messageFrom(result.payload, "Registration could not be completed."), "error");
+				var rejectedMessage = messageFrom(result.payload, "Registration could not be completed.");
+				if (rejectedMessage !== "Registration could not be completed.") {
+					setStatus(rejectedMessage, "error");
+				}
 			}).catch(function () {
 				if (isCurrent(token)) {
 					showRegistrationUnknown(email);
@@ -1080,6 +1193,7 @@
 	showStatusFromQuery();
 	bindPasswordForm();
 	bindSendingResume();
+	bindPasswordRules();
 
 	var page = document.body.getAttribute("data-auth-page") || "";
 
