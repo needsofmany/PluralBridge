@@ -14,6 +14,55 @@
 	outline-offset: 2px;
 }
 
+/* Heading color and size are specific to the navigator. The divider stops 8px before the expand button. */
+.member-systems-panel .member-systems-header {
+	gap: 0;
+}
+
+.member-systems-panel .member-systems-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	margin-right: 8px;
+	padding: 0 0 0.35rem;
+	border-bottom: 1px solid var(--pb-border);
+	color: var(--pb-accent);
+	font-family: inherit;
+	font-size: 1.125rem;
+	font-weight: 400;
+	letter-spacing: 0;
+	line-height: 1.2;
+	text-align: left;
+}
+
+/* Navigator rows only. Buttons and labels share 0.82rem; add 1pt and keep regular weight. */
+.member-systems-panel .member-system-node-button,
+.member-systems-panel .member-system-node-button.is-active,
+.member-systems-panel .member-system-node-label {
+	font-size: calc(0.82rem + 1pt);
+	font-weight: 400;
+}
+
+.navigator-row-tooltip {
+	position: fixed;
+	z-index: 30;
+	box-sizing: border-box;
+	max-width: min(22rem, calc(100vw - 16px));
+	margin: 0;
+	padding: 0.35rem 0.5rem;
+	border: 1px solid var(--pb-border);
+	border-radius: 0.4rem;
+	background: var(--pb-surface-raised);
+	color: var(--pb-text-strong);
+	font: inherit;
+	font-size: calc(0.82rem + 1pt);
+	font-weight: 400;
+	line-height: 1.35;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	pointer-events: auto;
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
 .member-map-detail {
 	display: grid;
 	gap: 0.35rem;

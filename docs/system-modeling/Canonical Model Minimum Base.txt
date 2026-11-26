@@ -89,14 +89,14 @@ The parent / child relationship describes structure. Access and privacy remain g
 Two Systems share a common relationship, but neither controls the other.
 
 Account
-├── System: Day Team (sibling)
+├── System: Day Team (sibling->Night Team)
 │   ├── Member: A
 │   ├── Member: B
 │   └── Groups
 │       └── Group: Day Team Group
 │           ├── Member: A
 │           └── Member: B
-├── System: Night Team (sibling)
+├── System: Night Team (sibling->Day Team)
 │   ├── Member: C
 │   └── Member: D
 ├── Notes
@@ -107,9 +107,9 @@ This is useful for Systems that see themselves as parallel, cooperative, or oper
 Two Systems are associated without a parent / child shape.
 
 Account
-├── System: The Archive (related)
+├── System: The Archive (related->The Harbor)
 │   └── Member: C
-├── System: The Harbor (related)
+├── System: The Harbor (related->The Archive)
 │   ├── Member: A
 │   ├── Member: B
 │   └── Groups
@@ -120,7 +120,7 @@ Account
 └── Front history
 This could represent shared history, partial overlap, a past structure, or a loosely connected internal organization.
 
-6. Subsystem Model
+6. Nested Structure Model
 A member, anchor, or internal cluster may have its own structure.
 
 Account

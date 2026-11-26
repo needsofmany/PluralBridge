@@ -32,6 +32,15 @@ window.PluralBridge.navigator = (function () {
     let selectedPathKey = null;
     // Opaque server context id for this view. Cleared before release on clear, path switch, and sign-out.
     let contextId = null;
+    let rowTooltip = null;
+    let tooltipAnchor = null;
+    let tooltipDismissed = false;
+    let touchRevealPath = null;
+    let lastPointerType = "mouse";
+    let tooltipDocumentBound = false;
+    let tooltipTree = null;
+    let panelResizeObserver = null;
+    let panelAttributeObserver = null;
 
     /**
      * Reports whether a row is a top-level system, group, or place anchor.
@@ -361,6 +370,7 @@ window.PluralBridge.navigator = (function () {
         }
 
         tree.replaceChildren();
+        hideRowTooltip();
 
         const status = document.createElement("p");
         status.className = isError
@@ -957,6 +967,376 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
+     * Finds the navigator row that contains an event target.
+     * @param {EventTarget} target Event target. A non-element, or a target outside the tree, returns null.
+     * @returns {HTMLElement|null} The row button or label.
+     */
+    function rowHostFromTarget(target) {
+        if (!(target instanceof Element) || !tree || !tree.contains(target)) {
+            return null;
+        }
+
+        const host = target.closest(".member-system-node-button, .member-system-node-label");
+        if (!host || !tree.contains(host)) {
+            return null;
+        }
+
+        return host;
+    }
+
+    /**
+     * Reports whether a row label is cut off by the width available to it.
+     * @param {Element|null} textEl Label text. A missing element is not truncated.
+     * @returns {boolean} True when the content is wider than the visible box.
+     */
+    function labelIsTruncated(textEl) {
+        return Boolean(textEl && textEl.scrollWidth > textEl.clientWidth + 1);
+    }
+
+    /**
+     * Creates the single navigator tooltip. It is plain text and is not a native title.
+     * @returns {HTMLElement} The tooltip element.
+     */
+    function ensureRowTooltip() {
+        if (rowTooltip) {
+            return rowTooltip;
+        }
+
+        rowTooltip = document.createElement("div");
+        rowTooltip.className = "navigator-row-tooltip";
+        rowTooltip.setAttribute("role", "tooltip");
+        rowTooltip.setAttribute("aria-hidden", "true");
+        rowTooltip.hidden = true;
+        /**
+         * Hides the tooltip when the pointer leaves it and does not return to the row.
+         * @param {PointerEvent} event Pointer leave event.
+         * @returns {void}
+         */
+        rowTooltip.addEventListener("pointerout", function (event) {
+            const next = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+            if (next && (rowTooltip.contains(next) || (tooltipAnchor && tooltipAnchor.contains(next)))) {
+                return;
+            }
+
+            tooltipDismissed = false;
+            hideRowTooltip();
+        });
+        document.body.appendChild(rowTooltip);
+        return rowTooltip;
+    }
+
+    /**
+     * Hides the navigator row tooltip.
+     * @returns {void}
+     */
+    function hideRowTooltip() {
+        tooltipAnchor = null;
+        if (!rowTooltip) {
+            return;
+        }
+
+        rowTooltip.hidden = true;
+        rowTooltip.textContent = "";
+    }
+
+    /**
+     * Places the tooltip below the row, or above it when that stays inside the viewport.
+     * @param {HTMLElement} host Row button or label.
+     * @returns {void}
+     */
+    function positionRowTooltip(host) {
+        const tip = ensureRowTooltip();
+        const margin = 8;
+        tip.style.left = "0px";
+        tip.style.top = "0px";
+        const hostRect = host.getBoundingClientRect();
+        const tipRect = tip.getBoundingClientRect();
+        let left = hostRect.left;
+        let top = hostRect.bottom + 4;
+        if (left + tipRect.width > window.innerWidth - margin) {
+            left = window.innerWidth - margin - tipRect.width;
+        }
+
+        if (left < margin) {
+            left = margin;
+        }
+
+        if (top + tipRect.height > window.innerHeight - margin) {
+            top = hostRect.top - tipRect.height - 4;
+        }
+
+        if (top < margin) {
+            top = margin;
+        }
+
+        tip.style.left = left + "px";
+        tip.style.top = top + "px";
+    }
+
+    /**
+     * Shows the full label when that row's text is truncated. An untruncated row does not show it.
+     * @param {HTMLElement|null} host Row button or label.
+     * @returns {void}
+     */
+    function showRowTooltip(host) {
+        if (!host || tooltipDismissed) {
+            return;
+        }
+
+        const textEl = host.querySelector(".member-tree-node-text");
+        if (!labelIsTruncated(textEl)) {
+            if (tooltipAnchor === host) {
+                hideRowTooltip();
+            }
+            return;
+        }
+
+        const tip = ensureRowTooltip();
+        tip.textContent = textEl.textContent || "";
+        tip.hidden = false;
+        tooltipAnchor = host;
+        positionRowTooltip(host);
+    }
+
+    /**
+     * Drops native title attributes on navigator row labels and repositions a visible tooltip.
+     * @returns {void}
+     */
+    function syncRowTruncation() {
+        if (!tree) {
+            hideRowTooltip();
+            return;
+        }
+
+        const labels = tree.querySelectorAll(".member-tree-node-text");
+        /**
+         * Removes a native title from one row label so it cannot duplicate the tooltip.
+         * @param {Element} textEl Label text element.
+         * @returns {void}
+         */
+        labels.forEach(function (textEl) {
+            textEl.removeAttribute("title");
+            const host = textEl.closest(".member-system-node-button, .member-system-node-label");
+            if (host && tree.contains(host)) {
+                host.removeAttribute("title");
+            }
+        });
+
+        if (!tooltipAnchor || !tree.contains(tooltipAnchor) || !labelIsTruncated(tooltipAnchor.querySelector(".member-tree-node-text"))) {
+            if (tooltipAnchor) {
+                hideRowTooltip();
+            }
+            return;
+        }
+
+        if (rowTooltip && !rowTooltip.hidden) {
+            positionRowTooltip(tooltipAnchor);
+        }
+    }
+
+    /**
+     * Rechecks truncation after the browser has applied the current layout.
+     * @returns {void}
+     */
+    function scheduleTruncationCheck() {
+        window.requestAnimationFrame(function () {
+            syncRowTruncation();
+        });
+    }
+
+    /**
+     * Shows the tooltip for a touch selection after the tree has been redrawn.
+     * @param {string} pathKey Path that was tapped. A different pending path does nothing.
+     * @returns {void}
+     */
+    function revealTouchSelection(pathKey) {
+        if (!tree || touchRevealPath !== pathKey) {
+            return;
+        }
+
+        touchRevealPath = null;
+        const active = tree.querySelector(".member-system-node-button.is-active");
+        if (active) {
+            showRowTooltip(active);
+        }
+    }
+
+    /**
+     * Records the pointer kind and allows a later hover after Escape.
+     * @param {PointerEvent} event Pointer down event.
+     * @returns {void}
+     */
+    function onRowPointerDown(event) {
+        lastPointerType = event.pointerType || "mouse";
+        tooltipDismissed = false;
+    }
+
+    /**
+     * Shows the tooltip while the mouse is over a truncated row label.
+     * @param {PointerEvent} event Pointer enter event. Touch pointers are ignored.
+     * @returns {void}
+     */
+    function onRowPointerOver(event) {
+        if (event.pointerType === "touch") {
+            return;
+        }
+
+        showRowTooltip(rowHostFromTarget(event.target));
+    }
+
+    /**
+     * Hides the tooltip when the pointer leaves the row and the tooltip.
+     * @param {PointerEvent} event Pointer leave event.
+     * @returns {void}
+     */
+    function onRowPointerOut(event) {
+        if (!tooltipAnchor) {
+            return;
+        }
+
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target || !tooltipAnchor.contains(target)) {
+            return;
+        }
+
+        const next = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+        if (next && (tooltipAnchor.contains(next) || (rowTooltip && rowTooltip.contains(next)))) {
+            return;
+        }
+
+        tooltipDismissed = false;
+        hideRowTooltip();
+    }
+
+    /**
+     * Shows the tooltip when keyboard focus reaches a truncated row.
+     * @param {FocusEvent} event Focus event.
+     * @returns {void}
+     */
+    function onRowFocusIn(event) {
+        showRowTooltip(rowHostFromTarget(event.target));
+    }
+
+    /**
+     * Hides the tooltip when focus leaves the row.
+     * @param {FocusEvent} event Focus event.
+     * @returns {void}
+     */
+    function onRowFocusOut(event) {
+        const next = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+        if (tooltipAnchor && next && tooltipAnchor.contains(next)) {
+            return;
+        }
+
+        tooltipDismissed = false;
+        hideRowTooltip();
+    }
+
+    /**
+     * Hides the tooltip when the pointer starts outside the row and the tooltip.
+     * @param {PointerEvent} event Pointer down event.
+     * @returns {void}
+     */
+    function onDocumentPointerDown(event) {
+        if (!rowTooltip || rowTooltip.hidden) {
+            return;
+        }
+
+        const target = event.target instanceof Element ? event.target : null;
+        if (target && (rowTooltip.contains(target) || (tooltipAnchor && tooltipAnchor.contains(target)))) {
+            return;
+        }
+
+        tooltipDismissed = false;
+        hideRowTooltip();
+    }
+
+    /**
+     * Dismisses a visible tooltip on Escape without removing the row's accessible name.
+     * @param {KeyboardEvent} event Key event.
+     * @returns {void}
+     */
+    function onTooltipKeyDown(event) {
+        if (event.key !== "Escape" || !rowTooltip || rowTooltip.hidden) {
+            return;
+        }
+
+        tooltipDismissed = true;
+        hideRowTooltip();
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    /**
+     * Dismisses a visible tooltip when any element scrolls.
+     * @returns {void}
+     */
+    function onAnyScroll() {
+        if (!rowTooltip || rowTooltip.hidden) {
+            return;
+        }
+
+        tooltipDismissed = false;
+        hideRowTooltip();
+    }
+
+    /**
+     * Listens for hover, focus, resize, scroll, and panel close on the mounted navigator tree.
+     * @returns {void}
+     */
+    function bindRowTooltips() {
+        if (!tooltipDocumentBound) {
+            document.addEventListener("pointerdown", onDocumentPointerDown, true);
+            document.addEventListener("keydown", onTooltipKeyDown, true);
+            window.addEventListener("scroll", onAnyScroll, true);
+            window.addEventListener("resize", scheduleTruncationCheck);
+            tooltipDocumentBound = true;
+        }
+
+        if (!tree || tree === tooltipTree) {
+            return;
+        }
+
+        tree.addEventListener("pointerdown", onRowPointerDown);
+        tree.addEventListener("pointerover", onRowPointerOver);
+        tree.addEventListener("pointerout", onRowPointerOut);
+        tree.addEventListener("focusin", onRowFocusIn);
+        tree.addEventListener("focusout", onRowFocusOut);
+        tooltipTree = tree;
+
+        const panel = tree.closest(".member-systems-panel");
+        if (panelResizeObserver) {
+            panelResizeObserver.disconnect();
+        }
+
+        if (panelAttributeObserver) {
+            panelAttributeObserver.disconnect();
+        }
+
+        if (!panel) {
+            return;
+        }
+
+        panelResizeObserver = new ResizeObserver(function () {
+            scheduleTruncationCheck();
+        });
+        panelResizeObserver.observe(panel);
+        panelAttributeObserver = new MutationObserver(function () {
+            if (panel.hidden) {
+                tooltipDismissed = false;
+                hideRowTooltip();
+                return;
+            }
+
+            scheduleTruncationCheck();
+        });
+        panelAttributeObserver.observe(panel, {
+            attributes: true,
+            attributeFilter: ["hidden", "class"]
+        });
+    }
+
+    /**
      * Appends one tree row and, when it is expanded, its children.
      * A selectable row selects that anchor. Expanding or collapsing updates the held expansion and redraws the tree.
      * @param {object} row Map row.
@@ -1022,7 +1402,28 @@ window.PluralBridge.navigator = (function () {
              * Selects this anchor. selectAnchor ignores a row that is already selected.
              * @returns {void}
              */
-            selectButton.addEventListener("click", function () {
+            /**
+             * Selects this anchor. A touch on a truncated label also shows its full text after the redraw.
+             * @param {MouseEvent} event Click event. A keyboard click has detail 0.
+             * @returns {void}
+             */
+            selectButton.addEventListener("click", function (event) {
+                const fromKeyboard = event.detail === 0;
+                const fromTouch = !fromKeyboard && lastPointerType === "touch";
+                if (fromTouch) {
+                    const textEl = selectButton.querySelector(".member-tree-node-text");
+                    if (!labelIsTruncated(textEl)) {
+                        touchRevealPath = null;
+                    } else if (selectedPathKey === row.pathKey) {
+                        touchRevealPath = null;
+                        showRowTooltip(selectButton);
+                    } else {
+                        touchRevealPath = row.pathKey;
+                    }
+                } else {
+                    touchRevealPath = null;
+                }
+
                 selectAnchor(row);
             });
             nodeRow.appendChild(selectButton);
@@ -1030,6 +1431,18 @@ window.PluralBridge.navigator = (function () {
             const label = document.createElement("span");
             label.className = "member-system-node-label";
             label.appendChild(createNodeLabel(iconFor(row), labelText));
+            /**
+             * Shows the full header label when a touch taps a truncated row. Selection does not apply to headers.
+             * @param {PointerEvent} event Pointer up event.
+             * @returns {void}
+             */
+            label.addEventListener("pointerup", function (event) {
+                if (event.pointerType !== "touch") {
+                    return;
+                }
+
+                showRowTooltip(label);
+            });
             nodeRow.appendChild(label);
         }
 
@@ -1098,6 +1511,7 @@ window.PluralBridge.navigator = (function () {
             return;
         }
 
+        hideRowTooltip();
         tree.replaceChildren();
         /**
          * Draws a top-level row. Nested rows are drawn by their parent.
@@ -1110,6 +1524,7 @@ window.PluralBridge.navigator = (function () {
             }
         });
         syncExpandAllButton();
+        scheduleTruncationCheck();
     }
 
     /**
@@ -1136,6 +1551,7 @@ window.PluralBridge.navigator = (function () {
             selectionGeneration += 1;
             selectedPathKey = row.pathKey;
             renderTree();
+            revealTouchSelection(row.pathKey);
             if (workspaceTreeEnabled()) {
                 clearDetail();
                 return;
@@ -1208,6 +1624,8 @@ window.PluralBridge.navigator = (function () {
             tree.replaceChildren();
         }
 
+        hideRowTooltip();
+
         if (previousContextId) {
             releaseContext(previousContextId);
         }
@@ -1233,6 +1651,7 @@ window.PluralBridge.navigator = (function () {
         }
 
         startLoad(false);
+        bindRowTooltips();
     }
 
     /**
