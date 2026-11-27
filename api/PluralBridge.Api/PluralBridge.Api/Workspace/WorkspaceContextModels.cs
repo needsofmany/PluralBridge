@@ -65,7 +65,7 @@ internal sealed record WorkspaceSystemEdgeLabel(Guid SystemId, string? EdgeLabel
 /// <param name="ObjectId">The anchor id stored on that occurrence.</param>
 /// <param name="AnchorName">The anchor name stored on that occurrence. The profile procedure matches this name.</param>
 /// <param name="Branch">Type and id pairs from the occurrence toward the account, comma-separated. At most 32 nodes.</param>
-/// <param name="DirectMemberIds">The first direct member occurrences, in preview order. At most <see cref="WorkspaceContext.DetailBatchSize"/>.</param>
+	/// <param name="DirectMemberIds">One page of direct member occurrences, in preview order. At most <see cref="WorkspaceContext.DetailBatchSize"/>.</param>
 /// <remarks>Access facts are not part of this value. They do not grant the profile read.</remarks>
 internal readonly record struct WorkspaceAnchorDetail(
 	string ObjectType,
@@ -75,15 +75,30 @@ internal readonly record struct WorkspaceAnchorDetail(
 	IReadOnlyList<Guid> DirectMemberIds);
 
 /// <summary>
-/// The immutable context retained for one opening build.
+/// One avatar retained for a member inside a single workspace context.
+/// </summary>
+/// <param name="MemberId">The member whose image this context holds.</param>
+/// <param name="Bytes">The bytes returned by the avatar load. The context does not copy or decode them.</param>
+/// <param name="ContentType">The content type returned with those bytes.</param>
+/// <remarks>
+/// Repeated occurrences of the member share this entry. Holding it does not authorize a later read, and another context cannot see it.
+/// </remarks>
+internal sealed record WorkspaceRetainedAvatar(Guid MemberId, byte[] Bytes, string ContentType);
+
+/// <summary>
+/// The context retained for one opening build.
 /// </summary>
 /// <remarks>
 /// Later detail and image requests must not treat this copy as current authorization until a freshness contract is approved.
-/// Database freshness detection is not part of this object. Profile text, fronting, and image bytes are not stored.
+/// Database freshness detection is not part of this object. The opening copy does not include profile text, fronting, or image bytes.
+/// A later load may retain one image per member on this context. That entry is not an access grant.
 /// Anchor visibility and permission bytes are the account's stored settings. They are not an access decision.
 /// </remarks>
 internal sealed class WorkspaceContext
 {
+	private readonly object _avatarGate = new();
+	private readonly Dictionary<Guid, WorkspaceRetainedAvatar> _avatars = [];
+
 	private WorkspaceContext(
 		string contextId,
 		Guid accountId,
@@ -150,9 +165,53 @@ internal sealed class WorkspaceContext
 	/// <remarks>
 	/// Each string is counted as a 24-byte object header plus two bytes per character.
 	/// Each row adds a fixed header. This is an upper-leaning accounting figure, not a measured GC size,
-	/// and it does not include allocator fragmentation.
+	/// and it does not include allocator fragmentation. Retained avatar bytes are not part of this figure.
 	/// </remarks>
 	public long EstimatedBytes { get; }
+
+	/// <summary>
+	/// Retains the image a load returned for one member of this context.
+	/// </summary>
+	/// <param name="memberId">The member id. Every occurrence of this member in this context shares one entry.</param>
+	/// <param name="loaded">The result of the common avatar load. Null means the member has no image.</param>
+	/// <returns>The retained entry. Null when <paramref name="loaded"/> is null. A member that already has an entry keeps that entry.</returns>
+	/// <remarks>
+	/// The byte array is stored as returned. A missing image does not create an entry and does not remove one.
+	/// This method does not authorize the member, and it does not read or write another context.
+	/// </remarks>
+	internal WorkspaceRetainedAvatar? RetainAvatar(Guid memberId, (byte[] Bytes, string ContentType)? loaded)
+	{
+		if (loaded is null)
+		{
+			return null;
+		}
+
+		lock (_avatarGate)
+		{
+			if (_avatars.TryGetValue(memberId, out var existing))
+			{
+				return existing;
+			}
+
+			var retained = new WorkspaceRetainedAvatar(memberId, loaded.Value.Bytes, loaded.Value.ContentType);
+			_avatars.Add(memberId, retained);
+			return retained;
+		}
+	}
+
+	/// <summary>
+	/// Returns the image this context has already retained for the member.
+	/// </summary>
+	/// <param name="memberId">The member id.</param>
+	/// <returns>The retained entry, or null when this context has no image for that member.</returns>
+	/// <remarks>A miss is not an authorization result. An entry retained by another context is not visible here.</remarks>
+	internal WorkspaceRetainedAvatar? FindAvatar(Guid memberId)
+	{
+		lock (_avatarGate)
+		{
+			return _avatars.TryGetValue(memberId, out var retained) ? retained : null;
+		}
+	}
 
 	/// <summary>Copies the captured rows into read-only lists and assigns a new context id.</summary>
 	/// <param name="accountId">The authenticated account.</param>
@@ -242,15 +301,33 @@ internal sealed class WorkspaceContext
 	/// Derives the profile-procedure arguments for one anchor occurrence in this opening.
 	/// </summary>
 	/// <param name="pathKey">The occurrence path. A blank path, a header, a member, or a row without an id or name is rejected.</param>
-	/// <param name="detail">The derived anchor, branch, and direct member ids. Empty when the method returns false.</param>
+	/// <param name="detail">The derived anchor, branch, and the first page of direct member ids. Empty when the method returns false.</param>
 	/// <param name="error">The rejection text. Empty when the method returns true.</param>
 	/// <returns>True when this context contains that anchor occurrence. This does not authorize the account.</returns>
 	/// <remarks>
 	/// The branch walks parent paths the same way the browser does, and stops at a repeated path, a missing parent, or 32 nodes.
 	/// A Groups header has no object id, so the walk stops before adding it. Direct members are children whose type is member.
-	/// Retained access facts are not read here.
+	/// This overload returns the first page. Retained access facts are not read here.
 	/// </remarks>
 	public bool TryPrepareAnchorDetail(string? pathKey, out WorkspaceAnchorDetail detail, out string error)
+	{
+		return TryPrepareAnchorDetail(pathKey, 0, out detail, out error);
+	}
+
+	/// <summary>
+	/// Derives the profile-procedure arguments and one page of direct members for an anchor occurrence.
+	/// </summary>
+	/// <param name="pathKey">The occurrence path. A blank path, a header, a member, or a row without an id or name is rejected.</param>
+	/// <param name="skip">Unique direct members to pass over before the page. Zero selects the first page. Negative is rejected.</param>
+	/// <param name="detail">The derived anchor, branch, and member page. Empty when the method returns false.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when this context contains that anchor occurrence. This does not authorize the account.</returns>
+	/// <remarks>
+	/// Direct members are children whose type is member, in preview order. A repeated member id is kept once, at its first row, before skip is applied.
+	/// The page contains at most <see cref="DetailBatchSize"/> ids. A skip past the last unique member leaves the page empty.
+	/// Members under another parent path are not included. Retained access facts are not read here.
+	/// </remarks>
+	public bool TryPrepareAnchorDetail(string? pathKey, int skip, out WorkspaceAnchorDetail detail, out string error)
 	{
 		detail = default;
 		if (string.IsNullOrWhiteSpace(pathKey))
@@ -291,19 +368,21 @@ internal sealed class WorkspaceContext
 			return false;
 		}
 
-		var members = new List<Guid>(DetailBatchSize);
+		if (skip < 0)
+		{
+			error = "The member batch skip must be zero or greater.";
+			return false;
+		}
+
+		var members = new List<Guid>();
+		var seen = new HashSet<Guid>();
 		foreach (var row in HierarchyPreview)
 		{
-			if (members.Count == DetailBatchSize)
-			{
-				break;
-			}
-
 			if (!string.Equals(row.ParentPathKey, pathKey, StringComparison.Ordinal)
 				|| !string.Equals(row.ObjectType, "member", StringComparison.Ordinal)
 				|| row.ObjectId is not Guid memberId
 				|| memberId == Guid.Empty
-				|| members.Contains(memberId))
+				|| !seen.Add(memberId))
 			{
 				continue;
 			}
@@ -311,12 +390,18 @@ internal sealed class WorkspaceContext
 			members.Add(memberId);
 		}
 
+		var page = new List<Guid>(DetailBatchSize);
+		for (var index = skip; index < members.Count && page.Count < DetailBatchSize; index++)
+		{
+			page.Add(members[index]);
+		}
+
 		detail = new WorkspaceAnchorDetail(
 			rowMatch.ObjectType,
 			objectId,
 			rowMatch.AnchorName,
 			BuildBranch(rowMatch),
-			members);
+			page);
 		error = "";
 		return true;
 	}

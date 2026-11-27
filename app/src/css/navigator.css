@@ -8,6 +8,47 @@
 	color: var(--pb-error);
 }
 
+/* The same indeterminate bar as the email-send progress. The app does not load auth.css, so the track and motion are repeated here.
+   It sits under the workspace loading line and leaves with that line. Reduced motion keeps a static bar. */
+.navigator-load-progress {
+	height: 4px;
+	margin-top: 16px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: var(--pb-fill-subtle);
+}
+
+.navigator-load-progress span {
+	display: block;
+	width: 40%;
+	height: 100%;
+	background: #8eb6ff;
+	animation: navigator-load-progress 1s ease-in-out infinite;
+}
+
+:root[data-theme="light"] .navigator-load-progress span {
+	background: #2041b8;
+}
+
+@keyframes navigator-load-progress {
+	from {
+		transform: translateX(-120%);
+	}
+
+	to {
+		transform: translateX(280%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.navigator-load-progress span {
+		width: 100%;
+		opacity: 0.7;
+		animation: none;
+		transform: none;
+	}
+}
+
 .member-systems-tree .member-system-node-button:focus-visible,
 .member-systems-tree .member-system-tree-toggle:focus-visible {
 	outline: 2px solid var(--pb-accent);
@@ -63,14 +104,42 @@
 	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
+/* The member pane keeps its height. The heading stays fixed, and only the card body scrolls.
+   The navigator tree is a separate scroller and is not changed here.
+   The content stack has to be a column so a phone-height pane can give that body a bounded height. */
+.member-content-stack:has(.member-map-detail) {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.member-scroll-list:has(> .member-map-detail) {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
 .member-map-detail {
-	display: grid;
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
 	gap: 0.35rem;
+	min-height: 0;
+	height: 100%;
 }
 
 .member-map-detail .output-heading {
+	flex: 0 0 auto;
 	margin: 0;
 	font-size: 1.15rem;
+}
+
+.member-detail-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
 }
 
 .member-map-children {

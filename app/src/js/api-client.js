@@ -157,14 +157,36 @@ window.PluralBridge.apiClient = (function () {
      * @param {string} contextId Opaque context id from the workspace-tree response.
      * @param {string} occurrence Selected anchor path.
      * @param {AbortSignal} [signal] Abort signal for this load. Abort rejects the returned promise.
+     * @param {number} [skip] Unique direct members to pass over. Omitted or zero requests the first window.
      * @returns {Promise<Array|object|null>} The card array. The caller checks that a successful body is an array.
      * @throws {Error} When the HTTP status is not OK.
      */
-    async function readWorkspaceMemberDetails(contextId, occurrence, signal) {
+    async function readWorkspaceMemberDetails(contextId, occurrence, signal, skip) {
         const query = new URLSearchParams();
         query.set("occurrence", occurrence || "");
+        const memberSkip = skip > 0 ? skip : 0;
+        query.set("skip", String(memberSkip));
         return await fetchJson(
             "/api/me/workspace-tree/" + encodeURIComponent(contextId) + "/member-details?" + query.toString(),
+            { signal: signal }
+        );
+    }
+
+    /**
+     * Reads the first page of avatar bytes for the same occurrence as the member cards.
+     * The server authorizes that page before it returns images. A null image leaves the card placeholder.
+     * @param {string} contextId Opaque context id from the workspace-tree response.
+     * @param {string} occurrence Selected anchor path.
+     * @param {AbortSignal} [signal] Abort signal for this load. Abort rejects the returned promise.
+     * @returns {Promise<Array|object|null>} The image array. The caller checks that a successful body is an array.
+     * @throws {Error} When the HTTP status is not OK.
+     */
+    async function readWorkspaceMemberAvatars(contextId, occurrence, signal) {
+        const query = new URLSearchParams();
+        query.set("occurrence", occurrence || "");
+        query.set("skip", "0");
+        return await fetchJson(
+            "/api/me/workspace-tree/" + encodeURIComponent(contextId) + "/member-avatars?" + query.toString(),
             { signal: signal }
         );
     }
@@ -291,6 +313,7 @@ window.PluralBridge.apiClient = (function () {
     client.readMembers = readMembers;
     client.readAnchorMemberProfiles = readAnchorMemberProfiles;
     client.readWorkspaceMemberDetails = readWorkspaceMemberDetails;
+    client.readWorkspaceMemberAvatars = readWorkspaceMemberAvatars;
     client.addMember = addMember;
     client.saveAnchorMemberProfile = saveAnchorMemberProfile;
     client.saveMemberFronting = saveMemberFronting;

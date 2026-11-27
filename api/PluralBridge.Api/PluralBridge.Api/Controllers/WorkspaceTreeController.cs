@@ -17,8 +17,8 @@ namespace PluralBridge.Api.Controllers;
 /// DELETE releases that account's context. A repeated delete, a missing id, and another account's id
 /// all return the same empty success after the caller is authenticated. They do not reveal which case it was.
 /// The constructor receives the public opening service and context store.
-/// Member details are resolved from the same application services. They use the retained context to identify the occurrence and the live profile procedure to authorize it.
-/// This controller does not load avatars and it does not call the messaging core.
+/// Member details and member avatars use the retained context to identify the occurrence and the live profile procedure to authorize it.
+/// This controller does not call the messaging core.
 /// </remarks>
 [ApiController]
 [Authorize]
@@ -126,16 +126,21 @@ public sealed class WorkspaceTreeController(
 	/// </summary>
 	/// <param name="contextId">The opaque context id.</param>
 	/// <param name="occurrence">The selected anchor path. The server derives the anchor and branch from the context.</param>
+	/// <param name="skip">Unique direct members to pass over. Omitted or blank is the first page. A negative or non-integer value is rejected.</param>
 	/// <param name="cancellationToken">Cancels account resolution or the profile procedure.</param>
 	/// <returns>
-	/// HTTP 200 with at most 20 direct member cards and no avatar URL.
+	/// HTTP 200 with at most 20 direct member cards and no avatar URL. A skip past the last member returns an empty array.
 	/// HTTP 401 when the session has no account.
 	/// HTTP 404 when the context is unavailable, including a context owned by another account.
-	/// HTTP 400 when the path is not an anchor in that context.
+	/// HTTP 400 when the path is not an anchor in that context or the skip is not zero or greater.
 	/// Profile-procedure failures use the same status mapping as the anchor profile route.
 	/// </returns>
 	[HttpGet("{contextId}/member-details")]
-	public async Task<IActionResult> MemberDetails(string contextId, [FromQuery] string? occurrence, CancellationToken cancellationToken)
+	public async Task<IActionResult> MemberDetails(
+		string contextId,
+		[FromQuery] string? occurrence,
+		CancellationToken cancellationToken,
+		[FromQuery] string? skip = null)
 	{
 		const string endpoint = "/api/me/workspace-tree/member-details";
 		var details = (WorkspaceMemberDetailService?)HttpContext.RequestServices.GetService(typeof(WorkspaceMemberDetailService));
@@ -147,9 +152,21 @@ public sealed class WorkspaceTreeController(
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 
+		if (!WorkspaceMemberDetailService.TryParseMemberSkip(skip, out var memberSkip, out var skipError))
+		{
+			return BadRequest(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint,
+				canWrite = false,
+				error = skipError
+			});
+		}
+
 		try
 		{
-			var result = await details.LoadAsync(User, contextId, occurrence, cancellationToken);
+			var result = await details.LoadAsync(User, contextId, occurrence, cancellationToken, memberSkip);
 			if (result is WorkspaceMemberDetailResult.MissingAccount)
 			{
 				return Unauthorized(new
@@ -236,6 +253,134 @@ public sealed class WorkspaceTreeController(
 			return Problem(
 				title: Globals.requestFailed,
 				detail: "The member profiles could not be read.",
+				statusCode: StatusCodes.Status500InternalServerError);
+		}
+	}
+
+	/// <summary>
+	/// Returns the avatar bytes for one page of direct members.
+	/// </summary>
+	/// <param name="contextId">The opaque context id.</param>
+	/// <param name="occurrence">The selected anchor path. The server derives the anchor and branch from the context.</param>
+	/// <param name="skip">Unique direct members to pass over. Omitted or blank is the first page. A negative or non-integer value is rejected.</param>
+	/// <param name="cancellationToken">Cancels account resolution, the profile procedure, or an image read. Cancellation is not turned into an image result.</param>
+	/// <returns>
+	/// HTTP 200 with the authorized page in preview order. Each item has memberId, contentType, and imageBase64. An authorized member with no image has null image fields. A skip past the last member returns an empty array after authorization.
+	/// HTTP 401 when the session has no account.
+	/// HTTP 404 when the context is unavailable, including a context owned by another account, or when avatar storage is not installed.
+	/// HTTP 400 when the path is not an anchor in that context or the skip is not zero or greater.
+	/// Profile-procedure failures use the same status mapping as member details.
+	/// </returns>
+	/// <remarks>A page member the profile procedure does not return is omitted. Source selection is not a request value.</remarks>
+	[HttpGet("{contextId}/member-avatars")]
+	public async Task<IActionResult> MemberAvatars(
+		string contextId,
+		[FromQuery] string? occurrence,
+		CancellationToken cancellationToken,
+		[FromQuery] string? skip = null)
+	{
+		const string endpoint = "/api/me/workspace-tree/member-avatars";
+		var batch = (WorkspaceAvatarBatchService?)HttpContext.RequestServices.GetService(typeof(WorkspaceAvatarBatchService));
+		if (batch is null)
+		{
+			return Problem(
+				title: Globals.requestFailed,
+				detail: "The member avatars could not be read.",
+				statusCode: StatusCodes.Status500InternalServerError);
+		}
+
+		if (!WorkspaceMemberDetailService.TryParseMemberSkip(skip, out var memberSkip, out var skipError))
+		{
+			return BadRequest(new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint,
+				canWrite = false,
+				error = skipError
+			});
+		}
+
+		try
+		{
+			var result = await batch.LoadAsync(User, contextId, occurrence, cancellationToken, memberSkip);
+			if (result is WorkspaceAvatarBatchResult.MissingAccount)
+			{
+				return Unauthorized(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint,
+					canWrite = false,
+					error = Globals.cantResolveAccess
+				});
+			}
+
+			if (result is WorkspaceAvatarBatchResult.ContextUnavailable)
+			{
+				return NotFound(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint,
+					canWrite = false,
+					error = WorkspaceContextResults.Unavailable
+				});
+			}
+
+			if (result is WorkspaceAvatarBatchResult.OccurrenceRejected rejected)
+			{
+				return BadRequest(new
+				{
+					api = Globals.apiName,
+					phase = Globals.projectPhase,
+					endpoint,
+					canWrite = false,
+					error = rejected.Error
+				});
+			}
+
+			if (result is WorkspaceAvatarBatchResult.AvatarStorageMissing)
+			{
+				return NotFound();
+			}
+
+			if (result is not WorkspaceAvatarBatchResult.Ready ready)
+			{
+				return Problem(
+					title: Globals.requestFailed,
+					detail: "The member avatars could not be read.",
+					statusCode: StatusCodes.Status500InternalServerError);
+			}
+
+			return Ok(ready.Images.Select(image => new
+			{
+				memberId = image.MemberId,
+				contentType = image.ContentType,
+				imageBase64 = image.Bytes is null ? null : Convert.ToBase64String(image.Bytes)
+			}));
+		}
+		catch (SqlException exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			return MapProfileProcedureError(endpoint, exception.Number);
+		}
+		catch (AnchorProfileContractException exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			return StatusCode(StatusCodes.Status500InternalServerError, new
+			{
+				api = Globals.apiName,
+				phase = Globals.projectPhase,
+				endpoint,
+				canWrite = false,
+				error = exception.Message
+			});
+		}
+		catch (Exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			logger.LogWarning("Workspace member avatars could not be read.");
+			return Problem(
+				title: Globals.requestFailed,
+				detail: "The member avatars could not be read.",
 				statusCode: StatusCodes.Status500InternalServerError);
 		}
 	}

@@ -680,12 +680,14 @@ public sealed class MeController(
 			}
 
 			activeStage = AnchorMemberProfileSave.AvatarReadTiming.GraphTablesStage;
-			var image = await AnchorMemberProfileSave.ReadAvatarAsync(
-				connection,
+			// The action always uses the database reader. Source selection is not a request or configuration value.
+			var image = await AnchorMemberProfileSave.LoadAvatarAsync(
+				useDatabase: true,
 				account.AccountId,
 				memberId,
-				timing,
-				cancellationToken);
+				cancellationToken,
+				connection,
+				timing);
 			if (image is null)
 			{
 				total.Stop();

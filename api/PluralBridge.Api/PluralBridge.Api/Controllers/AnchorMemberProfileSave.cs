@@ -1421,6 +1421,44 @@ internal static class AnchorMemberProfileSave
 	}
 
 	/// <summary>
+	/// Selects the avatar source and returns its bytes without transforming them.
+	/// </summary>
+	/// <param name="useDatabase">True reads through <see cref="ReadAvatarAsync"/>. False calls <paramref name="testDataFactory"/> and does not use a connection.</param>
+	/// <param name="accountId">Account passed to the selected source. The database path builds that account's graph.</param>
+	/// <param name="memberId">Member passed to the selected source.</param>
+	/// <param name="cancellationToken">Cancels the database read. The factory path checks it before calling the factory.</param>
+	/// <param name="connection">Open connection for the database path. Null on the factory path. This method does not open one.</param>
+	/// <param name="timing">Stage timings for the database path. Null on the factory path, which does not record stages.</param>
+	/// <param name="testDataFactory">Factory used when <paramref name="useDatabase"/> is false. The database path ignores it. There is no default image fixture.</param>
+	/// <returns>The selected bytes and content type, or null when the selected source has no image. The byte array is the one the source returned.</returns>
+	/// <remarks>
+	/// Graph authorization stays inside <see cref="ReadAvatarAsync"/>. This method does not decode the image or choose a source from a request or configuration value.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">The database path is missing <paramref name="connection"/> or <paramref name="timing"/>, or the factory path is missing <paramref name="testDataFactory"/>.</exception>
+	/// <exception cref="OperationCanceledException">The factory path observes a cancellation that was already requested.</exception>
+	internal static Task<(byte[] Bytes, string ContentType)?> LoadAvatarAsync(
+		bool useDatabase,
+		Guid accountId,
+		Guid memberId,
+		CancellationToken cancellationToken,
+		SqlConnection? connection = null,
+		AvatarReadTiming? timing = null,
+		Func<Guid, Guid, (byte[] Bytes, string ContentType)?>? testDataFactory = null)
+	{
+		if (!useDatabase)
+		{
+			// The factory result is the image. No connection is opened and the bytes are not copied.
+			cancellationToken.ThrowIfCancellationRequested();
+			ArgumentNullException.ThrowIfNull(testDataFactory);
+			return Task.FromResult(testDataFactory(accountId, memberId));
+		}
+
+		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(timing);
+		return ReadAvatarAsync(connection, accountId, memberId, timing, cancellationToken);
+	}
+
+	/// <summary>
 	/// Returns the member's avatar bytes when the account graph contains that member.
 	/// </summary>
 	/// <param name="connection">Open connection. This method creates the temporary graph tables and builds the graph on it.</param>

@@ -593,7 +593,7 @@ window.PluralBridge.members = (function () {
             const isLight = active === "light";
             const label = themeButton.querySelector(".member-toolbar-label");
             const icon = themeButton.querySelector(".member-toolbar-icon");
-            const nextIcon = createToolbarIcon(isLight ? "sun" : "moon");
+            const nextIcon = createToolbarIcon(isLight ? "moon" : "sun");
             const action = isLight ? "Switch to dark theme" : "Switch to light theme";
             if (icon) {
                 icon.replaceWith(nextIcon);
@@ -601,7 +601,7 @@ window.PluralBridge.members = (function () {
                 themeButton.insertBefore(nextIcon, label);
             }
             if (label) {
-                label.textContent = isLight ? "Light" : "Dark";
+                label.textContent = isLight ? "Dark" : "Light";
             }
             themeButton.setAttribute("aria-label", action);
             themeButton.title = action;

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.Data.SqlClient;
 using PluralBridge.Api.Controllers;
@@ -105,13 +106,15 @@ internal sealed class WorkspaceMemberDetailService(WorkspaceContextStore store, 
 	/// <param name="user">The authenticated principal.</param>
 	/// <param name="contextId">The opaque context id from the opening response.</param>
 	/// <param name="occurrence">The selected anchor path.</param>
+	/// <param name="skip">Unique direct members to pass over. Zero is the first page. Negative is rejected before the profile procedure.</param>
 	/// <param name="cancellationToken">Cancels account resolution or the profile procedure.</param>
 	/// <returns>A result that does not include image bytes or avatar routes.</returns>
 	internal async Task<WorkspaceMemberDetailResult> LoadAsync(
 		ClaimsPrincipal user,
 		string contextId,
 		string? occurrence,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		int skip = 0)
 	{
 		var account = await gateway.ResolveAsync(user, cancellationToken);
 		if (account is null)
@@ -125,7 +128,12 @@ internal sealed class WorkspaceMemberDetailService(WorkspaceContextStore store, 
 			return new WorkspaceMemberDetailResult.ContextUnavailable();
 		}
 
-		if (!acquired.Context.TryPrepareAnchorDetail(occurrence, out var detail, out var error))
+		if (skip < 0)
+		{
+			return new WorkspaceMemberDetailResult.OccurrenceRejected("The member batch skip must be zero or greater.");
+		}
+
+		if (!acquired.Context.TryPrepareAnchorDetail(occurrence, skip, out var detail, out var error))
 		{
 			return new WorkspaceMemberDetailResult.OccurrenceRejected(error);
 		}
@@ -155,5 +163,31 @@ internal sealed class WorkspaceMemberDetailService(WorkspaceContextStore store, 
 				visibilityTypeId,
 				permissionMode,
 				permissionCode));
+	}
+
+	/// <summary>Reads the member-detail skip query. A missing value is the first page.</summary>
+	/// <param name="text">The raw skip query. Null or blank selects zero.</param>
+	/// <param name="skip">The accepted skip. Zero when the method returns false.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when the text is empty or a zero-or-greater integer.</returns>
+	/// <remarks>A sign, a fraction, and any other non-digit text are rejected. This does not authorize the request.</remarks>
+	internal static bool TryParseMemberSkip(string? text, out int skip, out string error)
+	{
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			skip = 0;
+			error = "";
+			return true;
+		}
+
+		if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out skip) || skip < 0)
+		{
+			skip = 0;
+			error = "The member batch skip must be zero or greater.";
+			return false;
+		}
+
+		error = "";
+		return true;
 	}
 }

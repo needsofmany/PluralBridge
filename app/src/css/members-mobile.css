@@ -98,6 +98,10 @@
         overflow-y: auto;
     }
 
+    #appOutput.output-box:has(.member-scroll-list) .member-scroll-list:has(> .member-map-detail) {
+        overflow: hidden;
+    }
+
 
 /* --------------------------------------------------------------------------
    MEMBER PROFILE FIELDS

@@ -161,11 +161,17 @@
 	flex: 0 0 auto;
 }
 
+/* The tree fills the space under the header and scrolls by itself.
+   Rows pack at the top. A stretched grid row would center a short tree in that space.
+   The first chevron's focus ring is 2px with a 2px offset. The scroller clips anything outside its padding edge, so the top and left padding leave that ring inside the tree. */
 .member-systems-panel > .member-systems-tree {
 	flex: 1 1 auto;
+	align-content: start;
 	min-height: 0;
 	overflow: auto;
 	overscroll-behavior: contain;
+	padding-top: 4px;
+	padding-left: 4px;
 }
 
 /* The panel is the first child of the workspace. Unpinned, it is removed from the flex row and covers the cards. Pinned, it returns to normal flow beside them.

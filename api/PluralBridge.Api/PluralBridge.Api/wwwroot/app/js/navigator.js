@@ -1,6 +1,6 @@
 /**
  * Plural-map navigator. Loads /api/me/plural-map, draws the occurrence tree, and loads anchor member profiles for the selected anchor.
- * When developerTools.workspaceTreeEnabled is strictly true, the same view loads /api/me/workspace-tree, keeps that context id, and loads direct member cards for the selected anchor without requesting avatars. The developer-tools initializer sets that flag to true when it is absent. Strict false keeps the plural-map path and its profile route.
+ * When developerTools.workspaceTreeEnabled is strictly true, the same view loads /api/me/workspace-tree, keeps that context id, and loads direct member cards for the selected anchor. The first window uses skip 0 and then requests that page's avatars. Later windows append cards and do not request avatars. The developer-tools initializer sets that flag to true when it is absent. Strict false keeps the plural-map path and its profile route.
  * Depends on window.PluralBridge.apiClient, window.PluralBridge.members, window.PluralBridge.memberChanges, and createMemberAccordion.
  * A newer selection aborts the previous profile request. A response is painted only when its generation and selected path still match.
  */
@@ -13,6 +13,8 @@ window.PluralBridge = window.PluralBridge || {};
 window.PluralBridge.navigator = (function () {
     const pluralMapEndpoint = "/api/me/plural-map";
     const workspaceTreeEndpoint = "/api/me/workspace-tree";
+    const memberDetailBatchSize = 20;
+    const emptyMemberId = "00000000-0000-0000-0000-000000000000";
     const anchorTypes = {
         system: true,
         group: true,
@@ -22,6 +24,15 @@ window.PluralBridge.navigator = (function () {
     let requestGeneration = 0;
     let selectionGeneration = 0;
     let activeController = null;
+    let memberDetailController = null;
+    let memberAvatarController = null;
+    let memberDetailSerial = 0;
+    let memberDetailInFlight = false;
+    let memberDetailSkip = 0;
+    let memberDetailExhausted = false;
+    let memberDetailPath = "";
+    let memberDetailContext = "";
+    let shownMemberIds = {};
     let tree = null;
     let detail = null;
     let rows = [];
@@ -336,6 +347,18 @@ window.PluralBridge.navigator = (function () {
      */
     function beginRequest() {
         requestGeneration += 1;
+        memberDetailSerial += 1;
+        memberDetailInFlight = false;
+
+        if (memberDetailController) {
+            memberDetailController.abort();
+            memberDetailController = null;
+        }
+
+        if (memberAvatarController) {
+            memberAvatarController.abort();
+            memberAvatarController = null;
+        }
 
         if (activeController) {
             activeController.abort();
@@ -346,6 +369,33 @@ window.PluralBridge.navigator = (function () {
             generation: requestGeneration,
             signal: activeController.signal
         };
+    }
+
+    /**
+     * Starts one member-detail window without aborting the tree load.
+     * A newer selection or tree load aborts this signal through beginRequest.
+     * @returns {AbortSignal} The signal for this window.
+     */
+    function openMemberDetailSignal() {
+        if (memberDetailController) {
+            memberDetailController.abort();
+        }
+
+        memberDetailController = new AbortController();
+        return memberDetailController.signal;
+    }
+
+    /**
+     * Starts the first-page avatar read. A later member page does not abort it. A new selection does, through beginRequest.
+     * @returns {AbortSignal} The signal for this avatar read.
+     */
+    function openMemberAvatarSignal() {
+        if (memberAvatarController) {
+            memberAvatarController.abort();
+        }
+
+        memberAvatarController = new AbortController();
+        return memberAvatarController.signal;
     }
 
     /**
@@ -360,11 +410,13 @@ window.PluralBridge.navigator = (function () {
 
     /**
      * Replaces the tree with one status line.
+     * A workspace load also shows the indeterminate bar under that line. Replacing the tree removes the bar.
      * @param {string} text Status text.
      * @param {boolean} isError True uses the error status class.
+     * @param {boolean} [showProgress] True adds the loading bar. Error and empty results omit it.
      * @returns {void}
      */
-    function renderStatus(text, isError) {
+    function renderStatus(text, isError, showProgress) {
         if (!tree) {
             return;
         }
@@ -378,6 +430,13 @@ window.PluralBridge.navigator = (function () {
             : "navigator-status";
         status.textContent = text;
         tree.appendChild(status);
+        if (showProgress === true) {
+            const progress = document.createElement("div");
+            progress.className = "navigator-load-progress";
+            progress.setAttribute("aria-hidden", "true");
+            progress.appendChild(document.createElement("span"));
+            tree.appendChild(progress);
+        }
     }
 
     /**
@@ -394,9 +453,22 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
-     * Builds the detail heading from the row label and object type.
-     * @param {object} row Selected row. A missing label or type is left blank.
-     * @returns {HTMLElement} The section.
+     * Builds the anchor heading and the full direct-member count.
+     * The count uses the same preview order, direct-child filter, and member-id deduplication as paging.
+     * Loaded cards and missing profiles are not part of the count.
+     * @param {object} row Selected anchor. A missing label is left blank. A missing path counts as zero.
+     * @returns {string} The label, then the count in parentheses.
+     */
+    function detailHeadingText(row) {
+        const label = row && row.nodeLabel ? String(row.nodeLabel) : "";
+        const pathKey = row && row.pathKey ? row.pathKey : "";
+        return label + " (" + String(directMemberIds(pathKey).length) + ")";
+    }
+
+    /**
+     * Builds the detail section. The heading stays outside the card scroller.
+     * @param {object} row Selected row. A missing label is left blank.
+     * @returns {HTMLElement} The section, with an empty card body under the heading.
      */
     function createDetailSection(row) {
         const section = document.createElement("section");
@@ -404,27 +476,65 @@ window.PluralBridge.navigator = (function () {
 
         const label = document.createElement("h3");
         label.className = "output-heading";
-        label.textContent = row.nodeLabel || "";
+        label.textContent = detailHeadingText(row);
 
-        const type = document.createElement("p");
-        type.className = "output-note";
-        type.textContent = row.objectType || "";
+        const body = document.createElement("div");
+        body.className = "member-detail-body";
 
         section.appendChild(label);
-        section.appendChild(type);
+        section.appendChild(body);
         return section;
     }
 
     /**
+     * Returns the element that scrolls member cards. The heading is not inside it.
+     * @param {ParentNode} [section] Detail section. Omitted uses the mounted pane.
+     * @returns {HTMLElement|null} The card body, or the pane when the body is not present.
+     */
+    function memberCardScroller(section) {
+        const root = section || detail;
+        if (!root || typeof root.querySelector !== "function") {
+            return detail;
+        }
+
+        return root.querySelector(".member-detail-body") || detail;
+    }
+
+    /**
+     * Builds the indeterminate bar used under a loading line and under a later member page.
+     * @returns {HTMLElement} The bar. It is hidden from assistive technology because the status text names the load.
+     */
+    function createMemberLoadProgress() {
+        const progress = document.createElement("div");
+        progress.className = "navigator-load-progress";
+        progress.setAttribute("aria-hidden", "true");
+        progress.appendChild(document.createElement("span"));
+        return progress;
+    }
+
+    /**
+     * Removes one request's bar. Another request's bar is a different element and stays.
+     * @param {HTMLElement|null} progress The bar this request added. A missing or detached bar does nothing.
+     * @returns {void}
+     */
+    function removeMemberLoadProgress(progress) {
+        if (progress && typeof progress.remove === "function") {
+            progress.remove();
+        }
+    }
+
+    /**
      * Replaces the detail pane with the row heading and one status line.
+     * The initial member-profile load also places the bar under that line. Replacing the pane removes it.
      * @param {object} row Selected row.
      * @param {string} text Status text.
      * @param {boolean} isError True uses the error class.
-     * @returns {void}
+     * @param {boolean} [showProgress] True adds the loading bar. Errors and empty results omit it.
+     * @returns {HTMLElement|null} The bar, when one was added.
      */
-    function renderDetailStatus(row, text, isError) {
+    function renderDetailStatus(row, text, isError, showProgress) {
         if (!detail) {
-            return;
+            return null;
         }
 
         detail.replaceChildren();
@@ -434,8 +544,35 @@ window.PluralBridge.navigator = (function () {
             ? "output-note navigator-status-error"
             : "output-note";
         status.textContent = text;
-        section.appendChild(status);
+        const body = memberCardScroller(section);
+        body.appendChild(status);
+        let progress = null;
+        if (showProgress === true) {
+            progress = createMemberLoadProgress();
+            body.appendChild(progress);
+        }
         detail.appendChild(section);
+        return progress;
+    }
+
+    /**
+     * Places the loading bar after the cards already on the pane.
+     * @returns {HTMLElement|null} The bar. Null when the pane is missing.
+     */
+    function showPagedMemberProgress() {
+        const body = memberCardScroller();
+        if (!body) {
+            return null;
+        }
+
+        const progress = createMemberLoadProgress();
+        const list = body.querySelector(".member-map-children");
+        if (list) {
+            list.after(progress);
+        } else {
+            body.appendChild(progress);
+        }
+        return progress;
     }
 
     /**
@@ -610,6 +747,86 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
+     * Appends one member card. The card keeps its own Save and Fronting callbacks for the anchor selected now.
+     * @param {HTMLElement} list Card list.
+     * @param {object} row Selected anchor.
+     * @param {object} profile Profile row for this member.
+     * @param {string} id Normalized member id.
+     * @param {boolean} includeAvatar False leaves the card image empty.
+     * @returns {void}
+     * @throws {Error} When createMemberAccordion is not a function.
+     */
+    function appendMemberCard(list, row, profile, id, includeAvatar) {
+        const createCard = resolveCreateMemberAccordion();
+        if (typeof createCard !== "function") {
+            throw new Error(
+                "Cannot create member cards: createMemberAccordion is not accessible from the navigator."
+            );
+        }
+
+        const renderedAccountId = getAccountId();
+        const card = createCard(profileForCard(profile, id, renderedAccountId, includeAvatar), {
+            allowProfileEditing: true,
+            previewHeader: true,
+            /**
+             * Saves Fronting for this card through the members API, using the anchor that was selected when the card was created.
+             * A missing members API returns a saved:false outcome instead of rejecting.
+             * @param {boolean} fronting Next fronting state. The members API treats only true as fronting.
+             * @returns {Promise<object>} The members API outcome, or a saved:false object when the API is missing.
+             */
+            saveFronting: async function (fronting) {
+                const membersApi = window.PluralBridge && window.PluralBridge.members
+                    ? window.PluralBridge.members
+                    : null;
+                if (!membersApi || typeof membersApi.saveMemberFronting !== "function") {
+                    return {
+                        saved: false,
+                        status: "Fronting could not be saved."
+                    };
+                }
+
+                // Fronting uses the same selected occurrence as profile Save.
+                return membersApi.saveMemberFronting(renderedAccountId, id, {
+                    objectType: row.objectType,
+                    objectId: row.objectId,
+                    branch: selectedBranch(row)
+                }, fronting);
+            },
+            /**
+             * Saves this card's profile through the members API, using the same selected anchor and branch as Fronting.
+             * A persisted name is copied onto matching member rows in the tree. Failure stays in the returned outcome.
+             * @param {object} saveRequest Fields prepared by the card.
+             * @returns {Promise<object>} The members API outcome, or a saved:false object when the API is missing.
+             */
+            saveProfile: async function (saveRequest) {
+                const membersApi = window.PluralBridge && window.PluralBridge.members
+                    ? window.PluralBridge.members
+                    : null;
+                if (!membersApi || typeof membersApi.saveMemberProfile !== "function") {
+                    return {
+                        saved: false,
+                        status: "Member profile saving is not connected to an anchor-specific endpoint yet."
+                    };
+                }
+
+                const outcome = await membersApi.saveMemberProfile(renderedAccountId, id, {
+                    objectType: row.objectType,
+                    objectId: row.objectId,
+                    branch: selectedBranch(row)
+                }, saveRequest);
+                if (outcome && outcome.persisted === true && outcome.profile) {
+                    reflectSharedMemberName(id, outcome.profile.displayName);
+                }
+                return outcome;
+            }
+        });
+        if (card && typeof card.setAttribute === "function") {
+            card.setAttribute("data-member-id", id);
+        }
+        list.appendChild(card);
+    }
+
+    /**
      * Draws member cards for member children of the selected anchor and reports profiles that do not match those children.
      * Each card receives the selected anchor and branch for both profile Save and immediate Fronting.
      * @param {object} row Selected anchor.
@@ -625,7 +842,6 @@ window.PluralBridge.navigator = (function () {
 
         detail.replaceChildren();
         const section = createDetailSection(row);
-        const createCard = resolveCreateMemberAccordion();
         const children = immediateChildren(rows, row.pathKey);
         const profilesById = {};
         const profileIds = [];
@@ -653,7 +869,6 @@ window.PluralBridge.navigator = (function () {
         const missing = [];
         const list = document.createElement("div");
         list.className = "member-map-children";
-        const renderedAccountId = getAccountId();
         /**
          * Keeps member children of the selected anchor.
          * @param {object} child Map child.
@@ -680,68 +895,8 @@ window.PluralBridge.navigator = (function () {
                 return;
             }
 
-            if (typeof createCard !== "function") {
-                throw new Error(
-                    "Cannot create member cards: createMemberAccordion is not accessible from the navigator."
-                );
-            }
-
             matched[id] = true;
-            list.appendChild(createCard(profileForCard(profile, id, renderedAccountId, includeAvatar), {
-                allowProfileEditing: true,
-                previewHeader: true,
-                /**
-                 * Saves Fronting for this card through the members API, using the anchor that was selected when the card was created.
-                 * A missing members API returns a saved:false outcome instead of rejecting.
-                 * @param {boolean} fronting Next fronting state. The members API treats only true as fronting.
-                 * @returns {Promise<object>} The members API outcome, or a saved:false object when the API is missing.
-                 */
-                saveFronting: async function (fronting) {
-                    const membersApi = window.PluralBridge && window.PluralBridge.members
-                        ? window.PluralBridge.members
-                        : null;
-                    if (!membersApi || typeof membersApi.saveMemberFronting !== "function") {
-                        return {
-                            saved: false,
-                            status: "Fronting could not be saved."
-                        };
-                    }
-
-                    // Fronting uses the same selected occurrence as profile Save.
-                    return membersApi.saveMemberFronting(renderedAccountId, id, {
-                        objectType: row.objectType,
-                        objectId: row.objectId,
-                        branch: selectedBranch(row)
-                    }, fronting);
-                },
-                /**
-                 * Saves this card's profile through the members API, using the same selected anchor and branch as Fronting.
-                 * A persisted name is copied onto matching member rows in the tree. Failure stays in the returned outcome.
-                 * @param {object} saveRequest Fields prepared by the card.
-                 * @returns {Promise<object>} The members API outcome, or a saved:false object when the API is missing.
-                 */
-                saveProfile: async function (saveRequest) {
-                    const membersApi = window.PluralBridge && window.PluralBridge.members
-                        ? window.PluralBridge.members
-                        : null;
-                    if (!membersApi || typeof membersApi.saveMemberProfile !== "function") {
-                        return {
-                            saved: false,
-                            status: "Member profile saving is not connected to an anchor-specific endpoint yet."
-                        };
-                    }
-
-                    const outcome = await membersApi.saveMemberProfile(renderedAccountId, id, {
-                        objectType: row.objectType,
-                        objectId: row.objectId,
-                        branch: selectedBranch(row)
-                    }, saveRequest);
-                    if (outcome && outcome.persisted === true && outcome.profile) {
-                        reflectSharedMemberName(id, outcome.profile.displayName);
-                    }
-                    return outcome;
-                }
-            }));
+            appendMemberCard(list, row, profile, id, includeAvatar);
         });
 
         /**
@@ -753,13 +908,14 @@ window.PluralBridge.navigator = (function () {
             return matched[id] !== true;
         }).concat(profilesWithoutId);
 
+        const body = memberCardScroller(section);
         if (directMembers.length === 0) {
             const empty = document.createElement("p");
             empty.className = "output-note";
             empty.textContent = "No member profiles were returned.";
-            section.appendChild(empty);
+            body.appendChild(empty);
         } else if (list.childNodes.length > 0) {
-            section.appendChild(list);
+            body.appendChild(list);
         }
 
         if (missing.length > 0 || extra.length > 0) {
@@ -773,7 +929,7 @@ window.PluralBridge.navigator = (function () {
                 parts.push("Extra: " + extra.join(", ") + ".");
             }
             mismatch.textContent = parts.join(" ");
-            section.appendChild(mismatch);
+            body.appendChild(mismatch);
         }
 
         detail.appendChild(section);
@@ -810,7 +966,7 @@ window.PluralBridge.navigator = (function () {
             return;
         }
 
-        renderDetailStatus(row, "Loading member profiles.", false);
+        const progress = renderDetailStatus(row, "Loading member profiles.", false, true);
 
         const apiClient = window.PluralBridge && window.PluralBridge.apiClient
             ? window.PluralBridge.apiClient
@@ -836,6 +992,7 @@ window.PluralBridge.navigator = (function () {
              */
             .then(function (profiles) {
                 if (!profileResponseIsCurrent(request, pathKey)) {
+                    removeMemberLoadProgress(progress);
                     return;
                 }
 
@@ -857,10 +1014,12 @@ window.PluralBridge.navigator = (function () {
              */
             .catch(function (error) {
                 if (error && error.name === "AbortError") {
+                    removeMemberLoadProgress(progress);
                     return;
                 }
 
                 if (!profileResponseIsCurrent(request, pathKey)) {
+                    removeMemberLoadProgress(progress);
                     return;
                 }
 
@@ -873,14 +1032,456 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
-     * Loads direct member cards for the selected anchor in the retained workspace context.
-     * A late response is ignored. The card image is left empty because image loading is a later task.
+     * Unique direct member ids for one occurrence, in preview order.
+     * A repeated id is kept at its first row. Another parent, a non-member, and an empty id are omitted.
+     * @param {string} pathKey Selected occurrence path.
+     * @returns {Array<string>} The ids later windows skip through.
+     */
+    function directMemberIds(pathKey) {
+        const seen = {};
+        const ids = [];
+        rows.forEach(function (row) {
+            if (!row || row.parentPathKey !== pathKey || row.objectType !== "member") {
+                return;
+            }
+
+            const id = normalizeGuid(row.objectId);
+            if (!id || id === emptyMemberId || seen[id]) {
+                return;
+            }
+
+            seen[id] = true;
+            ids.push(id);
+        });
+        return ids;
+    }
+
+    /**
+     * Finds one retained row by path.
+     * @param {string} pathKey Path key.
+     * @returns {object|null} The row, or null.
+     */
+    function rowByPath(pathKey) {
+        for (let index = 0; index < rows.length; index += 1) {
+            if (rows[index] && rows[index].pathKey === pathKey) {
+                return rows[index];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Reports whether the member pane should request another window.
+     * A pane that does not overflow still needs more. A pane near its bottom needs the next window before the user reaches it.
+     * An unmeasured pane does not request, so a missing layout cannot walk every window by itself.
+     * @returns {boolean} True when another window should start.
+     */
+    function memberPaneNeedsAnotherBatch() {
+        const scroller = memberCardScroller();
+        if (!scroller || scroller.clientHeight <= 0) {
+            return false;
+        }
+
+        const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+        return remaining <= scroller.clientHeight;
+    }
+
+    /**
+     * Shows a member-detail failure. Existing cards stay. The first failure, with no cards yet, replaces the pane.
+     * @param {object} row Selected anchor.
+     * @param {string} text Error text.
+     * @returns {void}
+     */
+    function showWorkspaceDetailError(row, text) {
+        if (!detail || !detail.querySelector(".member-card")) {
+            renderDetailStatus(row, text, true);
+            return;
+        }
+
+        const host = memberCardScroller() || detail;
+        let note = detail.querySelector(".member-detail-page-error");
+        if (!note) {
+            note = document.createElement("p");
+            note.className = "output-note navigator-status-error member-detail-page-error";
+            host.appendChild(note);
+        }
+
+        note.textContent = text;
+    }
+
+    /**
+     * Appends one window of cards. Cards already on the pane are left in place, including their edits and expansion.
+     * A profile outside this window, or for a member already shown, is not added.
+     * @param {object} row Selected anchor.
+     * @param {Array<object>} profiles Profile rows for this window.
+     * @param {number} skip Unique direct members this window passed over.
+     * @returns {void}
+     */
+    function paintWorkspaceMemberPage(row, profiles, skip) {
+        if (!detail) {
+            return;
+        }
+
+        const profilesById = {};
+        profiles.forEach(function (profile) {
+            const id = normalizeGuid(profile && profile.memberId);
+            if (id && !profilesById[id]) {
+                profilesById[id] = profile;
+            }
+        });
+
+        const windowIds = directMemberIds(row.pathKey).slice(skip, skip + memberDetailBatchSize);
+        let section = detail.querySelector(".member-map-detail");
+        let list = section ? section.querySelector(".member-map-children") : null;
+        if (!section || !list) {
+            detail.replaceChildren();
+            shownMemberIds = {};
+            section = createDetailSection(row);
+            list = document.createElement("div");
+            list.className = "member-map-children";
+            memberCardScroller(section).appendChild(list);
+            detail.appendChild(section);
+        }
+
+        const pageError = detail.querySelector(".member-detail-page-error");
+        if (pageError) {
+            pageError.remove();
+        }
+
+        windowIds.forEach(function (id) {
+            if (shownMemberIds[id] || !profilesById[id]) {
+                return;
+            }
+
+            shownMemberIds[id] = true;
+            appendMemberCard(list, row, profilesById[id], id, false);
+        });
+
+        const body = memberCardScroller(section);
+        let empty = section.querySelector(".member-detail-empty");
+        if (directMemberIds(row.pathKey).length === 0) {
+            list.remove();
+            if (!empty) {
+                empty = document.createElement("p");
+                empty.className = "output-note member-detail-empty";
+                empty.textContent = "No member profiles were returned.";
+                body.appendChild(empty);
+            }
+        } else if (empty) {
+            empty.remove();
+        }
+    }
+
+    /**
+     * Requests avatars for the cards just painted on the first page.
+     * A later page does not call this. Failure leaves those cards in place and does not request again.
+     * @param {object} row Selected anchor.
+     * @param {{generation: number}} request Generation captured for this selection.
+     * @param {number} serial Detail serial captured when the card request started.
+     * @returns {void}
+     */
+    function requestFirstBatchAvatars(row, request, serial) {
+        if (!detail || !detail.querySelector(".member-card")) {
+            return;
+        }
+
+        const pathKey = row.pathKey;
+        const capturedContext = memberDetailContext;
+        if (serial !== memberDetailSerial || !profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+            return;
+        }
+
+        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+        if (!apiClient || typeof apiClient.readWorkspaceMemberAvatars !== "function") {
+            return;
+        }
+
+        apiClient.readWorkspaceMemberAvatars(capturedContext, pathKey, openMemberAvatarSignal())
+            /**
+             * Paints images onto the cards already shown. A stale response is dropped before it creates an object URL.
+             * @param {*} images Avatar rows. A non-array body is a failed read.
+             * @returns {void}
+             */
+            .then(function (images) {
+                if (serial !== memberDetailSerial || !profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    return;
+                }
+
+                if (!Array.isArray(images)) {
+                    reportProfileFailure(
+                        "Member avatar loading failed because the avatar response was not an array.",
+                        images
+                    );
+                    return;
+                }
+
+                applyFirstBatchAvatars(images);
+            })
+            /**
+             * Leaves the cards usable. Abort and a later failure do not start another avatar read.
+             * @param {*} error Rejection from the avatar request. AbortError is ignored.
+             * @returns {void}
+             */
+            .catch(function (error) {
+                if (serial !== memberDetailSerial || (error && error.name === "AbortError")) {
+                    return;
+                }
+
+                if (!profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    return;
+                }
+
+                reportProfileFailure(
+                    "Member avatar loading failed after the cards were shown.",
+                    error
+                );
+            });
+    }
+
+    /**
+     * Applies one first-page avatar response to the matching cards.
+     * A null image leaves the placeholder. The card decides whether a pending avatar edit keeps its preview.
+     * @param {Array<object>} images Rows with memberId, contentType, and imageBase64.
+     * @returns {void}
+     */
+    function applyFirstBatchAvatars(images) {
+        images.forEach(function (image) {
+            const id = normalizeGuid(image && image.memberId);
+            if (!id || !detail) {
+                return;
+            }
+
+            const card = detail.querySelector('[data-member-id="' + id + '"]');
+            const objectUrl = objectUrlForAvatar(image);
+            if (!card || typeof card.applyWorkspaceAvatar !== "function") {
+                revokeAvatarObjectUrl(objectUrl);
+                return;
+            }
+
+            // A false result means the card kept a pending edit, so this URL has no owner.
+            if (!card.applyWorkspaceAvatar(objectUrl)) {
+                revokeAvatarObjectUrl(objectUrl);
+            }
+        });
+    }
+
+    /**
+     * Builds an object URL for one returned image. Null image fields stay null and create no URL.
+     * @param {object} image One avatar row.
+     * @returns {string|null} The object URL, or null when the member has no image or the bytes cannot be read.
+     */
+    function objectUrlForAvatar(image) {
+        if (!image || image.imageBase64 == null || image.imageBase64 === "" || typeof URL.createObjectURL !== "function") {
+            return null;
+        }
+
+        try {
+            const binary = atob(image.imageBase64);
+            const bytes = new Uint8Array(binary.length);
+            for (let index = 0; index < binary.length; index += 1) {
+                bytes[index] = binary.charCodeAt(index);
+            }
+            return URL.createObjectURL(new Blob([bytes], {
+                type: image.contentType || "application/octet-stream"
+            }));
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * Releases an object URL this load created and then did not keep.
+     * @param {string|null} objectUrl URL returned by objectUrlForAvatar. A route or a null URL is left alone.
+     * @returns {void}
+     */
+    function revokeAvatarObjectUrl(objectUrl) {
+        if (objectUrl && String(objectUrl).indexOf("blob:") === 0 && typeof URL.revokeObjectURL === "function") {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    /**
+     * Requests one member window for the captured context and occurrence.
+     * Success advances skip by the window size. Failure leaves skip where it was and does not request again.
+     * @param {object} row Selected anchor.
+     * @param {number} skip Unique direct members to pass over.
+     * @param {{generation: number}} request Generation captured for this selection.
+     * @param {AbortSignal} signal Abort signal for this window.
+     * @param {HTMLElement|null} progress The bar shown for this window. Finishing this window removes that element only.
+     * @returns {void}
+     */
+    function startMemberDetailRequest(row, skip, request, signal, progress) {
+        const pathKey = row.pathKey;
+        const capturedContext = memberDetailContext;
+        if (memberDetailInFlight || memberDetailExhausted || !capturedContext || !profileResponseIsCurrent(request, pathKey)) {
+            removeMemberLoadProgress(progress);
+            return;
+        }
+
+        if (skip > 0 && skip >= directMemberIds(pathKey).length) {
+            memberDetailExhausted = true;
+            removeMemberLoadProgress(progress);
+            return;
+        }
+
+        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+        if (!apiClient || typeof apiClient.readWorkspaceMemberDetails !== "function") {
+            removeMemberLoadProgress(progress);
+            reportProfileFailure(
+                "Member profile loading failed because readWorkspaceMemberDetails is not available on the API client."
+            );
+            showWorkspaceDetailError(row, "The member profiles could not be loaded.");
+            return;
+        }
+
+        const serial = memberDetailSerial;
+        memberDetailInFlight = true;
+        apiClient.readWorkspaceMemberDetails(capturedContext, pathKey, signal, skip)
+            /**
+             * Appends the window when this selection is still visible. A non-array body is a load failure.
+             * @param {*} profiles Response body.
+             * @returns {void}
+             */
+            .then(function (profiles) {
+                removeMemberLoadProgress(progress);
+                if (serial !== memberDetailSerial) {
+                    return;
+                }
+
+                memberDetailInFlight = false;
+                if (!profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    return;
+                }
+
+                if (!Array.isArray(profiles)) {
+                    reportProfileFailure(
+                        "Member profile loading failed because the profile response was not an array.",
+                        profiles
+                    );
+                    showWorkspaceDetailError(row, "The member profiles could not be loaded.");
+                    return;
+                }
+
+                paintWorkspaceMemberPage(row, profiles, skip);
+                if (skip === 0) {
+                    requestFirstBatchAvatars(row, request, serial);
+                }
+                memberDetailSkip = skip + memberDetailBatchSize;
+                if (memberDetailSkip >= directMemberIds(pathKey).length) {
+                    memberDetailExhausted = true;
+                } else if (memberPaneNeedsAnotherBatch()) {
+                    requestNextWorkspaceMemberDetails();
+                }
+            })
+            /**
+             * Ignores an abort. A later failure leaves the cards and the next skip unchanged.
+             * Removing this window's bar does not remove the bar a newer selection added.
+             * @param {*} error Rejection from the detail request. AbortError is ignored.
+             * @returns {void}
+             */
+            .catch(function (error) {
+                removeMemberLoadProgress(progress);
+                if (serial !== memberDetailSerial) {
+                    return;
+                }
+
+                memberDetailInFlight = false;
+                if (error && error.name === "AbortError") {
+                    return;
+                }
+
+                if (!profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    return;
+                }
+
+                reportProfileFailure(
+                    "Member profile loading failed before the cards could be shown.",
+                    error
+                );
+                showWorkspaceDetailError(row, "The member profiles could not be loaded.");
+            });
+    }
+
+    /**
+     * Requests the next window for the current selection. A window already in flight is left alone.
+     * @returns {void}
+     */
+    function requestNextWorkspaceMemberDetails() {
+        if (memberDetailInFlight || memberDetailExhausted || !workspaceTreeEnabled()) {
+            return;
+        }
+
+        if (!contextId || contextId !== memberDetailContext || selectedPathKey !== memberDetailPath) {
+            return;
+        }
+
+        const row = rowByPath(selectedPathKey);
+        if (!row) {
+            return;
+        }
+
+        const progress = memberDetailSkip === 0 && (!detail || !detail.querySelector(".member-card"))
+            ? renderDetailStatus(row, "Loading member profiles.", false, true)
+            : showPagedMemberProgress();
+        startMemberDetailRequest(row, memberDetailSkip, {
+            generation: requestGeneration
+        }, openMemberDetailSignal(), progress);
+    }
+
+    /**
+     * Loads the first member window when the pane is scrolled near its bottom, or when a short pane receives a wheel.
+     * A short pane does not emit scroll, so the wheel is the retry after a failed window.
+     * @returns {void}
+     */
+    function onMemberPaneNeedsMore() {
+        if (!workspaceTreeEnabled() || !memberPaneNeedsAnotherBatch()) {
+            return;
+        }
+
+        requestNextWorkspaceMemberDetails();
+    }
+
+    /**
+     * Listens once on the member pane. Later mounts of the same element do not add another listener.
+     * @returns {void}
+     */
+    function bindMemberPaneScroll() {
+        if (!detail || detail.getAttribute("data-member-detail-scroll") === "true") {
+            return;
+        }
+
+        detail.setAttribute("data-member-detail-scroll", "true");
+        // Capture hears the card body. The heading is outside that scroller, and the navigator tree scrolls on its own element.
+        detail.addEventListener("scroll", onMemberPaneNeedsMore, true);
+        detail.addEventListener("wheel", function () {
+            const scroller = memberCardScroller();
+            if (!scroller || scroller.scrollHeight > scroller.clientHeight) {
+                return;
+            }
+
+            requestNextWorkspaceMemberDetails();
+        });
+    }
+
+    /**
+     * Loads the first direct-member window for the selected anchor in the retained workspace context.
+     * A late response is ignored. Later windows append cards. The first window requests avatars after its cards are shown.
      * @param {object} row Selected anchor. A missing context id shows an error when this request is still current.
      * @returns {void}
      */
     function loadWorkspaceMemberDetails(row) {
         const pathKey = row.pathKey;
         const request = beginRequest();
+        memberDetailSkip = 0;
+        memberDetailExhausted = false;
+        memberDetailPath = pathKey;
+        memberDetailContext = contextId || "";
+        shownMemberIds = {};
         if (!contextId) {
             if (!profileResponseIsCurrent(request, pathKey)) {
                 return;
@@ -890,67 +1491,8 @@ window.PluralBridge.navigator = (function () {
             return;
         }
 
-        renderDetailStatus(row, "Loading member profiles.", false);
-        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
-            ? window.PluralBridge.apiClient
-            : null;
-        if (!apiClient || typeof apiClient.readWorkspaceMemberDetails !== "function") {
-            if (!profileResponseIsCurrent(request, pathKey)) {
-                return;
-            }
-
-            reportProfileFailure(
-                "Member profile loading failed because readWorkspaceMemberDetails is not available on the API client."
-            );
-            renderDetailStatus(row, "The member profiles could not be loaded.", true);
-            return;
-        }
-
-        apiClient.readWorkspaceMemberDetails(contextId, pathKey, request.signal)
-            /**
-             * Paints the cards when this response is still the visible selection. A non-array body is a load failure.
-             * @param {*} profiles Response body.
-             * @returns {void}
-             */
-            .then(function (profiles) {
-                if (!profileResponseIsCurrent(request, pathKey)) {
-                    return;
-                }
-
-                if (!Array.isArray(profiles)) {
-                    reportProfileFailure(
-                        "Member profile loading failed because the profile response was not an array.",
-                        profiles
-                    );
-                    renderDetailStatus(row, "The member profiles could not be loaded.", true);
-                    return;
-                }
-
-                renderProfiles(row, profiles, {
-                    omitAvatar: true,
-                    batchLimited: true
-                });
-            })
-            /**
-             * Ignores an abort. A later failure is shown only when this request is still the visible selection.
-             * @param {*} error Rejection from the detail request. AbortError is ignored.
-             * @returns {void}
-             */
-            .catch(function (error) {
-                if (error && error.name === "AbortError") {
-                    return;
-                }
-
-                if (!profileResponseIsCurrent(request, pathKey)) {
-                    return;
-                }
-
-                reportProfileFailure(
-                    "Member profile loading failed before the cards could be shown.",
-                    error
-                );
-                renderDetailStatus(row, "The member profiles could not be loaded.", true);
-            });
+        const progress = renderDetailStatus(row, "Loading member profiles.", false, true);
+        startMemberDetailRequest(row, 0, request, openMemberDetailSignal(), progress);
     }
 
     /**
@@ -1730,6 +2272,7 @@ window.PluralBridge.navigator = (function () {
         selectionGeneration += 1;
         tree = containers && containers.tree ? containers.tree : null;
         detail = containers && containers.detail ? containers.detail : null;
+        bindMemberPaneScroll();
         const previousContextId = contextId;
         rows = [];
         selectedPathKey = null;
@@ -1796,7 +2339,11 @@ window.PluralBridge.navigator = (function () {
         request.workspaceMode = workspaceTreeEnabled();
         request.replacing = replacing === true;
         if (!request.replacing) {
-            renderStatus(request.workspaceMode ? "Loading workspace tree." : "Loading plural map.");
+            renderStatus(
+                request.workspaceMode ? "Loading workspace tree." : "Loading plural map.",
+                false,
+                request.workspaceMode === true
+            );
         }
 
         fetch(request.workspaceMode ? workspaceTreeEndpoint : pluralMapEndpoint, {
@@ -1862,6 +2409,7 @@ window.PluralBridge.navigator = (function () {
             })
             /**
              * Ignores an abort or a stale load. A replacement failure keeps the previous tree and context.
+             * An aborted or stale load does not clear the tree, so a newer workspace load keeps its progress bar.
              * @param {*} error Rejection from the tree request.
              * @returns {void}
              */

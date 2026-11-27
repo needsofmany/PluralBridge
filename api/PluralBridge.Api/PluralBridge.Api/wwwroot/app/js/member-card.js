@@ -3017,6 +3017,14 @@ function createMemberAccordion(member, options) {
             const removalObserver = new MutationObserver(function () {
                 if (!cardDetails.isConnected) {
                     releaseUnsavedAvatar();
+                    // A loaded image is a blob URL stored as the persisted value. The unsaved-preview release leaves that URL in place.
+                    if (
+                        persistedValues.avatarObjectUrl
+                        && String(persistedValues.avatarObjectUrl).indexOf("blob:") === 0
+                        && typeof URL.revokeObjectURL === "function"
+                    ) {
+                        URL.revokeObjectURL(persistedValues.avatarObjectUrl);
+                    }
                     if (typeof detachChanges === "function") {
                         detachChanges();
                         detachChanges = null;
@@ -3128,6 +3136,15 @@ function createMemberAccordion(member, options) {
         }
 
         if (Object.prototype.hasOwnProperty.call(fields, "avatarObjectUrl") && !surfaceIsModified(avatarWrap) && !surfaceIsModified(avatarFile)) {
+            const previousAvatar = persistedValues.avatarObjectUrl;
+            if (
+                previousAvatar
+                && previousAvatar !== fields.avatarObjectUrl
+                && String(previousAvatar).indexOf("blob:") === 0
+                && typeof URL.revokeObjectURL === "function"
+            ) {
+                URL.revokeObjectURL(previousAvatar);
+            }
             persistedValues.avatarObjectUrl = fields.avatarObjectUrl;
             draftValues.avatarObjectUrl = fields.avatarObjectUrl;
             if (member) {
@@ -3447,6 +3464,23 @@ function createMemberAccordion(member, options) {
         });
         changeOwner.capture(cardDetails);
     }
+
+    /**
+     * Publishes one loaded avatar. A pending avatar edit keeps its preview and this method returns false.
+     * Other edits, expansion, and scroll position are left alone.
+     * @param {string|null} objectUrl Object URL for the image. Null leaves the placeholder when the avatar is clean.
+     * @returns {boolean} True when the card accepted the URL. False when a pending edit kept the current preview.
+     */
+    cardDetails.applyWorkspaceAvatar = function (objectUrl) {
+        if (surfaceIsModified(avatarWrap) || surfaceIsModified(avatarFile)) {
+            return false;
+        }
+
+        applyExternal({
+            avatarObjectUrl: objectUrl
+        });
+        return true;
+    };
 
     return cardDetails;
 }
