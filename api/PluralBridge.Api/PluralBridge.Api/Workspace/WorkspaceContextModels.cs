@@ -59,11 +59,28 @@ internal sealed record WorkspaceNodeLabel(string ObjectType, Guid ObjectId, stri
 internal sealed record WorkspaceSystemEdgeLabel(Guid SystemId, string? EdgeLabel);
 
 /// <summary>
+/// The anchor identity derived from one validated occurrence.
+/// </summary>
+/// <param name="ObjectType">system, group, or place.</param>
+/// <param name="ObjectId">The anchor id stored on that occurrence.</param>
+/// <param name="AnchorName">The anchor name stored on that occurrence. The profile procedure matches this name.</param>
+/// <param name="Branch">Type and id pairs from the occurrence toward the account, comma-separated. At most 32 nodes.</param>
+/// <param name="DirectMemberIds">The first direct member occurrences, in preview order. At most <see cref="WorkspaceContext.DetailBatchSize"/>.</param>
+/// <remarks>Access facts are not part of this value. They do not grant the profile read.</remarks>
+internal readonly record struct WorkspaceAnchorDetail(
+	string ObjectType,
+	Guid ObjectId,
+	string AnchorName,
+	string Branch,
+	IReadOnlyList<Guid> DirectMemberIds);
+
+/// <summary>
 /// The immutable context retained for one opening build.
 /// </summary>
 /// <remarks>
 /// Later detail and image requests must not treat this copy as current authorization until a freshness contract is approved.
 /// Database freshness detection is not part of this object. Profile text, fronting, and image bytes are not stored.
+/// Anchor visibility and permission bytes are the account's stored settings. They are not an access decision.
 /// </remarks>
 internal sealed class WorkspaceContext
 {
@@ -76,6 +93,7 @@ internal sealed class WorkspaceContext
 		IReadOnlyList<WorkspaceSystemEdgeLabel> systemEdgeLabels,
 		IReadOnlyList<PluralMapPreviewRow> hierarchyPreview,
 		IReadOnlyList<WorkspaceAccessFact> accessFacts,
+		IReadOnlyList<WorkspaceAnchorSetting> anchorSettings,
 		long estimatedBytes)
 	{
 		ContextId = contextId;
@@ -86,8 +104,12 @@ internal sealed class WorkspaceContext
 		SystemEdgeLabels = systemEdgeLabels;
 		HierarchyPreview = hierarchyPreview;
 		AccessFacts = accessFacts;
+		AnchorSettings = anchorSettings;
 		EstimatedBytes = estimatedBytes;
 	}
+
+	/// <summary>The most direct member occurrences one detail response includes.</summary>
+	public const int DetailBatchSize = 20;
 
 	/// <summary>The opaque context id.</summary>
 	public string ContextId { get; }
@@ -114,6 +136,15 @@ internal sealed class WorkspaceContext
 	public IReadOnlyList<WorkspaceAccessFact> AccessFacts { get; }
 
 	/// <summary>
+	/// One visibility byte and one permission byte for every system, group, and place in this build.
+	/// </summary>
+	/// <remarks>
+	/// Missing, unset, inherit, and explicit stay distinct. Repeated occurrences share the account-owned record.
+	/// These values do not authorize access.
+	/// </remarks>
+	public IReadOnlyList<WorkspaceAnchorSetting> AnchorSettings { get; }
+
+	/// <summary>
 	/// A conservative retained-size estimate, in bytes.
 	/// </summary>
 	/// <remarks>
@@ -131,6 +162,7 @@ internal sealed class WorkspaceContext
 	/// <param name="systemEdgeLabels">System edge labels.</param>
 	/// <param name="hierarchyPreview">Derived navigation rows.</param>
 	/// <param name="accessFacts">Membership facts. The zero guid is omitted.</param>
+	/// <param name="anchorSettingRows">Stored settings for this account. An anchor with no row is retained as missing.</param>
 	/// <returns>The immutable context.</returns>
 	public static WorkspaceContext Create(
 		Guid accountId,
@@ -139,10 +171,16 @@ internal sealed class WorkspaceContext
 		IReadOnlyList<WorkspaceNodeLabel> nodeLabels,
 		IReadOnlyList<WorkspaceSystemEdgeLabel> systemEdgeLabels,
 		IReadOnlyList<PluralMapPreviewRow> hierarchyPreview,
-		IReadOnlyList<WorkspaceAccessFact> accessFacts)
+		IReadOnlyList<WorkspaceAccessFact> accessFacts,
+		IReadOnlyList<WorkspaceStoredAnchorSetting>? anchorSettingRows = null)
 	{
 		var contextId = Guid.NewGuid().ToString("N");
 		var copiedFacts = accessFacts.Where(fact => fact.ObjectId != Guid.Empty).ToArray();
+		var anchorSettings = WorkspaceAnchorSettings.Retain(
+			nodeLabels,
+			occurrences,
+			hierarchyPreview,
+			anchorSettingRows ?? []);
 		var context = new WorkspaceContext(
 			contextId,
 			accountId,
@@ -152,6 +190,7 @@ internal sealed class WorkspaceContext
 			Freeze(systemEdgeLabels),
 			Freeze(hierarchyPreview),
 			Freeze(copiedFacts),
+			Freeze(anchorSettings),
 			0);
 		return new WorkspaceContext(
 			context.ContextId,
@@ -162,6 +201,7 @@ internal sealed class WorkspaceContext
 			context.SystemEdgeLabels,
 			context.HierarchyPreview,
 			context.AccessFacts,
+			context.AnchorSettings,
 			Estimate(context));
 	}
 
@@ -196,6 +236,505 @@ internal sealed class WorkspaceContext
 	public bool HasDuplicateMembership(string objectType, Guid objectId)
 	{
 		return AccessFacts.Count(fact => SameObject(fact, objectType, objectId)) > 1;
+	}
+
+	/// <summary>
+	/// Derives the profile-procedure arguments for one anchor occurrence in this opening.
+	/// </summary>
+	/// <param name="pathKey">The occurrence path. A blank path, a header, a member, or a row without an id or name is rejected.</param>
+	/// <param name="detail">The derived anchor, branch, and direct member ids. Empty when the method returns false.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when this context contains that anchor occurrence. This does not authorize the account.</returns>
+	/// <remarks>
+	/// The branch walks parent paths the same way the browser does, and stops at a repeated path, a missing parent, or 32 nodes.
+	/// A Groups header has no object id, so the walk stops before adding it. Direct members are children whose type is member.
+	/// Retained access facts are not read here.
+	/// </remarks>
+	public bool TryPrepareAnchorDetail(string? pathKey, out WorkspaceAnchorDetail detail, out string error)
+	{
+		detail = default;
+		if (string.IsNullOrWhiteSpace(pathKey))
+		{
+			error = "The selected occurrence is required.";
+			return false;
+		}
+
+		PluralMapPreviewRow? match = null;
+		foreach (var row in HierarchyPreview)
+		{
+			if (string.Equals(row.PathKey, pathKey, StringComparison.Ordinal))
+			{
+				match = row;
+				break;
+			}
+		}
+
+		if (match is null)
+		{
+			error = "The selected occurrence is not in this workspace.";
+			return false;
+		}
+
+		var rowMatch = match;
+		if (rowMatch.Header
+			|| rowMatch.ObjectType is not ("system" or "group" or "place")
+			|| rowMatch.ObjectId is not Guid objectId
+			|| objectId == Guid.Empty)
+		{
+			error = "The selected occurrence is not an anchor.";
+			return false;
+		}
+
+		if (string.IsNullOrWhiteSpace(rowMatch.AnchorName) || rowMatch.AnchorName.Length > 510)
+		{
+			error = "The selected anchor has no stored name.";
+			return false;
+		}
+
+		var members = new List<Guid>(DetailBatchSize);
+		foreach (var row in HierarchyPreview)
+		{
+			if (members.Count == DetailBatchSize)
+			{
+				break;
+			}
+
+			if (!string.Equals(row.ParentPathKey, pathKey, StringComparison.Ordinal)
+				|| !string.Equals(row.ObjectType, "member", StringComparison.Ordinal)
+				|| row.ObjectId is not Guid memberId
+				|| memberId == Guid.Empty
+				|| members.Contains(memberId))
+			{
+				continue;
+			}
+
+			members.Add(memberId);
+		}
+
+		detail = new WorkspaceAnchorDetail(
+			rowMatch.ObjectType,
+			objectId,
+			rowMatch.AnchorName,
+			BuildBranch(rowMatch),
+			members);
+		error = "";
+		return true;
+	}
+
+	/// <summary>Builds the profile branch from this row through its parents.</summary>
+	/// <param name="start">The selected anchor row.</param>
+	/// <returns>Comma-separated type:id pairs. A row without a type or id ends the walk.</returns>
+	private string BuildBranch(PluralMapPreviewRow start)
+	{
+		var chain = new List<string>(8);
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		var current = start;
+		while (chain.Count < 32)
+		{
+			if (current.ObjectType is not ("system" or "group" or "place") || current.ObjectId is not Guid objectId || objectId == Guid.Empty)
+			{
+				break;
+			}
+
+			if (!string.IsNullOrEmpty(current.PathKey) && !seen.Add(current.PathKey))
+			{
+				break;
+			}
+
+			chain.Add(current.ObjectType + ":" + objectId.ToString("D"));
+			if (string.IsNullOrEmpty(current.ParentPathKey))
+			{
+				break;
+			}
+
+			PluralMapPreviewRow? parent = null;
+			foreach (var row in HierarchyPreview)
+			{
+				if (string.Equals(row.PathKey, current.ParentPathKey, StringComparison.Ordinal))
+				{
+					parent = row;
+					break;
+				}
+			}
+
+			if (parent is null)
+			{
+				break;
+			}
+
+			current = parent;
+		}
+
+		return string.Join(',', chain);
+	}
+
+	/// <summary>
+	/// Resolves a member placement from this account's retained tree.
+	/// </summary>
+	/// <param name="occurrencePath">The selected anchor occurrence. The path identifies the branch.</param>
+	/// <param name="memberVisibility">The member's stored visibility byte, or null when that side has no placement value.</param>
+	/// <param name="memberPermission">The member's stored permission byte, or null when that side has no placement value.</param>
+	/// <param name="visibility">The resolved visibility byte. Zero when the method returns false.</param>
+	/// <param name="permission">The resolved permission byte. Zero when the method returns false.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when both sides resolved from this context.</returns>
+	/// <remarks>
+	/// <para>
+	/// A non-null member byte is the result for that side and is not walked. Null starts at the selected occurrence.
+	/// The anchor byte is read from <see cref="AnchorSettings"/>. Inherit (2) follows that occurrence's parent path.
+	/// The first other byte stops the side. Stored unset (1) stops. Missing (0) stops and resolves as unset (1); it is not inherit.
+	/// A top anchor that is still inherit resolves as inherit (2). Explicit bytes are returned unchanged.
+	/// </para>
+	/// <para>
+	/// Visibility and permission walk separately and stop at different ancestors. The parent step uses <see cref="PluralMapPreviewRow.ParentPathKey"/>
+	/// for the current occurrence. A structural header is skipped and does not end the chain. The parent anchor is not selected by anchor id.
+	/// The occurrence's own parent type and id must name that parent anchor. A repeated path, a missing parent, or more than one row for a path is rejected.
+	/// This method does not write the context, cache a resolved byte by anchor id, read the database, or authorize access.
+	/// Another account's settings are not in this context and are not consulted.
+	/// </para>
+	/// </remarks>
+	public bool TryResolvePlacement(
+		string? occurrencePath,
+		byte? memberVisibility,
+		byte? memberPermission,
+		out byte visibility,
+		out byte permission,
+		out string error)
+	{
+		visibility = 0;
+		permission = 0;
+		if (!TrySelectedAnchor(occurrencePath, out var start, out var startOccurrence, out error)
+			|| start is null
+			|| startOccurrence is null)
+		{
+			return false;
+		}
+
+		if (memberVisibility is byte storedVisibility)
+		{
+			visibility = storedVisibility;
+		}
+		else if (!TryWalkPlacement(start, startOccurrence, visibilitySide: true, out visibility, out error))
+		{
+			visibility = 0;
+			permission = 0;
+			return false;
+		}
+
+		if (memberPermission is byte storedPermission)
+		{
+			permission = storedPermission;
+		}
+		else if (!TryWalkPlacement(start, startOccurrence, visibilitySide: false, out permission, out error))
+		{
+			visibility = 0;
+			permission = 0;
+			return false;
+		}
+
+		error = "";
+		return true;
+	}
+
+	/// <summary>Finds the one preview row and matching occurrence for the selected path.</summary>
+	/// <param name="occurrencePath">The caller-selected path.</param>
+	/// <param name="row">The anchor preview row. Null when the method returns false.</param>
+	/// <param name="occurrence">The occurrence with that path. Null when the method returns false.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when the path is one anchor occurrence in this context.</returns>
+	private bool TrySelectedAnchor(
+		string? occurrencePath,
+		out PluralMapPreviewRow? row,
+		out WorkspaceOccurrence? occurrence,
+		out string error)
+	{
+		row = null;
+		occurrence = null;
+		if (string.IsNullOrWhiteSpace(occurrencePath))
+		{
+			error = "The selected occurrence is required.";
+			return false;
+		}
+
+		if (!TrySinglePreview(occurrencePath, out row, out error) || row is null)
+		{
+			return false;
+		}
+
+		if (row.Header
+			|| row.ObjectType is not ("system" or "group" or "place")
+			|| row.ObjectId is not Guid objectId
+			|| objectId == Guid.Empty)
+		{
+			row = null;
+			error = "The selected occurrence is not an anchor.";
+			return false;
+		}
+
+		if (!TrySingleOccurrence(occurrencePath, out occurrence, out error) || occurrence is null)
+		{
+			row = null;
+			return false;
+		}
+
+		if (!string.Equals(occurrence.ObjectType, row.ObjectType, StringComparison.Ordinal)
+			|| occurrence.ObjectId != objectId)
+		{
+			row = null;
+			occurrence = null;
+			error = "The selected occurrence parent chain is broken.";
+			return false;
+		}
+
+		error = "";
+		return true;
+	}
+
+	/// <summary>
+	/// Walks one side from the selected anchor until a non-inherit byte or the top of this branch.
+	/// </summary>
+	/// <param name="start">The selected anchor preview row.</param>
+	/// <param name="startOccurrence">The occurrence for <paramref name="start"/>.</param>
+	/// <param name="visibilitySide">True reads visibility. False reads permission.</param>
+	/// <param name="resolved">The stopping byte.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when the branch resolved. False for a broken or repeating chain.</returns>
+	private bool TryWalkPlacement(
+		PluralMapPreviewRow start,
+		WorkspaceOccurrence startOccurrence,
+		bool visibilitySide,
+		out byte resolved,
+		out string error)
+	{
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		var current = start;
+		var currentOccurrence = startOccurrence;
+		for (var step = 0; step < 32; step++)
+		{
+			if (string.IsNullOrEmpty(current.PathKey) || !seen.Add(current.PathKey))
+			{
+				resolved = 0;
+				error = "The selected occurrence parent chain repeats.";
+				return false;
+			}
+
+			if (!TryAnchorByte(current, visibilitySide, out var stored, out error))
+			{
+				resolved = 0;
+				return false;
+			}
+
+			if (stored == WorkspaceAnchorSettingCodes.Missing)
+			{
+				resolved = WorkspaceAnchorSettingCodes.Unset;
+				error = "";
+				return true;
+			}
+
+			if (stored != WorkspaceAnchorSettingCodes.Inherit)
+			{
+				resolved = stored;
+				error = "";
+				return true;
+			}
+
+			if (!TryParentAnchor(current, seen, out var parent, out error))
+			{
+				resolved = 0;
+				return false;
+			}
+
+			if (parent is null)
+			{
+				if (currentOccurrence.ParentObjectType is "system" or "group" or "place")
+				{
+					resolved = 0;
+					error = "The selected occurrence parent chain is broken.";
+					return false;
+				}
+
+				resolved = WorkspaceAnchorSettingCodes.Inherit;
+				error = "";
+				return true;
+			}
+
+			if (!string.Equals(currentOccurrence.ParentObjectType, parent.ObjectType, StringComparison.Ordinal)
+				|| currentOccurrence.ParentObjectId != parent.ObjectId
+				|| string.IsNullOrEmpty(parent.PathKey)
+				|| !TrySingleOccurrence(parent.PathKey, out var parentOccurrence, out error)
+				|| parentOccurrence is null
+				|| !string.Equals(parentOccurrence.ObjectType, parent.ObjectType, StringComparison.Ordinal)
+				|| parentOccurrence.ObjectId != parent.ObjectId)
+			{
+				resolved = 0;
+				error = "The selected occurrence parent chain is broken.";
+				return false;
+			}
+
+			current = parent;
+			currentOccurrence = parentOccurrence;
+		}
+
+		resolved = 0;
+		error = "The selected occurrence parent chain is too long.";
+		return false;
+	}
+
+	/// <summary>Reads the account-owned byte for one anchor. Two rows for the same anchor are rejected.</summary>
+	/// <param name="row">The anchor preview row.</param>
+	/// <param name="visibilitySide">True reads visibility. False reads permission.</param>
+	/// <param name="stored">The retained byte, or missing when this anchor has no settings row.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when zero or one settings row matched.</returns>
+	private bool TryAnchorByte(PluralMapPreviewRow row, bool visibilitySide, out byte stored, out string error)
+	{
+		stored = WorkspaceAnchorSettingCodes.Missing;
+		WorkspaceAnchorSetting? found = null;
+		foreach (var setting in AnchorSettings)
+		{
+			if (!string.Equals(setting.ObjectType, row.ObjectType, StringComparison.Ordinal) || setting.ObjectId != row.ObjectId)
+			{
+				continue;
+			}
+
+			if (found is not null)
+			{
+				error = "The selected occurrence parent chain is broken.";
+				return false;
+			}
+
+			found = setting;
+		}
+
+		if (found is not null)
+		{
+			stored = visibilitySide ? found.Visibility : found.Permission;
+		}
+
+		error = "";
+		return true;
+	}
+
+	/// <summary>
+	/// Finds the parent anchor of this occurrence by parent path. Headers are passed through.
+	/// </summary>
+	/// <param name="current">The anchor whose parent is required.</param>
+	/// <param name="seen">Paths already entered on this walk, including headers skipped by this step.</param>
+	/// <param name="parent">The parent anchor. Null when this anchor is the top of the branch.</param>
+	/// <param name="error">The rejection text. Empty when the method returns true.</param>
+	/// <returns>True when the parent path is a single chain. False when a path is missing or repeats.</returns>
+	private bool TryParentAnchor(
+		PluralMapPreviewRow current,
+		HashSet<string> seen,
+		out PluralMapPreviewRow? parent,
+		out string error)
+	{
+		parent = null;
+		var path = current.ParentPathKey;
+		while (!string.IsNullOrEmpty(path))
+		{
+			if (!TrySinglePreview(path, out var row, out error) || row is null)
+			{
+				parent = null;
+				error = "The selected occurrence parent chain is broken.";
+				return false;
+			}
+
+			if (row.Header)
+			{
+				if (string.IsNullOrEmpty(row.PathKey) || !seen.Add(row.PathKey))
+				{
+					error = "The selected occurrence parent chain repeats.";
+					return false;
+				}
+
+				path = row.ParentPathKey;
+				continue;
+			}
+
+			if (row.ObjectType is not ("system" or "group" or "place") || row.ObjectId is not Guid || row.ObjectId == Guid.Empty)
+			{
+				error = "The selected occurrence parent chain is broken.";
+				return false;
+			}
+
+			parent = row;
+			error = "";
+			return true;
+		}
+
+		error = "";
+		return true;
+	}
+
+	/// <summary>Returns the one preview row with this path.</summary>
+	/// <param name="pathKey">The occurrence path.</param>
+	/// <param name="match">The row. Null when the method returns false.</param>
+	/// <param name="error">Not-in-workspace when none match, or a broken chain when several match.</param>
+	/// <returns>True when exactly one row has the path.</returns>
+	private bool TrySinglePreview(string pathKey, out PluralMapPreviewRow? match, out string error)
+	{
+		match = null;
+		foreach (var row in HierarchyPreview)
+		{
+			if (!string.Equals(row.PathKey, pathKey, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			if (match is not null)
+			{
+				match = null;
+				error = "The selected occurrence parent chain is broken.";
+				return false;
+			}
+
+			match = row;
+		}
+
+		if (match is null)
+		{
+			error = "The selected occurrence is not in this workspace.";
+			return false;
+		}
+
+		error = "";
+		return true;
+	}
+
+	/// <summary>Returns the one occurrence with this path.</summary>
+	/// <param name="pathKey">The occurrence path.</param>
+	/// <param name="match">The occurrence. Null when the method returns false.</param>
+	/// <param name="error">Not-in-workspace when none match, or a broken chain when several match.</param>
+	/// <returns>True when exactly one occurrence has the path.</returns>
+	private bool TrySingleOccurrence(string pathKey, out WorkspaceOccurrence? match, out string error)
+	{
+		match = null;
+		foreach (var occurrence in Occurrences)
+		{
+			if (!string.Equals(occurrence.PathKey, pathKey, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			if (match is not null)
+			{
+				match = null;
+				error = "The selected occurrence parent chain is broken.";
+				return false;
+			}
+
+			match = occurrence;
+		}
+
+		if (match is null)
+		{
+			error = "The selected occurrence is not in this workspace.";
+			return false;
+		}
+
+		error = "";
+		return true;
 	}
 
 	private static bool SameObject(WorkspaceAccessFact fact, string objectType, Guid objectId)
@@ -253,6 +792,11 @@ internal sealed class WorkspaceContext
 		foreach (var fact in context.AccessFacts)
 		{
 			bytes += 64 + Text(fact.ObjectType) + Text(fact.StatusName);
+		}
+
+		foreach (var setting in context.AnchorSettings)
+		{
+			bytes += 48 + Text(setting.ObjectType);
 		}
 
 		return bytes;

@@ -1,6 +1,6 @@
 /**
  * Plural-map navigator. Loads /api/me/plural-map, draws the occurrence tree, and loads anchor member profiles for the selected anchor.
- * When developerTools.workspaceTreeEnabled is strictly true, the same view loads /api/me/workspace-tree, keeps that context id, and does not request profiles or avatars. The developer-tools initializer sets that flag to true when it is absent. Strict false keeps the plural-map path.
+ * When developerTools.workspaceTreeEnabled is strictly true, the same view loads /api/me/workspace-tree, keeps that context id, and loads direct member cards for the selected anchor without requesting avatars. The developer-tools initializer sets that flag to true when it is absent. Strict false keeps the plural-map path and its profile route.
  * Depends on window.PluralBridge.apiClient, window.PluralBridge.members, window.PluralBridge.memberChanges, and createMemberAccordion.
  * A newer selection aborts the previous profile request. A response is painted only when its generation and selected path still match.
  */
@@ -499,9 +499,10 @@ window.PluralBridge.navigator = (function () {
      * @param {object} profile Profile row. Missing optional fields stay null or false as assigned below.
      * @param {string} memberId Member id used when the profile has none.
      * @param {string} accountId Account whose local preview is read.
+     * @param {boolean} [includeAvatar] False keeps avatarObjectUrl null, including a local preview. The workspace detail route uses false.
      * @returns {object} The member passed to the card.
      */
-    function profileForCard(profile, memberId, accountId) {
+    function profileForCard(profile, memberId, accountId, includeAvatar) {
         const membersApi = window.PluralBridge && window.PluralBridge.members
             ? window.PluralBridge.members
             : null;
@@ -560,9 +561,11 @@ window.PluralBridge.navigator = (function () {
                         ? profile.placementPermissionCode
                         : (profile.placementPermissionMode === "inherit" ? "inherit" : null))
                     : null),
-            avatarObjectUrl: hasPreviewField("avatarObjectUrl")
-                ? preview.avatarObjectUrl
-                : (profile && profile.avatarUrl ? profile.avatarUrl : null),
+            avatarObjectUrl: includeAvatar === false
+                ? null
+                : (hasPreviewField("avatarObjectUrl")
+                    ? preview.avatarObjectUrl
+                    : (profile && profile.avatarUrl ? profile.avatarUrl : null)),
             resolvedVisibilityMode: profile && profile.resolvedVisibilityMode ? profile.resolvedVisibilityMode : null,
             resolvedVisibilityTypeId: profile ? canonicalVisibilityId(profile.resolvedVisibilityTypeId) : null,
             resolvedPermissionMode: profile && profile.resolvedPermissionMode ? profile.resolvedPermissionMode : null,
@@ -611,10 +614,11 @@ window.PluralBridge.navigator = (function () {
      * Each card receives the selected anchor and branch for both profile Save and immediate Fronting.
      * @param {object} row Selected anchor.
      * @param {Array<object>} profiles Profile rows. Rows without a member id are reported as extra.
+     * @param {{omitAvatar?: boolean, batchLimited?: boolean}} [options] omitAvatar leaves the card image empty. batchLimited compares only the first 20 direct member children.
      * @returns {void}
      * @throws {Error} When a matched member cannot find createMemberAccordion.
      */
-    function renderProfiles(row, profiles) {
+    function renderProfiles(row, profiles, options) {
         if (!detail) {
             return;
         }
@@ -655,9 +659,13 @@ window.PluralBridge.navigator = (function () {
          * @param {object} child Map child.
          * @returns {boolean} True when the child type is member.
          */
-        const memberChildren = children.filter(function (child) {
+        const directMembers = children.filter(function (child) {
             return child.objectType === "member";
         });
+        const memberChildren = options && options.batchLimited === true
+            ? directMembers.slice(0, 20)
+            : directMembers;
+        const includeAvatar = !(options && options.omitAvatar === true);
 
         /**
          * Creates the card for one member child. A child without a profile is recorded as missing and is not given a card.
@@ -679,7 +687,7 @@ window.PluralBridge.navigator = (function () {
             }
 
             matched[id] = true;
-            list.appendChild(createCard(profileForCard(profile, id, renderedAccountId), {
+            list.appendChild(createCard(profileForCard(profile, id, renderedAccountId, includeAvatar), {
                 allowProfileEditing: true,
                 previewHeader: true,
                 /**
@@ -745,7 +753,7 @@ window.PluralBridge.navigator = (function () {
             return matched[id] !== true;
         }).concat(profilesWithoutId);
 
-        if (memberChildren.length === 0) {
+        if (directMembers.length === 0) {
             const empty = document.createElement("p");
             empty.className = "output-note";
             empty.textContent = "No member profiles were returned.";
@@ -845,6 +853,87 @@ window.PluralBridge.navigator = (function () {
             /**
              * Ignores an abort. A later failure is shown only when this request is still the visible selection.
              * @param {*} error Rejection from the profile request. AbortError is ignored.
+             * @returns {void}
+             */
+            .catch(function (error) {
+                if (error && error.name === "AbortError") {
+                    return;
+                }
+
+                if (!profileResponseIsCurrent(request, pathKey)) {
+                    return;
+                }
+
+                reportProfileFailure(
+                    "Member profile loading failed before the cards could be shown.",
+                    error
+                );
+                renderDetailStatus(row, "The member profiles could not be loaded.", true);
+            });
+    }
+
+    /**
+     * Loads direct member cards for the selected anchor in the retained workspace context.
+     * A late response is ignored. The card image is left empty because image loading is a later task.
+     * @param {object} row Selected anchor. A missing context id shows an error when this request is still current.
+     * @returns {void}
+     */
+    function loadWorkspaceMemberDetails(row) {
+        const pathKey = row.pathKey;
+        const request = beginRequest();
+        if (!contextId) {
+            if (!profileResponseIsCurrent(request, pathKey)) {
+                return;
+            }
+
+            renderDetailStatus(row, "The member profiles could not be loaded.", true);
+            return;
+        }
+
+        renderDetailStatus(row, "Loading member profiles.", false);
+        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+        if (!apiClient || typeof apiClient.readWorkspaceMemberDetails !== "function") {
+            if (!profileResponseIsCurrent(request, pathKey)) {
+                return;
+            }
+
+            reportProfileFailure(
+                "Member profile loading failed because readWorkspaceMemberDetails is not available on the API client."
+            );
+            renderDetailStatus(row, "The member profiles could not be loaded.", true);
+            return;
+        }
+
+        apiClient.readWorkspaceMemberDetails(contextId, pathKey, request.signal)
+            /**
+             * Paints the cards when this response is still the visible selection. A non-array body is a load failure.
+             * @param {*} profiles Response body.
+             * @returns {void}
+             */
+            .then(function (profiles) {
+                if (!profileResponseIsCurrent(request, pathKey)) {
+                    return;
+                }
+
+                if (!Array.isArray(profiles)) {
+                    reportProfileFailure(
+                        "Member profile loading failed because the profile response was not an array.",
+                        profiles
+                    );
+                    renderDetailStatus(row, "The member profiles could not be loaded.", true);
+                    return;
+                }
+
+                renderProfiles(row, profiles, {
+                    omitAvatar: true,
+                    batchLimited: true
+                });
+            })
+            /**
+             * Ignores an abort. A later failure is shown only when this request is still the visible selection.
+             * @param {*} error Rejection from the detail request. AbortError is ignored.
              * @returns {void}
              */
             .catch(function (error) {
@@ -1553,7 +1642,7 @@ window.PluralBridge.navigator = (function () {
             renderTree();
             revealTouchSelection(row.pathKey);
             if (workspaceTreeEnabled()) {
-                clearDetail();
+                loadWorkspaceMemberDetails(row);
                 return;
             }
 
@@ -1732,7 +1821,7 @@ window.PluralBridge.navigator = (function () {
             })
             /**
              * Stores the hierarchy when this load is still the visible mode and generation.
-             * Workspace mode requires a context id and does not request profiles. A failed check falls through to the catch.
+             * Workspace mode requires a context id. The following anchor selection loads direct member cards. A failed check falls through to the catch.
              * @param {object} payload Map or workspace-tree response.
              * @returns {void}
              */

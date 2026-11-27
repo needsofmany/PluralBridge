@@ -28,6 +28,8 @@ Members Workspace — Model and Loading Redesign
    Fronting belongs to refreshable member information, saves immediately,
    and updates every displayed occurrence. It needs no separate cache.
    Visibility and permissions remain specific to each placement.
+   A placement with no stored setting inherits from its anchor.
+   A stored unset stays Not set and does not inherit.
 
 6. Make server retrieval support the model.
    Fetch member details and images in sets. Reuse established server-side

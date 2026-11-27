@@ -28,6 +28,7 @@ internal abstract record WorkspaceOpeningResult
 /// <param name="SystemEdgeLabels">Copied system edge labels.</param>
 /// <param name="HierarchyPreview">Derived navigation rows with anchor names applied.</param>
 /// <param name="AccessFacts">Membership facts for the anchors in the copy.</param>
+/// <param name="AnchorSettingRows">This account's stored visibility and permission rows. Null means none were captured.</param>
 internal sealed record WorkspaceCapturedBuild(
 	Guid AccountId,
 	IReadOnlyList<WorkspaceGraphEdge> Edges,
@@ -35,7 +36,8 @@ internal sealed record WorkspaceCapturedBuild(
 	IReadOnlyList<WorkspaceNodeLabel> NodeLabels,
 	IReadOnlyList<WorkspaceSystemEdgeLabel> SystemEdgeLabels,
 	IReadOnlyList<PluralMapPreviewRow> HierarchyPreview,
-	IReadOnlyList<WorkspaceAccessFact> AccessFacts);
+	IReadOnlyList<WorkspaceAccessFact> AccessFacts,
+	IReadOnlyList<WorkspaceStoredAnchorSetting>? AnchorSettingRows = null);
 
 /// <summary>
 /// Runs the opening database reads. A failed or cancelled call returns no build.
@@ -54,7 +56,7 @@ internal interface IWorkspaceOpeningSession
 /// </summary>
 /// <remarks>
 /// Temp tables are created by this session. Step 4 is not called.
-/// The transaction commits only after render, copies, memberships, and anchor names have been read.
+/// The transaction commits only after render, copies, memberships, anchor settings, and anchor names have been read.
 /// Snapshot error 3952 stops the build. The session does not change the isolation level and retry.
 /// </remarks>
 internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) : IWorkspaceOpeningSession
@@ -90,6 +92,7 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 			List<WorkspaceNodeLabel>? nodeLabels = null;
 			List<WorkspaceSystemEdgeLabel>? systemEdgeLabels = null;
 			List<WorkspaceAccessFact>? facts = null;
+			List<WorkspaceStoredAnchorSetting>? anchorSettingRows = null;
 
 			foreach (var command in WorkspaceOpeningPlan.Commands)
 			{
@@ -111,10 +114,13 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 					case WorkspaceOpeningCommandKind.ReadMemberships:
 						facts = await ReadMembershipsAsync(connection, transaction, account.AccountId, cancellationToken);
 						break;
+					case WorkspaceOpeningCommandKind.ReadAnchorSettings:
+						anchorSettingRows = await ReadAnchorSettingsAsync(connection, transaction, account.AccountId, cancellationToken);
+						break;
 					case WorkspaceOpeningCommandKind.ReadAnchorNames:
 						break;
 					case WorkspaceOpeningCommandKind.Commit:
-						if (render == null || edges == null || occurrences == null || nodeLabels == null || systemEdgeLabels == null || facts == null)
+						if (render == null || edges == null || occurrences == null || nodeLabels == null || systemEdgeLabels == null || facts == null || anchorSettingRows == null)
 						{
 							throw new WorkspaceRenderContractException();
 						}
@@ -129,7 +135,8 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 							nodeLabels,
 							systemEdgeLabels,
 							named,
-							facts));
+							facts,
+							anchorSettingRows));
 				}
 			}
 
@@ -335,6 +342,45 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 	}
 
 	/// <summary>
+	/// Reads stored visibility and permission rows for the authenticated account.
+	/// A row that does not identify an anchor fails the build rather than being dropped.
+	/// </summary>
+	/// <param name="connection">The open connection.</param>
+	/// <param name="transaction">The snapshot transaction.</param>
+	/// <param name="accountId">The authenticated account. Another account's rows are not read.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>The stored rows. An anchor with no row is absent here and later recorded as missing.</returns>
+	private static async Task<List<WorkspaceStoredAnchorSetting>> ReadAnchorSettingsAsync(
+		SqlConnection connection,
+		SqlTransaction transaction,
+		Guid accountId,
+		CancellationToken cancellationToken)
+	{
+		var settings = WorkspaceOpeningPlan.Commands.Single(command => command.Kind == WorkspaceOpeningCommandKind.ReadAnchorSettings);
+		await using var command = new SqlCommand(settings.Text, connection, transaction);
+		command.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+		var rows = new List<WorkspaceStoredAnchorSetting>();
+		while (await reader.ReadAsync(cancellationToken))
+		{
+			if (reader.IsDBNull(0) || reader.IsDBNull(1) || reader.IsDBNull(2) || reader.IsDBNull(4))
+			{
+				throw new WorkspaceOpeningException("A stored anchor setting did not include its anchor or its modes.");
+			}
+
+			rows.Add(new WorkspaceStoredAnchorSetting(
+				reader.GetString(0),
+				reader.GetGuid(1),
+				reader.GetString(2),
+				reader.IsDBNull(3) ? null : reader.GetInt32(3),
+				reader.GetString(4),
+				reader.IsDBNull(5) ? null : reader.GetString(5)));
+		}
+
+		return rows;
+	}
+
+	/// <summary>
 	/// Reads anchor names on the same snapshot transaction. The names are display text, not an access grant.
 	/// </summary>
 	/// <param name="connection">The open connection.</param>
@@ -386,8 +432,62 @@ public sealed class WorkspaceTreeService
 	/// <param name="user">The authenticated session.</param>
 	/// <param name="cancellationToken">Cancels the build before publish.</param>
 	/// <returns>The response, or null when the session has no account.</returns>
+	/// <remarks>The host path sets <c>useDatabase</c> so the SQL session supplies the build.</remarks>
 	internal async Task<WorkspaceTreeResponse?> OpenAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
 	{
+		var context = await LoadContextAsync(useDatabase: true, user, cancellationToken);
+		if (context == null)
+		{
+			return null;
+		}
+
+		var published = _store.Publish(context);
+		return new WorkspaceTreeResponse(published.ContextId, published.AccountId, published.HierarchyPreview);
+	}
+
+	/// <summary>
+	/// Loads one tree and constructs its context. The boolean chooses the source, not a second mapping.
+	/// </summary>
+	/// <param name="useDatabase">True reads through the database session. False uses <see cref="WorkspaceTreeTestDataFactory"/> and does not open a connection.</param>
+	/// <param name="user">The authenticated session. The factory does not read it.</param>
+	/// <param name="cancellationToken">Cancels after the source returns and before the context is constructed.</param>
+	/// <param name="testDataFactory">Factory build used when <paramref name="useDatabase"/> is false. Null selects the all-inherit three-system fixture. The database path ignores this value.</param>
+	/// <returns>The constructed context, or null when the database session has no account.</returns>
+	/// <remarks>Both sources return <see cref="WorkspaceCapturedBuild"/>. <see cref="CreateContext"/> is the only construction path.</remarks>
+	internal async Task<WorkspaceContext?> LoadContextAsync(
+		bool useDatabase,
+		ClaimsPrincipal user,
+		CancellationToken cancellationToken,
+		Func<WorkspaceCapturedBuild>? testDataFactory = null)
+	{
+		var build = await ReadBuildAsync(useDatabase, user, cancellationToken, testDataFactory);
+		if (build == null)
+		{
+			return null;
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+		return CreateContext(build);
+	}
+
+	/// <summary>Selects the database session or the test-data factory. Both return the same build type.</summary>
+	/// <param name="useDatabase">True uses the SQL session. False uses the factory.</param>
+	/// <param name="user">The authenticated session for the database path.</param>
+	/// <param name="cancellationToken">Cancels the database read. The factory does not connect.</param>
+	/// <param name="testDataFactory">Factory build used when <paramref name="useDatabase"/> is false. Null selects the all-inherit fixture.</param>
+	/// <returns>The captured build, or null when the database session has no account.</returns>
+	private async Task<WorkspaceCapturedBuild?> ReadBuildAsync(
+		bool useDatabase,
+		ClaimsPrincipal user,
+		CancellationToken cancellationToken,
+		Func<WorkspaceCapturedBuild>? testDataFactory)
+	{
+		if (!useDatabase)
+		{
+			var factory = testDataFactory ?? WorkspaceTreeTestDataFactory.ThreeNestedSystems;
+			return factory();
+		}
+
 		var result = await _session.ExecuteAsync(user, cancellationToken);
 		if (result is WorkspaceOpeningResult.MissingAccount)
 		{
@@ -399,16 +499,22 @@ public sealed class WorkspaceTreeService
 			throw new WorkspaceOpeningException("The workspace opening build did not complete.");
 		}
 
-		cancellationToken.ThrowIfCancellationRequested();
-		var context = WorkspaceContext.Create(
-			ready.Build.AccountId,
-			ready.Build.Edges,
-			ready.Build.Occurrences,
-			ready.Build.NodeLabels,
-			ready.Build.SystemEdgeLabels,
-			ready.Build.HierarchyPreview,
-			ready.Build.AccessFacts);
-		var published = _store.Publish(context);
-		return new WorkspaceTreeResponse(published.ContextId, published.AccountId, published.HierarchyPreview);
+		return ready.Build;
+	}
+
+	/// <summary>Constructs the retained context from a captured build. Database and factory builds both use this method.</summary>
+	/// <param name="build">Rows and stored settings from either source.</param>
+	/// <returns>The context, including anchor settings encoded by the production mapping.</returns>
+	private static WorkspaceContext CreateContext(WorkspaceCapturedBuild build)
+	{
+		return WorkspaceContext.Create(
+			build.AccountId,
+			build.Edges,
+			build.Occurrences,
+			build.NodeLabels,
+			build.SystemEdgeLabels,
+			build.HierarchyPreview,
+			build.AccessFacts,
+			build.AnchorSettingRows);
 	}
 }

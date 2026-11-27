@@ -1098,71 +1098,7 @@ public sealed class MeController(
 				return Ok(profiles);
 			}
 
-			var placementByMember = bundle.Placements.ToDictionary(
-				row => row.MemberId,
-				row => new AnchorMemberProfileSave.MemberPlacementRow(
-					row.MemberId,
-					row.VisibilityMode,
-					row.VisibilityTypeId,
-					row.PermissionMode,
-					row.PermissionCode));
-			var openFronting = bundle.Fronting.ToDictionary(row => row.MemberId, row => row.IsFronting);
-			var avatarPaths = bundle.Avatars.ToDictionary(
-				row => row.MemberId,
-				row => AvatarReferenceUrl(row.MemberId, row.UpdatedAtUtc));
-
-			var branchNodes = bundle.BranchValid
-				? bundle.BranchAnchors
-					.Select(anchor => new AnchorMemberProfileSave.BranchNode(anchor.ObjectType, anchor.ObjectId))
-					.ToArray()
-				: Array.Empty<AnchorMemberProfileSave.BranchNode>();
-			var anchorSettings = bundle.BranchValid
-				? bundle.BranchAnchors
-					.Select(anchor => new AnchorMemberProfileSave.AnchorSetting(
-						anchor.ObjectType,
-						anchor.ObjectId,
-						anchor.VisibilityMode ?? "unset",
-						anchor.VisibilityTypeId,
-						anchor.PermissionMode ?? "unset",
-						anchor.PermissionCode))
-					.ToArray()
-				: Array.Empty<AnchorMemberProfileSave.AnchorSetting>();
-
-			return Ok(profiles.Select(profile =>
-			{
-				placementByMember.TryGetValue(profile.MemberId, out var placement);
-				var resolved = AnchorMemberProfileSave.ResolvePlacement(
-					placement,
-					branchNodes,
-					anchorSettings,
-					bundle.BranchValid);
-				var isFronting = openFronting.TryGetValue(profile.MemberId, out var openInterval)
-					? openInterval
-					: profile.IsFronting;
-				avatarPaths.TryGetValue(profile.MemberId, out var avatarUrl);
-
-				return new
-				{
-					memberId = profile.MemberId,
-					displayName = profile.DisplayName,
-					pronouns = profile.Pronouns,
-					description = profile.Description,
-					color = profile.Color,
-					visibilityTypeId = profile.VisibilityTypeId,
-					visibilityTypeCode = profile.VisibilityTypeCode,
-					visibilityTypeName = profile.VisibilityTypeName,
-					isFronting,
-					placementVisibilityMode = placement?.VisibilityMode,
-					placementVisibilityTypeId = placement?.VisibilityTypeId,
-					placementPermissionMode = placement?.PermissionMode,
-					placementPermissionCode = placement?.PermissionCode,
-					resolvedVisibilityMode = resolved.VisibilityMode,
-					resolvedVisibilityTypeId = resolved.VisibilityTypeId,
-					resolvedPermissionMode = resolved.PermissionMode,
-					resolvedPermissionCode = resolved.PermissionCode,
-					avatarUrl
-				};
-			}));
+			return Ok(AnchorMemberProfileMapper.Project(bundle, null, includeAvatar: true));
 		}
 		catch (AnchorProfileContractException exception) when (!cancellationToken.IsCancellationRequested)
 		{
@@ -1204,7 +1140,7 @@ public sealed class MeController(
 	/// <param name="cancellationToken">Cancels the procedure or the result-set read.</param>
 	/// <returns>The six-set bundle when the task completes.</returns>
 	/// <exception cref="AnchorProfileContractException">The reader did not produce the six-set bundle.</exception>
-	private static async Task<AnchorProfileBundle> ReadAnchorProfilesAsync(
+	private static Task<AnchorProfileBundle> ReadAnchorProfilesAsync(
 		SqlConnection connection,
 		string email,
 		string objectType,
@@ -1212,23 +1148,7 @@ public sealed class MeController(
 		string? branch,
 		CancellationToken cancellationToken)
 	{
-		await using var command = new SqlCommand(
-			"dbo.pb_get_anchor_member_profiles_by_email",
-			connection)
-		{
-			CommandType = CommandType.StoredProcedure
-		};
-		command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = email;
-		command.Parameters.Add("@AnchorObjectType", SqlDbType.NVarChar, 64).Value = objectType;
-		command.Parameters.Add("@AnchorName", SqlDbType.NVarChar, 510).Value = anchorName;
-		// An empty or unreadable branch is still sent. The procedure reports it as invalid instead of dropping the parameter.
-		command.Parameters.Add("@BranchJson", SqlDbType.NVarChar, -1).Value =
-			AnchorMemberProfileSave.BranchJson(branch ?? "");
-
-		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		return await AnchorMemberProfileReader.ReadAsync(reader, cancellationToken)
-			?? throw new AnchorProfileContractException(
-				"The profile procedure did not return the six-result-set contract. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+		return AnchorMemberProfileReader.ExecuteAsync(connection, email, objectType, anchorName, branch, cancellationToken);
 	}
 
 	/// <summary>

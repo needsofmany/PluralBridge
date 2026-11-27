@@ -135,12 +135,18 @@
 	min-width: 0;
 }
 
+/* Column layout keeps the heading, divider, and header buttons in place.
+   The tree below is the only region that scrolls. max-height still caps the panel.
+   A shorter assigned height shrinks the tree and leaves the header visible. */
 .member-systems-panel {
+	display: flex;
+	flex-direction: column;
 	flex: 0 0 min(22rem, 100%);
 	width: min(22rem, 100%);
 	max-width: 22rem;
 	max-height: 42rem;
-	overflow: auto;
+	min-height: 0;
+	overflow: hidden;
 	margin: 0 0.5rem 0 0;
 	padding: 0.6rem;
 	position: relative;
@@ -149,6 +155,17 @@
 	border-radius: 0.75rem;
 	background: var(--pb-surface-raised);
 	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+.member-systems-panel > .member-systems-header {
+	flex: 0 0 auto;
+}
+
+.member-systems-panel > .member-systems-tree {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	overscroll-behavior: contain;
 }
 
 /* The panel is the first child of the workspace. Unpinned, it is removed from the flex row and covers the cards. Pinned, it returns to normal flow beside them.

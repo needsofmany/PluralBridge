@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System.Data;
 using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Controllers;
@@ -106,6 +107,43 @@ internal readonly record struct AnchorMemberProfileColumn(string Name, string Sq
 /// </remarks>
 internal static class AnchorMemberProfileReader
 {
+	/// <summary>
+	/// Calls the profile procedure and requires the six-set contract.
+	/// </summary>
+	/// <param name="connection">Open connection for the signed-in account's database.</param>
+	/// <param name="email">Account email. The procedure resolves the account from this value.</param>
+	/// <param name="objectType">system, group, or place.</param>
+	/// <param name="anchorName">Anchor display name.</param>
+	/// <param name="branch">Selected occurrence chain. Null is sent as an empty branch.</param>
+	/// <param name="cancellationToken">Cancels the procedure or the result-set read.</param>
+	/// <returns>The six-set bundle.</returns>
+	/// <exception cref="AnchorProfileContractException">The reader did not produce the six-set bundle.</exception>
+	internal static async Task<AnchorProfileBundle> ExecuteAsync(
+		SqlConnection connection,
+		string email,
+		string objectType,
+		string anchorName,
+		string? branch,
+		CancellationToken cancellationToken)
+	{
+		await using var command = new SqlCommand(
+			"dbo.pb_get_anchor_member_profiles_by_email",
+			connection)
+		{
+			CommandType = CommandType.StoredProcedure
+		};
+		command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = email;
+		command.Parameters.Add("@AnchorObjectType", SqlDbType.NVarChar, 64).Value = objectType;
+		command.Parameters.Add("@AnchorName", SqlDbType.NVarChar, 510).Value = anchorName;
+		command.Parameters.Add("@BranchJson", SqlDbType.NVarChar, -1).Value =
+			AnchorMemberProfileSave.BranchJson(branch ?? "");
+
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+		return await ReadAsync(reader, cancellationToken)
+			?? throw new AnchorProfileContractException(
+				"The profile procedure did not return the six-result-set contract. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+	}
+
 	private static readonly AnchorMemberProfileColumn[] ProfileColumns =
 	[
 		new("MemberId", "uniqueidentifier"),

@@ -29,6 +29,9 @@ internal enum WorkspaceOpeningCommandKind
 	/// <summary>Read membership facts for anchors in the copied nodes.</summary>
 	ReadMemberships,
 
+	/// <summary>Read this account's stored visibility and permission rows for anchors in the copied nodes.</summary>
+	ReadAnchorSettings,
+
 	/// <summary>Read anchor names inside the same transaction.</summary>
 	ReadAnchorNames,
 
@@ -66,6 +69,7 @@ internal static class WorkspaceOpeningPlan
 		new(WorkspaceOpeningCommandKind.ReadRender, RenderProcedure, false),
 		new(WorkspaceOpeningCommandKind.ReadCopies, CopyRows, false),
 		new(WorkspaceOpeningCommandKind.ReadMemberships, MembershipRows, true),
+		new(WorkspaceOpeningCommandKind.ReadAnchorSettings, AnchorSettingRows, true),
 		new(WorkspaceOpeningCommandKind.ReadAnchorNames, "anchor-names", false),
 		new(WorkspaceOpeningCommandKind.Commit, "commit", false)
 	];
@@ -149,6 +153,31 @@ internal static class WorkspaceOpeningPlan
 		    ON n.ObjectType = om.ObjectType
 		   AND n.ObjectId = TRY_CONVERT(uniqueidentifier, om.ObjectId)
 		WHERE om.AccountId = @AccountId
+		  AND n.ObjectType IN (N'system', N'group', N'place')
+		  AND n.ObjectId <> '00000000-0000-0000-0000-000000000000';
+		""";
+
+	/// <summary>
+	/// Stored visibility and permission for anchors already copied into this build.
+	/// A missing row is not returned. The loader records that absence as missing.
+	/// This read does not walk parent anchors and does not read roles.
+	/// </summary>
+	private const string AnchorSettingRows = """
+		SELECT
+		    n.ObjectType,
+		    n.ObjectId,
+		    p.VisibilityMode,
+		    p.VisibilityTypeId,
+		    p.PermissionMode,
+		    p.PermissionCode
+		FROM dbo.pb_anchor_visibility_permissions AS p
+		INNER JOIN #GraphNodes AS n
+		    ON (
+		        (n.ObjectType = N'system' AND n.ObjectId = p.SystemId)
+		        OR (n.ObjectType = N'group' AND n.ObjectId = p.GroupId)
+		        OR (n.ObjectType = N'place' AND n.ObjectId = p.PlaceId)
+		    )
+		WHERE p.AccountId = @AccountId
 		  AND n.ObjectType IN (N'system', N'group', N'place')
 		  AND n.ObjectId <> '00000000-0000-0000-0000-000000000000';
 		""";

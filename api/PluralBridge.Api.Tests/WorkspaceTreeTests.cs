@@ -314,9 +314,9 @@ public sealed class WorkspaceTreeTests
 		Assert.Equal(1, store.Count);
 	}
 
-	/// <summary>Workspace mode does not request profiles. A late generation or a changed mode does not paint.</summary>
+	/// <summary>Legacy selection uses the profile route. Workspace selection uses the context detail route. A late response does not paint.</summary>
 	[Fact]
-	public void View_WorkspaceModeDoesNotRequestProfilesAndIgnoresStaleResponses()
+	public void View_WorkspaceSelectionRequestsDetailsAndIgnoresStaleResponses()
 	{
 		var view = new WorkspaceTreeViewSession();
 		var legacy = view.BeginLoad();
@@ -324,6 +324,7 @@ public sealed class WorkspaceTreeTests
 		view.Select("old");
 		Assert.True(view.DetailRequested);
 		Assert.Contains("GET profile", view.Requests);
+		Assert.DoesNotContain(view.Requests, request => request.StartsWith("GET member-details ", StringComparison.Ordinal));
 
 		view.SetWorkspaceTreeEnabled(true);
 		Assert.Empty(view.Tree);
@@ -333,12 +334,21 @@ public sealed class WorkspaceTreeTests
 		Assert.False(view.CompleteWorkspaceLoad(generation - 1, true, "late", ["late"]));
 		Assert.True(view.CompleteWorkspaceLoad(generation, true, "context-a", ["tree-a"]));
 		view.Select("tree-a");
-		Assert.False(view.DetailRequested);
-		Assert.Equal("tree-a", Assert.Single(view.Tree));
+		Assert.True(view.DetailRequested);
+		Assert.Contains("GET member-details context-a tree-a", view.Requests);
+		Assert.True(view.PaintDetail(generation, "tree-a"));
+		var refresh = view.BeginLoad();
+		Assert.False(view.PaintDetail(generation, "tree-a"));
+		Assert.True(view.CompleteWorkspaceLoad(refresh, true, "context-a", ["tree-a"]));
+		view.Select("other");
+		Assert.False(view.PaintDetail(refresh, "tree-a"));
 
 		view.SetWorkspaceTreeEnabled(false);
 		Assert.False(view.CompleteWorkspaceLoad(generation, true, "context-b", ["tree-b"]));
 		Assert.Empty(view.Tree);
+		view.Select("fallback");
+		Assert.Contains("GET profile", view.Requests);
+		Assert.DoesNotContain(view.Requests, request => request.Contains(" fallback", StringComparison.Ordinal));
 	}
 
 	/// <summary>A failed replacement keeps the previous tree. Sign-out still completes when release fails.</summary>
@@ -361,6 +371,94 @@ public sealed class WorkspaceTreeTests
 		Assert.Null(view.ContextId);
 		Assert.Contains("DELETE context-a", view.Requests);
 		Assert.Equal("POST logout", view.Requests[^1]);
+	}
+
+	/// <summary>Another account cannot read the context, and an anchor occurrence supplies its own placement.</summary>
+	[Fact]
+	public async Task Details_IsolatesAccountsAndKeepsPlacementOnTheSelectedAnchor()
+	{
+		var store = NewStore(out _, out _);
+		var owner = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+		var other = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+		var memberId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+		var context = TwoAnchorContext(owner, memberId);
+		store.Publish(context);
+		var gateway = new FakeProfileGateway(other);
+		var service = new WorkspaceMemberDetailService(store, gateway);
+
+		var denied = await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None);
+		Assert.IsType<WorkspaceMemberDetailResult.ContextUnavailable>(denied);
+		Assert.Equal(0, gateway.Reads);
+
+		gateway.AccountId = owner;
+		var first = await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None);
+		var ready = Assert.IsType<WorkspaceMemberDetailResult.Ready>(first);
+		var card = Assert.Single(ready.Cards);
+		Assert.Equal(memberId, card.MemberId);
+		Assert.Equal("explicit", card.PlacementVisibilityMode);
+		Assert.Equal("viewer", card.PlacementPermissionCode);
+		Assert.Null(card.AvatarUrl);
+		Assert.Equal("system", gateway.LastObjectType);
+		Assert.Equal("Harbor", gateway.LastAnchorName);
+		Assert.Equal("system:11111111-1111-1111-1111-111111111111", gateway.LastBranch);
+
+		var second = await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-b", CancellationToken.None);
+		var otherCard = Assert.Single(Assert.IsType<WorkspaceMemberDetailResult.Ready>(second).Cards);
+		Assert.Equal(memberId, otherCard.MemberId);
+		Assert.Equal("inherit", otherCard.PlacementVisibilityMode);
+		Assert.Equal("system:22222222-2222-2222-2222-222222222222", gateway.LastBranch);
+	}
+
+	/// <summary>Only direct members are returned, and a member row is not an anchor occurrence.</summary>
+	[Fact]
+	public async Task Details_FiltersDirectMembersAndRejectsAMemberOccurrence()
+	{
+		var store = NewStore(out _, out _);
+		var owner = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+		var directId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+		var nestedId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+		var context = NestedContext(owner, directId, nestedId);
+		store.Publish(context);
+		var gateway = new FakeProfileGateway(owner);
+		var service = new WorkspaceMemberDetailService(store, gateway);
+
+		Assert.IsType<WorkspaceMemberDetailResult.OccurrenceRejected>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "missing-path", CancellationToken.None));
+		Assert.IsType<WorkspaceMemberDetailResult.OccurrenceRejected>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "groups-header", CancellationToken.None));
+		Assert.Equal(0, gateway.Reads);
+
+		var ready = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None));
+		Assert.Equal(directId, Assert.Single(ready.Cards).MemberId);
+
+		var rejected = await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "member-direct", CancellationToken.None);
+		Assert.IsType<WorkspaceMemberDetailResult.OccurrenceRejected>(rejected);
+		Assert.Equal(1, gateway.Reads);
+	}
+
+	/// <summary>The detail batch keeps the first 20 direct members and still asks the live reader when none are direct.</summary>
+	[Fact]
+	public async Task Details_CapsTheBatchAndStillAuthorizesAnEmptyAnchor()
+	{
+		var store = NewStore(out _, out _);
+		var owner = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+		var context = ManyMembersContext(owner, 21);
+		store.Publish(context);
+		var gateway = new FakeProfileGateway(owner);
+		var service = new WorkspaceMemberDetailService(store, gateway);
+		var ready = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None));
+		Assert.Equal(20, ready.Cards.Count);
+		Assert.Equal(Guid.Parse("00000000-0000-0000-0000-000000000001"), ready.Cards[0].MemberId);
+		Assert.DoesNotContain(ready.Cards, card => card.MemberId == Guid.Parse("00000000-0000-0000-0000-000000000015"));
+
+		var emptyContext = EmptyAnchorContext(owner);
+		store.Publish(emptyContext);
+		var empty = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), emptyContext.ContextId, "system-empty", CancellationToken.None));
+		Assert.Empty(empty.Cards);
+		Assert.Equal(2, gateway.Reads);
 	}
 
 	/// <summary>Builds a store on the manual clock. The logger records accounting text and does not connect.</summary>
@@ -409,6 +507,161 @@ public sealed class WorkspaceTreeTests
 	private static PluralMapRawColumn Column(string name, string sqlType)
 	{
 		return new PluralMapRawColumn(name, sqlType);
+	}
+
+	private static PluralMapPreviewRow Preview(string path, string? type, Guid? id, string? parent, bool header, string? name)
+	{
+		return new PluralMapPreviewRow("preview", path, path, name, type, id, parent, header, name);
+	}
+
+	private static WorkspaceContext TwoAnchorContext(Guid accountId, Guid memberId)
+	{
+		var systemA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var systemB = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		return WorkspaceContext.Create(
+			accountId,
+			[],
+			[
+				new WorkspaceOccurrence("account", accountId, "system", systemA, 0, "system-a"),
+				new WorkspaceOccurrence("account", accountId, "system", systemB, 0, "system-b")
+			],
+			[],
+			[],
+			[
+				Preview("system-a", "system", systemA, null, false, "Harbor"),
+				Preview("member-a", "member", memberId, "system-a", false, "Member: Jane"),
+				Preview("system-b", "system", systemB, null, false, "Night"),
+				Preview("member-b", "member", memberId, "system-b", false, "Member: Jane")
+			],
+			[new WorkspaceAccessFact(Guid.NewGuid(), "system", systemA, 1, "Active", true)]);
+	}
+
+	private static WorkspaceContext NestedContext(Guid accountId, Guid directId, Guid nestedId)
+	{
+		var systemA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var groupA = Guid.Parse("33333333-3333-3333-3333-333333333333");
+		return WorkspaceContext.Create(
+			accountId,
+			[],
+			[
+				new WorkspaceOccurrence("account", accountId, "system", systemA, 0, "system-a"),
+				new WorkspaceOccurrence("system", systemA, "group", groupA, 1, "group-a")
+			],
+			[],
+			[],
+			[
+				Preview("system-a", "system", systemA, null, false, "Harbor"),
+				Preview("groups-header", "group", null, "system-a", true, "Groups"),
+				Preview("member-direct", "member", directId, "system-a", false, "Member: Direct"),
+				Preview("group-a", "group", groupA, "system-a", false, "Group: Inner"),
+				Preview("member-nested", "member", nestedId, "group-a", false, "Member: Nested")
+			],
+			[new WorkspaceAccessFact(Guid.NewGuid(), "system", systemA, 1, "Active", true)]);
+	}
+
+	private static WorkspaceContext ManyMembersContext(Guid accountId, int count)
+	{
+		var systemA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var rows = new List<PluralMapPreviewRow>
+		{
+			Preview("system-a", "system", systemA, null, false, "Harbor")
+		};
+		for (var index = 1; index <= count; index++)
+		{
+			rows.Add(Preview(
+				"member-" + index.ToString(),
+				"member",
+				Guid.Parse("00000000-0000-0000-0000-0000000000" + index.ToString("X2")),
+				"system-a",
+				false,
+				"Member: " + index.ToString()));
+		}
+
+		return WorkspaceContext.Create(
+			accountId,
+			[],
+			[new WorkspaceOccurrence("account", accountId, "system", systemA, 0, "system-a")],
+			[],
+			[],
+			rows,
+			[new WorkspaceAccessFact(Guid.NewGuid(), "system", systemA, 1, "Active", true)]);
+	}
+
+	private static WorkspaceContext EmptyAnchorContext(Guid accountId)
+	{
+		var systemId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+		return WorkspaceContext.Create(
+			accountId,
+			[],
+			[new WorkspaceOccurrence("account", accountId, "system", systemId, 0, "system-empty")],
+			[],
+			[],
+			[Preview("system-empty", "system", systemId, null, false, "Harbor")],
+			[new WorkspaceAccessFact(Guid.NewGuid(), "system", systemId, 1, "Active", true)]);
+	}
+
+	private sealed class FakeProfileGateway : IWorkspaceProfileGateway
+	{
+		public FakeProfileGateway(Guid accountId)
+		{
+			AccountId = accountId;
+		}
+
+		public Guid AccountId { get; set; }
+
+		public int Reads { get; private set; }
+
+		public string? LastObjectType { get; private set; }
+
+		public string? LastAnchorName { get; private set; }
+
+		public string? LastBranch { get; private set; }
+
+		public Task<AccessContextHelper.Account?> ResolveAsync(System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken)
+		{
+			return Task.FromResult<AccessContextHelper.Account?>(new AccessContextHelper.Account(
+				AccountId,
+				"owner@example.com",
+				"Owner",
+				1,
+				new AccessContextHelper.AccountStatus(1, "Active", "Active", 1, true),
+				DateTime.UtcNow,
+				null));
+		}
+
+		public Task<AnchorProfileBundle> ReadProfilesAsync(
+			string email,
+			string objectType,
+			string anchorName,
+			string branch,
+			CancellationToken cancellationToken)
+		{
+			Reads++;
+			LastObjectType = objectType;
+			LastAnchorName = anchorName;
+			LastBranch = branch;
+			var mode = anchorName == "Night" ? "inherit" : "explicit";
+			var profiles = new List<AnchorMemberProfile>();
+			var placements = new List<AnchorMemberPlacement>();
+			var ids = new List<Guid>
+			{
+				Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+				Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+				Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+			};
+			for (var index = 1; index <= 21; index++)
+			{
+				ids.Add(Guid.Parse("00000000-0000-0000-0000-0000000000" + index.ToString("X2")));
+			}
+
+			foreach (var id in ids)
+			{
+				profiles.Add(new AnchorMemberProfile(id, "Member", null, null, null, null, null, null, false));
+				placements.Add(new AnchorMemberPlacement(id, mode, mode == "inherit" ? null : 1, "explicit", mode == "inherit" ? null : "viewer"));
+			}
+
+			return Task.FromResult(new AnchorProfileBundle(profiles, true, [], placements, [], []));
+		}
 	}
 
 	private sealed class FakeOpeningSession : IWorkspaceOpeningSession

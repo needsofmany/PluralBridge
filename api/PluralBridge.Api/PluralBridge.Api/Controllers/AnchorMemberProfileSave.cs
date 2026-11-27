@@ -573,7 +573,7 @@ internal static class AnchorMemberProfileSave
 	/// <param name="transaction">The profile transaction. This method does not authorize or commit.</param>
 	/// <param name="memberId">Member whose placement on <paramref name="anchor"/> is updated.</param>
 	/// <param name="anchor">Selected anchor. The member must already have that system, group, or place membership row.</param>
-	/// <param name="placement">Sides to write. An omitted side keeps the stored value, or unset when the settings row is inserted.</param>
+	/// <param name="placement">Sides to write. An omitted side keeps the stored value, or inherit when the settings row is inserted.</param>
 	/// <param name="cancellationToken">Cancels the command. Cancellation does not commit.</param>
 	/// <returns>The stored placement when the task completes, retaining the request's set flags.</returns>
 	/// <exception cref="Microsoft.Data.SqlClient.SqlException">51017 when the member has no placement row on the selected anchor.</exception>
@@ -632,13 +632,14 @@ internal static class AnchorMemberProfileSave
 			    WHERE MemberId = @TargetMemberId;
 
 			    IF @@ROWCOUNT = 0
+			        -- An omitted side is inherit. A requested unset is stored as unset.
 			        INSERT INTO dbo.pb_member_visibility_permissions
 			            (MemberId, VisibilityMode, VisibilityTypeId, PermissionMode, PermissionCode)
 			        VALUES
 			            (@TargetMemberId,
-			             CASE WHEN @SetVisibility = 1 THEN @VisibilityMode ELSE N'unset' END,
+			             CASE WHEN @SetVisibility = 1 THEN @VisibilityMode ELSE N'inherit' END,
 			             CASE WHEN @SetVisibility = 1 THEN @VisibilityTypeId ELSE NULL END,
-			             CASE WHEN @SetPermission = 1 THEN @PermissionMode ELSE N'unset' END,
+			             CASE WHEN @SetPermission = 1 THEN @PermissionMode ELSE N'inherit' END,
 			             CASE WHEN @SetPermission = 1 THEN @PermissionCode ELSE NULL END);
 			END
 			ELSE IF @TargetGroupMemberId IS NOT NULL
@@ -657,9 +658,9 @@ internal static class AnchorMemberProfileSave
 			            (GroupMemberId, VisibilityMode, VisibilityTypeId, PermissionMode, PermissionCode)
 			        VALUES
 			            (@TargetGroupMemberId,
-			             CASE WHEN @SetVisibility = 1 THEN @VisibilityMode ELSE N'unset' END,
+			             CASE WHEN @SetVisibility = 1 THEN @VisibilityMode ELSE N'inherit' END,
 			             CASE WHEN @SetVisibility = 1 THEN @VisibilityTypeId ELSE NULL END,
-			             CASE WHEN @SetPermission = 1 THEN @PermissionMode ELSE N'unset' END,
+			             CASE WHEN @SetPermission = 1 THEN @PermissionMode ELSE N'inherit' END,
 			             CASE WHEN @SetPermission = 1 THEN @PermissionCode ELSE NULL END);
 			END
 			ELSE
@@ -678,9 +679,9 @@ internal static class AnchorMemberProfileSave
 			            (PlaceMemberId, VisibilityMode, VisibilityTypeId, PermissionMode, PermissionCode)
 			        VALUES
 			            (@TargetPlaceMemberId,
-			             CASE WHEN @SetVisibility = 1 THEN @VisibilityMode ELSE N'unset' END,
+			             CASE WHEN @SetVisibility = 1 THEN @VisibilityMode ELSE N'inherit' END,
 			             CASE WHEN @SetVisibility = 1 THEN @VisibilityTypeId ELSE NULL END,
-			             CASE WHEN @SetPermission = 1 THEN @PermissionMode ELSE N'unset' END,
+			             CASE WHEN @SetPermission = 1 THEN @PermissionMode ELSE N'inherit' END,
 			             CASE WHEN @SetPermission = 1 THEN @PermissionCode ELSE NULL END);
 			END
 
@@ -857,6 +858,7 @@ internal static class AnchorMemberProfileSave
 
 	/// <summary>
 	/// One member's stored placement settings, used as the start of display inheritance.
+	/// A null mode is a missing setting. Stored unset is a chosen Not set and is not a missing setting.
 	/// </summary>
 	internal sealed record MemberPlacementRow(
 		Guid MemberId,
@@ -1296,23 +1298,33 @@ internal static class AnchorMemberProfileSave
 	}
 
 	/// <summary>
+	/// Uses a stored mode when one exists. A null or blank mode is a missing setting and inherits.
+	/// </summary>
+	/// <param name="mode">The stored mode. Unset, inherit, and explicit are kept. Null and blank inherit.</param>
+	/// <returns>The mode display and resolution start from.</returns>
+	internal static string PlacementModeOrInherit(string? mode)
+	{
+		return string.IsNullOrWhiteSpace(mode) ? "inherit" : mode;
+	}
+
+	/// <summary>
 	/// Resolves the member's visibility and permission for display along the validated selected branch.
 	/// </summary>
-	/// <param name="placement">The member's own settings. Null or a blank mode starts as unset. Explicit keeps the member's type or code.</param>
+	/// <param name="placement">The member's own settings. A null or blank mode is a missing setting and starts as inherit. Stored unset does not inherit. Explicit keeps the member's type or code.</param>
 	/// <param name="branch">Containing anchor, then its parent anchors. An empty list cannot resolve inherit.</param>
 	/// <param name="anchors">Settings for those anchors. A node with no row is unset and stops inheritance.</param>
 	/// <param name="branchValid">False keeps an inheriting value as inherit. It does not walk an invalid branch.</param>
 	/// <returns>The display modes and values. This result does not grant write authority.</returns>
-	/// <remarks>Unset does not inherit. Explicit stops. A root that is still Inherit stays Inherit. Visibility and permission are resolved separately.</remarks>
+	/// <remarks>A missing placement inherits. Stored unset does not. Explicit stops. A root that is still Inherit stays Inherit. Visibility and permission are resolved separately.</remarks>
 	internal static ResolvedSetting ResolvePlacement(
 		MemberPlacementRow? placement,
 		IReadOnlyList<BranchNode> branch,
 		IReadOnlyList<AnchorSetting> anchors,
 		bool branchValid)
 	{
-		var visibilityMode = string.IsNullOrWhiteSpace(placement?.VisibilityMode) ? "unset" : placement!.VisibilityMode!;
+		var visibilityMode = PlacementModeOrInherit(placement?.VisibilityMode);
 		int? visibilityTypeId = visibilityMode == "explicit" ? placement?.VisibilityTypeId : null;
-		var permissionMode = string.IsNullOrWhiteSpace(placement?.PermissionMode) ? "unset" : placement!.PermissionMode!;
+		var permissionMode = PlacementModeOrInherit(placement?.PermissionMode);
 		string? permissionCode = permissionMode == "explicit" ? placement?.PermissionCode : null;
 
 		// Each side stops at its own first explicit or unset anchor.

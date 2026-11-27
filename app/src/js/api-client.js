@@ -152,6 +152,24 @@ window.PluralBridge.apiClient = (function () {
     }
 
     /**
+     * Reads direct member cards for one anchor occurrence in a retained workspace context.
+     * The server derives the anchor and branch. This request does not send an avatar route and does not include one in the response.
+     * @param {string} contextId Opaque context id from the workspace-tree response.
+     * @param {string} occurrence Selected anchor path.
+     * @param {AbortSignal} [signal] Abort signal for this load. Abort rejects the returned promise.
+     * @returns {Promise<Array|object|null>} The card array. The caller checks that a successful body is an array.
+     * @throws {Error} When the HTTP status is not OK.
+     */
+    async function readWorkspaceMemberDetails(contextId, occurrence, signal) {
+        const query = new URLSearchParams();
+        query.set("occurrence", occurrence || "");
+        return await fetchJson(
+            "/api/me/workspace-tree/" + encodeURIComponent(contextId) + "/member-details?" + query.toString(),
+            { signal: signal }
+        );
+    }
+
+    /**
      * Puts one anchor profile save. Failure rejects. It is not converted into a saved:false object.
      * An unreadable error body still rejects, using the generic message. A readable payload.error is preserved, including an Owner or branch failure.
      * @param {string} memberId Member id in the route. An empty id rejects before the request.
@@ -272,6 +290,7 @@ window.PluralBridge.apiClient = (function () {
     client.setCurrentSystemId = setCurrentSystemId;
     client.readMembers = readMembers;
     client.readAnchorMemberProfiles = readAnchorMemberProfiles;
+    client.readWorkspaceMemberDetails = readWorkspaceMemberDetails;
     client.addMember = addMember;
     client.saveAnchorMemberProfile = saveAnchorMemberProfile;
     client.saveMemberFronting = saveMemberFronting;

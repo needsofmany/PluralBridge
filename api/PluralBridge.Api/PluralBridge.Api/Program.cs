@@ -116,6 +116,8 @@ builder.Services.AddSingleton<IWorkspaceClock, SystemWorkspaceClock>();
 builder.Services.AddSingleton<IWorkspaceContextSettings, OptionsWorkspaceContextSettings>();
 builder.Services.AddSingleton<WorkspaceContextStore>();
 builder.Services.AddSingleton<WorkspaceTreeService>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.IWorkspaceProfileGateway, PluralBridge.Api.Workspace.SqlWorkspaceProfileGateway>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.WorkspaceMemberDetailService>();
 builder.Services.AddHostedService<WorkspaceContextCleanupService>();
 
 var app = builder.Build();

@@ -9,7 +9,8 @@ namespace PluralBridge.Api.Workspace;
 /// <remarks>
 /// The navigator implements these transitions. This class is the executable specification the tests run.
 /// There is no JavaScript test host in this repository. A late generation or a changed mode does not paint.
-/// The workspace mode does not request profiles or avatars and does not fall back to the plural-map route.
+/// Workspace selection requests member details for the retained context and does not fall back to the plural-map route.
+/// Legacy selection still requests the anchor profile route. A late detail response does not paint.
 /// This specification starts with the flag off. The browser initializer sets workspaceTreeEnabled to true when the property is absent.
 /// A failed replacement keeps the previous tree and context id. Automatic recovery does not start another load.
 /// </remarks>
@@ -27,14 +28,17 @@ internal sealed class WorkspaceTreeViewSession
 	/// <summary>The tree currently displayed.</summary>
 	public IReadOnlyList<string> Tree { get; private set; } = Array.Empty<string>();
 
-	/// <summary>The focused path. Workspace selection changes only this value.</summary>
+	/// <summary>The focused path. A selectable anchor updates this and starts the detail request for the active mode.</summary>
 	public string? SelectedPath { get; private set; }
 
 	/// <summary>The last error that did not clear a retained tree.</summary>
 	public string? Error { get; private set; }
 
-	/// <summary>True after a legacy selection requested member profiles.</summary>
+	/// <summary>True after a selection requested member details or legacy profiles.</summary>
 	public bool DetailRequested { get; private set; }
+
+	/// <summary>The generation captured when the current detail request started.</summary>
+	public int DetailGeneration { get; private set; }
 
 	/// <summary>True after sign-out proceeds.</summary>
 	public bool LoggedOut { get; private set; }
@@ -145,18 +149,43 @@ internal sealed class WorkspaceTreeViewSession
 		return true;
 	}
 
-	/// <summary>Focuses an anchor. Workspace mode does not request profiles.</summary>
+	/// <summary>
+	/// Focuses an anchor. Workspace mode requests direct member cards for the retained context.
+	/// Legacy mode requests the anchor profile route. A workspace selection without a context id does not request.
+	/// </summary>
 	/// <param name="path">The selected path.</param>
 	public void Select(string path)
 	{
 		SelectedPath = path;
+		DetailGeneration = _generation;
 		if (WorkspaceTreeEnabled)
 		{
+			if (string.IsNullOrEmpty(ContextId))
+			{
+				DetailRequested = false;
+				return;
+			}
+
+			DetailRequested = true;
+			_requests.Add("GET member-details " + ContextId + " " + path);
 			return;
 		}
 
 		DetailRequested = true;
 		_requests.Add("GET profile");
+	}
+
+	/// <summary>
+	/// A detail response paints only when its generation is still current and the path is still selected.
+	/// </summary>
+	/// <param name="generation">The generation captured when the selection started.</param>
+	/// <param name="path">The path whose cards arrived.</param>
+	/// <returns>True when those cards belong on the current pane.</returns>
+	public bool PaintDetail(int generation, string path)
+	{
+		return generation == DetailGeneration
+			&& generation == _generation
+			&& string.Equals(SelectedPath, path, StringComparison.Ordinal);
 	}
 
 	/// <summary>
