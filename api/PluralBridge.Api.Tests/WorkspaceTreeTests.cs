@@ -335,7 +335,7 @@ public sealed class WorkspaceTreeTests
 		Assert.True(view.CompleteWorkspaceLoad(generation, true, "context-a", ["tree-a"]));
 		view.Select("tree-a");
 		Assert.True(view.DetailRequested);
-		Assert.Contains("GET member-details context-a tree-a", view.Requests);
+		Assert.Contains("GET member-details context-a tree-a 0", view.Requests);
 		Assert.True(view.PaintDetail(generation, "tree-a"));
 		var refresh = view.BeginLoad();
 		Assert.False(view.PaintDetail(generation, "tree-a"));
@@ -349,6 +349,188 @@ public sealed class WorkspaceTreeTests
 		view.Select("fallback");
 		Assert.Contains("GET profile", view.Requests);
 		Assert.DoesNotContain(view.Requests, request => request.Contains(" fallback", StringComparison.Ordinal));
+	}
+
+	/// <summary>
+	/// The second window is appended. Cards already shown keep their edits and expansion.
+	/// A short pane starts that next window once, without waiting for another scroll.
+	/// </summary>
+	[Fact]
+	public void View_AppendsTheNextMemberWindowAndKeepsExistingCards()
+	{
+		var view = OpenMemberView("anchor");
+		view.RetainMemberPreview(MemberPreview("anchor", 40));
+		view.PaneNeedsAnotherBatch = true;
+		var generation = view.DetailGeneration;
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(1, 20)));
+		var first = view.MemberCards[0];
+		first.State = "edited";
+		first.Expanded = true;
+		Assert.Equal(["GET member-details context-a anchor 0", "GET member-details context-a anchor 20"], view.Requests.Where(request => request.StartsWith("GET member-details ", StringComparison.Ordinal)));
+		Assert.True(view.DetailInFlight);
+		Assert.Equal(20, view.MemberCards.Count);
+
+		view.PaneNeedsAnotherBatch = false;
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(21, 20)));
+		Assert.Same(first, view.MemberCards[0]);
+		Assert.Equal("edited", first.State);
+		Assert.True(first.Expanded);
+		Assert.Equal(Ids(1, 40), view.MemberCards.Select(card => card.MemberId).ToArray());
+		Assert.False(view.RequestNextPage());
+	}
+
+	/// <summary>
+	/// A repeated preview id does not move the window. A missing profile is not a card and does not change the next skip.
+	/// </summary>
+	[Fact]
+	public void View_AdvancesSkipByThePreviewWindowWhenProfilesAreMissing()
+	{
+		var view = OpenMemberView("anchor");
+		var rows = new List<WorkspaceTreeViewSession.MemberPreviewRow>
+		{
+			new("anchor", "group", Ids(1, 1)[0]),
+			new("other", "member", Ids(99, 1)[0]),
+			new("anchor", "member", Guid.Empty.ToString("D")),
+			new("anchor", "member", Ids(1, 1)[0]),
+			new("anchor", "member", Ids(1, 1)[0])
+		};
+		rows.AddRange(MemberPreview("anchor", 24).Skip(1));
+		view.RetainMemberPreview(rows);
+		Assert.Equal(24, view.DirectMemberCount("anchor"));
+
+		var generation = view.DetailGeneration;
+		var firstWindow = Ids(1, 20).Where(id => id != Ids(5, 1)[0]).ToArray();
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", firstWindow.Append(Ids(21, 1)[0]).ToArray()));
+		Assert.Equal(firstWindow, view.MemberCards.Select(card => card.MemberId).ToArray());
+		Assert.Equal(20, view.DetailSkip);
+		Assert.True(view.RequestNextPage());
+		Assert.False(view.RequestNextPage());
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(5, 1).Concat(Ids(21, 4)).ToArray()));
+		Assert.Equal(Ids(1, 4).Concat(Ids(6, 19)).ToArray(), view.MemberCards.Select(card => card.MemberId).ToArray());
+		Assert.Equal(40, view.DetailSkip);
+		Assert.Equal(1, view.MemberCards.Count(card => card.MemberId == Ids(1, 1)[0]));
+	}
+
+	/// <summary>A second scroll while a window is in flight does not request another window.</summary>
+	[Fact]
+	public void View_IgnoresOverlappingMemberScroll()
+	{
+		var view = OpenMemberView("anchor");
+		view.RetainMemberPreview(MemberPreview("anchor", 40));
+		Assert.False(view.RequestNextPage());
+		Assert.Equal("GET member-details context-a anchor 0", Assert.Single(view.Requests, request => request.StartsWith("GET member-details ", StringComparison.Ordinal)));
+		Assert.True(view.AcceptMemberDetails(view.DetailGeneration, "anchor", Ids(1, 20)));
+		Assert.True(view.RequestNextPage());
+		Assert.False(view.RequestNextPage());
+		Assert.Equal(2, view.Requests.Count(request => request.StartsWith("GET member-details ", StringComparison.Ordinal)));
+	}
+
+	/// <summary>A response for the previous anchor does not append cards or move the new anchor's skip.</summary>
+	[Fact]
+	public void View_IgnoresMemberDetailsAfterTheAnchorChanges()
+	{
+		var view = OpenMemberView("anchor-a");
+		view.RetainMemberPreview(MemberPreview("anchor-a", 25).Concat(MemberPreview("anchor-b", 5)).ToArray());
+		var generation = view.DetailGeneration;
+		view.Select("anchor-b");
+		Assert.False(view.AcceptMemberDetails(generation, "anchor-a", Ids(1, 20)));
+		Assert.Empty(view.MemberCards);
+		Assert.Equal(0, view.DetailSkip);
+		Assert.True(view.DetailInFlight);
+		Assert.True(view.AcceptMemberDetails(generation, "anchor-b", Ids(1, 5)));
+		Assert.Equal(Ids(1, 5), view.MemberCards.Select(card => card.MemberId).ToArray());
+		Assert.False(view.PaintDetail(generation, "anchor-a"));
+	}
+
+	/// <summary>
+	/// The last partial window completes the list. A failed window keeps the cards and skip, and the next scroll retries that same window.
+	/// </summary>
+	[Fact]
+	public void View_StopsAtTheLastMemberWindowAndRetriesAFailedWindow()
+	{
+		var view = OpenMemberView("anchor");
+		view.RetainMemberPreview(MemberPreview("anchor", 25));
+		var generation = view.DetailGeneration;
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(1, 20)));
+		Assert.True(view.RequestNextPage());
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(21, 5)));
+		Assert.True(view.DetailExhausted);
+		Assert.False(view.RequestNextPage());
+		Assert.Equal(2, view.Requests.Count(request => request.StartsWith("GET member-details ", StringComparison.Ordinal)));
+
+		view.Select("anchor");
+		view.PaneNeedsAnotherBatch = true;
+		Assert.True(view.AcceptMemberDetails(view.DetailGeneration, "anchor", Ids(1, 20)));
+		Assert.Equal("GET member-details context-a anchor 20", view.Requests[^1]);
+		var kept = view.MemberCards.ToArray();
+		Assert.True(view.FailMemberDetails(view.DetailGeneration, "anchor"));
+		Assert.Equal("The member profiles could not be loaded.", view.DetailError);
+		Assert.Equal(20, view.DetailSkip);
+		Assert.Equal(kept, view.MemberCards);
+		Assert.False(view.DetailInFlight);
+		Assert.Equal("GET member-details context-a anchor 20", view.Requests[^1]);
+		Assert.True(view.RequestNextPage());
+		Assert.Equal("GET member-details context-a anchor 20", view.Requests[^1]);
+		Assert.True(view.AcceptMemberDetails(view.DetailGeneration, "anchor", Ids(21, 5)));
+		Assert.Equal(Ids(1, 25), view.MemberCards.Select(card => card.MemberId).ToArray());
+	}
+
+	/// <summary>
+	/// The heading count is every unique direct member. A duplicate, another parent, a non-member, and an empty id are not added.
+	/// </summary>
+	[Fact]
+	public void View_DetailHeadingCountsEveryUniqueDirectMember()
+	{
+		var view = OpenMemberView("system-a");
+		var rows = new List<WorkspaceTreeViewSession.MemberPreviewRow>();
+		rows.AddRange(MemberPreview("system-a", 47));
+		rows.Add(new WorkspaceTreeViewSession.MemberPreviewRow("system-a", "member", Ids(1, 1)[0]));
+		rows.Add(new WorkspaceTreeViewSession.MemberPreviewRow("system-b", "member", Ids(90, 1)[0]));
+		rows.Add(new WorkspaceTreeViewSession.MemberPreviewRow("system-a", "group", Ids(91, 1)[0]));
+		rows.Add(new WorkspaceTreeViewSession.MemberPreviewRow("system-a", "member", Guid.Empty.ToString("D")));
+		view.RetainMemberPreview(rows);
+
+		view.Select("system-a", "System: Needs of the Many");
+
+		Assert.Equal(47, view.DirectMemberCount("system-a"));
+		Assert.Equal("System: Needs of the Many (47)", view.DetailHeading);
+	}
+
+	/// <summary>System, group, and place headings each use that occurrence's own direct-member count.</summary>
+	[Fact]
+	public void View_DetailHeadingFollowsTheSelectedAnchor()
+	{
+		var view = OpenMemberView("system-a");
+		var rows = new List<WorkspaceTreeViewSession.MemberPreviewRow>();
+		rows.AddRange(MemberPreview("system-a", 47));
+		rows.AddRange(MemberPreview("group-a", 3));
+		rows.AddRange(MemberPreview("place-a", 1));
+		view.RetainMemberPreview(rows);
+
+		view.Select("system-a", "System: Needs of the Many");
+		Assert.Equal("System: Needs of the Many (47)", view.DetailHeading);
+		view.Select("group-a", "Group: House");
+		Assert.Equal("Group: House (3)", view.DetailHeading);
+		view.Select("place-a", "Place: Shore");
+		Assert.Equal("Place: Shore (1)", view.DetailHeading);
+	}
+
+	/// <summary>Loading later member windows does not change the heading count.</summary>
+	[Fact]
+	public void View_PagingDoesNotChangeTheDetailHeadingCount()
+	{
+		var view = OpenMemberView("system-a");
+		view.RetainMemberPreview(MemberPreview("system-a", 47));
+		view.Select("system-a", "System: Needs of the Many");
+		var heading = view.DetailHeading;
+
+		Assert.True(view.AcceptMemberDetails(view.DetailGeneration, "system-a", Ids(1, 20)));
+		Assert.Equal(20, view.MemberCards.Count);
+		Assert.Equal(heading, view.DetailHeading);
+		Assert.True(view.RequestNextPage());
+		Assert.True(view.AcceptMemberDetails(view.DetailGeneration, "system-a", Ids(21, 20)));
+		Assert.Equal(40, view.MemberCards.Count);
+		Assert.Equal("System: Needs of the Many (47)", view.DetailHeading);
 	}
 
 	/// <summary>A failed replacement keeps the previous tree. Sign-out still completes when release fails.</summary>
@@ -461,7 +643,136 @@ public sealed class WorkspaceTreeTests
 		Assert.Equal(2, gateway.Reads);
 	}
 
+	/// <summary>
+	/// Skip selects the next unique direct members in preview order. A negative skip does not call the profile procedure.
+	/// </summary>
+	[Fact]
+	public async Task Details_PagesDirectMembersInPreviewOrder()
+	{
+		var store = NewStore(out _, out _);
+		var owner = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+		var context = ManyMembersContext(owner, 45);
+		store.Publish(context);
+		var gateway = new FakeProfileGateway(owner);
+		var service = new WorkspaceMemberDetailService(store, gateway);
+
+		var first = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None));
+		var second = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None, 20));
+
+		Assert.Equal(20, first.Cards.Count);
+		Assert.Equal(20, second.Cards.Count);
+		Assert.Equal(PagedMember(1), first.Cards[0].MemberId);
+		Assert.Equal(PagedMember(20), first.Cards[19].MemberId);
+		Assert.Equal(PagedMember(21), second.Cards[0].MemberId);
+		Assert.Equal(PagedMember(40), second.Cards[19].MemberId);
+		Assert.Empty(first.Cards.Select(card => card.MemberId).Intersect(second.Cards.Select(card => card.MemberId)));
+
+		var partialContext = ManyMembersContext(owner, 25);
+		store.Publish(partialContext);
+		var partial = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), partialContext.ContextId, "system-a", CancellationToken.None, 20));
+		Assert.Equal(Enumerable.Range(21, 5).Select(PagedMember).ToArray(), partial.Cards.Select(card => card.MemberId).ToArray());
+
+		var beyond = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), partialContext.ContextId, "system-a", CancellationToken.None, 40));
+		Assert.Empty(beyond.Cards);
+		Assert.Equal(4, gateway.Reads);
+
+		var readsBeforeInvalid = gateway.Reads;
+		var rejected = Assert.IsType<WorkspaceMemberDetailResult.OccurrenceRejected>(
+			await service.LoadAsync(new ClaimsPrincipal(), partialContext.ContextId, "system-a", CancellationToken.None, -1));
+		Assert.Equal("The member batch skip must be zero or greater.", rejected.Error);
+		Assert.Equal(readsBeforeInvalid, gateway.Reads);
+		Assert.False(WorkspaceMemberDetailService.TryParseMemberSkip("-1", out _, out _));
+		Assert.False(WorkspaceMemberDetailService.TryParseMemberSkip("abc", out _, out _));
+		Assert.False(WorkspaceMemberDetailService.TryParseMemberSkip("1.5", out _, out _));
+		Assert.True(WorkspaceMemberDetailService.TryParseMemberSkip(null, out var omitted, out var omittedError));
+		Assert.Equal(0, omitted);
+		Assert.Equal("", omittedError);
+	}
+
+	/// <summary>A member under another occurrence is not part of this page, and a repeated member id does not move the page.</summary>
+	[Fact]
+	public async Task Details_ExcludesOtherOccurrencesAndIgnoresDuplicateMemberIds()
+	{
+		var store = NewStore(out _, out _);
+		var owner = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+		var systemA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+		var systemB = Guid.Parse("22222222-2222-2222-2222-222222222222");
+		var otherMember = PagedMember(45);
+		var rows = new List<PluralMapPreviewRow>
+		{
+			Preview("system-a", "system", systemA, null, false, "Harbor"),
+			Preview("system-b", "system", systemB, null, false, "Night"),
+			Preview("other-member", "member", otherMember, "system-b", false, "Member: Other")
+		};
+		var duplicated = PagedMember(1);
+		rows.Add(Preview("member-dup", "member", duplicated, "system-a", false, "Member: Dup"));
+		for (var index = 1; index <= 22; index++)
+		{
+			rows.Add(Preview("member-" + index.ToString(), "member", PagedMember(index), "system-a", false, "Member: " + index.ToString()));
+		}
+
+		var context = WorkspaceContext.Create(
+			owner,
+			[],
+			[
+				new WorkspaceOccurrence("account", owner, "system", systemA, 0, "system-a"),
+				new WorkspaceOccurrence("account", owner, "system", systemB, 0, "system-b")
+			],
+			[],
+			[],
+			rows,
+			[new WorkspaceAccessFact(Guid.NewGuid(), "system", systemA, 1, "Active", true)]);
+		store.Publish(context);
+		var service = new WorkspaceMemberDetailService(store, new FakeProfileGateway(owner));
+
+		var first = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None));
+		var page = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "system-a", CancellationToken.None, 20));
+
+		Assert.Equal(20, first.Cards.Count);
+		Assert.Equal(PagedMember(1), first.Cards[0].MemberId);
+		Assert.Equal(PagedMember(20), first.Cards[19].MemberId);
+		Assert.Equal(new[] { PagedMember(21), PagedMember(22) }, page.Cards.Select(card => card.MemberId).ToArray());
+		Assert.DoesNotContain(first.Cards, card => card.MemberId == otherMember);
+		Assert.DoesNotContain(page.Cards, card => card.MemberId == otherMember);
+		Assert.Equal(1, first.Cards.Count(card => card.MemberId == duplicated));
+	}
+
 	/// <summary>Builds a store on the manual clock. The logger records accounting text and does not connect.</summary>
+	private static WorkspaceTreeViewSession OpenMemberView(string path)
+	{
+		var view = new WorkspaceTreeViewSession();
+		view.SetWorkspaceTreeEnabled(true);
+		var generation = view.BeginLoad();
+		Assert.True(view.CompleteWorkspaceLoad(generation, true, "context-a", [path]));
+		view.Select(path);
+		return view;
+	}
+
+	private static string[] Ids(int start, int count)
+	{
+		return Enumerable.Range(start, count)
+			.Select(index => Guid.Parse("00000000-0000-0000-0000-" + index.ToString("D12")).ToString("D"))
+			.ToArray();
+	}
+
+	private static WorkspaceTreeViewSession.MemberPreviewRow[] MemberPreview(string path, int count)
+	{
+		return Ids(1, count)
+			.Select(id => new WorkspaceTreeViewSession.MemberPreviewRow(path, "member", id))
+			.ToArray();
+	}
+
+	private static Guid PagedMember(int index)
+	{
+		return Guid.Parse("00000000-0000-0000-0000-0000000000" + index.ToString("X2"));
+	}
+
 	private static WorkspaceContextStore NewStore(out ManualWorkspaceClock clock, out MutableWorkspaceContextSettings settings)
 	{
 		clock = new ManualWorkspaceClock();
@@ -649,7 +960,7 @@ public sealed class WorkspaceTreeTests
 				Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
 				Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
 			};
-			for (var index = 1; index <= 21; index++)
+			for (var index = 1; index <= 45; index++)
 			{
 				ids.Add(Guid.Parse("00000000-0000-0000-0000-0000000000" + index.ToString("X2")));
 			}

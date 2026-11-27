@@ -76,6 +76,33 @@ public sealed class WorkspaceMemberDetailInheritanceTests
 		Assert.Equal("viewer", oneSided.ResolvedPermissionCode);
 	}
 
+	/// <summary>
+	/// The second page uses the same occurrence defaults. Explicit and unset placements on that page stay stored.
+	/// </summary>
+	[Fact]
+	public async Task Details_SecondPageKeepsOccurrenceDefaultsAndStoredOverrides()
+	{
+		var memberIds = Enumerable.Range(0, 22).Select(index => Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeee" + index.ToString("X2"))).ToArray();
+		var context = await LoadInnerContext(memberIds);
+		var store = new WorkspaceContextStore(new ManualWorkspaceClock(), new MutableWorkspaceContextSettings(), new SilentLogger());
+		store.Publish(context);
+		var gateway = new PlacementGateway(WorkspaceTreeTestDataFactory.AccountId, memberIds);
+		var service = new WorkspaceMemberDetailService(store, gateway);
+
+		var ready = Assert.IsType<WorkspaceMemberDetailResult.Ready>(
+			await service.LoadAsync(new ClaimsPrincipal(), context.ContextId, "outer/middle/inner", CancellationToken.None, 20));
+
+		Assert.Equal(1, gateway.Reads);
+		Assert.Equal(new[] { memberIds[20], memberIds[21] }, ready.Cards.Select(card => card.MemberId).ToArray());
+		AssertInheritedDefault(ready.Cards[0]);
+		Assert.Equal("explicit", ready.Cards[1].PlacementVisibilityMode);
+		Assert.Equal(2, ready.Cards[1].PlacementVisibilityTypeId);
+		Assert.Equal(2, ready.Cards[1].ResolvedVisibilityTypeId);
+		Assert.Equal("unset", ready.Cards[1].PlacementPermissionMode);
+		Assert.Null(ready.Cards[1].PlacementPermissionCode);
+		Assert.Equal("unset", ready.Cards[1].ResolvedPermissionMode);
+	}
+
 	/// <summary>A null placement keeps inherit on the control fields and puts the occurrence result on the resolved fields.</summary>
 	/// <param name="card">A member whose stored placement modes were null.</param>
 	private static void AssertInheritedDefault(AnchorMemberCard card)
@@ -117,10 +144,12 @@ public sealed class WorkspaceMemberDetailInheritanceTests
 	private sealed class PlacementGateway : IWorkspaceProfileGateway
 	{
 		private readonly Guid _accountId;
+		private readonly IReadOnlyList<Guid>? _members;
 
-		public PlacementGateway(Guid accountId)
+		public PlacementGateway(Guid accountId, IReadOnlyList<Guid>? members = null)
 		{
 			_accountId = accountId;
+			_members = members;
 		}
 
 		public int Reads { get; private set; }
@@ -148,6 +177,22 @@ public sealed class WorkspaceMemberDetailInheritanceTests
 			AnchorMemberProfile Profile(Guid id)
 			{
 				return new AnchorMemberProfile(id, "Member", null, null, null, null, null, null, false);
+			}
+
+			if (_members is not null)
+			{
+				var profiles = new List<AnchorMemberProfile>();
+				var placements = new List<AnchorMemberPlacement>();
+				var storedOverride = _members[^1];
+				foreach (var id in _members)
+				{
+					profiles.Add(Profile(id));
+					placements.Add(id == storedOverride
+						? new AnchorMemberPlacement(id, "explicit", 2, "unset", null)
+						: new AnchorMemberPlacement(id, null, null, null, null));
+				}
+
+				return Task.FromResult(new AnchorProfileBundle(profiles, true, [], placements, [], []));
 			}
 
 			return Task.FromResult(new AnchorProfileBundle(
