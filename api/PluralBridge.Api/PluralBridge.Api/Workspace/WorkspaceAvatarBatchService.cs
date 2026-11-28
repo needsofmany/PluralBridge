@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 using PluralBridge.Api.Controllers;
 
@@ -24,16 +25,70 @@ internal interface IWorkspaceAvatarReader
 		Guid accountId,
 		Guid memberId,
 		CancellationToken cancellationToken);
+
+	/// <summary>Loads one member image and records its read timings when a profile is present.</summary>
+	/// <param name="accountId">The account passed to the loader.</param>
+	/// <param name="memberId">The member whose image is requested.</param>
+	/// <param name="cancellationToken">Cancels the load. Cancellation is not a missing image.</param>
+	/// <param name="profile">The first-page profile. Null records nothing. The image bytes are unchanged.</param>
+	/// <returns>The loader result. Null when that member has no image.</returns>
+	Task<(byte[] Bytes, string ContentType)?> ReadProfiledAsync(
+		Guid accountId,
+		Guid memberId,
+		CancellationToken cancellationToken,
+		WorkspaceAvatarBatchProfile? profile)
+		=> ReadAsync(accountId, memberId, cancellationToken);
+
+	/// <summary>
+	/// Loads the images for one miss list. An empty list does no work.
+	/// The default calls <see cref="ReadAsync"/> once per id so an existing reader keeps working.
+	/// That default does not copy one read's timings onto every member.
+	/// </summary>
+	/// <param name="accountId">The account passed to the loader.</param>
+	/// <param name="memberIds">Authorized page members the context does not already hold, in preview order.</param>
+	/// <param name="cancellationToken">Cancels the load. Cancellation is not a missing image.</param>
+	/// <param name="profile">The first-page profile. Null records nothing. The image bytes are unchanged.</param>
+	/// <returns>Images the loader found, keyed by member id. A missing key means that member has no image.</returns>
+	async Task<IReadOnlyDictionary<Guid, (byte[] Bytes, string ContentType)>> ReadManyAsync(
+		Guid accountId,
+		IReadOnlyList<Guid> memberIds,
+		CancellationToken cancellationToken,
+		WorkspaceAvatarBatchProfile? profile = null)
+	{
+		// The default reader has no shared SQL stages to record. A batch reader records them itself.
+		_ = profile;
+		var images = new Dictionary<Guid, (byte[] Bytes, string ContentType)>();
+		foreach (var memberId in memberIds)
+		{
+			var image = await ReadAsync(accountId, memberId, cancellationToken);
+			if (image is { } found && !images.ContainsKey(memberId))
+			{
+				images.Add(memberId, found);
+			}
+		}
+
+		return images;
+	}
 }
 
 /// <summary>The database avatar reader. It does not choose a source from configuration.</summary>
 internal sealed class SqlWorkspaceAvatarReader(IConfiguration configuration) : IWorkspaceAvatarReader
 {
 	/// <inheritdoc />
-	public async Task<(byte[] Bytes, string ContentType)?> ReadAsync(
+	public Task<(byte[] Bytes, string ContentType)?> ReadAsync(
 		Guid accountId,
 		Guid memberId,
 		CancellationToken cancellationToken)
+	{
+		return ReadProfiledAsync(accountId, memberId, cancellationToken, null);
+	}
+
+	/// <inheritdoc />
+	public async Task<(byte[] Bytes, string ContentType)?> ReadProfiledAsync(
+		Guid accountId,
+		Guid memberId,
+		CancellationToken cancellationToken,
+		WorkspaceAvatarBatchProfile? profile)
 	{
 		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 		if (string.IsNullOrWhiteSpace(connectionString))
@@ -42,14 +97,43 @@ internal sealed class SqlWorkspaceAvatarReader(IConfiguration configuration) : I
 		}
 
 		await using var connection = new SqlConnection(connectionString);
-		await connection.OpenAsync(cancellationToken);
-		return await AnchorMemberProfileSave.LoadAvatarAsync(
+		long? connectionOpenMs = null;
+		if (profile == null)
+		{
+			await connection.OpenAsync(cancellationToken);
+		}
+		else
+		{
+			var connectionWatch = Stopwatch.StartNew();
+			await connection.OpenAsync(cancellationToken);
+			connectionWatch.Stop();
+			connectionOpenMs = connectionWatch.ElapsedMilliseconds;
+		}
+
+		var timing = new AnchorMemberProfileSave.AvatarReadTiming();
+		var image = await AnchorMemberProfileSave.LoadAvatarAsync(
 			useDatabase: true,
 			accountId,
 			memberId,
 			cancellationToken,
 			connection,
-			new AnchorMemberProfileSave.AvatarReadTiming());
+			timing);
+		profile?.RecordRead(memberId, connectionOpenMs, timing);
+		return image;
+	}
+
+	/// <inheritdoc />
+	public Task<IReadOnlyDictionary<Guid, (byte[] Bytes, string ContentType)>> ReadManyAsync(
+		Guid accountId,
+		IReadOnlyList<Guid> memberIds,
+		CancellationToken cancellationToken,
+		WorkspaceAvatarBatchProfile? profile = null)
+	{
+		_ = accountId;
+		_ = memberIds;
+		_ = cancellationToken;
+		_ = profile;
+		throw new InvalidOperationException("An avatar batch reads images on the profile connection after the profile procedure copies the graph.");
 	}
 }
 
@@ -93,7 +177,8 @@ internal sealed record WorkspaceAvatarBatchItem(Guid MemberId, string? ContentTy
 internal sealed class WorkspaceAvatarBatchService(
 	WorkspaceContextStore store,
 	IWorkspaceProfileGateway gateway,
-	IWorkspaceAvatarReader avatars)
+	IWorkspaceAvatarReader avatars,
+	IAvatarBatchGraphSessions? graphSessions = null)
 {
 	/// <summary>
 	/// Authorizes the occurrence, then returns images for the direct-member page.
@@ -103,19 +188,28 @@ internal sealed class WorkspaceAvatarBatchService(
 	/// <param name="occurrence">The selected anchor path.</param>
 	/// <param name="skip">Unique direct members to pass over. Zero is the first page. Negative is rejected before the profile procedure.</param>
 	/// <param name="cancellationToken">Cancels account resolution, the profile procedure, or an image read. A cancelled request is not a batch result.</param>
+	/// <param name="profile">The first-page profile. Null, and any skip other than zero, records no durations.</param>
 	/// <returns>The authorized page. An empty page is empty after the procedure succeeds. A member with no image has null image fields.</returns>
 	/// <remarks>
 	/// Page membership uses the same preview order, deduplication, and skip as member details.
 	/// A page member the procedure does not return is omitted. Only an image the context does not hold is loaded, and only a loaded image is retained.
+	/// When the graph-copy session is present, profile authorization and the image query share one connection. That query uses the copied graph and does not build another one.
+	/// No image command runs when every authorized image is already retained. The caller-owned temporary tables are dropped before the connection is released.
 	/// </remarks>
 	internal async Task<WorkspaceAvatarBatchResult> LoadAsync(
 		System.Security.Claims.ClaimsPrincipal user,
 		string contextId,
 		string? occurrence,
 		CancellationToken cancellationToken,
-		int skip = 0)
+		int skip = 0,
+		WorkspaceAvatarBatchProfile? profile = null)
 	{
-		var account = await gateway.ResolveAsync(user, cancellationToken);
+		if (skip != 0)
+		{
+			profile = null;
+		}
+
+		var account = await gateway.ResolveProfiledAsync(user, cancellationToken, profile);
 		if (account is null)
 		{
 			return new WorkspaceAvatarBatchResult.MissingAccount();
@@ -138,56 +232,116 @@ internal sealed class WorkspaceAvatarBatchService(
 		}
 
 		// The procedure is the current authorization check. Retention cannot skip it.
-		var bundle = await gateway.ReadProfilesAsync(
-			account.Email,
-			detail.ObjectType,
-			detail.AnchorName,
-			detail.Branch,
-			cancellationToken);
-		var authorized = new HashSet<Guid>();
-		foreach (var profile in bundle.Profiles)
+		IAvatarBatchGraphSession? session = null;
+		try
 		{
-			authorized.Add(profile.MemberId);
-		}
-
-		var images = new List<WorkspaceAvatarBatchItem>(detail.DirectMemberIds.Count);
-		foreach (var memberId in detail.DirectMemberIds)
-		{
-			if (!authorized.Contains(memberId))
+			AnchorProfileBundle bundle;
+			if (graphSessions != null)
 			{
-				continue;
+				session = await graphSessions.OpenAsync(profile, cancellationToken);
+				bundle = await session.ReadProfilesAsync(
+					account.Email,
+					detail.ObjectType,
+					detail.AnchorName,
+					detail.Branch,
+					profile,
+					cancellationToken);
+			}
+			else
+			{
+				bundle = await gateway.ReadProfilesProfiledAsync(
+					account.Email,
+					detail.ObjectType,
+					detail.AnchorName,
+					detail.Branch,
+					cancellationToken,
+					profile);
 			}
 
-			var retained = acquired.Context.FindAvatar(memberId);
-			if (retained is not null)
+			var authorized = new HashSet<Guid>();
+			foreach (var memberProfile in bundle.Profiles)
 			{
-				images.Add(new WorkspaceAvatarBatchItem(memberId, retained.ContentType, retained.Bytes));
-				continue;
+				authorized.Add(memberProfile.MemberId);
 			}
 
-			(byte[] Bytes, string ContentType)? loaded;
+			var loop = profile == null ? null : Stopwatch.StartNew();
 			try
 			{
-				loaded = await avatars.ReadAsync(account.AccountId, memberId, cancellationToken);
-			}
-			catch (SqlException exception) when (exception.Number == 208 && !cancellationToken.IsCancellationRequested)
-			{
-				return new WorkspaceAvatarBatchResult.AvatarStorageMissing();
-			}
+				var images = new List<WorkspaceAvatarBatchItem>(detail.DirectMemberIds.Count);
+				var missIds = new List<Guid>();
+				var missSlots = new List<int>();
+				foreach (var memberId in detail.DirectMemberIds)
+				{
+					if (!authorized.Contains(memberId))
+					{
+						continue;
+					}
 
-			if (loaded is null)
-			{
-				images.Add(new WorkspaceAvatarBatchItem(memberId, null, null));
-				continue;
-			}
+					var retained = acquired.Context.FindAvatar(memberId);
+					if (retained is not null)
+					{
+						profile?.RecordHit(memberId);
+						images.Add(new WorkspaceAvatarBatchItem(memberId, retained.ContentType, retained.Bytes));
+						continue;
+					}
 
-			var stored = acquired.Context.RetainAvatar(memberId, loaded);
-			images.Add(new WorkspaceAvatarBatchItem(
-				memberId,
-				stored?.ContentType ?? loaded.Value.ContentType,
-				stored?.Bytes ?? loaded.Value.Bytes));
+					profile?.BeginMiss(memberId);
+					missSlots.Add(images.Count);
+					missIds.Add(memberId);
+					images.Add(new WorkspaceAvatarBatchItem(memberId, null, null));
+				}
+
+				if (missIds.Count == 0)
+				{
+					return new WorkspaceAvatarBatchResult.Ready(images);
+				}
+
+				IReadOnlyDictionary<Guid, (byte[] Bytes, string ContentType)> loaded;
+				try
+				{
+					loaded = session == null
+						? await avatars.ReadManyAsync(account.AccountId, missIds, cancellationToken, profile)
+						: await session.ReadImagesAsync(account.AccountId, missIds, profile, cancellationToken);
+				}
+				catch (SqlException exception) when (exception.Number == 208 && !cancellationToken.IsCancellationRequested)
+				{
+					return new WorkspaceAvatarBatchResult.AvatarStorageMissing();
+				}
+
+				for (var index = 0; index < missIds.Count; index++)
+				{
+					var memberId = missIds[index];
+					if (!loaded.TryGetValue(memberId, out var image))
+					{
+						profile?.CompleteMiss(memberId, null);
+						continue;
+					}
+
+					profile?.CompleteMiss(memberId, image.Bytes.Length);
+					var stored = acquired.Context.RetainAvatar(memberId, image);
+					images[missSlots[index]] = new WorkspaceAvatarBatchItem(
+						memberId,
+						stored?.ContentType ?? image.ContentType,
+						stored?.Bytes ?? image.Bytes);
+				}
+
+				return new WorkspaceAvatarBatchResult.Ready(images);
+			}
+			finally
+			{
+				if (loop != null)
+				{
+					loop.Stop();
+					profile?.SetImageLoop(loop.ElapsedMilliseconds);
+				}
+			}
 		}
-
-		return new WorkspaceAvatarBatchResult.Ready(images);
+		finally
+		{
+			if (session != null)
+			{
+				await session.DisposeAsync();
+			}
+		}
 	}
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 using System.Data;
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.Data.SqlClient;
 using PluralBridge.Api;
@@ -49,6 +50,17 @@ internal interface IWorkspaceOpeningSession
 	/// <param name="cancellationToken">Cancels the build. Cancellation does not publish a context.</param>
 	/// <returns>The committed capture, or <see cref="WorkspaceOpeningResult.MissingAccount"/>.</returns>
 	Task<WorkspaceOpeningResult> ExecuteAsync(ClaimsPrincipal user, CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Opens one snapshot transaction and, when <paramref name="profile"/> is present, records connection, account, and opening-build durations on it.
+	/// A null profile runs the same build and records nothing.
+	/// </summary>
+	/// <param name="user">The authenticated session.</param>
+	/// <param name="cancellationToken">Cancels the build. Cancellation does not publish a context.</param>
+	/// <param name="profile">The workspace-tree profile for this request. Null leaves the build untimed.</param>
+	/// <returns>The committed capture, or <see cref="WorkspaceOpeningResult.MissingAccount"/>.</returns>
+	Task<WorkspaceOpeningResult> ExecuteProfiledAsync(ClaimsPrincipal user, CancellationToken cancellationToken, WorkspaceTreeLoadProfile? profile)
+		=> ExecuteAsync(user, cancellationToken);
 }
 
 /// <summary>
@@ -65,7 +77,20 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 	/// <param name="user">The authenticated session.</param>
 	/// <param name="cancellationToken">Cancels the connection, command, or read.</param>
 	/// <returns>The committed capture, or a missing-account result.</returns>
-	public async Task<WorkspaceOpeningResult> ExecuteAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
+	public Task<WorkspaceOpeningResult> ExecuteAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
+	{
+		return ExecuteProfiledAsync(user, cancellationToken, null);
+	}
+
+	/// <summary>Runs the opening plan and records its stages when a profile is present.</summary>
+	/// <param name="user">The authenticated session.</param>
+	/// <param name="cancellationToken">Cancels the connection, command, or read.</param>
+	/// <param name="profile">The workspace-tree profile. Null records no stage durations.</param>
+	/// <returns>The committed capture, or a missing-account result.</returns>
+	public async Task<WorkspaceOpeningResult> ExecuteProfiledAsync(
+		ClaimsPrincipal user,
+		CancellationToken cancellationToken,
+		WorkspaceTreeLoadProfile? profile)
 	{
 		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 		if (string.IsNullOrWhiteSpace(connectionString))
@@ -74,17 +99,26 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 		}
 
 		await using var connection = new SqlConnection(connectionString);
-		await connection.OpenAsync(cancellationToken);
+		await MeasureAsync(profile, static (timing, elapsed) => timing.SetConnectionOpen(elapsed), async () =>
+		{
+			await connection.OpenAsync(cancellationToken);
+		});
 		await using var transaction = await BeginSnapshotAsync(connection, cancellationToken);
 		var committed = false;
 		try
 		{
-			var account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, user, cancellationToken, transaction);
+			AccessContextHelper.Account? account = null;
+			await MeasureAsync(profile, static (timing, elapsed) => timing.SetAccountResolution(elapsed), async () =>
+			{
+				account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, user, cancellationToken, transaction);
+			});
 			if (account is null)
 			{
 				await transaction.RollbackAsync(cancellationToken);
 				return new WorkspaceOpeningResult.MissingAccount();
 			}
+
+			var resolvedAccount = account;
 
 			WorkspaceRenderOutput? render = null;
 			List<WorkspaceGraphEdge>? edges = null;
@@ -94,6 +128,9 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 			List<WorkspaceAccessFact>? facts = null;
 			List<WorkspaceStoredAnchorSetting>? anchorSettingRows = null;
 
+			WorkspaceOpeningResult? built = null;
+			await MeasureAsync(profile, static (timing, elapsed) => timing.SetOpeningBuild(elapsed), async () =>
+			{
 			foreach (var command in WorkspaceOpeningPlan.Commands)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
@@ -103,7 +140,7 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 						await ExecuteTextAsync(connection, transaction, command.Text, cancellationToken);
 						break;
 					case WorkspaceOpeningCommandKind.StoredProcedure:
-						await ExecuteProcedureAsync(connection, transaction, command.Text, account.AccountId, command.PassesAccountId, cancellationToken);
+						await ExecuteProcedureAsync(connection, transaction, command.Text, resolvedAccount.AccountId, command.PassesAccountId, cancellationToken);
 						break;
 					case WorkspaceOpeningCommandKind.ReadRender:
 						render = await ReadRenderAsync(connection, transaction, cancellationToken);
@@ -112,10 +149,10 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 						(edges, occurrences, nodeLabels, systemEdgeLabels) = await ReadCopiesAsync(connection, transaction, cancellationToken);
 						break;
 					case WorkspaceOpeningCommandKind.ReadMemberships:
-						facts = await ReadMembershipsAsync(connection, transaction, account.AccountId, cancellationToken);
+						facts = await ReadMembershipsAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken);
 						break;
 					case WorkspaceOpeningCommandKind.ReadAnchorSettings:
-						anchorSettingRows = await ReadAnchorSettingsAsync(connection, transaction, account.AccountId, cancellationToken);
+						anchorSettingRows = await ReadAnchorSettingsAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken);
 						break;
 					case WorkspaceOpeningCommandKind.ReadAnchorNames:
 						break;
@@ -128,8 +165,8 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 						var named = await ApplyAnchorNamesAsync(connection, transaction, render.HierarchyPreview, cancellationToken);
 						await transaction.CommitAsync(cancellationToken);
 						committed = true;
-						return new WorkspaceOpeningResult.Ready(new WorkspaceCapturedBuild(
-							account.AccountId,
+						built = new WorkspaceOpeningResult.Ready(new WorkspaceCapturedBuild(
+							resolvedAccount.AccountId,
 							edges,
 							occurrences,
 							nodeLabels,
@@ -137,10 +174,18 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 							named,
 							facts,
 							anchorSettingRows));
+						return;
 				}
 			}
 
 			throw new WorkspaceOpeningException("The workspace opening plan ended before commit.");
+			});
+			if (built == null)
+			{
+				throw new WorkspaceOpeningException("The workspace opening plan ended before commit.");
+			}
+
+			return built;
 		}
 		catch (SqlException exception) when (exception.Number == WorkspaceOpeningPlan.SnapshotNotAllowedError)
 		{
@@ -159,6 +204,36 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 					// The transaction was already rolled back, committed, or disposed.
 				}
 			}
+		}
+	}
+
+	/// <summary>
+	/// Runs one stage. A null profile performs the work and stores no duration.
+	/// </summary>
+	/// <param name="profile">The profile receiving the duration. Null stores nothing.</param>
+	/// <param name="record">Writes the elapsed milliseconds onto the profile.</param>
+	/// <param name="action">The stage work.</param>
+	/// <returns>The task completes when the stage finishes.</returns>
+	private static async Task MeasureAsync(
+		WorkspaceTreeLoadProfile? profile,
+		Action<WorkspaceTreeLoadProfile, long> record,
+		Func<Task> action)
+	{
+		if (profile == null)
+		{
+			await action();
+			return;
+		}
+
+		var watch = Stopwatch.StartNew();
+		try
+		{
+			await action();
+		}
+		finally
+		{
+			watch.Stop();
+			record(profile, watch.ElapsedMilliseconds);
 		}
 	}
 
@@ -432,17 +507,67 @@ public sealed class WorkspaceTreeService
 	/// <param name="user">The authenticated session.</param>
 	/// <param name="cancellationToken">Cancels the build before publish.</param>
 	/// <returns>The response, or null when the session has no account.</returns>
-	/// <remarks>The host path sets <c>useDatabase</c> so the SQL session supplies the build.</remarks>
-	internal async Task<WorkspaceTreeResponse?> OpenAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
+	/// <remarks>The host path sets <c>useDatabase</c> so the SQL session supplies the build. A null profile records no durations.</remarks>
+	internal Task<WorkspaceTreeResponse?> OpenAsync(
+		ClaimsPrincipal user,
+		CancellationToken cancellationToken,
+		WorkspaceTreeLoadProfile? profile = null)
 	{
-		var context = await LoadContextAsync(useDatabase: true, user, cancellationToken);
-		if (context == null)
+		return LoadTrackedAsync(useDatabase: true, user, cancellationToken, profile, null);
+	}
+
+	/// <summary>
+	/// Loads one tree through the database session or the test-data factory and publishes it.
+	/// </summary>
+	/// <param name="useDatabase">True reads through the database session. False uses the factory and does not open a connection.</param>
+	/// <param name="user">The authenticated session. The factory does not read it.</param>
+	/// <param name="cancellationToken">Cancels after the source returns and before the context is constructed or published.</param>
+	/// <param name="profile">The workspace-tree profile. Null records no durations.</param>
+	/// <param name="testDataFactory">Factory build used when <paramref name="useDatabase"/> is false. Null selects the all-inherit fixture.</param>
+	/// <returns>The response, or null when the database session has no account. Cancellation throws before publication.</returns>
+	/// <remarks>The factory path leaves connection, account, and opening-build durations unset. Both paths use <see cref="CreateContext"/>.</remarks>
+	internal async Task<WorkspaceTreeResponse?> LoadTrackedAsync(
+		bool useDatabase,
+		ClaimsPrincipal user,
+		CancellationToken cancellationToken,
+		WorkspaceTreeLoadProfile? profile,
+		Func<WorkspaceCapturedBuild>? testDataFactory)
+	{
+		var build = await ReadBuildAsync(useDatabase, user, cancellationToken, testDataFactory, profile);
+		if (build == null)
 		{
 			return null;
 		}
 
-		var published = _store.Publish(context);
+		cancellationToken.ThrowIfCancellationRequested();
+		var context = Measure(profile, static (timing, elapsed) => timing.SetCreateContext(elapsed), () => CreateContext(build));
+		var published = Measure(profile, static (timing, elapsed) => timing.SetPublish(elapsed), () => _store.Publish(context));
 		return new WorkspaceTreeResponse(published.ContextId, published.AccountId, published.HierarchyPreview);
+	}
+
+	/// <summary>Runs one in-memory stage. A null profile performs the work and stores no duration.</summary>
+	/// <typeparam name="T">The stage result.</typeparam>
+	/// <param name="profile">The profile receiving the duration. Null stores nothing.</param>
+	/// <param name="record">Writes the elapsed milliseconds onto the profile.</param>
+	/// <param name="action">The stage work.</param>
+	/// <returns>The stage result.</returns>
+	private static T Measure<T>(WorkspaceTreeLoadProfile? profile, Action<WorkspaceTreeLoadProfile, long> record, Func<T> action)
+	{
+		if (profile == null)
+		{
+			return action();
+		}
+
+		var watch = Stopwatch.StartNew();
+		try
+		{
+			return action();
+		}
+		finally
+		{
+			watch.Stop();
+			record(profile, watch.ElapsedMilliseconds);
+		}
 	}
 
 	/// <summary>
@@ -460,7 +585,7 @@ public sealed class WorkspaceTreeService
 		CancellationToken cancellationToken,
 		Func<WorkspaceCapturedBuild>? testDataFactory = null)
 	{
-		var build = await ReadBuildAsync(useDatabase, user, cancellationToken, testDataFactory);
+		var build = await ReadBuildAsync(useDatabase, user, cancellationToken, testDataFactory, null);
 		if (build == null)
 		{
 			return null;
@@ -480,7 +605,8 @@ public sealed class WorkspaceTreeService
 		bool useDatabase,
 		ClaimsPrincipal user,
 		CancellationToken cancellationToken,
-		Func<WorkspaceCapturedBuild>? testDataFactory)
+		Func<WorkspaceCapturedBuild>? testDataFactory,
+		WorkspaceTreeLoadProfile? profile)
 	{
 		if (!useDatabase)
 		{
@@ -488,7 +614,7 @@ public sealed class WorkspaceTreeService
 			return factory();
 		}
 
-		var result = await _session.ExecuteAsync(user, cancellationToken);
+		var result = await _session.ExecuteProfiledAsync(user, cancellationToken, profile);
 		if (result is WorkspaceOpeningResult.MissingAccount)
 		{
 			return null;

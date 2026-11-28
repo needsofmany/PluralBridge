@@ -128,6 +128,36 @@ window.PluralBridge.navigator = (function () {
         return Boolean(tools && tools.workspaceTreeEnabled === true);
     }
 
+    /**
+     * Reports whether this page should mark one workspace open with a profiling run id.
+     * The shared predicate is the only switch. A missing predicate stays off.
+     * @returns {boolean} True only when workspaceLoadProfileEnabled returns strict true.
+     */
+    function workspaceLoadProfileEnabled() {
+        const tools = window.PluralBridge && window.PluralBridge.developerTools
+            ? window.PluralBridge.developerTools
+            : null;
+        return Boolean(tools
+            && typeof tools.workspaceLoadProfileEnabled === "function"
+            && tools.workspaceLoadProfileEnabled() === true);
+    }
+
+    /**
+     * Creates the run id for one workspace open. The same id is sent on that open's tree, first member page, and first avatar page.
+     * @returns {string} A new id. This function does not record a time.
+     */
+    function newWorkspaceProfileId() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+            return window.crypto.randomUUID();
+        }
+
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (character) {
+            const value = Math.random() * 16 | 0;
+            const digit = character === "x" ? value : (value & 0x3 | 0x8);
+            return digit.toString(16);
+        });
+    }
+
     function mapAccountId(payload) {
         if (payload && payload.accountId) {
             return String(payload.accountId).toLowerCase();
@@ -1174,21 +1204,50 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
+     * The cards currently on the detail pane. Each card owns its loading bar. This does not choose a page.
+     * @param {ParentNode|null} root Detail pane. A missing pane returns an empty list.
+     * @returns {Array<HTMLElement>} Every member card in that pane, in document order.
+     */
+    function avatarCardsIn(root) {
+        if (!root || typeof root.querySelectorAll !== "function") {
+            return [];
+        }
+
+        return Array.prototype.slice.call(root.querySelectorAll(".member-card"));
+    }
+
+    /**
+     * Shows or hides the avatar bar on each supplied card. Cards without the method are skipped.
+     * @param {Array<HTMLElement>} cards The cards this avatar request started. A later page's cards are a different list.
+     * @param {boolean} loading True when those cards are waiting. False removes the bars this request showed.
+     * @returns {void}
+     */
+    function setCardsAvatarLoading(cards, loading) {
+        cards.forEach(function (card) {
+            if (card && typeof card.setWorkspaceAvatarLoading === "function") {
+                card.setWorkspaceAvatarLoading(loading);
+            }
+        });
+    }
+
+    /**
      * Requests avatars for the cards just painted on the first page.
      * A later page does not call this. Failure leaves those cards in place and does not request again.
      * @param {object} row Selected anchor.
-     * @param {{generation: number}} request Generation captured for this selection.
+     * @param {{generation: number, profileId: string|null}} request Generation captured for this selection, and the workspace-open run id when this page belongs to that open.
      * @param {number} serial Detail serial captured when the card request started.
      * @returns {void}
      */
     function requestFirstBatchAvatars(row, request, serial) {
         if (!detail || !detail.querySelector(".member-card")) {
+            publishWorkspaceLoadReport(request);
             return;
         }
 
         const pathKey = row.pathKey;
         const capturedContext = memberDetailContext;
         if (serial !== memberDetailSerial || !profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+            endOpenedProfile(request, "avatars", "incomplete");
             return;
         }
 
@@ -1196,10 +1255,35 @@ window.PluralBridge.navigator = (function () {
             ? window.PluralBridge.apiClient
             : null;
         if (!apiClient || typeof apiClient.readWorkspaceMemberAvatars !== "function") {
+            endOpenedProfile(request, "avatars", "failed");
             return;
         }
 
-        apiClient.readWorkspaceMemberAvatars(capturedContext, pathKey, openMemberAvatarSignal())
+        if (request.treeProfile) {
+            markAvatarProfile(request, "avatarRequestStart");
+        }
+
+        const loadingCards = avatarCardsIn(detail);
+        setCardsAvatarLoading(loadingCards, true);
+        apiClient.readWorkspaceMemberAvatars(
+            capturedContext,
+            pathKey,
+            openMemberAvatarSignal(),
+            request.profileId,
+            request.treeProfile ? {
+                onResponse: function (response) {
+                    if (request.treeProfile.avatarBrowser && response.headers && typeof response.headers.get === "function") {
+                        request.treeProfile.avatarBrowser.serverHeader = response.headers.get("X-PB-Workspace-Profile");
+                    }
+                },
+                bodyReceived: function () {
+                    markAvatarProfile(request, "avatarBodyReceived");
+                },
+                jsonParsed: function () {
+                    markAvatarProfile(request, "avatarJsonParsed");
+                }
+            } : null
+        )
             /**
              * Paints images onto the cards already shown. A stale response is dropped before it creates an object URL.
              * @param {*} images Avatar rows. A non-array body is a failed read.
@@ -1207,18 +1291,28 @@ window.PluralBridge.navigator = (function () {
              */
             .then(function (images) {
                 if (serial !== memberDetailSerial || !profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    setCardsAvatarLoading(loadingCards, false);
+                    if (request.treeProfile && request.treeProfile.avatarBrowser) {
+                        request.treeProfile.avatarBrowser.phase = "incomplete";
+                    }
+                    endOpenedProfile(request, "avatars", "incomplete");
                     return;
                 }
 
                 if (!Array.isArray(images)) {
+                    setCardsAvatarLoading(loadingCards, false);
+                    if (request.treeProfile && request.treeProfile.avatarBrowser) {
+                        request.treeProfile.avatarBrowser.phase = "incomplete";
+                    }
                     reportProfileFailure(
                         "Member avatar loading failed because the avatar response was not an array.",
                         images
                     );
+                    endOpenedProfile(request, "avatars", "failed");
                     return;
                 }
 
-                applyFirstBatchAvatars(images);
+                applyFirstBatchAvatars(images, request, loadingCards);
             })
             /**
              * Leaves the cards usable. Abort and a later failure do not start another avatar read.
@@ -1226,11 +1320,23 @@ window.PluralBridge.navigator = (function () {
              * @returns {void}
              */
             .catch(function (error) {
-                if (serial !== memberDetailSerial || (error && error.name === "AbortError")) {
+                setCardsAvatarLoading(loadingCards, false);
+                if (request.treeProfile && request.treeProfile.avatarBrowser) {
+                    request.treeProfile.avatarBrowser.phase = "incomplete";
+                }
+
+                if (serial !== memberDetailSerial) {
+                    endOpenedProfile(request, "avatars", "incomplete");
+                    return;
+                }
+
+                if (error && error.name === "AbortError") {
+                    endOpenedProfile(request, "avatars", "cancelled");
                     return;
                 }
 
                 if (!profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    endOpenedProfile(request, "avatars", "incomplete");
                     return;
                 }
 
@@ -1238,6 +1344,7 @@ window.PluralBridge.navigator = (function () {
                     "Member avatar loading failed after the cards were shown.",
                     error
                 );
+                endOpenedProfile(request, "avatars", "failed");
             });
     }
 
@@ -1245,9 +1352,13 @@ window.PluralBridge.navigator = (function () {
      * Applies one first-page avatar response to the matching cards.
      * A null image leaves the placeholder. The card decides whether a pending avatar edit keeps its preview.
      * @param {Array<object>} images Rows with memberId, contentType, and imageBase64.
+     * @param {object} [profileRequest] The member request carrying the workspace-open profile. Omitted applies the images without timings.
+     * @param {Array<HTMLElement>} [loadingCards] Cards whose bars this request showed. A card the response does not name loses its bar.
      * @returns {void}
      */
-    function applyFirstBatchAvatars(images) {
+    function applyFirstBatchAvatars(images, profileRequest, loadingCards) {
+        const notes = [];
+        const handled = [];
         images.forEach(function (image) {
             const id = normalizeGuid(image && image.memberId);
             if (!id || !detail) {
@@ -1255,40 +1366,182 @@ window.PluralBridge.navigator = (function () {
             }
 
             const card = detail.querySelector('[data-member-id="' + id + '"]');
-            const objectUrl = objectUrlForAvatar(image);
+            const decoded = objectUrlForAvatar(image, profileRequest);
+            const objectUrl = decoded.url;
             if (!card || typeof card.applyWorkspaceAvatar !== "function") {
                 revokeAvatarObjectUrl(objectUrl);
                 return;
             }
 
-            // A false result means the card kept a pending edit, so this URL has no owner.
-            if (!card.applyWorkspaceAvatar(objectUrl)) {
-                revokeAvatarObjectUrl(objectUrl);
+            handled.push(card);
+
+            if (!objectUrl) {
+                const kept = card.applyWorkspaceAvatar(null);
+                if (!kept) {
+                    if (profileRequest && profileRequest.treeProfile && profileRequest.treeProfile.avatarBrowser) {
+                        profileRequest.treeProfile.avatarBrowser.pendingEdits += 1;
+                    }
+                    notes.push({ memberId: id, settle: "notApplied" });
+                    return;
+                }
+
+                if (profileRequest && profileRequest.treeProfile && profileRequest.treeProfile.avatarBrowser) {
+                    profileRequest.treeProfile.avatarBrowser.placeholders += 1;
+                }
+                notes.push({ memberId: id, settle: "placeholder" });
+                return;
             }
+
+            const applied = card.applyWorkspaceAvatar(objectUrl);
+            if (!applied) {
+                if (profileRequest && profileRequest.treeProfile && profileRequest.treeProfile.avatarBrowser) {
+                    profileRequest.treeProfile.avatarBrowser.pendingEdits += 1;
+                }
+                revokeAvatarObjectUrl(objectUrl);
+                notes.push({ memberId: id, decodeMs: decoded.elapsedMs, settle: "notApplied" });
+                return;
+            }
+
+            const preview = card.querySelector(".member-avatar-image");
+            notes.push({
+                memberId: id,
+                decodeMs: decoded.elapsedMs,
+                settle: preview ? "pending" : "placeholder",
+                image: preview
+            });
+            if (!preview && profileRequest && profileRequest.treeProfile && profileRequest.treeProfile.avatarBrowser) {
+                profileRequest.treeProfile.avatarBrowser.placeholders += 1;
+            }
+        });
+        (loadingCards || []).forEach(function (card) {
+            if (handled.indexOf(card) >= 0 || typeof card.setWorkspaceAvatarLoading !== "function") {
+                return;
+            }
+
+            card.setWorkspaceAvatarLoading(false);
+        });
+        markAvatarProfile(profileRequest, "avatarApplyComplete");
+        settleAppliedAvatars(profileRequest, notes);
+    }
+
+    /**
+     * Waits for each applied image to decode or fail. Placeholders and pending edits are already counted.
+     * Completion here is image decode or a load/error event. It is not screen paint.
+     * @param {object} profileRequest The member request. A request without a profile returns immediately.
+     * @param {Array<object>} notes Per-image notes from applyFirstBatchAvatars.
+     * @returns {void}
+     */
+    function settleAppliedAvatars(profileRequest, notes) {
+        const browser = profileRequest && profileRequest.treeProfile
+            ? profileRequest.treeProfile.avatarBrowser
+            : null;
+        if (!browser) {
+            publishWorkspaceLoadReport(profileRequest);
+            return;
+        }
+
+        browser.images = notes.map(function (note) {
+            return {
+                memberId: note.memberId,
+                decodeMs: note.decodeMs,
+                settle: note.settle
+            };
+        });
+        // Image decode or a load/error event settles the image. It is not screen paint.
+        const waiting = notes.filter(function (note) {
+            return note.settle === "pending" && note.image;
+        });
+        if (waiting.length === 0) {
+            browser.phase = "complete";
+            markAvatarProfile(profileRequest, "displayComplete");
+            if (profileRequest.treeProfile) {
+                profileRequest.treeProfile.avatarStatus = "complete";
+            }
+            publishWorkspaceLoadReport(profileRequest);
+            return;
+        }
+
+        let remaining = waiting.length;
+        /**
+         * Records one settled image. The phase stays incomplete until every applied image has settled.
+         * @param {object} note The image note.
+         * @param {string} settle loaded or error.
+         * @returns {void}
+         */
+        function finishOne(note, settle) {
+            note.settle = settle;
+            browser.images.forEach(function (image) {
+                if (image.memberId === note.memberId && image.settle === "pending") {
+                    image.settle = settle;
+                }
+            });
+            remaining -= 1;
+            if (remaining === 0) {
+                browser.phase = "complete";
+                markAvatarProfile(profileRequest, "displayComplete");
+                if (profileRequest.treeProfile) {
+                    profileRequest.treeProfile.avatarStatus = "complete";
+                }
+                publishWorkspaceLoadReport(profileRequest);
+            }
+        }
+
+        waiting.forEach(function (note) {
+            const image = note.image;
+            if (typeof image.decode === "function") {
+                image.decode().then(function () {
+                    finishOne(note, "loaded");
+                }, function () {
+                    finishOne(note, "error");
+                });
+                return;
+            }
+
+            if (image.complete) {
+                finishOne(note, image.naturalWidth > 0 ? "loaded" : "error");
+                return;
+            }
+
+            image.addEventListener("load", function () {
+                finishOne(note, "loaded");
+            });
+            image.addEventListener("error", function () {
+                finishOne(note, "error");
+            });
         });
     }
 
     /**
      * Builds an object URL for one returned image. Null image fields stay null and create no URL.
      * @param {object} image One avatar row.
-     * @returns {string|null} The object URL, or null when the member has no image or the bytes cannot be read.
+     * @param {object} [profileRequest] The profiled request. Present only while the first batch is being timed.
+     * @returns {{url: string|null, elapsedMs: number|null}} The object URL and the decode duration. A null image has no duration.
      */
-    function objectUrlForAvatar(image) {
+    function objectUrlForAvatar(image, profileRequest) {
         if (!image || image.imageBase64 == null || image.imageBase64 === "" || typeof URL.createObjectURL !== "function") {
-            return null;
+            return { url: null, elapsedMs: null };
         }
 
+        const started = profileRequest && profileRequest.treeProfile && window.performance && typeof window.performance.now === "function"
+            ? window.performance.now()
+            : null;
         try {
             const binary = atob(image.imageBase64);
             const bytes = new Uint8Array(binary.length);
             for (let index = 0; index < binary.length; index += 1) {
                 bytes[index] = binary.charCodeAt(index);
             }
-            return URL.createObjectURL(new Blob([bytes], {
-                type: image.contentType || "application/octet-stream"
-            }));
+            return {
+                url: URL.createObjectURL(new Blob([bytes], {
+                    type: image.contentType || "application/octet-stream"
+                })),
+                elapsedMs: started == null ? null : window.performance.now() - started
+            };
         } catch (error) {
-            return null;
+            return {
+                url: null,
+                elapsedMs: started == null ? null : window.performance.now() - started
+            };
         }
     }
 
@@ -1318,6 +1571,7 @@ window.PluralBridge.navigator = (function () {
         const capturedContext = memberDetailContext;
         if (memberDetailInFlight || memberDetailExhausted || !capturedContext || !profileResponseIsCurrent(request, pathKey)) {
             removeMemberLoadProgress(progress);
+            endOpenedProfile(request, "members", "incomplete");
             return;
         }
 
@@ -1336,12 +1590,36 @@ window.PluralBridge.navigator = (function () {
                 "Member profile loading failed because readWorkspaceMemberDetails is not available on the API client."
             );
             showWorkspaceDetailError(row, "The member profiles could not be loaded.");
+            endOpenedProfile(request, "members", "failed");
             return;
         }
 
         const serial = memberDetailSerial;
         memberDetailInFlight = true;
-        apiClient.readWorkspaceMemberDetails(capturedContext, pathKey, signal, skip)
+        if (skip === 0 && request.treeProfile) {
+            markMemberProfile(request, "memberRequestStart");
+        }
+
+        apiClient.readWorkspaceMemberDetails(
+            capturedContext,
+            pathKey,
+            signal,
+            skip,
+            skip === 0 ? request.profileId : null,
+            skip === 0 && request.treeProfile ? {
+                onResponse: function (response) {
+                    if (response.headers && typeof response.headers.get === "function") {
+                        request.treeProfile.memberServerHeader = response.headers.get("X-PB-Workspace-Profile");
+                    }
+                },
+                bodyReceived: function () {
+                    markMemberProfile(request, "memberBodyReceived");
+                },
+                jsonParsed: function () {
+                    markMemberProfile(request, "memberJsonParsed");
+                }
+            } : null
+        )
             /**
              * Appends the window when this selection is still visible. A non-array body is a load failure.
              * @param {*} profiles Response body.
@@ -1350,11 +1628,13 @@ window.PluralBridge.navigator = (function () {
             .then(function (profiles) {
                 removeMemberLoadProgress(progress);
                 if (serial !== memberDetailSerial) {
+                    endOpenedProfile(request, "members", "incomplete");
                     return;
                 }
 
                 memberDetailInFlight = false;
                 if (!profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    endOpenedProfile(request, "members", "incomplete");
                     return;
                 }
 
@@ -1364,11 +1644,18 @@ window.PluralBridge.navigator = (function () {
                         profiles
                     );
                     showWorkspaceDetailError(row, "The member profiles could not be loaded.");
+                    endOpenedProfile(request, "members", "failed");
                     return;
                 }
 
                 paintWorkspaceMemberPage(row, profiles, skip);
                 if (skip === 0) {
+                    if (request.treeProfile) {
+                        request.treeProfile.cardCount = profiles.length;
+                        request.treeProfile.membersStatus = "complete";
+                    }
+
+                    markMemberProfile(request, "memberCardsDom");
                     requestFirstBatchAvatars(row, request, serial);
                 }
                 memberDetailSkip = skip + memberDetailBatchSize;
@@ -1387,15 +1674,18 @@ window.PluralBridge.navigator = (function () {
             .catch(function (error) {
                 removeMemberLoadProgress(progress);
                 if (serial !== memberDetailSerial) {
+                    endOpenedProfile(request, "members", "incomplete");
                     return;
                 }
 
                 memberDetailInFlight = false;
                 if (error && error.name === "AbortError") {
+                    endOpenedProfile(request, "members", "cancelled");
                     return;
                 }
 
                 if (!profileResponseIsCurrent(request, pathKey) || contextId !== capturedContext) {
+                    endOpenedProfile(request, "members", "incomplete");
                     return;
                 }
 
@@ -1404,6 +1694,7 @@ window.PluralBridge.navigator = (function () {
                     error
                 );
                 showWorkspaceDetailError(row, "The member profiles could not be loaded.");
+                endOpenedProfile(request, "members", "failed");
             });
     }
 
@@ -1472,11 +1763,17 @@ window.PluralBridge.navigator = (function () {
      * Loads the first direct-member window for the selected anchor in the retained workspace context.
      * A late response is ignored. Later windows append cards. The first window requests avatars after its cards are shown.
      * @param {object} row Selected anchor. A missing context id shows an error when this request is still current.
+     * @param {string|null} [profileId] Run id captured by the workspace open that is selecting its first anchor. A later selection omits it.
+     * @param {object} [profileRequest] The workspace-open request. Its profile supplies the origin for the first member page.
      * @returns {void}
      */
-    function loadWorkspaceMemberDetails(row) {
+    function loadWorkspaceMemberDetails(row, profileId, profileRequest) {
         const pathKey = row.pathKey;
         const request = beginRequest();
+        request.profileId = profileId || null;
+        request.treeProfile = profileRequest && profileRequest.treeProfile && request.profileId === profileRequest.treeProfile.runId
+            ? profileRequest.treeProfile
+            : null;
         memberDetailSkip = 0;
         memberDetailExhausted = false;
         memberDetailPath = pathKey;
@@ -1484,10 +1781,12 @@ window.PluralBridge.navigator = (function () {
         shownMemberIds = {};
         if (!contextId) {
             if (!profileResponseIsCurrent(request, pathKey)) {
+                endOpenedProfile(request, "members", "incomplete");
                 return;
             }
 
             renderDetailStatus(row, "The member profiles could not be loaded.", true);
+            endOpenedProfile(request, "members", "failed");
             return;
         }
 
@@ -2162,10 +2461,13 @@ window.PluralBridge.navigator = (function () {
      * Selects an anchor after the shared leave guard, then loads its profiles.
      * A repeated call for the current path does nothing. The proceed callback does nothing if another selection changed the generation.
      * @param {object} row Anchor row. A non-selectable row does nothing.
+     * @param {string|null} [profileId] Run id for the workspace open that is selecting its first anchor. A click omits it.
+     * @param {object} [profileRequest] The workspace-open request whose tree profile receives the selection mark. A click omits it.
      * @returns {void}
      */
-    function selectAnchor(row) {
+    function selectAnchor(row, profileId, profileRequest) {
         if (!isSelectable(row) || selectedPathKey === row.pathKey) {
+            finishTreeProfile(profileRequest, "complete");
             return;
         }
 
@@ -2176,15 +2478,18 @@ window.PluralBridge.navigator = (function () {
          */
         const proceed = function () {
             if (selectionGeneration !== generationAtRequest || !isSelectable(row)) {
+                finishTreeProfile(profileRequest, "incomplete");
                 return;
             }
 
             selectionGeneration += 1;
             selectedPathKey = row.pathKey;
             renderTree();
+            markTreeProfile(profileRequest, "selectionDom");
+            finishTreeProfile(profileRequest, "complete", true);
             revealTouchSelection(row.pathKey);
             if (workspaceTreeEnabled()) {
-                loadWorkspaceMemberDetails(row);
+                loadWorkspaceMemberDetails(row, profileId, profileRequest);
                 return;
             }
 
@@ -2324,6 +2629,589 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
+     * Records one first-batch avatar mark since the workspace-open origin.
+     * Decode durations are byte conversion and blob-URL creation. They are not screen paint.
+     * A request without that open's profile records nothing. A profiling error does not change the load.
+     * @param {object} request The member request that still points at the workspace-open profile.
+     * @param {string} name avatarRequestStart, avatarBodyReceived, avatarJsonParsed, or avatarApplyComplete.
+     * @returns {void}
+     */
+    function markAvatarProfile(request, name) {
+        try {
+            if (!request || !request.treeProfile || typeof request.treeProfile.origin !== "number") {
+                return;
+            }
+
+            if (!window.performance || typeof window.performance.now !== "function") {
+                return;
+            }
+
+            if (!request.treeProfile.avatarBrowser) {
+                request.treeProfile.avatarBrowser = {
+                    elapsedMs: {},
+                    images: [],
+                    placeholders: 0,
+                    pendingEdits: 0,
+                    serverHeader: null,
+                    phase: "incomplete"
+                };
+            }
+
+            if (typeof request.treeProfile.avatarBrowser.elapsedMs[name] === "number") {
+                return;
+            }
+
+            request.treeProfile.avatarBrowser.elapsedMs[name] = window.performance.now() - request.treeProfile.origin;
+        } catch (error) {
+            return;
+        }
+    }
+
+    /**
+     * Records one first-page member mark since the workspace-open origin.
+     * memberCardsDom means paintWorkspaceMemberPage has returned. It does not mean the screen has painted.
+     * A request without that open's profile records nothing, and a later page does not call this.
+     * @param {object} request The member request that still points at the workspace-open profile.
+     * @param {string} name memberRequestStart, memberBodyReceived, memberJsonParsed, or memberCardsDom.
+     * @returns {void}
+     */
+    function markMemberProfile(request, name) {
+        if (!request || !request.treeProfile || typeof request.treeProfile.origin !== "number") {
+            return;
+        }
+
+        if (!window.performance || typeof window.performance.now !== "function") {
+            return;
+        }
+
+        if (!request.treeProfile.memberBrowserElapsedMs) {
+            request.treeProfile.memberBrowserElapsedMs = {};
+        }
+
+        if (typeof request.treeProfile.memberBrowserElapsedMs[name] === "number") {
+            return;
+        }
+
+        request.treeProfile.memberBrowserElapsedMs[name] = window.performance.now() - request.treeProfile.origin;
+    }
+
+    /**
+     * Records one tree mark as elapsed time since this run's origin.
+     * domComplete and selectionDom mean renderTree has returned. They do not mean the screen has painted.
+     * @param {object} request The workspace-open request. A request without a tree profile is ignored.
+     * @param {string} name responseReceived, jsonParsed, domComplete, or selectionDom.
+     * @returns {void}
+     */
+    function markTreeProfile(request, name) {
+        if (!request || !request.treeProfile || request.treeProfile.finished) {
+            return;
+        }
+
+        if (!window.performance || typeof window.performance.now !== "function") {
+            return;
+        }
+
+        request.treeProfile.browserElapsedMs[name] = window.performance.now() - request.treeProfile.origin;
+    }
+
+    /**
+     * Reads one profiling response header. The durations in it stay on the server clock.
+     * @param {string|null} header The X-PB-Workspace-Profile value.
+     * @returns {object|null} Outcome, serverMs, and member lines. Null when the header is missing or unreadable.
+     */
+    function readProfileHeader(header) {
+        if (!header || typeof header !== "string") {
+            return null;
+        }
+
+        try {
+            var parsed = JSON.parse(header);
+            if (!parsed || typeof parsed !== "object") {
+                return null;
+            }
+
+            return {
+                outcome: parsed.outcome,
+                serverMs: parsed.serverMs || null,
+                members: parsed.members || null
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * Builds the one workspace-load report for a run. Browser elapsed times and server durations stay in separate fields.
+     * A missing duration is omitted. It is not stored as zero. DOM and decode marks are not screen paint.
+     * The returned object is a copy, so later changes to the run do not change a report already handed to the console.
+     * @param {object|null} profile Marks and parsed headers for one run. A missing profile produces no report.
+     * @returns {object|null} The report snapshot, or null when this run is not profiled.
+     */
+    function assembleWorkspaceLoadReport(profile) {
+        if (!profile || !profile.runId) {
+            return null;
+        }
+
+        /**
+         * Copies one report value so the console snapshot does not keep the live run.
+         * @param {*} value A report field.
+         * @returns {*} The copied value.
+         */
+        function copyReportValue(value) {
+            var copy;
+            var index;
+            var key;
+            if (value === null || typeof value !== "object") {
+                return value;
+            }
+
+            if (Object.prototype.toString.call(value) === "[object Array]") {
+                copy = [];
+                for (index = 0; index < value.length; index++) {
+                    copy[index] = copyReportValue(value[index]);
+                }
+
+                return copy;
+            }
+
+            copy = {};
+            for (key in value) {
+                if (Object.prototype.hasOwnProperty.call(value, key)) {
+                    copy[key] = copyReportValue(value[key]);
+                }
+            }
+
+            return copy;
+        }
+
+        /**
+         * Orders browser marks by elapsed time. Marks that were not taken are left out.
+         * @param {Array<{name: string, elapsedMs: number}>} entries Marks that were present.
+         * @returns {Array<{name: string, elapsedMs: number}>} The same array, earliest first.
+         */
+        function orderMarks(entries) {
+            var index;
+            var previous;
+            var current;
+            for (index = 1; index < entries.length; index++) {
+                current = entries[index];
+                previous = index - 1;
+                while (previous >= 0 && entries[previous].elapsedMs > current.elapsedMs) {
+                    entries[previous + 1] = entries[previous];
+                    previous -= 1;
+                }
+
+                entries[previous + 1] = current;
+            }
+
+            return entries;
+        }
+
+        /**
+         * Collects the named browser marks that have a numeric elapsed time.
+         * @param {object|null} source Stored mark names and elapsed milliseconds.
+         * @param {Array<{from: string, name: string}>} names Stored name and report name.
+         * @param {string} request Tree, members, or avatars.
+         * @returns {Array<{request: string, name: string, elapsedMs: number}>} Marks in elapsed order.
+         */
+        function browserMarks(source, names, request) {
+            var entries = [];
+            var index;
+            for (index = 0; index < names.length; index++) {
+                if (source && typeof source[names[index].from] === "number") {
+                    entries.push({
+                        request: request,
+                        name: names[index].name,
+                        elapsedMs: source[names[index].from]
+                    });
+                }
+            }
+
+            return orderMarks(entries);
+        }
+
+        /**
+         * Copies server durations that were measured. Null header fields stay absent.
+         * @param {object|null} serverMs Durations from one response header.
+         * @param {string[]} names Duration names for that request.
+         * @returns {object|null} The measured durations, or null when none were measured.
+         */
+        function serverDurations(serverMs, names) {
+            var copy = {};
+            var count = 0;
+            var index;
+            if (!serverMs) {
+                return null;
+            }
+
+            for (index = 0; index < names.length; index++) {
+                if (typeof serverMs[names[index]] === "number") {
+                    copy[names[index]] = serverMs[names[index]];
+                    count += 1;
+                }
+            }
+
+            return count === 0 ? null : copy;
+        }
+
+        /**
+         * Chooses the phase status. A browser failure, cancellation, or supersession is kept.
+         * A completed browser phase still reports a failed or cancelled server outcome.
+         * @param {string|null} browserStatus complete, failed, cancelled, or incomplete.
+         * @param {object|null} header The parsed response header.
+         * @returns {string|null} The phase status, or null when the phase did not run.
+         */
+        function phaseStatus(browserStatus, header) {
+            var outcome = header ? header.outcome : null;
+            if (browserStatus === "failed" || browserStatus === "cancelled" || browserStatus === "incomplete") {
+                return browserStatus;
+            }
+
+            if (outcome === "cancelled") {
+                return "cancelled";
+            }
+
+            if (outcome === "failed" || outcome === "unauthorized" || outcome === "unavailable" || outcome === "rejected") {
+                return "failed";
+            }
+
+            if (browserStatus === "complete" || outcome === "completed") {
+                return browserStatus === "complete" || outcome === "completed" ? "complete" : null;
+            }
+
+            return null;
+        }
+
+        var treeMarks = browserMarks(profile.browserElapsedMs, [
+            { from: "responseReceived", name: "responseReceived" },
+            { from: "jsonParsed", name: "jsonParsed" },
+            { from: "domComplete", name: "domComplete" },
+            { from: "selectionDom", name: "selectionDom" }
+        ], "tree");
+        var memberMarks = browserMarks(profile.memberBrowserElapsedMs, [
+            { from: "memberRequestStart", name: "requestStart" },
+            { from: "memberBodyReceived", name: "bodyReceived" },
+            { from: "memberJsonParsed", name: "jsonParsed" },
+            { from: "memberCardsDom", name: "cardsDomComplete" }
+        ], "members");
+        var avatarSource = profile.avatarBrowser ? profile.avatarBrowser.elapsedMs : null;
+        var avatarMarks = browserMarks(avatarSource, [
+            { from: "avatarRequestStart", name: "requestStart" },
+            { from: "avatarBodyReceived", name: "bodyReceived" },
+            { from: "avatarJsonParsed", name: "jsonParsed" },
+            { from: "avatarApplyComplete", name: "scriptComplete" },
+            { from: "displayComplete", name: "displayComplete" }
+        ], "avatars");
+        var milestones = orderMarks(treeMarks.concat(memberMarks).concat(avatarMarks));
+        var report = {
+            label: "workspace load",
+            runId: profile.runId,
+            browserMilestones: milestones
+        };
+        var treeStatus = phaseStatus(profile.treeStatus, profile.treeHeader);
+        var memberStatus = phaseStatus(profile.membersStatus, profile.memberHeader);
+        var avatarStatus = phaseStatus(profile.avatarStatus, profile.avatarHeader);
+        var treeServer = serverDurations(profile.treeHeader && profile.treeHeader.serverMs, [
+            "actionTotal",
+            "connectionOpen",
+            "accountResolution",
+            "openingBuild",
+            "createContext",
+            "publish"
+        ]);
+        var memberServer = serverDurations(profile.memberHeader && profile.memberHeader.serverMs, [
+            "actionTotal",
+            "resolveConnectionOpen",
+            "accountResolution",
+            "prepareOccurrence",
+            "profileConnectionOpen",
+            "profileAuthorization",
+            "responsePreparation"
+        ]);
+        // The image connection and graph stages belong to the one miss read. They are not repeated on each member.
+        var avatarServer = serverDurations(profile.avatarHeader && profile.avatarHeader.serverMs, [
+            "actionTotal",
+            "resolveConnectionOpen",
+            "accountResolution",
+            "profileConnectionOpen",
+            "profileAuthorization",
+            "imageLoop",
+            "imageConnectionOpen",
+            "graphTables",
+            "topologySeed",
+            "topologyWalker",
+            "graphExpansion",
+            "avatarQuery",
+            "base64",
+            "responsePreparation"
+        ]);
+
+        if (treeStatus || treeMarks.length > 0 || treeServer) {
+            report.tree = { status: treeStatus || "incomplete" };
+            if (treeMarks.length > 0) {
+                report.tree.browserElapsedMs = {};
+                putElapsed(report.tree.browserElapsedMs, treeMarks);
+            }
+
+            if (treeServer) {
+                report.tree.serverMs = treeServer;
+            }
+        }
+
+        if (memberStatus || memberMarks.length > 0 || memberServer || typeof profile.cardCount === "number") {
+            report.members = { status: memberStatus || "incomplete" };
+            if (memberMarks.length > 0) {
+                report.members.browserElapsedMs = {};
+                putElapsed(report.members.browserElapsedMs, memberMarks);
+            }
+
+            if (memberServer) {
+                report.members.serverMs = memberServer;
+            }
+
+            if (typeof profile.cardCount === "number") {
+                report.members.cardCount = profile.cardCount;
+            }
+        }
+
+        var avatarLines = avatarMemberLines(profile);
+        if (avatarStatus || avatarMarks.length > 0 || avatarServer || avatarLines) {
+            report.avatars = { status: avatarStatus || "incomplete" };
+            if (avatarMarks.length > 0) {
+                report.avatars.browserElapsedMs = {};
+                putElapsed(report.avatars.browserElapsedMs, avatarMarks);
+            }
+
+            if (avatarServer) {
+                report.avatars.serverMs = avatarServer;
+            }
+
+            if (avatarLines) {
+                if (typeof avatarLines.retentionHits === "number") {
+                    report.avatars.retentionHits = avatarLines.retentionHits;
+                    report.avatars.retentionMisses = avatarLines.retentionMisses;
+                    report.avatars.nullImages = avatarLines.nullImages;
+                }
+
+                report.avatars.members = avatarLines.members;
+            }
+        }
+
+        return copyReportValue(report);
+
+        /**
+         * Stores one request's browser marks. The names are the report names, already in elapsed order.
+         * @param {object} target The browserElapsedMs object being filled.
+         * @param {Array<{name: string, elapsedMs: number}>} marks Marks for one request.
+         * @returns {void}
+         */
+        function putElapsed(target, marks) {
+            var index;
+            for (index = 0; index < marks.length; index++) {
+                target[marks[index].name] = marks[index].elapsedMs;
+            }
+        }
+
+        /**
+         * Builds per-image lines from the avatar header and the browser image notes.
+         * Counts are present only when the server returned member lines. Image bytes are not copied.
+         * @param {object} source The run profile.
+         * @returns {object|null} Counts and lines, or null when neither side recorded an image.
+         */
+        function avatarMemberLines(source) {
+            var headerMembers = source.avatarHeader && source.avatarHeader.members;
+            var browserImages = source.avatarBrowser && source.avatarBrowser.images;
+            var browserById = {};
+            var lines = [];
+            var index;
+            var seen = {};
+            var hits = 0;
+            var misses = 0;
+            var nullImages = 0;
+            var counted = false;
+            if (!headerMembers && (!browserImages || !browserImages.length)) {
+                return null;
+            }
+
+            if (browserImages) {
+                for (index = 0; index < browserImages.length; index++) {
+                    if (browserImages[index] && browserImages[index].memberId) {
+                        browserById[browserImages[index].memberId] = browserImages[index];
+                    }
+                }
+            }
+
+            if (headerMembers) {
+                counted = true;
+                for (index = 0; index < headerMembers.length; index++) {
+                    if (!headerMembers[index] || !headerMembers[index].memberId) {
+                        continue;
+                    }
+
+                    if (headerMembers[index].retention === "hit") {
+                        hits += 1;
+                    }
+
+                    if (headerMembers[index].retention === "miss") {
+                        misses += 1;
+                    }
+
+                    if (headerMembers[index].image === "null") {
+                        nullImages += 1;
+                    }
+
+                    lines.push(oneAvatarLine(headerMembers[index], browserById[headerMembers[index].memberId]));
+                    seen[headerMembers[index].memberId] = true;
+                }
+            }
+
+            if (browserImages) {
+                for (index = 0; index < browserImages.length; index++) {
+                    if (!browserImages[index] || !browserImages[index].memberId || seen[browserImages[index].memberId]) {
+                        continue;
+                    }
+
+                    lines.push(oneAvatarLine(null, browserImages[index]));
+                }
+            }
+
+            return {
+                retentionHits: counted ? hits : null,
+                retentionMisses: counted ? misses : null,
+                nullImages: counted ? nullImages : null,
+                members: lines
+            };
+        }
+
+        /**
+         * Copies one image line. Only the id, retention, outcome, timings, and byte length are kept.
+         * @param {object|null} serverLine The header line. Null when the browser alone recorded the image.
+         * @param {object|null} browserLine The decode note. Null when the image was not applied in this page.
+         * @returns {object} The report line.
+         */
+        function oneAvatarLine(serverLine, browserLine) {
+            var line = {};
+            var serverNames = [
+                ["connectionOpen", "connectionOpenMs"],
+                ["graphTables", "graphTablesMs"],
+                ["topologySeed", "topologySeedMs"],
+                ["topologyWalker", "topologyWalkerMs"],
+                ["graphExpansion", "graphExpansionMs"],
+                ["avatarQuery", "avatarQueryMs"],
+                ["byteLength", "byteLength"]
+            ];
+            var index;
+            if (serverLine && serverLine.memberId) {
+                line.memberId = serverLine.memberId;
+            } else if (browserLine && browserLine.memberId) {
+                line.memberId = browserLine.memberId;
+            }
+
+            if (browserLine && browserLine.settle === "notApplied") {
+                line.image = "notApplied";
+            } else if (serverLine && (serverLine.image === "bytes" || serverLine.image === "null")) {
+                line.image = serverLine.image;
+            }
+
+            if (serverLine && (serverLine.retention === "hit" || serverLine.retention === "miss")) {
+                line.retention = serverLine.retention;
+            }
+
+            if (serverLine) {
+                for (index = 0; index < serverNames.length; index++) {
+                    if (typeof serverLine[serverNames[index][0]] === "number") {
+                        line[serverNames[index][1]] = serverLine[serverNames[index][0]];
+                    }
+                }
+            }
+
+            if (browserLine && typeof browserLine.decodeMs === "number") {
+                line.browserDecodeMs = browserLine.decodeMs;
+            }
+
+            if (browserLine && typeof browserLine.settle === "string" && browserLine.settle) {
+                line.displaySettled = browserLine.settle;
+            }
+
+            return line;
+        }
+    }
+
+    /**
+     * Logs the workspace-load snapshot once. A run without a profile, including a disabled open, logs nothing.
+     * @param {object} request The workspace-open request.
+     * @returns {void}
+     */
+    function publishWorkspaceLoadReport(request) {
+        try {
+            if (!request || !request.treeProfile || request.treeProfile.reported) {
+                return;
+            }
+
+            request.treeProfile.reported = true;
+            request.treeProfile.treeHeader = readProfileHeader(request.treeProfile.serverHeader);
+            request.treeProfile.memberHeader = readProfileHeader(request.treeProfile.memberServerHeader);
+            request.treeProfile.avatarHeader = readProfileHeader(
+                request.treeProfile.avatarBrowser ? request.treeProfile.avatarBrowser.serverHeader : null
+            );
+            var report = assembleWorkspaceLoadReport(request.treeProfile);
+            if (report && window.console && typeof window.console.info === "function") {
+                window.console.info(report);
+            }
+        } catch (error) {
+            return;
+        }
+    }
+
+    /**
+     * Records a terminal member or avatar status and logs the run. A second call does not log again.
+     * @param {object} request The request that carries the workspace-open profile.
+     * @param {string} phase members or avatars.
+     * @param {string} status complete, failed, cancelled, or incomplete.
+     * @returns {void}
+     */
+    function endOpenedProfile(request, phase, status) {
+        try {
+            if (!request || !request.treeProfile || request.treeProfile.reported) {
+                return;
+            }
+
+            if (phase === "members" && !request.treeProfile.membersStatus) {
+                request.treeProfile.membersStatus = status;
+            }
+
+            if (phase === "avatars" && !request.treeProfile.avatarStatus) {
+                request.treeProfile.avatarStatus = status;
+            }
+
+            publishWorkspaceLoadReport(request);
+        } catch (error) {
+            return;
+        }
+    }
+
+    /**
+     * Records the tree outcome. The console report waits until members and avatars finish, fail, or are superseded.
+     * @param {object} request The workspace-open request. A request without a tree profile writes nothing.
+     * @param {string} outcome complete, failed, cancelled, or incomplete.
+     * @param {boolean} [openContinues] True when the first member page still follows this tree outcome.
+     * @returns {void}
+     */
+    function finishTreeProfile(request, outcome, openContinues) {
+        if (!request || !request.treeProfile || request.treeProfile.finished) {
+            return;
+        }
+
+        request.treeProfile.finished = true;
+        request.treeProfile.treeStatus = outcome;
+        if (openContinues === true) {
+            return;
+        }
+
+        publishWorkspaceLoadReport(request);
+    }
+
+    /**
      * Starts one tree load. The captured mode and generation decide whether a response may paint.
      * @param {boolean} replacing True when a failed workspace load must keep the current tree and context.
      * @returns {void}
@@ -2338,6 +3226,9 @@ window.PluralBridge.navigator = (function () {
         const request = beginRequest();
         request.workspaceMode = workspaceTreeEnabled();
         request.replacing = replacing === true;
+        request.profileId = request.workspaceMode && workspaceLoadProfileEnabled()
+            ? newWorkspaceProfileId()
+            : null;
         if (!request.replacing) {
             renderStatus(
                 request.workspaceMode ? "Loading workspace tree." : "Loading plural map.",
@@ -2346,10 +3237,26 @@ window.PluralBridge.navigator = (function () {
             );
         }
 
+        const headers = {
+            Accept: "application/json"
+        };
+        if (request.profileId) {
+            headers["X-PB-Workspace-Profile-Id"] = request.profileId;
+        }
+
+        // The origin is this run's clock. Later marks subtract it. They are not compared with the server clock.
+        if (request.profileId && window.performance && typeof window.performance.now === "function") {
+            request.treeProfile = {
+                runId: request.profileId,
+                origin: window.performance.now(),
+                browserElapsedMs: {},
+                serverHeader: null,
+                finished: false
+            };
+        }
+
         fetch(request.workspaceMode ? workspaceTreeEndpoint : pluralMapEndpoint, {
-            headers: {
-                Accept: "application/json"
-            },
+            headers: headers,
             credentials: "same-origin",
             signal: request.signal
         })
@@ -2360,6 +3267,11 @@ window.PluralBridge.navigator = (function () {
              * @throws {Error} When the status is not OK.
              */
             .then(function (response) {
+                markTreeProfile(request, "responseReceived");
+                if (request.treeProfile && response.headers && typeof response.headers.get === "function") {
+                    request.treeProfile.serverHeader = response.headers.get("X-PB-Workspace-Profile");
+                }
+
                 if (!response.ok) {
                     throw new Error("The tree could not be loaded.");
                 }
@@ -2373,7 +3285,9 @@ window.PluralBridge.navigator = (function () {
              * @returns {void}
              */
             .then(function (payload) {
+                markTreeProfile(request, "jsonParsed");
                 if (!loadIsCurrent(request)) {
+                    finishTreeProfile(request, "incomplete");
                     return;
                 }
 
@@ -2398,14 +3312,19 @@ window.PluralBridge.navigator = (function () {
                     clearDetail();
                     renderStatus("No plural map rows were returned.");
                     syncExpandAllButton();
+                    finishTreeProfile(request, "complete");
                     return;
                 }
 
                 renderTree();
+                markTreeProfile(request, "domComplete");
                 const anchor = firstTopLevelAnchor(rows);
                 if (anchor) {
-                    selectAnchor(anchor);
+                    selectAnchor(anchor, request.profileId, request);
+                    return;
                 }
+
+                finishTreeProfile(request, "complete");
             })
             /**
              * Ignores an abort or a stale load. A replacement failure keeps the previous tree and context.
@@ -2415,12 +3334,16 @@ window.PluralBridge.navigator = (function () {
              */
             .catch(function (error) {
                 if (error && error.name === "AbortError") {
+                    finishTreeProfile(request, "cancelled");
                     return;
                 }
 
                 if (!loadIsCurrent(request)) {
+                    finishTreeProfile(request, "incomplete");
                     return;
                 }
+
+                finishTreeProfile(request, "failed");
 
                 if (request.replacing) {
                     showDetailError("The workspace tree could not be replaced. The previous tree is still shown.");

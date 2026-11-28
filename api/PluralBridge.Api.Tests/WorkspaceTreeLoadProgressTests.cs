@@ -54,7 +54,7 @@ public sealed class WorkspaceTreeLoadProgressTests
 	public void MemberProfileLoad_OwnsItsProgressBar()
 	{
 		var script = File.ReadAllText(SourcePath("js", "navigator.js"));
-		var initial = FunctionBody(script, "function loadWorkspaceMemberDetails(row)");
+		var initial = FunctionBody(script, "function loadWorkspaceMemberDetails(row, profileId, profileRequest)");
 		var fallback = FunctionBody(script, "function loadAnchorProfiles(row)");
 		var next = FunctionBody(script, "function requestNextWorkspaceMemberDetails()");
 		var page = FunctionBody(script, "function startMemberDetailRequest(row, skip, request, signal, progress)");

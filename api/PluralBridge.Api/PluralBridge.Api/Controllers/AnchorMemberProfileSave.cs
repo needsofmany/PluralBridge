@@ -3,6 +3,8 @@
 
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 
@@ -1543,6 +1545,235 @@ internal static class AnchorMemberProfileSave
 		avatarQuery.Stop();
 		timing.CompleteStage(AvatarReadTiming.AvatarQueryStage, avatarQuery.ElapsedMilliseconds);
 		return image;
+	}
+
+	/// <summary>
+	/// Temporary requested-id table for one batch image read. It is created on the open connection and is not a deployed table.
+	/// </summary>
+	internal const string RequestedMemberIdTableSql =
+		"CREATE TABLE #RequestedMemberIds (MemberId uniqueidentifier NOT NULL PRIMARY KEY);";
+
+	/// <summary>
+	/// Drops and recreates the caller-owned copy of the profile graph.
+	/// The profile procedure inserts into this table when it already exists. It does not create the table.
+	/// </summary>
+	/// <remarks>
+	/// This is parameterized SQL sent by the avatar-batch caller. It does not create or change a permanent database object.
+	/// A second profile call on the same open connection must drop and create the table again because the procedure only inserts.
+	/// </remarks>
+	internal const string AvatarBatchGraphTableSql =
+		"""
+		DROP TABLE IF EXISTS #AvatarBatchGraphEdges;
+		CREATE TABLE #AvatarBatchGraphEdges
+		(
+		    ParentObjectType nvarchar(32) NOT NULL,
+		    ParentObjectId uniqueidentifier NOT NULL,
+		    ChildObjectType nvarchar(32) NOT NULL,
+		    ChildObjectId uniqueidentifier NOT NULL,
+		    EdgeRank int NOT NULL,
+		    EdgeSource nvarchar(64) NOT NULL
+		);
+		""";
+
+	/// <summary>
+	/// Drops the temporary tables this avatar-batch caller creates.
+	/// </summary>
+	/// <remarks>
+	/// <c>#GraphEdges</c> is created inside the profile procedure and is dropped when that procedure returns.
+	/// These two tables are created by the caller and stay until the caller drops them or the session ends.
+	/// </remarks>
+	internal const string DropAvatarBatchCallerTablesSql =
+		"""
+		DROP TABLE IF EXISTS #RequestedMemberIds;
+		DROP TABLE IF EXISTS #AvatarBatchGraphEdges;
+		""";
+
+	/// <summary>
+	/// One image query for the members in <c>#RequestedMemberIds</c>.
+	/// The member must also appear as a member child in the graph copied by the profile procedure.
+	/// </summary>
+	/// <remarks>
+	/// This is parameterized SQL sent by the batch reader. It does not create or change a permanent database object.
+	/// The single-member query stays in <see cref="ReadAvatarAsync"/> and still filters by <c>@MemberId</c> against <c>#GraphEdges</c>.
+	/// </remarks>
+	internal const string BatchAvatarQuery =
+		"""
+		SELECT a.MemberId, a.ImageBytes, a.ContentType
+		FROM dbo.pb_member_avatars AS a
+		WHERE EXISTS
+		(
+		    SELECT 1
+		    FROM #RequestedMemberIds AS requested
+		    WHERE requested.MemberId = a.MemberId
+		)
+		  AND EXISTS
+		  (
+		      SELECT 1
+		      FROM #AvatarBatchGraphEdges AS copied
+		      WHERE copied.ChildObjectType = N'member'
+		        AND copied.ChildObjectId = a.MemberId
+		  );
+		""";
+
+	/// <summary>
+	/// Loads images for a miss list through the factory or through one database read.
+	/// </summary>
+	/// <param name="useDatabase">True selects the database reader. False selects <paramref name="testDataFactory"/>.</param>
+	/// <param name="accountId">Account whose graph is built on the database path. The factory path passes it to the factory.</param>
+	/// <param name="memberIds">Members to load, in preview order. An empty list returns without reading.</param>
+	/// <param name="cancellationToken">Cancels the factory check or the database read. Cancellation is not a missing image.</param>
+	/// <param name="connection">Open connection for the database path. Null on the factory path. This method does not open one.</param>
+	/// <param name="timing">Stage timings for the one database read. Null on the factory path, which does not record stages. Byte length stays on each returned image.</param>
+	/// <param name="testDataFactory">Factory used when <paramref name="useDatabase"/> is false. The database path ignores it.</param>
+	/// <returns>Images the selected source found, keyed by member id. A missing key means that member has no image.</returns>
+	/// <remarks>
+	/// The database path runs <see cref="BatchAvatarQuery"/> against the graph copy already created on <paramref name="connection"/>.
+	/// It does not build another account graph and does not call the single-member query. An empty list does not query images.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">The database path is missing <paramref name="connection"/> or <paramref name="timing"/>, or the factory path is missing <paramref name="testDataFactory"/>.</exception>
+	/// <exception cref="OperationCanceledException">The factory path observes a cancellation that was already requested.</exception>
+	internal static async Task<IReadOnlyDictionary<Guid, (byte[] Bytes, string ContentType)>> LoadAvatarsAsync(
+		bool useDatabase,
+		Guid accountId,
+		IReadOnlyList<Guid> memberIds,
+		CancellationToken cancellationToken,
+		SqlConnection? connection = null,
+		AvatarReadTiming? timing = null,
+		Func<Guid, Guid, (byte[] Bytes, string ContentType)?>? testDataFactory = null)
+	{
+		if (memberIds.Count == 0)
+		{
+			return new Dictionary<Guid, (byte[] Bytes, string ContentType)>();
+		}
+
+		if (!useDatabase)
+		{
+			// The factory result is the image. No connection is opened and the bytes are not copied.
+			cancellationToken.ThrowIfCancellationRequested();
+			ArgumentNullException.ThrowIfNull(testDataFactory);
+			var images = new Dictionary<Guid, (byte[] Bytes, string ContentType)>();
+			foreach (var memberId in memberIds)
+			{
+				var image = testDataFactory(accountId, memberId);
+				if (image is { } found && !images.ContainsKey(memberId))
+				{
+					images.Add(memberId, found);
+				}
+			}
+
+			return images;
+		}
+
+		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(timing);
+		return await ReadAvatarsAsync(connection, memberIds, timing, cancellationToken);
+	}
+
+	/// <summary>
+	/// Creates an empty <c>#AvatarBatchGraphEdges</c> on the open connection.
+	/// </summary>
+	/// <param name="connection">Open connection that will run the profile procedure.</param>
+	/// <param name="cancellationToken">Cancels the drop and create.</param>
+	/// <returns>The task completes when the empty table exists.</returns>
+	/// <remarks>The profile procedure copies its completed graph into this table. A caller that does not create it leaves the procedure unchanged.</remarks>
+	internal static async Task CreateAvatarBatchGraphTableAsync(
+		SqlConnection connection,
+		CancellationToken cancellationToken)
+	{
+		await using var command = new SqlCommand(AvatarBatchGraphTableSql, connection);
+		await command.ExecuteNonQueryAsync(cancellationToken);
+	}
+
+	/// <summary>
+	/// Drops the avatar-batch caller tables when the connection is still open.
+	/// </summary>
+	/// <param name="connection">The connection that created the tables. A closed connection is left alone.</param>
+	/// <returns>The task completes when the tables are gone or the connection cannot run the drop.</returns>
+	/// <remarks>
+	/// The drop uses a fresh cancellation token so a cancelled request still removes the tables before the connection returns to the pool.
+	/// A drop failure is returned to the caller. The caller still disposes the connection.
+	/// </remarks>
+	internal static async Task DropAvatarBatchCallerTablesAsync(SqlConnection connection)
+	{
+		if (connection.State != ConnectionState.Open)
+		{
+			return;
+		}
+
+		await using var command = new SqlCommand(DropAvatarBatchCallerTablesSql, connection);
+		await command.ExecuteNonQueryAsync(CancellationToken.None);
+	}
+
+	/// <summary>
+	/// Returns avatar bytes for the requested members that appear in the copied profile graph.
+	/// </summary>
+	/// <param name="connection">Open connection. The profile procedure has already copied <c>#GraphEdges</c> into <c>#AvatarBatchGraphEdges</c>.</param>
+	/// <param name="memberIds">Members the query may return. The list is inserted with parameters.</param>
+	/// <param name="timing">Stage timings for this one read. Only the image query is recorded. A failed query is recorded here before its exception continues to the caller.</param>
+	/// <param name="cancellationToken">Cancels the requested-id insert or the image read.</param>
+	/// <returns>The images the query returned. A member with no row is absent. The byte arrays are the ones the reader returned.</returns>
+	/// <remarks>
+	/// This read does not build an account graph. It does not use the profile transaction or the selected branch.
+	/// The timings do not change the SQL or the returned bytes. This method does not set <see cref="AvatarReadTiming.ByteLength"/> because each image keeps its own length.
+	/// The caller drops <c>#RequestedMemberIds</c> and <c>#AvatarBatchGraphEdges</c>.
+	/// </remarks>
+	private static async Task<IReadOnlyDictionary<Guid, (byte[] Bytes, string ContentType)>> ReadAvatarsAsync(
+		SqlConnection connection,
+		IReadOnlyList<Guid> memberIds,
+		AvatarReadTiming timing,
+		CancellationToken cancellationToken)
+	{
+		var images = new Dictionary<Guid, (byte[] Bytes, string ContentType)>();
+		var avatarQuery = Stopwatch.StartNew();
+		try
+		{
+			await using (var create = new SqlCommand(RequestedMemberIdTableSql, connection))
+			{
+				await create.ExecuteNonQueryAsync(cancellationToken);
+			}
+
+			await using (var insert = new SqlCommand { Connection = connection })
+			{
+				var sql = new StringBuilder("INSERT INTO #RequestedMemberIds (MemberId) VALUES ");
+				for (var index = 0; index < memberIds.Count; index++)
+				{
+					if (index > 0)
+					{
+						sql.Append(',');
+					}
+
+					var name = "@RequestedMemberId" + index.ToString(CultureInfo.InvariantCulture);
+					sql.Append('(').Append(name).Append(')');
+					insert.Parameters.Add(name, SqlDbType.UniqueIdentifier).Value = memberIds[index];
+				}
+
+				insert.CommandText = sql.ToString();
+				await insert.ExecuteNonQueryAsync(cancellationToken);
+			}
+
+			await using var command = new SqlCommand(BatchAvatarQuery, connection);
+			await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			while (await reader.ReadAsync(cancellationToken))
+			{
+				var memberId = reader.GetGuid(0);
+				if (reader.IsDBNull(1) || reader.IsDBNull(2) || images.ContainsKey(memberId))
+				{
+					continue;
+				}
+
+				images.Add(memberId, ((byte[])reader.GetValue(1), reader.GetString(2)));
+			}
+		}
+		catch
+		{
+			avatarQuery.Stop();
+			timing.FailStage(AvatarReadTiming.AvatarQueryStage, avatarQuery.ElapsedMilliseconds);
+			throw;
+		}
+
+		avatarQuery.Stop();
+		timing.CompleteStage(AvatarReadTiming.AvatarQueryStage, avatarQuery.ElapsedMilliseconds);
+		return images;
 	}
 
 	/// <summary>

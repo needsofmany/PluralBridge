@@ -38,11 +38,13 @@ public sealed class WorkspaceTreeController(
 	[HttpGet]
 	public async Task<IActionResult> Get(CancellationToken cancellationToken)
 	{
+		var profile = WorkspaceTreeLoadProfile.TryStart(Request.Headers[WorkspaceTreeLoadProfile.RequestHeaderName]);
 		try
 		{
-			var response = await service.OpenAsync(User, cancellationToken);
+			var response = await service.OpenAsync(User, cancellationToken, profile);
 			if (response is null)
 			{
+				profile?.SetOutcome("unauthorized");
 				return Unauthorized(new
 				{
 					api = Globals.apiName,
@@ -53,10 +55,17 @@ public sealed class WorkspaceTreeController(
 				});
 			}
 
+			profile?.SetOutcome("completed");
 			return Ok(response);
+		}
+		catch (OperationCanceledException)
+		{
+			profile?.SetOutcome("cancelled");
+			throw;
 		}
 		catch (WorkspaceSnapshotUnavailableException)
 		{
+			profile?.SetOutcome("failed");
 			return Problem(
 				title: "workspace_snapshot_unavailable",
 				detail: "Snapshot isolation is not available. The workspace opening build was not retried.",
@@ -64,6 +73,7 @@ public sealed class WorkspaceTreeController(
 		}
 		catch (WorkspaceContextTooLargeException exception)
 		{
+			profile?.SetOutcome("failed");
 			return Problem(
 				title: "workspace_context_too_large",
 				detail: exception.Message,
@@ -71,6 +81,7 @@ public sealed class WorkspaceTreeController(
 		}
 		catch (WorkspaceOpeningException exception)
 		{
+			profile?.SetOutcome("failed");
 			logger.LogWarning("Workspace tree opening failed: {Reason}", exception.Message);
 			return Problem(
 				title: Globals.requestFailed,
@@ -79,10 +90,19 @@ public sealed class WorkspaceTreeController(
 		}
 		catch (Exception) when (!cancellationToken.IsCancellationRequested)
 		{
+			profile?.SetOutcome("failed");
 			return Problem(
 				title: Globals.requestFailed,
 				detail: "The workspace tree could not be read.",
 				statusCode: StatusCodes.Status500InternalServerError);
+		}
+		finally
+		{
+			if (profile != null)
+			{
+				Response.Headers[WorkspaceTreeLoadProfile.ResponseHeaderName] = profile.HeaderJson();
+				profile.Log(logger);
+			}
 		}
 	}
 
@@ -164,11 +184,15 @@ public sealed class WorkspaceTreeController(
 			});
 		}
 
+		var profile = WorkspaceMemberDetailProfile.ForInitialPage(
+			Request.Headers[WorkspaceTreeLoadProfile.RequestHeaderName],
+			memberSkip);
 		try
 		{
-			var result = await details.LoadAsync(User, contextId, occurrence, cancellationToken, memberSkip);
+			var result = await details.LoadAsync(User, contextId, occurrence, cancellationToken, memberSkip, profile);
 			if (result is WorkspaceMemberDetailResult.MissingAccount)
 			{
+				profile?.SetOutcome("unauthorized");
 				return Unauthorized(new
 				{
 					api = Globals.apiName,
@@ -181,6 +205,7 @@ public sealed class WorkspaceTreeController(
 
 			if (result is WorkspaceMemberDetailResult.ContextUnavailable)
 			{
+				profile?.SetOutcome("unavailable");
 				return NotFound(new
 				{
 					api = Globals.apiName,
@@ -193,6 +218,7 @@ public sealed class WorkspaceTreeController(
 
 			if (result is WorkspaceMemberDetailResult.OccurrenceRejected rejected)
 			{
+				profile?.SetOutcome("rejected");
 				return BadRequest(new
 				{
 					api = Globals.apiName,
@@ -205,13 +231,14 @@ public sealed class WorkspaceTreeController(
 
 			if (result is not WorkspaceMemberDetailResult.Ready ready)
 			{
+				profile?.SetOutcome("failed");
 				return Problem(
 					title: Globals.requestFailed,
 					detail: "The member profiles could not be read.",
 					statusCode: StatusCodes.Status500InternalServerError);
 			}
 
-			return Ok(ready.Cards.Select(card => new
+			var body = ready.Cards.Select(card => new
 			{
 				memberId = card.MemberId,
 				displayName = card.DisplayName,
@@ -230,14 +257,23 @@ public sealed class WorkspaceTreeController(
 				resolvedVisibilityTypeId = card.ResolvedVisibilityTypeId,
 				resolvedPermissionMode = card.ResolvedPermissionMode,
 				resolvedPermissionCode = card.ResolvedPermissionCode
-			}));
+			}).ToArray();
+			profile?.SetOutcome("completed");
+			return Ok(body);
+		}
+		catch (OperationCanceledException)
+		{
+			profile?.SetOutcome("cancelled");
+			throw;
 		}
 		catch (SqlException exception) when (!cancellationToken.IsCancellationRequested)
 		{
+			profile?.SetOutcome("failed");
 			return MapProfileProcedureError(endpoint, exception.Number);
 		}
 		catch (AnchorProfileContractException exception) when (!cancellationToken.IsCancellationRequested)
 		{
+			profile?.SetOutcome("failed");
 			return StatusCode(StatusCodes.Status500InternalServerError, new
 			{
 				api = Globals.apiName,
@@ -249,11 +285,20 @@ public sealed class WorkspaceTreeController(
 		}
 		catch (Exception) when (!cancellationToken.IsCancellationRequested)
 		{
+			profile?.SetOutcome("failed");
 			logger.LogWarning("Workspace member details could not be read.");
 			return Problem(
 				title: Globals.requestFailed,
 				detail: "The member profiles could not be read.",
 				statusCode: StatusCodes.Status500InternalServerError);
+		}
+		finally
+		{
+			if (profile != null)
+			{
+				Response.Headers[WorkspaceTreeLoadProfile.ResponseHeaderName] = profile.HeaderJson();
+				profile.Log(logger);
+			}
 		}
 	}
 
@@ -301,11 +346,15 @@ public sealed class WorkspaceTreeController(
 			});
 		}
 
+		var profile = WorkspaceAvatarBatchProfile.ForInitialPage(
+			Request.Headers[WorkspaceTreeLoadProfile.RequestHeaderName],
+			memberSkip);
 		try
 		{
-			var result = await batch.LoadAsync(User, contextId, occurrence, cancellationToken, memberSkip);
+			var result = await batch.LoadAsync(User, contextId, occurrence, cancellationToken, memberSkip, profile);
 			if (result is WorkspaceAvatarBatchResult.MissingAccount)
 			{
+				profile?.SetOutcome("unauthorized");
 				return Unauthorized(new
 				{
 					api = Globals.apiName,
@@ -318,6 +367,7 @@ public sealed class WorkspaceTreeController(
 
 			if (result is WorkspaceAvatarBatchResult.ContextUnavailable)
 			{
+				profile?.SetOutcome("unavailable");
 				return NotFound(new
 				{
 					api = Globals.apiName,
@@ -330,6 +380,7 @@ public sealed class WorkspaceTreeController(
 
 			if (result is WorkspaceAvatarBatchResult.OccurrenceRejected rejected)
 			{
+				profile?.SetOutcome("rejected");
 				return BadRequest(new
 				{
 					api = Globals.apiName,
@@ -342,30 +393,67 @@ public sealed class WorkspaceTreeController(
 
 			if (result is WorkspaceAvatarBatchResult.AvatarStorageMissing)
 			{
+				profile?.SetOutcome("failed");
 				return NotFound();
 			}
 
 			if (result is not WorkspaceAvatarBatchResult.Ready ready)
 			{
+				profile?.SetOutcome("failed");
 				return Problem(
 					title: Globals.requestFailed,
 					detail: "The member avatars could not be read.",
 					statusCode: StatusCodes.Status500InternalServerError);
 			}
 
-			return Ok(ready.Images.Select(image => new
+			var preparation = profile == null ? null : System.Diagnostics.Stopwatch.StartNew();
+			var body = ready.Images.Select(image =>
 			{
-				memberId = image.MemberId,
-				contentType = image.ContentType,
-				imageBase64 = image.Bytes is null ? null : Convert.ToBase64String(image.Bytes)
-			}));
+				string? encoded = null;
+				if (image.Bytes != null)
+				{
+					if (profile == null)
+					{
+						encoded = Convert.ToBase64String(image.Bytes);
+					}
+					else
+					{
+						var conversion = System.Diagnostics.Stopwatch.StartNew();
+						encoded = Convert.ToBase64String(image.Bytes);
+						conversion.Stop();
+						profile.AddBase64(conversion.ElapsedMilliseconds);
+					}
+				}
+
+				return new
+				{
+					memberId = image.MemberId,
+					contentType = image.ContentType,
+					imageBase64 = encoded
+				};
+			}).ToArray();
+			if (preparation != null)
+			{
+				preparation.Stop();
+				profile?.SetResponsePreparation(preparation.ElapsedMilliseconds);
+			}
+
+			profile?.SetOutcome("completed");
+			return Ok(body);
+		}
+		catch (OperationCanceledException)
+		{
+			profile?.SetOutcome("cancelled");
+			throw;
 		}
 		catch (SqlException exception) when (!cancellationToken.IsCancellationRequested)
 		{
+			profile?.SetOutcome("failed");
 			return MapProfileProcedureError(endpoint, exception.Number);
 		}
 		catch (AnchorProfileContractException exception) when (!cancellationToken.IsCancellationRequested)
 		{
+			profile?.SetOutcome("failed");
 			return StatusCode(StatusCodes.Status500InternalServerError, new
 			{
 				api = Globals.apiName,
@@ -377,11 +465,16 @@ public sealed class WorkspaceTreeController(
 		}
 		catch (Exception) when (!cancellationToken.IsCancellationRequested)
 		{
+			profile?.SetOutcome("failed");
 			logger.LogWarning("Workspace member avatars could not be read.");
 			return Problem(
 				title: Globals.requestFailed,
 				detail: "The member avatars could not be read.",
 				statusCode: StatusCodes.Status500InternalServerError);
+		}
+		finally
+		{
+			profile?.TryWrite(Response.Headers, logger);
 		}
 	}
 

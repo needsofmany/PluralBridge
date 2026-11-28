@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Needs of the Many
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Claims;
 using Microsoft.Data.SqlClient;
@@ -33,13 +34,69 @@ internal interface IWorkspaceProfileGateway
 		string anchorName,
 		string branch,
 		CancellationToken cancellationToken);
+
+	/// <summary>Resolves the caller and records connection and resolution durations when a profile is present.</summary>
+	/// <param name="user">The authenticated principal.</param>
+	/// <param name="cancellationToken">Cancels account resolution.</param>
+	/// <param name="profile">The first-page profile. Null records nothing.</param>
+	/// <returns>The account, or null.</returns>
+	Task<AccessContextHelper.Account?> ResolveProfiledAsync(ClaimsPrincipal user, CancellationToken cancellationToken, IWorkspaceGatewayTiming? profile)
+		=> ResolveAsync(user, cancellationToken);
+
+	/// <summary>Runs the live profile procedure and records its durations when a profile is present.</summary>
+	/// <param name="email">The resolved account email.</param>
+	/// <param name="objectType">system, group, or place.</param>
+	/// <param name="anchorName">The anchor name from the occurrence.</param>
+	/// <param name="branch">The branch derived from the occurrence.</param>
+	/// <param name="cancellationToken">Cancels the procedure.</param>
+	/// <param name="profile">The first-page profile. Null records nothing.</param>
+	/// <returns>The six-set bundle.</returns>
+	Task<AnchorProfileBundle> ReadProfilesProfiledAsync(
+		string email,
+		string objectType,
+		string anchorName,
+		string branch,
+		CancellationToken cancellationToken,
+		IWorkspaceGatewayTiming? profile)
+		=> ReadProfilesAsync(email, objectType, anchorName, branch, cancellationToken);
+}
+
+/// <summary>
+/// Connection and authorization durations shared by the member-detail and avatar profiles.
+/// </summary>
+internal interface IWorkspaceGatewayTiming
+{
+	/// <summary>Records the account-resolution connection.</summary>
+	/// <param name="elapsedMilliseconds">The measured duration.</param>
+	void SetResolveConnectionOpen(long elapsedMilliseconds);
+
+	/// <summary>Records account resolution.</summary>
+	/// <param name="elapsedMilliseconds">The measured duration.</param>
+	void SetAccountResolution(long elapsedMilliseconds);
+
+	/// <summary>Records the profile-read connection.</summary>
+	/// <param name="elapsedMilliseconds">The measured duration.</param>
+	void SetProfileConnectionOpen(long elapsedMilliseconds);
+
+	/// <summary>Records profile authorization and read.</summary>
+	/// <param name="elapsedMilliseconds">The measured duration.</param>
+	void SetProfileAuthorization(long elapsedMilliseconds);
 }
 
 /// <summary>The SQL implementation of <see cref="IWorkspaceProfileGateway"/>.</summary>
 internal sealed class SqlWorkspaceProfileGateway(IConfiguration configuration) : IWorkspaceProfileGateway
 {
 	/// <inheritdoc />
-	public async Task<AccessContextHelper.Account?> ResolveAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
+	public Task<AccessContextHelper.Account?> ResolveAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
+	{
+		return ResolveProfiledAsync(user, cancellationToken, null);
+	}
+
+	/// <inheritdoc />
+	public async Task<AccessContextHelper.Account?> ResolveProfiledAsync(
+		ClaimsPrincipal user,
+		CancellationToken cancellationToken,
+		IWorkspaceGatewayTiming? profile)
 	{
 		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 		if (string.IsNullOrWhiteSpace(connectionString))
@@ -48,18 +105,38 @@ internal sealed class SqlWorkspaceProfileGateway(IConfiguration configuration) :
 		}
 
 		await using var connection = new SqlConnection(connectionString);
-		await connection.OpenAsync(cancellationToken);
-		return await AccessContextHelper.ResolveCurrentAccountAsync(connection, user, cancellationToken);
+		await MeasureAsync(profile, static (timing, elapsed) => timing.SetResolveConnectionOpen(elapsed), async () =>
+		{
+			await connection.OpenAsync(cancellationToken);
+		});
+		AccessContextHelper.Account? account = null;
+		await MeasureAsync(profile, static (timing, elapsed) => timing.SetAccountResolution(elapsed), async () =>
+		{
+			account = await AccessContextHelper.ResolveCurrentAccountAsync(connection, user, cancellationToken);
+		});
+		return account;
 	}
 
 	/// <inheritdoc />
-	public async Task<AnchorProfileBundle> ReadProfilesAsync(
+	public Task<AnchorProfileBundle> ReadProfilesAsync(
 		string email,
 		string objectType,
 		string anchorName,
 		string branch,
 		CancellationToken cancellationToken)
 	{
+		return ReadProfilesProfiledAsync(email, objectType, anchorName, branch, cancellationToken, null);
+	}
+
+	/// <inheritdoc />
+	public async Task<AnchorProfileBundle> ReadProfilesProfiledAsync(
+		string email,
+		string objectType,
+		string anchorName,
+		string branch,
+		CancellationToken cancellationToken,
+		IWorkspaceGatewayTiming? profile)
+	{
 		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 		if (string.IsNullOrWhiteSpace(connectionString))
 		{
@@ -67,8 +144,44 @@ internal sealed class SqlWorkspaceProfileGateway(IConfiguration configuration) :
 		}
 
 		await using var connection = new SqlConnection(connectionString);
-		await connection.OpenAsync(cancellationToken);
-		return await AnchorMemberProfileReader.ExecuteAsync(connection, email, objectType, anchorName, branch, cancellationToken);
+		await MeasureAsync(profile, static (timing, elapsed) => timing.SetProfileConnectionOpen(elapsed), async () =>
+		{
+			await connection.OpenAsync(cancellationToken);
+		});
+		AnchorProfileBundle? bundle = null;
+		await MeasureAsync(profile, static (timing, elapsed) => timing.SetProfileAuthorization(elapsed), async () =>
+		{
+			bundle = await AnchorMemberProfileReader.ExecuteAsync(connection, email, objectType, anchorName, branch, cancellationToken);
+		});
+		return bundle ?? throw new AnchorProfileContractException("The profile procedure did not return the six-result-set contract.");
+	}
+
+	/// <summary>Runs one stage. A null profile performs the work and stores no duration.</summary>
+	/// <param name="profile">The profile receiving the duration. Null stores nothing.</param>
+	/// <param name="record">Writes the elapsed milliseconds onto the profile.</param>
+	/// <param name="action">The stage work.</param>
+	/// <returns>The task completes when the stage finishes.</returns>
+	private static async Task MeasureAsync(
+		IWorkspaceGatewayTiming? profile,
+		Action<IWorkspaceGatewayTiming, long> record,
+		Func<Task> action)
+	{
+		if (profile == null)
+		{
+			await action();
+			return;
+		}
+
+		var watch = Stopwatch.StartNew();
+		try
+		{
+			await action();
+		}
+		finally
+		{
+			watch.Stop();
+			record(profile, watch.ElapsedMilliseconds);
+		}
 	}
 }
 
@@ -108,15 +221,22 @@ internal sealed class WorkspaceMemberDetailService(WorkspaceContextStore store, 
 	/// <param name="occurrence">The selected anchor path.</param>
 	/// <param name="skip">Unique direct members to pass over. Zero is the first page. Negative is rejected before the profile procedure.</param>
 	/// <param name="cancellationToken">Cancels account resolution or the profile procedure.</param>
+	/// <param name="profile">The first-page profile. Null, and any skip other than zero, records no durations.</param>
 	/// <returns>A result that does not include image bytes or avatar routes.</returns>
 	internal async Task<WorkspaceMemberDetailResult> LoadAsync(
 		ClaimsPrincipal user,
 		string contextId,
 		string? occurrence,
 		CancellationToken cancellationToken,
-		int skip = 0)
+		int skip = 0,
+		WorkspaceMemberDetailProfile? profile = null)
 	{
-		var account = await gateway.ResolveAsync(user, cancellationToken);
+		if (skip != 0)
+		{
+			profile = null;
+		}
+
+		var account = await gateway.ResolveProfiledAsync(user, cancellationToken, profile);
 		if (account is null)
 		{
 			return new WorkspaceMemberDetailResult.MissingAccount();
@@ -133,36 +253,77 @@ internal sealed class WorkspaceMemberDetailService(WorkspaceContextStore store, 
 			return new WorkspaceMemberDetailResult.OccurrenceRejected("The member batch skip must be zero or greater.");
 		}
 
-		if (!acquired.Context.TryPrepareAnchorDetail(occurrence, skip, out var detail, out var error))
+		var preparedDetail = default(WorkspaceAnchorDetail);
+		var prepared = false;
+		var prepareError = "";
+		Measure(profile, static (timing, elapsed) => timing.SetPrepareOccurrence(elapsed), () =>
 		{
-			return new WorkspaceMemberDetailResult.OccurrenceRejected(error);
+			prepared = acquired.Context.TryPrepareAnchorDetail(occurrence, skip, out var detail, out prepareError);
+			preparedDetail = detail;
+		});
+		if (!prepared)
+		{
+			return new WorkspaceMemberDetailResult.OccurrenceRejected(prepareError);
 		}
 
-		var bundle = await gateway.ReadProfilesAsync(
+		var bundle = await gateway.ReadProfilesProfiledAsync(
 			account.Email,
-			detail.ObjectType,
-			detail.AnchorName,
-			detail.Branch,
-			cancellationToken);
-		if (!acquired.Context.TryResolvePlacement(occurrence, null, null, out var defaultVisibility, out var defaultPermission, out var resolveError))
+			preparedDetail.ObjectType,
+			preparedDetail.AnchorName,
+			preparedDetail.Branch,
+			cancellationToken,
+			profile);
+		profile?.BeginResponsePreparation();
+		try
 		{
-			return new WorkspaceMemberDetailResult.OccurrenceRejected(resolveError);
+			if (!acquired.Context.TryResolvePlacement(occurrence, null, null, out var defaultVisibility, out var defaultPermission, out var resolveError))
+			{
+				return new WorkspaceMemberDetailResult.OccurrenceRejected(resolveError);
+			}
+
+			if (!WorkspaceAnchorSettingCodes.TryDescribeVisibility(defaultVisibility, out var visibilityMode, out var visibilityTypeId)
+				|| !WorkspaceAnchorSettingCodes.TryDescribePermission(defaultPermission, out var permissionMode, out var permissionCode))
+			{
+				return new WorkspaceMemberDetailResult.OccurrenceRejected("The selected occurrence settings could not be prepared.");
+			}
+
+			return new WorkspaceMemberDetailResult.Ready(
+				AnchorMemberProfileMapper.ProjectWithOccurrenceDefaults(
+					bundle,
+					preparedDetail.DirectMemberIds,
+					visibilityMode,
+					visibilityTypeId,
+					permissionMode,
+					permissionCode));
+		}
+		finally
+		{
+			profile?.EndResponsePreparation();
+		}
+	}
+
+	/// <summary>Runs one in-memory stage. A null profile performs the work and stores no duration.</summary>
+	/// <param name="profile">The profile receiving the duration. Null stores nothing.</param>
+	/// <param name="record">Writes the elapsed milliseconds onto the profile.</param>
+	/// <param name="action">The stage work.</param>
+	private static void Measure(WorkspaceMemberDetailProfile? profile, Action<WorkspaceMemberDetailProfile, long> record, Action action)
+	{
+		if (profile == null)
+		{
+			action();
+			return;
 		}
 
-		if (!WorkspaceAnchorSettingCodes.TryDescribeVisibility(defaultVisibility, out var visibilityMode, out var visibilityTypeId)
-			|| !WorkspaceAnchorSettingCodes.TryDescribePermission(defaultPermission, out var permissionMode, out var permissionCode))
+		var watch = Stopwatch.StartNew();
+		try
 		{
-			return new WorkspaceMemberDetailResult.OccurrenceRejected("The selected occurrence settings could not be prepared.");
+			action();
 		}
-
-		return new WorkspaceMemberDetailResult.Ready(
-			AnchorMemberProfileMapper.ProjectWithOccurrenceDefaults(
-				bundle,
-				detail.DirectMemberIds,
-				visibilityMode,
-				visibilityTypeId,
-				permissionMode,
-				permissionCode));
+		finally
+		{
+			watch.Stop();
+			record(profile, watch.ElapsedMilliseconds);
+		}
 	}
 
 	/// <summary>Reads the member-detail skip query. A missing value is the first page.</summary>

@@ -49,6 +49,19 @@
 	}
 }
 
+/* One bar inside each avatar that is waiting. It reuses the motion above and does not change the placeholder size.
+   The list bar under a member page is a different element. */
+.member-avatar-load {
+	position: absolute;
+	right: 3px;
+	bottom: 3px;
+	left: 3px;
+	z-index: 1;
+	height: 4px;
+	margin-top: 0;
+	pointer-events: none;
+}
+
 .member-systems-tree .member-system-node-button:focus-visible,
 .member-systems-tree .member-system-tree-toggle:focus-visible {
 	outline: 2px solid var(--pb-accent);

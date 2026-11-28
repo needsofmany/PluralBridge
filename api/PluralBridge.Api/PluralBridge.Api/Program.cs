@@ -119,6 +119,7 @@ builder.Services.AddSingleton<WorkspaceTreeService>();
 builder.Services.AddSingleton<PluralBridge.Api.Workspace.IWorkspaceProfileGateway, PluralBridge.Api.Workspace.SqlWorkspaceProfileGateway>();
 builder.Services.AddSingleton<PluralBridge.Api.Workspace.WorkspaceMemberDetailService>();
 builder.Services.AddSingleton<PluralBridge.Api.Workspace.IWorkspaceAvatarReader, PluralBridge.Api.Workspace.SqlWorkspaceAvatarReader>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.IAvatarBatchGraphSessions, PluralBridge.Api.Workspace.SqlAvatarBatchGraphSessions>();
 builder.Services.AddSingleton<PluralBridge.Api.Workspace.WorkspaceAvatarBatchService>();
 builder.Services.AddHostedService<WorkspaceContextCleanupService>();
 

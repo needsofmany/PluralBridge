@@ -45,11 +45,23 @@ window.PluralBridge.apiClient = (function () {
             signal: requestOptions.signal
         });
 
+        if (typeof requestOptions.onResponse === "function") {
+            requestOptions.onResponse(response);
+        }
+
         const responseText = await response.text();
+        if (typeof requestOptions.onBody === "function") {
+            requestOptions.onBody();
+        }
+
         let payload = null;
 
         if (responseText) {
             payload = JSON.parse(responseText);
+        }
+
+        if (typeof requestOptions.onParsed === "function") {
+            requestOptions.onParsed();
         }
 
         if (!response.ok) {
@@ -158,17 +170,31 @@ window.PluralBridge.apiClient = (function () {
      * @param {string} occurrence Selected anchor path.
      * @param {AbortSignal} [signal] Abort signal for this load. Abort rejects the returned promise.
      * @param {number} [skip] Unique direct members to pass over. Omitted or zero requests the first window.
+     * @param {string|null} [profileId] Run id for the workspace open's first window. A later window does not send it.
+     * @param {{onResponse: function, bodyReceived: function, jsonParsed: function}|null} [profileMarks] First-page timing hooks. A later window ignores them.
      * @returns {Promise<Array|object|null>} The card array. The caller checks that a successful body is an array.
      * @throws {Error} When the HTTP status is not OK.
      */
-    async function readWorkspaceMemberDetails(contextId, occurrence, signal, skip) {
+    async function readWorkspaceMemberDetails(contextId, occurrence, signal, skip, profileId, profileMarks) {
         const query = new URLSearchParams();
         query.set("occurrence", occurrence || "");
         const memberSkip = skip > 0 ? skip : 0;
         query.set("skip", String(memberSkip));
+        const headers = {};
+        const marks = memberSkip === 0 ? profileMarks : null;
+        if (memberSkip === 0 && profileId) {
+            headers["X-PB-Workspace-Profile-Id"] = profileId;
+        }
+
         return await fetchJson(
             "/api/me/workspace-tree/" + encodeURIComponent(contextId) + "/member-details?" + query.toString(),
-            { signal: signal }
+            {
+                signal: signal,
+                headers: headers,
+                onResponse: marks && marks.onResponse,
+                onBody: marks && marks.bodyReceived,
+                onParsed: marks && marks.jsonParsed
+            }
         );
     }
 
@@ -178,16 +204,29 @@ window.PluralBridge.apiClient = (function () {
      * @param {string} contextId Opaque context id from the workspace-tree response.
      * @param {string} occurrence Selected anchor path.
      * @param {AbortSignal} [signal] Abort signal for this load. Abort rejects the returned promise.
+     * @param {string|null} [profileId] Run id captured for the workspace open. Omitted sends no profiling header.
+     * @param {{onResponse: function, bodyReceived: function, jsonParsed: function}|null} [profileMarks] First-batch timing hooks. Omitted sends the request without them.
      * @returns {Promise<Array|object|null>} The image array. The caller checks that a successful body is an array.
      * @throws {Error} When the HTTP status is not OK.
      */
-    async function readWorkspaceMemberAvatars(contextId, occurrence, signal) {
+    async function readWorkspaceMemberAvatars(contextId, occurrence, signal, profileId, profileMarks) {
         const query = new URLSearchParams();
         query.set("occurrence", occurrence || "");
         query.set("skip", "0");
+        const headers = {};
+        if (profileId) {
+            headers["X-PB-Workspace-Profile-Id"] = profileId;
+        }
+
         return await fetchJson(
             "/api/me/workspace-tree/" + encodeURIComponent(contextId) + "/member-avatars?" + query.toString(),
-            { signal: signal }
+            {
+                signal: signal,
+                headers: headers,
+                onResponse: profileMarks && profileMarks.onResponse,
+                onBody: profileMarks && profileMarks.bodyReceived,
+                onParsed: profileMarks && profileMarks.jsonParsed
+            }
         );
     }
 

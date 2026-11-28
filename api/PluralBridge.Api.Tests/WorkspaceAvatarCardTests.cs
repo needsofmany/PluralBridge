@@ -100,6 +100,148 @@ public sealed class WorkspaceAvatarCardTests
 	}
 
 	/// <summary>
+	/// Every card on the requested page shows its own indicator. A later page does not, because that page does not request avatars.
+	/// </summary>
+	[Fact]
+	public void AvatarLoading_MarksEveryRequestedCardAndSkipsAPageThatDidNotRequest()
+	{
+		var view = Open("anchor", 25);
+		var generation = view.DetailGeneration;
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(1, 20)));
+		Assert.Equal(20, view.MemberCards.Count);
+		Assert.All(view.MemberCards, card => Assert.True(card.AvatarLoading));
+
+		Assert.True(view.RequestNextPage());
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(21, 5)));
+		Assert.All(view.MemberCards.Take(20), card => Assert.True(card.AvatarLoading));
+		Assert.All(view.MemberCards.Skip(20), card => Assert.False(card.AvatarLoading));
+	}
+
+	/// <summary>
+	/// A null image removes that card's bar. An image stays applied and keeps its bar until that image settles.
+	/// </summary>
+	[Fact]
+	public void AvatarLoading_ClearsWhenTheImageIsAbsentOrSettled()
+	{
+		var view = Open("anchor", 3);
+		var generation = view.DetailGeneration;
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(1, 3)));
+		view.MemberScrollTop = 12;
+		view.MemberCards[0].Expanded = true;
+		view.MemberCards[2].State = "note";
+
+		Assert.True(view.AcceptMemberAvatars(generation, "anchor",
+		[
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(1, 1)[0], null),
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(2, 1)[0], "red"),
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(3, 1)[0], "blue")
+		]));
+
+		Assert.Null(view.MemberCards[0].Avatar);
+		Assert.False(view.MemberCards[0].AvatarLoading);
+		Assert.Equal("red", view.MemberCards[1].Avatar);
+		Assert.True(view.MemberCards[1].AvatarLoading);
+		Assert.Equal("blue", view.MemberCards[2].Avatar);
+		Assert.True(view.MemberCards[2].AvatarLoading);
+		Assert.True(view.MemberCards[0].Expanded);
+		Assert.Equal("note", view.MemberCards[2].State);
+		Assert.Equal(12, view.MemberScrollTop);
+
+		Assert.True(view.SettleMemberAvatar(generation, "anchor", Ids(2, 1)[0]));
+		Assert.False(view.MemberCards[1].AvatarLoading);
+		Assert.True(view.MemberCards[2].AvatarLoading);
+		Assert.Equal("blue", view.MemberCards[2].Avatar);
+	}
+
+	/// <summary>
+	/// Failure, a pending edit, and a replaced selection remove only the indicators that request owned.
+	/// </summary>
+	[Fact]
+	public void AvatarLoading_ClearsOnFailureEditAndIgnoresAStaleResponse()
+	{
+		var failed = Open("anchor", 2);
+		var failedGeneration = failed.DetailGeneration;
+		Assert.True(failed.AcceptMemberDetails(failedGeneration, "anchor", Ids(1, 2)));
+		failed.MemberCards[0].State = "draft";
+		failed.MemberCards[1].Expanded = true;
+		failed.MemberScrollTop = 4;
+		Assert.True(failed.FailMemberAvatars(failedGeneration, "anchor"));
+		Assert.All(failed.MemberCards, card => Assert.False(card.AvatarLoading));
+		Assert.All(failed.MemberCards, card => Assert.Null(card.Avatar));
+		Assert.Equal("draft", failed.MemberCards[0].State);
+		Assert.True(failed.MemberCards[1].Expanded);
+		Assert.Equal(4, failed.MemberScrollTop);
+
+		var view = Open("anchor", 2);
+		var generation = view.DetailGeneration;
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(1, 2)));
+		view.MemberCards[0].PendingAvatar = true;
+		view.MemberCards[0].Avatar = "local";
+		Assert.True(view.AcceptMemberAvatars(generation, "anchor",
+		[
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(1, 1)[0], "red"),
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(2, 1)[0], "blue")
+		]));
+		Assert.Equal("local", view.MemberCards[0].Avatar);
+		Assert.False(view.MemberCards[0].AvatarLoading);
+		Assert.Equal("blue", view.MemberCards[1].Avatar);
+		Assert.True(view.MemberCards[1].AvatarLoading);
+
+		view.RetainMemberPreview(
+		[
+			new WorkspaceTreeViewSession.MemberPreviewRow("anchor", "member", Ids(1, 1)[0]),
+			new WorkspaceTreeViewSession.MemberPreviewRow("other", "member", Ids(3, 1)[0])
+		]);
+		view.Select("other");
+		Assert.Empty(view.MemberCards);
+		Assert.True(view.AcceptMemberDetails(view.DetailGeneration, "other", Ids(3, 1)));
+		Assert.True(view.MemberCards[0].AvatarLoading);
+		Assert.False(view.AcceptMemberAvatars(generation, "anchor",
+		[
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(3, 1)[0], "replaced")
+		]));
+		Assert.True(view.MemberCards[0].AvatarLoading);
+		Assert.Null(view.MemberCards[0].Avatar);
+	}
+
+	/// <summary>
+	/// The production script gives each requested card the existing bar and does not add a shared bar under the list.
+	/// This reads the source. It does not execute the script.
+	/// </summary>
+	[Fact]
+	public void Navigator_UsesOneExistingBarPerLoadingAvatar()
+	{
+		var script = File.ReadAllText(SourcePath("js", "navigator.js"));
+		var cards = File.ReadAllText(SourcePath("js", "member-card.js"));
+		var style = File.ReadAllText(SourcePath("css", "navigator.css"));
+		var request = FunctionBody(script, "function requestFirstBatchAvatars(row, request, serial)");
+		var cardsIn = FunctionBody(script, "function avatarCardsIn(root)");
+		var apply = FunctionBody(script, "function applyFirstBatchAvatars(images, profileRequest");
+		var card = FunctionBody(cards, "cardDetails.setWorkspaceAvatarLoading = function (loading)");
+		var settle = FunctionBody(cards, "function clearAvatarLoadWhenSettled(preview)");
+		var applyCard = FunctionBody(cards, "cardDetails.applyWorkspaceAvatar = function (objectUrl)");
+		var detail = FunctionBody(script, "function startMemberDetailRequest(row, skip, request, signal, progress)");
+
+		var showed = request.IndexOf("setCardsAvatarLoading(loadingCards, true)", StringComparison.Ordinal);
+		var fetch = request.IndexOf("readWorkspaceMemberAvatars(", StringComparison.Ordinal);
+		Assert.True(showed >= 0 && showed < fetch);
+		Assert.Contains("setCardsAvatarLoading(loadingCards, false)", request, StringComparison.Ordinal);
+		Assert.DoesNotContain("showPagedMemberProgress", request, StringComparison.Ordinal);
+		Assert.Contains("querySelectorAll(\".member-card\")", cardsIn, StringComparison.Ordinal);
+		Assert.DoesNotContain("[0]", cardsIn, StringComparison.Ordinal);
+		Assert.Equal(1, detail.Split("requestFirstBatchAvatars(", StringSplitOptions.None).Length - 1);
+		Assert.Contains("skip === 0", detail, StringComparison.Ordinal);
+		Assert.Contains("setWorkspaceAvatarLoading(false)", apply, StringComparison.Ordinal);
+		Assert.Contains("navigator-load-progress member-avatar-load", card, StringComparison.Ordinal);
+		Assert.Contains("addEventListener(\"load\", settled)", settle, StringComparison.Ordinal);
+		Assert.Contains("addEventListener(\"error\", settled)", settle, StringComparison.Ordinal);
+		Assert.Contains("hideAvatarLoad()", applyCard, StringComparison.Ordinal);
+		Assert.Contains("animation: navigator-load-progress", style, StringComparison.Ordinal);
+		Assert.Contains(".member-avatar-load", style, StringComparison.Ordinal);
+		Assert.DoesNotContain("scrollTop", request, StringComparison.Ordinal);
+	}
+
+	/// <summary>
 	/// The browser script requests avatars only after the first card page and applies them through the card.
 	/// </summary>
 	[Fact]
@@ -110,17 +252,20 @@ public sealed class WorkspaceAvatarCardTests
 		var client = File.ReadAllText(SourcePath("js", "api-client.js"));
 		var detail = FunctionBody(script, "function startMemberDetailRequest(row, skip, request, signal, progress)");
 		var avatars = FunctionBody(script, "function requestFirstBatchAvatars(row, request, serial)");
-		var apply = FunctionBody(script, "function applyFirstBatchAvatars(images)");
+		var apply = FunctionBody(script, "function applyFirstBatchAvatars(images, profileRequest, loadingCards)");
 		var card = FunctionBody(cards, "cardDetails.applyWorkspaceAvatar = function (objectUrl)");
 		var thenStart = detail.IndexOf("paintWorkspaceMemberPage(row, profiles, skip);", StringComparison.Ordinal);
 		var avatarCall = detail.IndexOf("requestFirstBatchAvatars(row, request, serial);", StringComparison.Ordinal);
 		var thenStale = avatars.IndexOf("serial !== memberDetailSerial", StringComparison.Ordinal);
-		var thenApply = avatars.IndexOf("applyFirstBatchAvatars(images);", StringComparison.Ordinal);
+		var thenApply = avatars.IndexOf("applyFirstBatchAvatars(images, request", StringComparison.Ordinal);
 
 		Assert.Contains("skip === 0", detail, StringComparison.Ordinal);
 		Assert.True(thenStart >= 0 && thenStart < avatarCall);
 		Assert.True(thenStale >= 0 && thenStale < thenApply);
-		Assert.Contains("readWorkspaceMemberAvatars(capturedContext, pathKey, openMemberAvatarSignal())", avatars, StringComparison.Ordinal);
+		var avatarRead = avatars.IndexOf("readWorkspaceMemberAvatars(", StringComparison.Ordinal);
+		var avatarContext = avatars.IndexOf("capturedContext,", avatarRead, StringComparison.Ordinal);
+		var avatarSignal = avatars.IndexOf("openMemberAvatarSignal(),", avatarContext, StringComparison.Ordinal);
+		Assert.True(avatarRead >= 0 && avatarRead < avatarContext && avatarContext < avatarSignal);
 		Assert.DoesNotContain("requestNextWorkspaceMemberDetails()", avatars, StringComparison.Ordinal);
 		Assert.DoesNotContain("showWorkspaceDetailError(", avatars, StringComparison.Ordinal);
 		Assert.DoesNotContain("scrollTop", avatars, StringComparison.Ordinal);

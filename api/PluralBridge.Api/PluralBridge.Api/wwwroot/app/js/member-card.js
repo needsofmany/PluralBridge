@@ -1647,6 +1647,8 @@ function createMemberAccordion(member, options) {
     const avatarPlaceholder = document.createElement("span");
     avatarPlaceholder.className = "member-avatar-placeholder";
     avatarPlaceholder.setAttribute("aria-hidden", "true");
+    let avatarLoadProgress = null;
+    let avatarLoadToken = 0;
 
     const avatarPencil = document.createElement("button");
     avatarPencil.type = "button";
@@ -3466,19 +3468,104 @@ function createMemberAccordion(member, options) {
     }
 
     /**
+     * Shows or hides this card's avatar loading bar. The bar is created on the first request.
+     * A pending avatar edit is not a load, so the bar stays hidden.
+     * @param {boolean} loading True while this card's avatar request is in flight.
+     * @returns {void}
+     */
+    cardDetails.setWorkspaceAvatarLoading = function (loading) {
+        if (surfaceIsModified(avatarWrap) || surfaceIsModified(avatarFile)) {
+            hideAvatarLoad();
+            return;
+        }
+
+        if (!loading) {
+            hideAvatarLoad();
+            return;
+        }
+
+        avatarLoadToken += 1;
+        if (!avatarLoadProgress) {
+            avatarLoadProgress = document.createElement("span");
+            avatarLoadProgress.className = "navigator-load-progress member-avatar-load";
+            avatarLoadProgress.setAttribute("aria-hidden", "true");
+            avatarLoadProgress.appendChild(document.createElement("span"));
+            if (avatarPencil.parentNode === avatarWrap) {
+                avatarWrap.insertBefore(avatarLoadProgress, avatarPencil);
+            } else {
+                avatarWrap.appendChild(avatarLoadProgress);
+            }
+        }
+
+        avatarLoadProgress.hidden = false;
+    };
+
+    /**
+     * Hides the bar and ignores a load or error from an older image.
+     * @returns {void}
+     */
+    function hideAvatarLoad() {
+        avatarLoadToken += 1;
+        if (avatarLoadProgress) {
+            avatarLoadProgress.hidden = true;
+        }
+    }
+
+    /**
+     * Removes the bar when this image loads or fails. The image is already applied.
+     * @param {HTMLImageElement} preview The image this card just accepted.
+     * @returns {void}
+     */
+    function clearAvatarLoadWhenSettled(preview) {
+        const token = avatarLoadToken;
+        /**
+         * Hides the bar for this image. A newer request has a different token and keeps its bar.
+         * @returns {void}
+         */
+        function settled() {
+            if (token !== avatarLoadToken) {
+                return;
+            }
+
+            hideAvatarLoad();
+        }
+
+        if (preview.complete) {
+            settled();
+            return;
+        }
+
+        preview.addEventListener("load", settled);
+        preview.addEventListener("error", settled);
+    }
+
+    /**
      * Publishes one loaded avatar. A pending avatar edit keeps its preview and this method returns false.
-     * Other edits, expansion, and scroll position are left alone.
+     * Other edits, expansion, and scroll position are left alone. The image is applied before its load settles.
      * @param {string|null} objectUrl Object URL for the image. Null leaves the placeholder when the avatar is clean.
      * @returns {boolean} True when the card accepted the URL. False when a pending edit kept the current preview.
      */
     cardDetails.applyWorkspaceAvatar = function (objectUrl) {
         if (surfaceIsModified(avatarWrap) || surfaceIsModified(avatarFile)) {
+            hideAvatarLoad();
             return false;
         }
 
         applyExternal({
             avatarObjectUrl: objectUrl
         });
+        if (!objectUrl) {
+            hideAvatarLoad();
+            return true;
+        }
+
+        const preview = avatarWrap.querySelector(".member-avatar-image");
+        if (!preview) {
+            hideAvatarLoad();
+            return true;
+        }
+
+        clearAvatarLoadWhenSettled(preview);
         return true;
     };
 

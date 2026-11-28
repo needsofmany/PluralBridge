@@ -22,9 +22,12 @@ internal sealed class WorkspaceTreeViewSession
 	public const int MemberDetailBatchSize = 20;
 
 	private readonly List<string> _requests = new();
+	private readonly List<string?> _requestProfileIds = new();
+	private readonly Dictionary<int, string> _openProfileIds = new();
 	private readonly List<MemberPreviewRow> _preview = new();
 	private readonly List<MemberCardView> _cards = new();
 	private int _generation;
+	private string? _openProfileId;
 	private string? _inflightPath;
 	private int _inflightSkip;
 	private int _inflightGeneration;
@@ -33,6 +36,9 @@ internal sealed class WorkspaceTreeViewSession
 
 	/// <summary>True when the developer flag selects the new tree.</summary>
 	public bool WorkspaceTreeEnabled { get; private set; }
+
+	/// <summary>True only when workspace-load profiling is enabled. Absent and every non-true value stay false.</summary>
+	public bool WorkspaceLoadProfileEnabled { get; private set; }
 
 	/// <summary>The context id displayed with the current tree.</summary>
 	public string? ContextId { get; private set; }
@@ -89,6 +95,25 @@ internal sealed class WorkspaceTreeViewSession
 	public IReadOnlyList<string> Requests => _requests;
 
 	/// <summary>
+	/// The profiling run id sent with one recorded request. Null when that request carried no profiling header.
+	/// The index matches <see cref="Requests"/>.
+	/// </summary>
+	/// <param name="index">The request index.</param>
+	/// <returns>The run id, or null.</returns>
+	public string? RequestProfileId(int index)
+	{
+		return _requestProfileIds[index];
+	}
+
+	/// <summary>The profiling run id created for one workspace open.</summary>
+	/// <param name="generation">The generation returned by <see cref="BeginLoad"/>.</param>
+	/// <returns>The id for that open. Null when profiling was off, or when that load was not a workspace open.</returns>
+	public string? OpenProfileId(int generation)
+	{
+		return _openProfileIds.TryGetValue(generation, out var id) ? id : null;
+	}
+
+	/// <summary>
 	/// Switches paths, clears the displayed workspace, and releases a held context.
 	/// </summary>
 	/// <param name="enabled">The new flag value.</param>
@@ -103,20 +128,36 @@ internal sealed class WorkspaceTreeViewSession
 		Error = null;
 		DetailRequested = false;
 		ResetMemberPaging();
+		_openProfileId = null;
 		if (!string.IsNullOrEmpty(previous))
 		{
-			_requests.Add("DELETE " + previous);
+			Record("DELETE " + previous);
 		}
+	}
+
+	/// <summary>Turns workspace-load profiling on only for a strict true. Other values leave it off.</summary>
+	/// <param name="enabled">The flag value.</param>
+	public void SetWorkspaceLoadProfile(bool enabled)
+	{
+		WorkspaceLoadProfileEnabled = enabled;
 	}
 
 	/// <summary>Starts a load and returns its generation.</summary>
 	/// <returns>The generation a later response must present.</returns>
+	/// <remarks>A workspace open with profiling enabled creates one run id. A disabled flag creates none. The id stays with this generation.</remarks>
 	public int BeginLoad()
 	{
 		_generation++;
 		DetailInFlight = false;
 		var mode = WorkspaceTreeEnabled ? "workspace" : "legacy";
-		_requests.Add("GET " + mode);
+		string? profileId = null;
+		if (WorkspaceTreeEnabled && WorkspaceLoadProfileEnabled)
+		{
+			profileId = Guid.NewGuid().ToString("D");
+			_openProfileIds[_generation] = profileId;
+		}
+
+		Record("GET " + mode, profileId);
 		return _generation;
 	}
 
@@ -142,7 +183,7 @@ internal sealed class WorkspaceTreeViewSession
 		ResetMemberPaging();
 		if (!string.IsNullOrEmpty(previous) && !string.Equals(previous, contextId, StringComparison.Ordinal))
 		{
-			_requests.Add("DELETE " + previous);
+			Record("DELETE " + previous);
 		}
 
 		return true;
@@ -202,6 +243,7 @@ internal sealed class WorkspaceTreeViewSession
 	/// <param name="headingLabel">The anchor label, such as "System: Needs of the Many". Null leaves the heading blank.</param>
 	public void Select(string path, string? headingLabel = null)
 	{
+		_openProfileId = null;
 		SelectedPath = path;
 		DetailGeneration = _generation;
 		ResetMemberPaging();
@@ -223,7 +265,36 @@ internal sealed class WorkspaceTreeViewSession
 		}
 
 		DetailRequested = true;
-		_requests.Add("GET profile");
+		Record("GET profile");
+	}
+
+	/// <summary>
+	/// Continues the workspace open that produced <paramref name="generation"/> by selecting its first anchor.
+	/// A stale generation does not select and does not read a newer open's run id.
+	/// </summary>
+	/// <param name="generation">The generation returned by <see cref="BeginLoad"/> for this open.</param>
+	/// <param name="path">The first anchor path.</param>
+	/// <param name="headingLabel">The anchor label. Null leaves the heading blank.</param>
+	/// <returns>True when this open is still the visible load. The first member request then carries that open's run id.</returns>
+	public bool ContinueWorkspaceOpen(int generation, string path, string? headingLabel = null)
+	{
+		if (!IsCurrent(generation, WorkspaceTreeEnabled))
+		{
+			return false;
+		}
+
+		var profileId = OpenProfileId(generation);
+		Select(path, headingLabel);
+		_openProfileId = profileId;
+		if (!string.IsNullOrEmpty(profileId)
+			&& _requests.Count > 0
+			&& _requests[^1].StartsWith("GET member-details ", StringComparison.Ordinal)
+			&& _requests[^1].EndsWith(" 0", StringComparison.Ordinal))
+		{
+			_requestProfileIds[^1] = profileId;
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -313,7 +384,15 @@ internal sealed class WorkspaceTreeViewSession
 		if (completedSkip == 0 && _cards.Count > 0 && !_firstBatchAvatarsRequested)
 		{
 			_firstBatchAvatarsRequested = true;
-			_requests.Add("GET member-avatars " + ContextId + " " + path + " 0");
+			foreach (var card in _cards)
+			{
+				if (!card.PendingAvatar)
+				{
+					card.AvatarLoading = true;
+				}
+			}
+
+			Record("GET member-avatars " + ContextId + " " + path + " 0", completedSkip == 0 ? _openProfileId : null);
 		}
 		if (DetailSkip >= DirectMemberIds(path).Count)
 		{
@@ -328,14 +407,14 @@ internal sealed class WorkspaceTreeViewSession
 	}
 
 	/// <summary>
-	/// Applies the first-page avatar response to cards already shown. A null image leaves the placeholder.
-	/// A pending avatar edit, the card text, expansion, and scroll position stay as they are.
+	/// Applies the first-page avatar response to cards already shown. A null image leaves the placeholder and removes that card's indicator.
+	/// A pending avatar edit, the card text, expansion, and scroll position stay as they are. An image is applied immediately and keeps its indicator until <see cref="SettleMemberAvatar"/>.
 	/// </summary>
 	/// <param name="generation">The generation captured when the selection started.</param>
 	/// <param name="path">The path whose images arrived.</param>
 	/// <param name="images">Member images in response order. Null image text means the member has no image.</param>
 	/// <returns>True when this response still belongs to the first page of the visible selection.</returns>
-	/// <remarks>A later page does not request avatars. A stale generation or path does not change the cards.</remarks>
+	/// <remarks>A later page does not request avatars. A stale generation or path does not change the cards or their indicators.</remarks>
 	public bool AcceptMemberAvatars(int generation, string path, IReadOnlyList<MemberAvatarImage> images)
 	{
 		if (!FirstBatchAvatarResponseIsCurrent(generation, path))
@@ -343,6 +422,7 @@ internal sealed class WorkspaceTreeViewSession
 			return false;
 		}
 
+		var addressed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (var image in images)
 		{
 			if (!TryMemberId(image.MemberId, out var id))
@@ -351,14 +431,53 @@ internal sealed class WorkspaceTreeViewSession
 			}
 
 			var card = _cards.FirstOrDefault(candidate => string.Equals(candidate.MemberId, id, StringComparison.OrdinalIgnoreCase));
-			if (card is null || card.PendingAvatar || image.Image is null)
+			if (card is null)
 			{
+				continue;
+			}
+
+			addressed.Add(card.MemberId);
+			if (card.PendingAvatar || image.Image is null)
+			{
+				card.AvatarLoading = false;
 				continue;
 			}
 
 			card.Avatar = image.Image;
 		}
 
+		foreach (var card in _cards)
+		{
+			if (card.AvatarLoading && !addressed.Contains(card.MemberId))
+			{
+				card.AvatarLoading = false;
+			}
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// Removes one card's indicator after its image loads or fails. The applied image stays.
+	/// </summary>
+	/// <param name="generation">The generation captured when the selection started.</param>
+	/// <param name="path">The path whose image settled.</param>
+	/// <param name="memberId">The card whose image settled.</param>
+	/// <returns>True when that card still belongs to the visible avatar request.</returns>
+	public bool SettleMemberAvatar(int generation, string path, string memberId)
+	{
+		if (!FirstBatchAvatarResponseIsCurrent(generation, path) || !TryMemberId(memberId, out var id))
+		{
+			return false;
+		}
+
+		var card = _cards.FirstOrDefault(candidate => string.Equals(candidate.MemberId, id, StringComparison.OrdinalIgnoreCase));
+		if (card is null)
+		{
+			return false;
+		}
+
+		card.AvatarLoading = false;
 		return true;
 	}
 
@@ -376,6 +495,11 @@ internal sealed class WorkspaceTreeViewSession
 		}
 
 		_firstBatchAvatarsFailed = true;
+		foreach (var card in _cards)
+		{
+			card.AvatarLoading = false;
+		}
+
 		return true;
 	}
 
@@ -417,7 +541,7 @@ internal sealed class WorkspaceTreeViewSession
 	{
 		if (!string.IsNullOrEmpty(ContextId))
 		{
-			_requests.Add("DELETE " + ContextId);
+			Record("DELETE " + ContextId);
 		}
 
 		if (releaseFails)
@@ -430,7 +554,16 @@ internal sealed class WorkspaceTreeViewSession
 		SelectedPath = null;
 		ResetMemberPaging();
 		LoggedOut = true;
-		_requests.Add("POST logout");
+		Record("POST logout");
+	}
+
+	/// <summary>Records one request and the profiling run id it carries.</summary>
+	/// <param name="request">The request text.</param>
+	/// <param name="profileId">The run id. Null sends no profiling header.</param>
+	private void Record(string request, string? profileId = null)
+	{
+		_requests.Add(request);
+		_requestProfileIds.Add(profileId);
 	}
 
 	/// <summary>
@@ -479,7 +612,7 @@ internal sealed class WorkspaceTreeViewSession
 		_inflightPath = SelectedPath;
 		_inflightSkip = DetailSkip;
 		_inflightGeneration = DetailGeneration;
-		_requests.Add("GET member-details " + ContextId + " " + SelectedPath + " " + DetailSkip.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		Record("GET member-details " + ContextId + " " + SelectedPath + " " + DetailSkip.ToString(System.Globalization.CultureInfo.InvariantCulture));
 	}
 
 	/// <summary>A detail response is current only for the window that is still in flight.</summary>
@@ -562,6 +695,9 @@ internal sealed class WorkspaceTreeViewSession
 
 		/// <summary>The image applied to this card. Null is the placeholder.</summary>
 		public string? Avatar { get; set; }
+
+		/// <summary>True while this card's avatar request is in flight. A card whose request has not started stays false.</summary>
+		public bool AvatarLoading { get; set; }
 
 		/// <summary>True when a local avatar edit must keep its preview. A loaded image does not replace it.</summary>
 		public bool PendingAvatar { get; set; }
