@@ -6,6 +6,7 @@ Set-Location $repoRoot
 $programCs = "api/PluralBridge.Api/PluralBridge.Api/Program.cs"
 $srcJsDir = "app/src/js"
 $srcCssDir = "app/src/css"
+$srcImageDir = "app/src/images"
 
 if (!(Test-Path $programCs -PathType Leaf)) {
   Write-Output "ALLOWLIST_CHECK_MISSING_PROGRAM_CS"
@@ -53,36 +54,54 @@ if (Test-Path $srcCssDir -PathType Container) {
     Sort-Object -Unique
 }
 
+$expectedImages = @()
+if (Test-Path $srcImageDir -PathType Container) {
+  $expectedImages = Get-ChildItem -Path $srcImageDir -File |
+    Select-Object -ExpandProperty Name |
+    Sort-Object -Unique
+}
+
 $programLines = Get-Content -Path $programCs
 $actualCss = Get-AllowlistEntries $programLines "allowedBrowserCssFiles"
 $actualJs = Get-AllowlistEntries $programLines "allowedBrowserJsFiles"
+$actualImages = Get-AllowlistEntries $programLines "allowedBrowserImageFiles"
 
 $expectedJsSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $expectedCssSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $actualJsSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $actualCssSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$expectedImageSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$actualImageSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
 $expectedJs | ForEach-Object { [void]$expectedJsSet.Add($_) }
 $expectedCss | ForEach-Object { [void]$expectedCssSet.Add($_) }
+$expectedImages | ForEach-Object { [void]$expectedImageSet.Add($_) }
 $actualJs | ForEach-Object { [void]$actualJsSet.Add($_) }
 $actualCss | ForEach-Object { [void]$actualCssSet.Add($_) }
+$actualImages | ForEach-Object { [void]$actualImageSet.Add($_) }
 
 $missingJs = $expectedJs | Where-Object { -not $actualJsSet.Contains($_) }
 $extraJs = $actualJs | Where-Object { -not $expectedJsSet.Contains($_) }
 $missingCss = $expectedCss | Where-Object { -not $actualCssSet.Contains($_) }
 $extraCss = $actualCss | Where-Object { -not $expectedCssSet.Contains($_) }
+$missingImages = $expectedImages | Where-Object { -not $actualImageSet.Contains($_) }
+$extraImages = $actualImages | Where-Object { -not $expectedImageSet.Contains($_) }
 
 $jsMissingCount = ($missingJs | Measure-Object).Count
 $jsExtraCount = ($extraJs | Measure-Object).Count
 $cssMissingCount = ($missingCss | Measure-Object).Count
 $cssExtraCount = ($extraCss | Measure-Object).Count
+$imageMissingCount = ($missingImages | Measure-Object).Count
+$imageExtraCount = ($extraImages | Measure-Object).Count
 
 Write-Output "ALLOWLIST_JS_MISSING=$jsMissingCount"
 Write-Output "ALLOWLIST_JS_EXTRA=$jsExtraCount"
 Write-Output "ALLOWLIST_CSS_MISSING=$cssMissingCount"
 Write-Output "ALLOWLIST_CSS_EXTRA=$cssExtraCount"
+Write-Output "ALLOWLIST_IMAGE_MISSING=$imageMissingCount"
+Write-Output "ALLOWLIST_IMAGE_EXTRA=$imageExtraCount"
 
-if ($jsMissingCount -ne 0 -or $jsExtraCount -ne 0 -or $cssMissingCount -ne 0 -or $cssExtraCount -ne 0) {
+if ($jsMissingCount -ne 0 -or $jsExtraCount -ne 0 -or $cssMissingCount -ne 0 -or $cssExtraCount -ne 0 -or $imageMissingCount -ne 0 -or $imageExtraCount -ne 0) {
   if ($jsMissingCount -ne 0) {
     Write-Output "ALLOWLIST_JS_MISSING_ITEMS:"
     $missingJs | ForEach-Object { Write-Output $_ }
@@ -101,6 +120,16 @@ if ($jsMissingCount -ne 0 -or $jsExtraCount -ne 0 -or $cssMissingCount -ne 0 -or
   if ($cssExtraCount -ne 0) {
     Write-Output "ALLOWLIST_CSS_EXTRA_ITEMS:"
     $extraCss | ForEach-Object { Write-Output $_ }
+  }
+
+  if ($imageMissingCount -ne 0) {
+    Write-Output "ALLOWLIST_IMAGE_MISSING_ITEMS:"
+    $missingImages | ForEach-Object { Write-Output $_ }
+  }
+
+  if ($imageExtraCount -ne 0) {
+    Write-Output "ALLOWLIST_IMAGE_EXTRA_ITEMS:"
+    $extraImages | ForEach-Object { Write-Output $_ }
   }
 
   Write-Output "ALLOWLIST_CHECK_FAILED"

@@ -1,0 +1,54 @@
+Each task should deliver one working piece of functionality, leave the existing system usable, and end with verification and a commit. The number of tasks follows from the work.
+
+The work is organized into these broad stages, defining individual tasks as we reach them:
+
+[x] 1. **Establish database change tracking.**  
+   Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
+
+[x] 2. **Make recorded changes usable.**  
+   Add revision checks and deferred processing incrementally. Verify that concurrent transactions cannot lose changes. Restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected here.
+
+[x] 3a. **Establish the in-memory messaging core.**  
+    Implement the isolated messaging core with publisher-send TTL, infrastructure-owned obligation accounting, and Completed or Poisoned terminal outcomes. Verify that completion can carry success, error, or another result, and that duplicate, late, expired, or unknown reports cannot corrupt accounting. Keep application and database integration separate.
+
+[x] 3b. **Verify concurrency and flood behavior.**  
+    Verify the in-memory messaging core with concurrency and flood tests covering TTL boundaries, duplicate and out-of-order completion reports, obligation registration races, poisoning, and accounting integrity under load. Keep this work isolated from application and database integration, then review the results and commit the verified tests before beginning Task 4.
+
+[x] 4. **Load the tree and establish its server context.**  
+   Establish the parallel workspace foundation, including the developer switch and preservation of the existing fallback. Deliver the new opening tree load and its account-bound, immutable server context. Verify tree parity, occurrence and access facts, context lifecycle, and isolation between workspace paths. Database freshness checks remain a deferred dependency before later detail or image requests rely on the retained context for current authorization.
+
+[in progress] 5a. **Change the login workflow.**  
+    Change the current login workflow to initially ask for the username or email address, with buttons for forgotten username and forgotten password. Depending on the account creation state, ask for either the six-digit verification code or the password. The verification code expires ten minutes after issuance, with expiration enforced by the server, and an accepted code is single-use. Agree on resend behavior and the transition after successful verification before implementation.
+
+5b. **Build the C# test-data generator.**  
+    Create a small C# application that generates test and demonstration data for a chosen account, with configurable numbers of anchors and members per anchor. Use one reusable pool of fictional names and descriptions, independent of the generated accounts and anchors. Generate the required records, placements, and grants. The initial fixture is the Incremental Load Test account with two anchors and 250 members per anchor. Agree on execution, repeatability, verification, and cleanup before implementation. The GUI interface and design remain TBD and are not required for the initial implementation.
+
+5c. **Load member details incrementally.**  
+    Add batch retrieval, then connect current selection, scrolling, and retained member information. Verify shared member identity and placement-specific state.
+
+6. **Load images independently.**  
+   Add batch retrieval and the retained image collection, followed by replacement, deletion, and unused-image cleanup.
+
+7. **Make the workspace responsive for phone demonstrations.**  
+   Adapt navigation, the tree, member cards, and editing controls for narrow screens. Verify readable text, usable touch targets, scrolling, and access to every control without clipping or unintended horizontal overflow. Test on an actual phone as well as browser mobile emulation, preserving desktop behavior.
+
+8. **Complete integration and acceptance.**  
+   Connect saves, immediate fronting, refresh, navigation, and session cleanup. Compare both paths for correctness, concurrency, and performance across desktop and phone layouts.
+
+Those are stages of work. Before each individual task, we agree on its outcome, verification, and recovery path. Cursor prepares the authorized implementation and runs compilation and isolated automated tests. We review the results; the project owner performs live application and browser verification, database execution, and Git operations. Each task ends with its verified checkpoint before the next task begins.
+
+Standing commenting requirement: all code Cursor creates or modifies, including C#, JavaScript, and CSS, receives comments in the same way as the surrounding repository files. File headers stay the copyright and SPDX lines. C# types and methods use XML documentation for purpose, parameters, results, validation, and the invariants that are not obvious from the code. Comments explain intent. They do not restate every statement. At the end of every task, review all outstanding code changes and complete their commenting before final verification and checkpointing.
+
+Cursor may compile affected projects and run focused automated tests using isolated fixtures. Normal restore and the existing browser-asset sync are permitted. Tests must not connect to a real database or external service. Cursor must not weaken assertions, suppress warnings, change dependencies, or make architectural decisions to obtain passing results. Live application startup, manual browser actions, database connections, SQL execution, process termination, and Git operations remain outside that authorization.
+
+For database changes, the checkpoint includes the migration script and an appropriate recovery method. Git preserves the script; database recovery must also be accounted for.
+
+Task 1, below, records the change-tracking investigation. Inventory is complete. Database change-tracking implementation remains unapproved.
+
+Task 2: messaging responsibility, lifetime, and accounting rules reconciled and checkpointed in commit 30d903a. Concrete database-adapter and bounded lifecycle-reporting contracts remain deferred. Database implementation is not authorized.
+
+Task 3a, at the end of this file, is the isolated in-memory messaging core. Its checkpoint is commit 8801ca8.
+
+Task 3b, after that section, is the concurrency and flood verification. All 31 selected tests passed, with zero failures, zero skipped, and no build warnings. Its checkpoint is commit c19ed42, committed and pushed.
+
+Task 4: the opening tree path and retained server context are implemented, including the approved sidebar and header. The full commenting review is complete. The final isolated result is 28 passed, zero failed, zero skipped, and no build warnings. The owner approved the final sidebar and header appearance and confirmed tree-only behavior. Manual fallback testing was omitted at the owner's direction. Failed refresh, sign-out cleanup, live tree parity, and the four database-backed plural-map tests remain unverified. The Task 4 checkpoint remains pending. Database freshness detection remains deferred.

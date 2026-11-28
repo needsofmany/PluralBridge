@@ -60,6 +60,8 @@ namespace PluralBridge.Api
 		internal const string accountEndpointSegment = "account";
 		internal const string registerEndpointSegment = "register";
 		internal const string verifyRegistrationEndpointSegment = "verify-registration";
+		internal const string continueLoginEndpointSegment = "continue";
+		internal const string resendRegistrationCodeEndpointSegment = "resend-registration-code";
 		internal const string loginEndpointSegment = "login";
 		internal const string forgotUsernameEndpointSegment = "forgot-username";
 		internal const string forgotPasswordEndpointSegment = "forgot-password";
@@ -74,8 +76,12 @@ namespace PluralBridge.Api
 		/// </summary>
 		internal const string accountCodeNumericFormat = "D6";
 		internal static readonly int accountCodeExpirationMinutes = 15;
-		internal static readonly string accountCodeEmailExpiresLine =
-			$"This code expires in {accountCodeExpirationMinutes} minutes.";
+
+		// Registration verification has its own lifetime. The shared fifteen-minute value stays in place for the other code purposes.
+		internal const int registrationVerificationCodeExpirationMinutes = 10;
+
+		// A code issued exactly this many seconds earlier may be replaced. The check uses the database clock.
+		internal const int registrationCodeResendCooldownSeconds = 60;
 		internal const string accountCodeInsertReturnedNoRows = "Registration verification code insert did not return inserted values.";
 
 		/// <summary>
@@ -103,6 +109,8 @@ namespace PluralBridge.Api
 		internal const string guidFormatNoHyphens = "N";
 		internal const string accountOperationRegistration = "registration";
 		internal const string accountOperationRegistrationVerification = "registration_verification";
+		internal const string accountOperationLoginContinuation = "login_continuation";
+		internal const string accountOperationRegistrationResend = "registration_resend";
 		internal const string accountOperationLogin = "login";
 		internal const string accountOperationUsernameRecovery = "username_recovery";
 		internal const string accountOperationPasswordReset = "password_reset";
@@ -115,12 +123,22 @@ namespace PluralBridge.Api
 		/// Account service response messages
 		/// </summary>
 		internal const string accountRegistrationCouldNotBeCompleted = "Registration could not be completed.";
+
+		// Used only after the account and verification code are committed and the email send fails. Resend remains available after the cooldown.
+		internal const string accountRegistrationDeliveryFailed = "The account was created, but the verification email could not be sent.";
 		internal const string accountRegistrationAcceptedVerificationRequired = "Registration was accepted. Verification is required before login.";
 		internal const string accountRegistrationAccepted = "Registration was accepted.";
 		internal const string accountCodeCouldNotBeAccepted = "The code could not be accepted.";
 		internal const string accountCodeExpiredOrCouldNotBeAccepted = "The code expired or could not be accepted.";
 		internal const string accountRequestCouldNotBeCompleted = "The request could not be completed.";
 		internal const string accountRegistrationVerificationCompleted = "Registration verification completed.";
+		internal const string accountLoginContinuationDeclined = "Sign-in could not be continued.";
+		internal const string accountLoginContinuationPassword = "Enter the account password.";
+		internal const string accountLoginContinuationVerification = "Enter the verification code.";
+		internal const string accountLoginContinuationRegistration = "Create the account. Nothing is created until you submit the form.";
+		internal const string accountRegistrationCodeResendAccepted = "If the account is waiting for verification, a new code will be sent.";
+		internal const string accountRegistrationCodeResendCooldown = "A verification code was requested recently. Wait and try again.";
+		internal const string accountRegistrationCodeResendDeliveryFailed = "The verification code could not be sent. Request another code when the cooldown allows.";
 		internal const string accountLoginCouldNotBeCompleted = "Login could not be completed.";
 		internal const string accountLoginCompleted = "Login completed.";
 		internal const string accountUsernameRecoveryInstructionsSent = "If the account can be found, recovery instructions will be sent.";
@@ -175,6 +193,7 @@ namespace PluralBridge.Api
 		/// Browser authentication routes
 		/// </summary>
 		internal const string browserLoginRoute = $"/{loginEndpointSegment}";
+		internal const string browserRegisterRoute = "/register";
 		internal const string browserLogoutRoute = "/logout";
 		internal const string browserAppRoute = "/app/";
 
@@ -183,6 +202,7 @@ namespace PluralBridge.Api
 		/// </summary>
 		internal const string browserLoginUserNameField = "userName";
 		internal const string browserLoginPasswordField = "password";
+		internal const string browserLoginReturnField = "returnUrl";
 
 		/// <summary>
 		/// API routes

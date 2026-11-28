@@ -113,23 +113,28 @@ public sealed class AzureAccountCodeDelivery(IConfiguration configuration, ILogg
 		};
 	}
 
-	private static string CreatePlainTextBody(AccountCodeDeliveryCommand command)
+	/// <summary>
+	/// Builds the plain-text body. Registration says ten minutes. The other purposes say fifteen.
+	/// This method does not send mail.
+	/// </summary>
+	internal static string CreatePlainTextBody(AccountCodeDeliveryCommand command)
 	{
 		var action = CreateActionDescription(command.CodePurpose);
 
-		// Plain text is the accessibility and fallback body. Do not add secret diagnostics here.
+		// Plain text is the accessibility and fallback body. The expiry sentence follows the purpose lifetime. Do not add secret diagnostics here.
 		return $"""
 			Your PluralBridge {action} code is:
 
 			{command.PlaintextCode}
 
-			{Globals.accountCodeEmailExpiresLine}
+			{AccountCodeEmailText.ExpiresLine(command.CodePurpose)}
 
 			{Globals.accountCodeEmailIgnoreLine}
 			""";
 	}
 
-	private static string CreateHtmlBody(AccountCodeDeliveryCommand command)
+	/// <summary>Builds the HTML body with the same purpose-specific expiry sentence as the plain-text body.</summary>
+	internal static string CreateHtmlBody(AccountCodeDeliveryCommand command)
 	{
 		var action = CreateActionDescription(command.CodePurpose);
 
@@ -137,7 +142,7 @@ public sealed class AzureAccountCodeDelivery(IConfiguration configuration, ILogg
 		return $"""
 			<p>Your PluralBridge {action} code is:</p>
 			<p><strong style="font-size: 1.4em; letter-spacing: 0.08em;">{command.PlaintextCode}</strong></p>
-			<p>{Globals.accountCodeEmailExpiresLine}</p>
+			<p>{AccountCodeEmailText.ExpiresLine(command.CodePurpose)}</p>
 			<p>{Globals.accountCodeEmailIgnoreLine}</p>
 			""";
 	}

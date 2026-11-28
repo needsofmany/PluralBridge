@@ -36,6 +36,55 @@ public sealed class AccountController(IAccountService accountService) : Controll
 		return BadRequest(response);
 	}
 
+	/// <summary>
+	/// Returns the next screen. Registration is only the next step; this action does not create the account.
+	/// It does not sign the caller in or send mail.
+	/// There is no rate limit on this route yet. That limit belongs with the later Turnstile review.
+	/// </summary>
+	[AllowAnonymous]
+	[HttpPost(Globals.continueLoginEndpointSegment)]
+	public async Task<ActionResult<LoginContinuationResponse>> Continue(
+		[FromBody] LoginContinuationRequest request,
+		CancellationToken cancellationToken)
+	{
+		var result = await accountService.ContinueLoginAsync(request, cancellationToken);
+		var body = result.Value ?? new LoginContinuationResponse(
+			false,
+			result.Outcome,
+			result.ReasonCode,
+			result.Message,
+			null);
+		if (!result.Succeeded)
+		{
+			return BadRequest(body);
+		}
+
+		return Ok(body);
+	}
+
+	/// <summary>
+	/// Sends a replacement registration code when the pending account is past the cooldown.
+	/// This action does not sign the caller in.
+	/// </summary>
+	[AllowAnonymous]
+	[HttpPost(Globals.resendRegistrationCodeEndpointSegment)]
+	public async Task<ActionResult<AccountOperationResponse>> ResendRegistrationCode(
+		[FromBody] ResendRegistrationCodeRequest request,
+		CancellationToken cancellationToken)
+	{
+		var result = await accountService.ResendRegistrationCodeAsync(request, cancellationToken);
+		if (result is { Succeeded: true, Value: not null })
+		{
+			return Ok(result.Value);
+		}
+
+		return BadRequest(new AccountOperationResponse(
+			false,
+			result.Outcome,
+			result.ReasonCode,
+			result.Message));
+	}
+
 	[AllowAnonymous]
 	[HttpPost(Globals.verifyRegistrationEndpointSegment)]
 	public async Task<ActionResult<AccountOperationResponse>> VerifyRegistration(

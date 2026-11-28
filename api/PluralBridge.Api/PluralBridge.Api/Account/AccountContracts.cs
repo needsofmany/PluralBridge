@@ -47,9 +47,32 @@ public sealed record RegisterAccountRequest(
 	string DisplayName,
 	string Password);
 
+/// <summary>
+/// Registration verification input. <see cref="Email"/> keeps its existing name and also accepts a username.
+/// Lookup uses the same trim-and-uppercase normalization as password sign-in. The response does not issue a session.
+/// </summary>
 public sealed record VerifyRegistrationRequest(
 	string Email,
 	string Code);
+
+/// <summary>The username or email from the first sign-in screen. This request does not carry a password or a code.</summary>
+public sealed record LoginContinuationRequest(
+	string UsernameOrEmail);
+
+/// <summary>
+/// The next sign-in step. <see cref="NextStep"/> is <c>password</c>, <c>verification</c>, <c>registration</c>, or null.
+/// The body does not include an account id or a session.
+/// </summary>
+public sealed record LoginContinuationResponse(
+	bool Accepted,
+	string Outcome,
+	string ReasonCode,
+	string Message,
+	string? NextStep);
+
+/// <summary>A request to replace the pending registration code. Unknown identities receive the same accepted response as a sent code.</summary>
+public sealed record ResendRegistrationCodeRequest(
+	string UsernameOrEmail);
 
 public sealed record LoginRequest(
 	string UsernameOrEmail,
@@ -268,8 +291,22 @@ public interface IAccountService
 		RegisterAccountRequest request,
 		CancellationToken cancellationToken);
 
+	/// <summary>Consumes one eligible registration code and activates the pending account. Success does not sign the caller in.</summary>
 	Task<AccountServiceResult<AccountOperationResponse>> VerifyRegistrationAsync(
 		VerifyRegistrationRequest request,
+		CancellationToken cancellationToken);
+
+	/// <summary>Chooses the password or verification step. It does not create an account, send mail, or issue a session.</summary>
+	Task<AccountServiceResult<LoginContinuationResponse>> ContinueLoginAsync(
+		LoginContinuationRequest request,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Replaces the registration code after the cooldown. Delivery uses the stored email.
+	/// A delivery failure leaves the replacement in place and does not restore the older code.
+	/// </summary>
+	Task<AccountServiceResult<AccountOperationResponse>> ResendRegistrationCodeAsync(
+		ResendRegistrationCodeRequest request,
 		CancellationToken cancellationToken);
 
 	Task<AccountServiceResult<LoginResponse>> LoginAsync(

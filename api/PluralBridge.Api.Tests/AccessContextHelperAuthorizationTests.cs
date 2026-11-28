@@ -178,7 +178,50 @@ public sealed class AccessContextHelperAuthorizationTests
 		return new AccessContextHelper.AccessContext(
 			account,
 			membershipAccess,
+			new AccessContextHelper.CurrentObject(
+				"system",
+				currentSystemId.ToString(),
+				TestGlobals.AccessContextHelperAuthorization.CurrentSystemName),
 			currentSystem);
+	}
+
+	[Fact]
+	public void IsAuthorizedForCurrentSystem_returns_false_when_current_system_is_null()
+	{
+		var accessContext = CreateUnfocusedAccessContext();
+
+		Assert.False(AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext));
+	}
+
+	[Fact]
+	public void IsAuthorizedForMemberWrite_returns_false_when_current_system_is_null()
+	{
+		var accessContext = CreateUnfocusedAccessContext();
+
+		Assert.False(AccessContextHelper.IsAuthorizedForMemberWrite(accessContext));
+	}
+
+	private static AccessContextHelper.AccessContext CreateUnfocusedAccessContext()
+	{
+		var account = new AccessContextHelper.Account(
+			Guid.NewGuid(),
+			TestGlobals.AccessContextHelperAuthorization.AccountEmail,
+			TestGlobals.AccessContextHelperAuthorization.DemoAccountDisplayName,
+			TestGlobals.AccessContextHelperAuthorization.ActiveStatusId,
+			new AccessContextHelper.AccountStatus(
+				TestGlobals.AccessContextHelperAuthorization.ActiveStatusId,
+				TestGlobals.AccessContextHelperAuthorization.ActiveStatusName,
+				TestGlobals.AccessContextHelperAuthorization.ActiveStatusName,
+				TestGlobals.AccessContextHelperAuthorization.DisplayOrder,
+				true),
+			DateTime.UtcNow,
+			null);
+
+		return new AccessContextHelper.AccessContext(
+			account,
+			[],
+			null,
+			null);
 	}
 
 	private static AccessContextHelper.SystemMembership CreateMembership(

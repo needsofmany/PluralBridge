@@ -80,7 +80,9 @@ public sealed class ImportMetadataController(
 				});
 			}
 
-			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext) 			    || accessContext.CurrentSystem.SystemId != systemId)
+			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
+			    || accessContext.CurrentSystem is not { } currentSystem
+			    || currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -103,7 +105,7 @@ public sealed class ImportMetadataController(
 			{
 				importMetadata = await ReadImportMetadataAsync(
 					connection,
-					accessContext.CurrentSystem.SystemId);
+					currentSystem.SystemId);
 
 				dataAccessStopwatch.Stop();
 
@@ -137,7 +139,7 @@ public sealed class ImportMetadataController(
 				phase = Globals.projectPhase,
 				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importMetadataEndpointSegment}",
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				importMetadata
 			});
 		}

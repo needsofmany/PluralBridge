@@ -3,8 +3,10 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
 using PluralBridge.Api;
 using PluralBridge.Api.Account;
+using PluralBridge.Api.Workspace;
 using Serilog;
 using Serilog.Events;
 using System.Security.Claims;
@@ -104,6 +106,22 @@ else
 }
 
 builder.Services.AddScoped<IAccountService, AccountService>();
+// The workspace tree is a second opening path. The service constructs its SQL session.
+// Idle timeout and budget come from WorkspaceContext configuration, not from the browser flag.
+builder.Services.AddOptions<WorkspaceContextOptions>()
+	.Bind(builder.Configuration.GetSection(WorkspaceContextOptions.SectionName))
+	.ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<WorkspaceContextOptions>, WorkspaceContextOptionsValidator>();
+builder.Services.AddSingleton<IWorkspaceClock, SystemWorkspaceClock>();
+builder.Services.AddSingleton<IWorkspaceContextSettings, OptionsWorkspaceContextSettings>();
+builder.Services.AddSingleton<WorkspaceContextStore>();
+builder.Services.AddSingleton<WorkspaceTreeService>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.IWorkspaceProfileGateway, PluralBridge.Api.Workspace.SqlWorkspaceProfileGateway>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.WorkspaceMemberDetailService>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.IWorkspaceAvatarReader, PluralBridge.Api.Workspace.SqlWorkspaceAvatarReader>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.IAvatarBatchGraphSessions, PluralBridge.Api.Workspace.SqlAvatarBatchGraphSessions>();
+builder.Services.AddSingleton<PluralBridge.Api.Workspace.WorkspaceAvatarBatchService>();
+builder.Services.AddHostedService<WorkspaceContextCleanupService>();
 
 var app = builder.Build();
 
@@ -137,17 +155,36 @@ var allowedBrowserCssFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCas
 	"base.css",
 	"layout.css",
 	"members.css",
+	"avatars.css",
+	"navigator.css",
 	"developer-tools.css",
-	"legacy-app.css"
+	"legacy-app.css",
+	"account-screens.css",
+	"members-mobile.css",
+	"shell.css"
 };
 
 var allowedBrowserJsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
 	"bootstrap.js",
 	"api-client.js",
+	"avatars.js",
 	"members.js",
 	"developer-tools.js",
-	"legacy-app.js"
+	"navigator.js",
+	"member-change-tracking.js",
+	"member-card.js",
+	"legacy-app.js",
+	"account-screens.js",
+	"shell.js"
+};
+
+var allowedBrowserImageFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+	"pluralbridge-about-logo-smaller.png",
+	"pluralbridge-about-logo-small.png",
+	"pluralbridge-nameplate.png",
+	"members-workspace-background.jpg"
 };
 
 // require login for the browser button app files
@@ -203,33 +240,132 @@ app.MapGet("/app/js/{fileName}", (string fileName) =>
 	return Results.File(path, "text/javascript");
 }).RequireAuthorization();
 
-// add login page endpoint
+app.MapGet("/app/images/{fileName}", (string fileName) =>
+{
+	if (!allowedBrowserImageFiles.Contains(fileName))
+	{
+		return Results.NotFound();
+	}
+
+	var path = Path.Combine(app.Environment.WebRootPath!, "app", "images", fileName);
+	var extension = Path.GetExtension(fileName);
+	var contentType = extension.ToLowerInvariant() switch
+	{
+		".png" => "image/png",
+		".jpg" => "image/jpeg",
+		".jpeg" => "image/jpeg",
+		".gif" => "image/gif",
+		".webp" => "image/webp",
+		".svg" => "image/svg+xml",
+		_ => "application/octet-stream"
+	};
+
+	return Results.File(path, contentType);
+}).RequireAuthorization();
+
+var authAssetFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+	"auth.css",
+	"auth-pages.js"
+};
+
+app.MapGet("/auth/{fileName}", (string fileName) =>
+{
+	if (!authAssetFiles.Contains(fileName))
+	{
+		return Results.NotFound();
+	}
+
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		fileName);
+
+	return Results.File(
+		path,
+		fileName.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+			? "text/css"
+			: "text/javascript");
+});
+
+// add login/recovery pages
 app.MapGet(Globals.browserLoginRoute, () =>
 {
-	const string loginPage =
-		"<!doctype html>" +
-		"<html lang=\"en\">" +
-		"<head>" +
-		"<meta charset=\"utf-8\">" +
-		"<title>PluralBridge Demo Login</title>" +
-		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
-		"</head>" +
-		"<body>" +
-		"<main>" +
-		"<h1>PluralBridge Demo Login</h1>" +
-		"<p>Private Phase SysModel Update engineering proof.</p>" +
-		$"<form method=\"post\" action=\"{Globals.browserLoginRoute}\">" +
-		$"<label for=\"{Globals.browserLoginUserNameField}\">Username</label><br>" +
-		$"<input id=\"{Globals.browserLoginUserNameField}\" name=\"{Globals.browserLoginUserNameField}\" autocomplete=\"username\" required><br><br>" +
-		$"<label for=\"{Globals.browserLoginPasswordField}\">Password</label><br>" +
-		$"<input id=\"{Globals.browserLoginPasswordField}\" name=\"{Globals.browserLoginPasswordField}\" type=\"password\" autocomplete=\"current-password\" required><br><br>" +
-		"<button type=\"submit\">Sign in</button>" +
-		"</form>" +
-		"</main>" +
-		"</body>" +
-		"</html>";
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"login.html");
 
-	return Results.Content(loginPage, "text/html");
+	return Results.File(path, "text/html");
+});
+
+// Registration is an auth page, not an app/src asset. The API register route stays under /api/account/register.
+app.MapGet(Globals.browserRegisterRoute, () =>
+{
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"register.html");
+
+	return Results.File(path, "text/html");
+});
+
+app.MapGet($"/{Globals.forgotUsernameEndpointSegment}", () =>
+{
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"forgot-username.html");
+
+	return Results.File(path, "text/html");
+});
+
+app.MapGet($"/{Globals.forgotPasswordEndpointSegment}", () =>
+{
+	var path = Path.Combine(
+		app.Environment.WebRootPath!,
+		"auth",
+		"forgot-password.html");
+
+	return Results.File(path, "text/html");
+});
+
+app.MapPost($"/{Globals.forgotUsernameEndpointSegment}", async (
+	HttpContext context,
+	IAccountService accountService,
+	CancellationToken cancellationToken) =>
+{
+	var form = await context.Request.ReadFormAsync(cancellationToken);
+	var email = form["email"].FirstOrDefault() ?? string.Empty;
+
+	var result = await accountService.ForgotUsernameAsync(
+		new ForgotUsernameRequest(email),
+		cancellationToken);
+
+	var encodedMessage = Uri.EscapeDataString(result.Message ?? string.Empty);
+	var status = result.Succeeded ? "success" : "error";
+
+	return Results.Redirect(
+		$"/{Globals.forgotUsernameEndpointSegment}?status={status}&message={encodedMessage}");
+});
+
+app.MapPost($"/{Globals.forgotPasswordEndpointSegment}", async (
+	HttpContext context,
+	IAccountService accountService,
+	CancellationToken cancellationToken) =>
+{
+	var form = await context.Request.ReadFormAsync(cancellationToken);
+	var usernameOrEmail = form["usernameOrEmail"].FirstOrDefault() ?? string.Empty;
+
+	var result = await accountService.ForgotPasswordAsync(
+		new ForgotPasswordRequest(usernameOrEmail),
+		cancellationToken);
+
+	var encodedMessage = Uri.EscapeDataString(result.Message ?? string.Empty);
+	var status = result.Succeeded ? "success" : "error";
+
+	return Results.Redirect(
+		$"/{Globals.forgotPasswordEndpointSegment}?status={status}&message={encodedMessage}");
 });
 
 // add login form post endpoint
@@ -242,6 +378,7 @@ app.MapPost(Globals.browserLoginRoute, async (
 
 	var usernameOrEmail = form[Globals.browserLoginUserNameField].FirstOrDefault() ?? string.Empty;
 	var password = form[Globals.browserLoginPasswordField].FirstOrDefault() ?? string.Empty;
+	var requestedReturn = form[Globals.browserLoginReturnField].FirstOrDefault();
 
 	var result = await accountService.LoginAsync(
 		new LoginRequest(
@@ -255,7 +392,14 @@ app.MapPost(Globals.browserLoginRoute, async (
 			Value: { Account: not null } loginResponse
 		})
 	{
-		return Results.Redirect(Globals.browserLoginRoute);
+		// A failed password returns to identity entry. A local return path is kept; an external one is dropped.
+		var failureLocation = $"{Globals.browserLoginRoute}?error=1";
+		if (AuthReturnDestination.IsLocal(requestedReturn))
+		{
+			failureLocation += "&ReturnUrl=" + Uri.EscapeDataString(requestedReturn!.Trim());
+		}
+
+		return Results.Redirect(failureLocation);
 	}
 
 	var claims = new List<Claim>
@@ -278,7 +422,7 @@ app.MapPost(Globals.browserLoginRoute, async (
 		CookieAuthenticationDefaults.AuthenticationScheme,
 		principal);
 
-	return Results.Redirect(Globals.browserAppRoute);
+	return Results.Redirect(AuthReturnDestination.OrApp(requestedReturn));
 });
 
 // add logout endpoint

@@ -79,7 +79,8 @@ public sealed class FrontHistoryController(
 			}
 
 			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
-			    || accessContext.CurrentSystem.SystemId != systemId)
+			    || accessContext.CurrentSystem is not { } currentSystem
+			    || currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -102,7 +103,7 @@ public sealed class FrontHistoryController(
 			{
 				frontHistory = await ReadFrontHistoryAsync(
 					connection,
-					accessContext.CurrentSystem.SystemId);
+					currentSystem.SystemId);
 
 				dataAccessStopwatch.Stop();
 
@@ -136,7 +137,7 @@ public sealed class FrontHistoryController(
 				phase = Globals.projectPhase,
 				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.frontHistoryEndpointSegment}",
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				count = frontHistory.Count,
 				frontHistory
 			});

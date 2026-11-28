@@ -16,6 +16,7 @@ public sealed class AccessContextAuthorizationTests
 		var accessContext = new AccessContextHelper.AccessContext(
 			CreateAccount(),
 			[],
+			new AccessContextHelper.CurrentObject("system", systemId.ToString(), null),
 			new AccessContextHelper.CurrentSystem(
 				systemId,
 				null,
@@ -43,6 +44,7 @@ public sealed class AccessContextAuthorizationTests
 					isActive: true,
 					statusName: TestGlobals.AccessContextAuthorization.ActiveStatusName)
 			],
+			new AccessContextHelper.CurrentObject("system", currentSystemId.ToString(), null),
 			new AccessContextHelper.CurrentSystem(
 				currentSystemId,
 				null,
@@ -70,6 +72,7 @@ public sealed class AccessContextAuthorizationTests
 					isActive: true,
 					statusName: TestGlobals.AccessContextAuthorization.ActiveStatusName)
 			],
+			new AccessContextHelper.CurrentObject("system", systemId.ToString(), null),
 			new AccessContextHelper.CurrentSystem(
 				systemId,
 				null,
@@ -100,6 +103,7 @@ public sealed class AccessContextAuthorizationTests
 					isActive,
 					statusName)
 			],
+			new AccessContextHelper.CurrentObject("system", systemId.ToString(), null),
 			new AccessContextHelper.CurrentSystem(
 				systemId,
 				null,
@@ -126,6 +130,7 @@ public sealed class AccessContextAuthorizationTests
 					isActive: true,
 					statusName: TestGlobals.AccessContextAuthorization.ActiveStatusName)
 			],
+			new AccessContextHelper.CurrentObject("system", systemId.ToString(), null),
 			new AccessContextHelper.CurrentSystem(
 				systemId,
 				null,
@@ -156,6 +161,10 @@ public sealed class AccessContextAuthorizationTests
 					statusName: TestGlobals.AccessContextAuthorization.ActiveStatusName,
 					accountId)
 			],
+			new AccessContextHelper.CurrentObject(
+				"system",
+				systemId.ToString(),
+				TestGlobals.AccessContextAuthorization.CurrentSystemName),
 			new AccessContextHelper.CurrentSystem(
 				systemId,
 				TestGlobals.AccessContextAuthorization.CurrentSystemName,
@@ -186,6 +195,7 @@ public sealed class AccessContextAuthorizationTests
 						CreateRole(TestGlobals.AccessContextAuthorization.OwnerRoleName)
 					])
 			],
+			new AccessContextHelper.CurrentObject("system", systemId.ToString(), null),
 			new AccessContextHelper.CurrentSystem(
 				systemId,
 				null,
@@ -218,6 +228,7 @@ public sealed class AccessContextAuthorizationTests
 						CreateRole(roleName)
 					])
 			],
+			new AccessContextHelper.CurrentObject("system", systemId.ToString(), null),
 			new AccessContextHelper.CurrentSystem(
 				systemId,
 				null,
@@ -226,6 +237,30 @@ public sealed class AccessContextAuthorizationTests
 		var isAuthorized = AccessContextHelper.IsAuthorizedForMemberWrite(accessContext);
 
 		Assert.False(isAuthorized);
+	}
+
+	[Fact]
+	public void IsAuthorizedForCurrentSystem_ReturnsFalse_WhenCurrentSystemIsNull()
+	{
+		var accessContext = new AccessContextHelper.AccessContext(
+			CreateAccount(),
+			[],
+			null,
+			null);
+
+		Assert.False(AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext));
+	}
+
+	[Fact]
+	public void IsAuthorizedForMemberWrite_ReturnsFalse_WhenCurrentSystemIsNull()
+	{
+		var accessContext = new AccessContextHelper.AccessContext(
+			CreateAccount(),
+			[],
+			null,
+			null);
+
+		Assert.False(AccessContextHelper.IsAuthorizedForMemberWrite(accessContext));
 	}
 
 	private static AccessContextHelper.Account CreateAccount(

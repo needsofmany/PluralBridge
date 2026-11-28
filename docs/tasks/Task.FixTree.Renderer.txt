@@ -1,0 +1,54 @@
+## Steps To Fix Tree Walking (Diagnosis Only)
+
+1. **Change the seed from “systems only” to “account graph roots.”**  
+   Right now section 1 seeds from `pb_system_memberships` only.  
+   You need a root-seeding phase that can include:
+   - account-root `group` nodes from `pb_account_object_placements` (`account -> group`)
+   - account-root `system` nodes (for legacy examples)
+   - account-root `place` nodes from `pb_account_object_placements` (`account -> place`)
+   - then merge all of these into one root node set.
+
+2. **Build hierarchy from placements, not just system relationships.**  
+   Add/replace traversal logic so the core tree edges come from:
+   - `account -> group|system|place`
+   - `group -> system|place`
+   - `place -> system|place` (when present in account placements)
+   - `system -> place` (when present in account placements)
+   - (optionally existing `system -> child system` relationship logic for older patterns)  
+   In short: placements become first-class topology, not just metadata.
+
+3. **Introduce typed node graph before rendering.**  
+   Create one internal node/edge model with `ObjectType` + `ObjectId`:
+   - `account`, `group`, `system`, `member`, `place`, etc.  
+   Then walk that graph to build `#Nodes`. This avoids hardcoding “groups only under systems.”
+
+4. **Make group/member expansion context-aware.**  
+   For a rendered group node:
+   - show `pb_group_members` as children (`A/E/I/O` case)  
+   For rendered system nodes:
+   - show system members (`W/Y`, `X/Z`)  
+   This preserves both Example 10 and 1–9 behavior.
+
+5. **Keep legacy compatibility path explicit.**  
+   If an account has no `account -> group` placement roots, fall back to current system-root logic.  
+   This prevents regressions in older examples while enabling Example 10.
+
+6. **Define deterministic child ordering across mixed node types.**  
+   Use placement rank where present; otherwise stable fallback sort.  
+   You’ll need consistent ordering rules when siblings include groups + systems + notes.
+
+7. **Add cycle/orphan guards in traversal.**  
+   Since placements form a graph, protect against:
+   - loops (`group -> system -> group` accidental cycles)
+   - dangling edges to missing objects  
+   Emit safe placeholders rather than failing recursion.
+
+8. **Validate with a fixed matrix before shipping.**  
+   Run tree checks for:
+   - examples 1–9 unchanged
+   - example 10 shows `Account -> Group(Household) -> {members + systems}`
+   - note/frontHistory still render
+   - no duplicate nodes  
+   This is the key regression gate.
+
+If you want, next I can give you a **concrete implementation plan** mapped section-by-section to your current script (what to replace, what to keep, what to add) without editing yet.

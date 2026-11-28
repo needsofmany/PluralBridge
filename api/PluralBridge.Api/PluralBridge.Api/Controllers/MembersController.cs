@@ -84,7 +84,8 @@ public sealed class MembersController(
 					accessContext,
 					requestTrace,
 					logger)
-				|| accessContext.CurrentSystem.SystemId != systemId)
+				|| accessContext.CurrentSystem is not { } currentSystem
+				|| currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -108,7 +109,7 @@ public sealed class MembersController(
 			{
 				members = await ReadMembersAsync(
 					connection,
-					accessContext.CurrentSystem.SystemId);
+					currentSystem.SystemId);
 				count = members.Count;
 
 				dataAccessStopwatch.Stop();
@@ -143,7 +144,7 @@ public sealed class MembersController(
 				phase = Globals.projectPhase,
 				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.membersEndpointSegment}",
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				count = count,
 				members
 			});
@@ -231,7 +232,8 @@ public sealed class MembersController(
 					accessContext,
 					requestTrace,
 					logger)
-				|| accessContext.CurrentSystem.SystemId != systemId)
+				|| accessContext.CurrentSystem is not { } currentSystem
+				|| currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -254,7 +256,7 @@ public sealed class MembersController(
 			{
 				member = await ReadMemberAsync(
 					connection,
-					accessContext.CurrentSystem.SystemId,
+					currentSystem.SystemId,
 					memberId);
 
 				if (member is null)
@@ -265,7 +267,7 @@ public sealed class MembersController(
 						phase = Globals.projectPhase,
 						endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.membersEndpointSegment}/{memberId}",
 						canWrite = false,
-						systemId = accessContext.CurrentSystem.SystemId,
+						systemId = currentSystem.SystemId,
 						memberId
 					});
 				}
@@ -301,7 +303,7 @@ public sealed class MembersController(
 				phase = Globals.projectPhase,
 				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.membersEndpointSegment}/{memberId}",
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				memberId,
 				member
 			});
@@ -401,7 +403,8 @@ public sealed class MembersController(
 					accessContext,
 					requestTrace,
 					logger)
-				|| accessContext.CurrentSystem.SystemId != systemId)
+				|| accessContext.CurrentSystem is not { } currentSystem
+				|| currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -424,15 +427,15 @@ public sealed class MembersController(
 			{
 				member = await CreateMemberAsync(
 					connection,
-					accessContext.CurrentSystem.SystemId,
+					currentSystem.SystemId,
 					request);
 
 				await MemberWriteAuditWriter.WriteAsync(
 					connection,
 					new MemberWriteAuditWriter.MemberWriteAuditInput(
-						accessContext.CurrentSystem.SystemId,
+						currentSystem.SystemId,
 						accessContext.CurrentAccount.AccountId,
-						accessContext.CurrentSystem.SystemMembershipId,
+						currentSystem.SystemMembershipId,
 						member.MemberId,
 						MemberWriteAuditWriter.MemberAddOperation,
 						requestTrace.TraceId));
@@ -463,14 +466,14 @@ public sealed class MembersController(
 			}
 
 			return Created(
-				$"{Globals.systemsEndpointRoot}/{accessContext.CurrentSystem.SystemId}/{Globals.membersEndpointSegment}/{member.MemberId}",
+				$"{Globals.systemsEndpointRoot}/{currentSystem.SystemId}/{Globals.membersEndpointSegment}/{member.MemberId}",
 				new
 				{
 					api = Globals.apiName,
 					phase = Globals.projectPhase,
 					endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.membersEndpointSegment}/{member.MemberId}",
 					canWrite = true,
-					systemId = accessContext.CurrentSystem.SystemId,
+					systemId = currentSystem.SystemId,
 					memberId = member.MemberId,
 					member
 				});
@@ -639,7 +642,8 @@ public sealed class MembersController(
 					accessContext,
 					requestTrace,
 					logger)
-				|| accessContext.CurrentSystem.SystemId != systemId)
+				|| accessContext.CurrentSystem is not { } currentSystem
+				|| currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -662,7 +666,7 @@ public sealed class MembersController(
 			{
 				member = await UpdateMemberAsync(
 					connection,
-					accessContext.CurrentSystem.SystemId,
+					currentSystem.SystemId,
 					memberId,
 					request);
 
@@ -682,7 +686,7 @@ public sealed class MembersController(
 						phase = Globals.projectPhase,
 						endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.membersEndpointSegment}/{memberId}",
 						canWrite = true,
-						systemId = accessContext.CurrentSystem.SystemId,
+						systemId = currentSystem.SystemId,
 						memberId
 					});
 				}
@@ -690,9 +694,9 @@ public sealed class MembersController(
 				await MemberWriteAuditWriter.WriteAsync(
 					connection,
 					new MemberWriteAuditWriter.MemberWriteAuditInput(
-						accessContext.CurrentSystem.SystemId,
+						currentSystem.SystemId,
 						accessContext.CurrentAccount.AccountId,
-						accessContext.CurrentSystem.SystemMembershipId,
+						currentSystem.SystemMembershipId,
 						member.MemberId,
 						MemberWriteAuditWriter.MemberEditOperation,
 						requestTrace.TraceId));
@@ -729,7 +733,7 @@ public sealed class MembersController(
 				phase = Globals.projectPhase,
 				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.membersEndpointSegment}/{memberId}",
 				canWrite = true,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				memberId,
 				member
 			});
