@@ -345,6 +345,7 @@ public sealed class WorkspaceAvatarCardTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			folder,

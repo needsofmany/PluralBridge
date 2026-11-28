@@ -138,6 +138,7 @@ public sealed class WorkspaceLoadProfileSwitchTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			"js",

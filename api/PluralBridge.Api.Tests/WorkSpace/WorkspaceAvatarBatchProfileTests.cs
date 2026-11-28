@@ -384,6 +384,7 @@ public sealed class WorkspaceAvatarBatchProfileTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			folder,

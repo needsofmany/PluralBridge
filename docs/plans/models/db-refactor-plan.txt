@@ -585,7 +585,7 @@ Files:
 - `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\legacy-app.js`
 - `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\shell.js`
 - `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\css\shell.css`
-- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\WorkspaceTreeTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\WorkSpace\WorkspaceTreeTests.cs`
 - `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
 
 The full plural-map class remains an owner command because four of its tests open the account database. It was not run for this checkpoint:

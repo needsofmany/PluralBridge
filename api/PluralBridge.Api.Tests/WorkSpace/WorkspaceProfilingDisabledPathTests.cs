@@ -269,6 +269,7 @@ public sealed class WorkspaceProfilingDisabledPathTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			folder,

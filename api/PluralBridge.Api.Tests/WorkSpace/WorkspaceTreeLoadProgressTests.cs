@@ -115,6 +115,7 @@ public sealed class WorkspaceTreeLoadProgressTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			folder,

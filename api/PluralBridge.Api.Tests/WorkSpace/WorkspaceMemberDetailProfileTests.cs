@@ -244,6 +244,7 @@ public sealed class WorkspaceMemberDetailProfileTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			folder,

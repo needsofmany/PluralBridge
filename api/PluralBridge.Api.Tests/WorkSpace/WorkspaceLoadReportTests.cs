@@ -252,6 +252,7 @@ public sealed class WorkspaceLoadReportTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			folder,

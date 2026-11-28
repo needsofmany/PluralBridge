@@ -1171,6 +1171,7 @@ public sealed class WorkspaceAvatarBatchTests
 		return Path.GetFullPath(Path.Combine(
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
+			"..",
 			"PluralBridge.Api",
 			"PluralBridge.Api",
 			"Controllers",
@@ -1185,6 +1186,7 @@ public sealed class WorkspaceAvatarBatchTests
 	{
 		return Path.GetFullPath(Path.Combine(
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
+			"..",
 			"..",
 			"PluralBridge.Api",
 			"PluralBridge.Api",

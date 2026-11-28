@@ -230,6 +230,7 @@ public sealed class WorkspaceLoadProfileRunTests
 			Path.GetDirectoryName(sourceFile) ?? string.Empty,
 			"..",
 			"..",
+			"..",
 			"app",
 			"src",
 			folder,
