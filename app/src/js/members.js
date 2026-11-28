@@ -1062,7 +1062,7 @@ window.PluralBridge.members = (function () {
      *
      * @param {string} accountId Account that owns the preview.
      * @param {string} memberId Member being previewed.
-     * @param {object} fields Name, pronouns, and description are stored from the fields. Color and the other explicit values are merged with the previous preview.
+     * @param {object} fields Name, pronouns, and description are stored from the fields. Color and the other explicit values are merged with the previous preview. A null avatarContentType clears the stored avatar preview.
      * @returns {Promise<object>} Fulfills with saved true for a stored preview, or saved false. It does not reject.
      */
     async function saveMemberProfilePreview(accountId, memberId, fields) {
@@ -1106,6 +1106,9 @@ window.PluralBridge.members = (function () {
         assignVisibilityPreview(record, previous, fields);
         assignPermissionPreview(record, previous, fields);
         assignExplicitPreview(record, previous, fields, "avatarObjectUrl", explicitPreviewAvatar);
+        if (fields && Object.prototype.hasOwnProperty.call(fields, "avatarContentType") && fields.avatarContentType == null) {
+            record.avatarObjectUrl = null;
+        }
         memberProfilePreviewsByAccount[accountKey][memberKey] = record;
 
         console.info("Suppressed member-profile database write. Profile details were held in browser memory for the signed-in account. No profile fields were written to the log.");

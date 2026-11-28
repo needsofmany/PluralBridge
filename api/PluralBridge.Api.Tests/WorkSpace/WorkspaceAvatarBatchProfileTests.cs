@@ -256,11 +256,11 @@ public sealed class WorkspaceAvatarBatchProfileTests
 	{
 		var navigator = File.ReadAllText(SourcePath("js", "navigator.js"));
 		var client = File.ReadAllText(SourcePath("js", "api-client.js"));
-		var request = FunctionBody(navigator, "function requestFirstBatchAvatars(row, request, serial)");
+		var request = FunctionBody(navigator, "function requestFirstBatchAvatars(row, request, serial, skip, pageCards)");
 		var apply = FunctionBody(navigator, "function applyFirstBatchAvatars(images, profileRequest, loadingCards)");
 		var settle = FunctionBody(navigator, "function settleAppliedAvatars(profileRequest, notes)");
 		var mark = FunctionBody(navigator, "function markAvatarProfile(request, name)");
-		var reader = FunctionBody(client, "async function readWorkspaceMemberAvatars(contextId, occurrence, signal, profileId, profileMarks)");
+		var reader = FunctionBody(client, "async function readWorkspaceMemberAvatars(contextId, occurrence, signal, profileId, profileMarks, skip)");
 
 		var start = request.IndexOf("markAvatarProfile(request, \"avatarRequestStart\")", StringComparison.Ordinal);
 		var call = request.IndexOf("readWorkspaceMemberAvatars(", StringComparison.Ordinal);

@@ -105,7 +105,7 @@ public sealed class WorkspaceLoadProfileRunTests
 		var selectAnchor = FunctionBody(navigator, "function selectAnchor(row, profileId, profileRequest)");
 		var openDetails = FunctionBody(navigator, "function loadWorkspaceMemberDetails(row, profileId, profileRequest)");
 		var details = FunctionBody(navigator, "function startMemberDetailRequest(row, skip, request, signal, progress)");
-		var avatars = FunctionBody(navigator, "function requestFirstBatchAvatars(row, request, serial)");
+		var avatars = FunctionBody(navigator, "function requestFirstBatchAvatars(row, request, serial, skip, pageCards)");
 		var next = FunctionBody(navigator, "function requestNextWorkspaceMemberDetails()");
 		var anchorProfiles = FunctionBody(navigator, "function loadAnchorProfiles(row)");
 		var current = load.IndexOf("if (!loadIsCurrent(request))", StringComparison.Ordinal);
@@ -124,7 +124,7 @@ public sealed class WorkspaceLoadProfileRunTests
 		var avatarContext = avatars.IndexOf("capturedContext,", avatarCall, StringComparison.Ordinal);
 		var avatarPath = avatars.IndexOf("pathKey,", avatarContext, StringComparison.Ordinal);
 		var avatarSignal = avatars.IndexOf("openMemberAvatarSignal(),", avatarPath, StringComparison.Ordinal);
-		var avatarId = avatars.IndexOf("request.profileId,", avatarSignal, StringComparison.Ordinal);
+		var avatarId = avatars.IndexOf("avatarSkip === 0 ? request.profileId : null", avatarSignal, StringComparison.Ordinal);
 		Assert.True(avatarCall >= 0 && avatarId > avatarSignal && avatarSignal > avatarPath && avatarPath > avatarContext && avatarContext > avatarCall);
 		Assert.DoesNotContain("profileId", next, StringComparison.Ordinal);
 		Assert.DoesNotContain("X-PB-Workspace-Profile-Id", anchorProfiles, StringComparison.Ordinal);

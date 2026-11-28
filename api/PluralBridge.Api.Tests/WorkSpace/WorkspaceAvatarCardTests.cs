@@ -7,8 +7,9 @@ using PluralBridge.Api.Workspace;
 namespace PluralBridge.Api.Tests;
 
 /// <summary>
-/// The first member-card page accepts its avatar response through the workspace view session.
+/// Member-card pages accept avatar responses through the workspace view session.
 /// These calls exercise that session. They do not execute the browser script or open a database connection.
+/// Tests whose names start with Navigator read the production script and do not run it.
 /// </summary>
 public sealed class WorkspaceAvatarCardTests
 {
@@ -77,33 +78,107 @@ public sealed class WorkspaceAvatarCardTests
 	}
 
 	/// <summary>
-	/// A later page does not request avatars. A failed first-page read keeps the cards and does not request again.
+	/// A later page requests its own avatars. A failed read clears only that page, keeps the cards, and does not request again.
 	/// </summary>
 	[Fact]
-	public void LaterPage_DoesNotRequestAvatarsAndFailureDoesNotRetry()
+	public void LaterPage_RequestsAvatarsAndFailureStaysOnThatPage()
 	{
 		var view = Open("anchor", 25);
 		var generation = view.DetailGeneration;
 		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(1, 20)));
-		Assert.Equal(1, view.Requests.Count(request => request.StartsWith("GET member-avatars ", StringComparison.Ordinal)));
+		Assert.Contains("GET member-avatars context-a anchor 0", view.Requests);
+		view.MemberCards[0].Avatar = "kept";
+		view.MemberCards[0].State = "draft";
+		view.MemberCards[0].Expanded = true;
+		view.MemberScrollTop = 30;
+
 		Assert.True(view.RequestNextPage());
 		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(21, 5)));
-		Assert.Equal(1, view.Requests.Count(request => request.StartsWith("GET member-avatars ", StringComparison.Ordinal)));
+		Assert.Contains("GET member-avatars context-a anchor 20", view.Requests);
+		Assert.Equal(2, view.Requests.Count(request => request.StartsWith("GET member-avatars ", StringComparison.Ordinal)));
 
 		var cards = view.MemberCards.ToArray();
 		var requests = view.Requests.Count;
-		Assert.True(view.FailMemberAvatars(generation, "anchor"));
-		Assert.False(view.FailMemberAvatars(generation, "anchor"));
+		Assert.True(view.FailMemberAvatars(generation, "anchor", 20));
+		Assert.False(view.FailMemberAvatars(generation, "anchor", 20));
 		Assert.Equal(cards, view.MemberCards);
 		Assert.Equal(requests, view.Requests.Count);
-		Assert.All(view.MemberCards, card => Assert.Null(card.Avatar));
+		Assert.All(view.MemberCards.Skip(20), card => Assert.False(card.AvatarLoading));
+		Assert.All(view.MemberCards.Skip(20), card => Assert.Null(card.Avatar));
+		Assert.All(view.MemberCards.Take(20), card => Assert.True(card.AvatarLoading));
+		Assert.Equal("kept", view.MemberCards[0].Avatar);
+		Assert.Equal("draft", view.MemberCards[0].State);
+		Assert.True(view.MemberCards[0].Expanded);
+		Assert.Equal(30, view.MemberScrollTop);
 	}
 
 	/// <summary>
-	/// Every card on the requested page shows its own indicator. A later page does not, because that page does not request avatars.
+	/// A later-page response updates only its cards while the first page is still waiting. A new selection drops both responses.
 	/// </summary>
 	[Fact]
-	public void AvatarLoading_MarksEveryRequestedCardAndSkipsAPageThatDidNotRequest()
+	public void LaterPage_AppliesItsImagesWhileTheFirstRequestIsOpen()
+	{
+		var view = Open("anchor", 25);
+		var generation = view.DetailGeneration;
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(1, 20)));
+		view.MemberCards[0].PendingAvatar = true;
+		view.MemberCards[0].Avatar = "local";
+		view.MemberCards[0].State = "draft";
+		view.MemberCards[0].Expanded = true;
+		view.MemberScrollTop = 11;
+		Assert.True(view.RequestNextPage());
+		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(21, 5)));
+		view.MemberCards[20].PendingAvatar = true;
+		view.MemberCards[20].Avatar = "local-later";
+		view.MemberCards[20].State = "note";
+		view.MemberCards[20].Expanded = true;
+
+		Assert.True(view.AcceptMemberAvatars(generation, "anchor",
+		[
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(22, 1)[0], "green"),
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(23, 1)[0], null),
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(1, 1)[0], "should-not-apply")
+		], 20));
+
+		Assert.Equal("local", view.MemberCards[0].Avatar);
+		Assert.Equal("draft", view.MemberCards[0].State);
+		Assert.True(view.MemberCards[0].Expanded);
+		Assert.True(view.MemberCards[0].AvatarLoading);
+		Assert.Equal("local-later", view.MemberCards[20].Avatar);
+		Assert.Equal("note", view.MemberCards[20].State);
+		Assert.True(view.MemberCards[20].Expanded);
+		Assert.False(view.MemberCards[20].AvatarLoading);
+		Assert.Equal("green", view.MemberCards[21].Avatar);
+		Assert.True(view.MemberCards[21].AvatarLoading);
+		Assert.Null(view.MemberCards[22].Avatar);
+		Assert.False(view.MemberCards[22].AvatarLoading);
+		Assert.Equal(11, view.MemberScrollTop);
+
+		Assert.True(view.AcceptMemberAvatars(generation, "anchor",
+		[
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(1, 1)[0], "red"),
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(21, 1)[0], "late")
+		]));
+		Assert.Equal("local", view.MemberCards[0].Avatar);
+		Assert.Equal("green", view.MemberCards[21].Avatar);
+
+		view.Select("other");
+		Assert.False(view.AcceptMemberAvatars(generation, "anchor",
+		[
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(2, 1)[0], "replaced")
+		]));
+		Assert.False(view.AcceptMemberAvatars(generation, "anchor",
+		[
+			new WorkspaceTreeViewSession.MemberAvatarImage(Ids(21, 1)[0], "replaced")
+		], 20));
+		Assert.Empty(view.MemberCards);
+	}
+
+	/// <summary>
+	/// Every card on a requested page shows its own indicator. The first page stays marked when the next page starts.
+	/// </summary>
+	[Fact]
+	public void AvatarLoading_MarksEveryRequestedCardOnEachPage()
 	{
 		var view = Open("anchor", 25);
 		var generation = view.DetailGeneration;
@@ -113,8 +188,7 @@ public sealed class WorkspaceAvatarCardTests
 
 		Assert.True(view.RequestNextPage());
 		Assert.True(view.AcceptMemberDetails(generation, "anchor", Ids(21, 5)));
-		Assert.All(view.MemberCards.Take(20), card => Assert.True(card.AvatarLoading));
-		Assert.All(view.MemberCards.Skip(20), card => Assert.False(card.AvatarLoading));
+		Assert.All(view.MemberCards, card => Assert.True(card.AvatarLoading));
 	}
 
 	/// <summary>
@@ -214,7 +288,7 @@ public sealed class WorkspaceAvatarCardTests
 		var script = File.ReadAllText(SourcePath("js", "navigator.js"));
 		var cards = File.ReadAllText(SourcePath("js", "member-card.js"));
 		var style = File.ReadAllText(SourcePath("css", "navigator.css"));
-		var request = FunctionBody(script, "function requestFirstBatchAvatars(row, request, serial)");
+		var request = FunctionBody(script, "function requestFirstBatchAvatars(row, request, serial, skip, pageCards)");
 		var cardsIn = FunctionBody(script, "function avatarCardsIn(root)");
 		var apply = FunctionBody(script, "function applyFirstBatchAvatars(images, profileRequest");
 		var card = FunctionBody(cards, "cardDetails.setWorkspaceAvatarLoading = function (loading)");
@@ -230,6 +304,7 @@ public sealed class WorkspaceAvatarCardTests
 		Assert.Contains("querySelectorAll(\".member-card\")", cardsIn, StringComparison.Ordinal);
 		Assert.DoesNotContain("[0]", cardsIn, StringComparison.Ordinal);
 		Assert.Equal(1, detail.Split("requestFirstBatchAvatars(", StringSplitOptions.None).Length - 1);
+		Assert.Contains("requestFirstBatchAvatars(row, request, serial, skip, paintedCards);", detail, StringComparison.Ordinal);
 		Assert.Contains("skip === 0", detail, StringComparison.Ordinal);
 		Assert.Contains("setWorkspaceAvatarLoading(false)", apply, StringComparison.Ordinal);
 		Assert.Contains("navigator-load-progress member-avatar-load", card, StringComparison.Ordinal);
@@ -242,20 +317,23 @@ public sealed class WorkspaceAvatarCardTests
 	}
 
 	/// <summary>
-	/// The browser script requests avatars only after the first card page and applies them through the card.
+	/// The browser script requests avatars after every card page and applies them through the card.
+	/// This reads the source. It does not execute the script.
 	/// </summary>
 	[Fact]
-	public void Navigator_RequestsAvatarsAfterTheFirstCardPage()
+	public void Navigator_RequestsAvatarsAfterEveryCardPage()
 	{
 		var script = File.ReadAllText(SourcePath("js", "navigator.js"));
 		var cards = File.ReadAllText(SourcePath("js", "member-card.js"));
 		var client = File.ReadAllText(SourcePath("js", "api-client.js"));
 		var detail = FunctionBody(script, "function startMemberDetailRequest(row, skip, request, signal, progress)");
-		var avatars = FunctionBody(script, "function requestFirstBatchAvatars(row, request, serial)");
+		var avatars = FunctionBody(script, "function requestFirstBatchAvatars(row, request, serial, skip, pageCards)");
 		var apply = FunctionBody(script, "function applyFirstBatchAvatars(images, profileRequest, loadingCards)");
+		var signal = FunctionBody(script, "function openMemberAvatarSignal()");
+		var begin = FunctionBody(script, "function beginRequest()");
 		var card = FunctionBody(cards, "cardDetails.applyWorkspaceAvatar = function (objectUrl)");
 		var thenStart = detail.IndexOf("paintWorkspaceMemberPage(row, profiles, skip);", StringComparison.Ordinal);
-		var avatarCall = detail.IndexOf("requestFirstBatchAvatars(row, request, serial);", StringComparison.Ordinal);
+		var avatarCall = detail.IndexOf("requestFirstBatchAvatars(row, request, serial, skip, paintedCards);", StringComparison.Ordinal);
 		var thenStale = avatars.IndexOf("serial !== memberDetailSerial", StringComparison.Ordinal);
 		var thenApply = avatars.IndexOf("applyFirstBatchAvatars(images, request", StringComparison.Ordinal);
 
@@ -265,7 +343,12 @@ public sealed class WorkspaceAvatarCardTests
 		var avatarRead = avatars.IndexOf("readWorkspaceMemberAvatars(", StringComparison.Ordinal);
 		var avatarContext = avatars.IndexOf("capturedContext,", avatarRead, StringComparison.Ordinal);
 		var avatarSignal = avatars.IndexOf("openMemberAvatarSignal(),", avatarContext, StringComparison.Ordinal);
-		Assert.True(avatarRead >= 0 && avatarRead < avatarContext && avatarContext < avatarSignal);
+		var avatarSkipArg = avatars.IndexOf("avatarSkip", avatarSignal, StringComparison.Ordinal);
+		Assert.True(avatarRead >= 0 && avatarRead < avatarContext && avatarContext < avatarSignal && avatarSignal < avatarSkipArg);
+		Assert.Contains("avatarSkip === 0 ? request.profileId : null", avatars, StringComparison.Ordinal);
+		Assert.DoesNotContain(".abort()", signal, StringComparison.Ordinal);
+		Assert.Contains("memberAvatarControllers.push(controller)", signal, StringComparison.Ordinal);
+		Assert.Contains("controller.abort()", begin, StringComparison.Ordinal);
 		Assert.DoesNotContain("requestNextWorkspaceMemberDetails()", avatars, StringComparison.Ordinal);
 		Assert.DoesNotContain("showWorkspaceDetailError(", avatars, StringComparison.Ordinal);
 		Assert.DoesNotContain("scrollTop", avatars, StringComparison.Ordinal);
@@ -274,7 +357,8 @@ public sealed class WorkspaceAvatarCardTests
 		Assert.Contains("revokeAvatarObjectUrl(objectUrl)", apply, StringComparison.Ordinal);
 		Assert.Contains("surfaceIsModified(avatarWrap)", card, StringComparison.Ordinal);
 		Assert.Contains("/member-avatars?", client, StringComparison.Ordinal);
-		Assert.Contains("query.set(\"skip\", \"0\")", client, StringComparison.Ordinal);
+		Assert.Contains("const avatarSkip = skip > 0 ? skip : 0;", client, StringComparison.Ordinal);
+		Assert.Contains("query.set(\"skip\", String(avatarSkip));", client, StringComparison.Ordinal);
 	}
 
 	/// <summary>Selects an anchor whose preview has the requested number of direct members.</summary>

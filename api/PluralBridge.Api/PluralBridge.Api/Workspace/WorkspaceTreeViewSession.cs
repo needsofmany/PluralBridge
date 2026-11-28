@@ -11,6 +11,7 @@ namespace PluralBridge.Api.Workspace;
 /// There is no JavaScript test host in this repository. A late generation or a changed mode does not paint.
 /// Workspace selection requests member details for the retained context and does not fall back to the plural-map route.
 /// The first request uses skip 0. A later request uses the next window of 20 unique direct members. One detail request is in flight at a time.
+/// Each accepted window requests avatars for that same skip. Avatar reads from different windows stay outstanding together. A new selection drops them.
 /// Skip advances by that window, including when the response omits profiles. A failed window keeps the cards and the same skip.
 /// Legacy selection still requests the anchor profile route. A late detail response does not paint.
 /// This specification starts with the flag off. The browser initializer sets workspaceTreeEnabled to true when the property is absent.
@@ -31,8 +32,8 @@ internal sealed class WorkspaceTreeViewSession
 	private string? _inflightPath;
 	private int _inflightSkip;
 	private int _inflightGeneration;
-	private bool _firstBatchAvatarsRequested;
-	private bool _firstBatchAvatarsFailed;
+	private readonly HashSet<int> _avatarPagesRequested = new();
+	private readonly HashSet<int> _avatarPagesFailed = new();
 
 	/// <summary>True when the developer flag selects the new tree.</summary>
 	public bool WorkspaceTreeEnabled { get; private set; }
@@ -368,6 +369,7 @@ internal sealed class WorkspaceTreeViewSession
 
 		var completedSkip = _inflightSkip;
 		var shown = new HashSet<string>(_cards.Select(card => card.MemberId), StringComparer.OrdinalIgnoreCase);
+		var painted = new List<MemberCardView>();
 		foreach (var id in DirectMemberIds(path).Skip(completedSkip).Take(MemberDetailBatchSize))
 		{
 			if (!shown.Add(id) || !profileIds.Any(profileId => string.Equals(profileId, id, StringComparison.OrdinalIgnoreCase)))
@@ -375,16 +377,17 @@ internal sealed class WorkspaceTreeViewSession
 				continue;
 			}
 
-			_cards.Add(new MemberCardView(id));
+			var card = new MemberCardView(id);
+			_cards.Add(card);
+			painted.Add(card);
 		}
 
 		DetailInFlight = false;
 		DetailError = null;
 		DetailSkip = completedSkip + MemberDetailBatchSize;
-		if (completedSkip == 0 && _cards.Count > 0 && !_firstBatchAvatarsRequested)
+		if (painted.Count > 0 && _avatarPagesRequested.Add(completedSkip))
 		{
-			_firstBatchAvatarsRequested = true;
-			foreach (var card in _cards)
+			foreach (var card in painted)
 			{
 				if (!card.PendingAvatar)
 				{
@@ -392,7 +395,9 @@ internal sealed class WorkspaceTreeViewSession
 				}
 			}
 
-			Record("GET member-avatars " + ContextId + " " + path + " 0", completedSkip == 0 ? _openProfileId : null);
+			Record(
+				"GET member-avatars " + ContextId + " " + path + " " + completedSkip.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				completedSkip == 0 ? _openProfileId : null);
 		}
 		if (DetailSkip >= DirectMemberIds(path).Count)
 		{
@@ -407,25 +412,27 @@ internal sealed class WorkspaceTreeViewSession
 	}
 
 	/// <summary>
-	/// Applies the first-page avatar response to cards already shown. A null image leaves the placeholder and removes that card's indicator.
-	/// A pending avatar edit, the card text, expansion, and scroll position stay as they are. An image is applied immediately and keeps its indicator until <see cref="SettleMemberAvatar"/>.
+	/// Applies one page's avatar response to the cards that page painted. A null image leaves the placeholder and removes that card's indicator.
+	/// A pending avatar edit, the card text, expansion, scroll position, and cards from another page stay as they are. An image is applied immediately and keeps its indicator until <see cref="SettleMemberAvatar"/>.
 	/// </summary>
 	/// <param name="generation">The generation captured when the selection started.</param>
 	/// <param name="path">The path whose images arrived.</param>
 	/// <param name="images">Member images in response order. Null image text means the member has no image.</param>
-	/// <returns>True when this response still belongs to the first page of the visible selection.</returns>
-	/// <remarks>A later page does not request avatars. A stale generation or path does not change the cards or their indicators.</remarks>
-	public bool AcceptMemberAvatars(int generation, string path, IReadOnlyList<MemberAvatarImage> images)
+	/// <param name="skip">The window this response belongs to. Zero is the first page.</param>
+	/// <returns>True when this response still belongs to that page of the visible selection.</returns>
+	/// <remarks>A stale generation or path does not change the cards or their indicators. An image for a member outside the window is ignored.</remarks>
+	public bool AcceptMemberAvatars(int generation, string path, IReadOnlyList<MemberAvatarImage> images, int skip = 0)
 	{
-		if (!FirstBatchAvatarResponseIsCurrent(generation, path))
+		if (!AvatarPageResponseIsCurrent(generation, path, skip))
 		{
 			return false;
 		}
 
+		var pageIds = PageMemberIds(path, skip);
 		var addressed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (var image in images)
 		{
-			if (!TryMemberId(image.MemberId, out var id))
+			if (!TryMemberId(image.MemberId, out var id) || !pageIds.Contains(id))
 			{
 				continue;
 			}
@@ -448,7 +455,7 @@ internal sealed class WorkspaceTreeViewSession
 
 		foreach (var card in _cards)
 		{
-			if (card.AvatarLoading && !addressed.Contains(card.MemberId))
+			if (pageIds.Contains(card.MemberId) && card.AvatarLoading && !addressed.Contains(card.MemberId))
 			{
 				card.AvatarLoading = false;
 			}
@@ -466,7 +473,14 @@ internal sealed class WorkspaceTreeViewSession
 	/// <returns>True when that card still belongs to the visible avatar request.</returns>
 	public bool SettleMemberAvatar(int generation, string path, string memberId)
 	{
-		if (!FirstBatchAvatarResponseIsCurrent(generation, path) || !TryMemberId(memberId, out var id))
+		if (!TryMemberId(memberId, out var id))
+		{
+			return false;
+		}
+
+		var memberIndex = DirectMemberIds(path).FindIndex(candidate => string.Equals(candidate, id, StringComparison.OrdinalIgnoreCase));
+		var memberSkip = memberIndex < 0 ? -1 : memberIndex / MemberDetailBatchSize * MemberDetailBatchSize;
+		if (memberSkip < 0 || !AvatarPageResponseIsCurrent(generation, path, memberSkip))
 		{
 			return false;
 		}
@@ -482,37 +496,53 @@ internal sealed class WorkspaceTreeViewSession
 	}
 
 	/// <summary>
-	/// Records a failed first-page avatar read. The cards stay, and the failure does not request the images again.
+	/// Records a failed avatar read for one page. The cards stay, and the failure does not request that page again.
 	/// </summary>
 	/// <param name="generation">The generation captured when the selection started.</param>
 	/// <param name="path">The path whose image request failed.</param>
-	/// <returns>True when the failure still belongs to the visible first page. A second failure does not add a request.</returns>
-	public bool FailMemberAvatars(int generation, string path)
+	/// <param name="skip">The window that failed. Zero is the first page.</param>
+	/// <returns>True when the failure still belongs to that visible page. A second failure for the same page does not add a request.</returns>
+	public bool FailMemberAvatars(int generation, string path, int skip = 0)
 	{
-		if (!FirstBatchAvatarResponseIsCurrent(generation, path) || _firstBatchAvatarsFailed)
+		if (!AvatarPageResponseIsCurrent(generation, path, skip) || !_avatarPagesFailed.Add(skip))
 		{
 			return false;
 		}
 
-		_firstBatchAvatarsFailed = true;
+		var pageIds = PageMemberIds(path, skip);
 		foreach (var card in _cards)
 		{
-			card.AvatarLoading = false;
+			if (pageIds.Contains(card.MemberId))
+			{
+				card.AvatarLoading = false;
+			}
 		}
 
 		return true;
 	}
 
-	/// <summary>The first-page avatar response is current only after that page requested it and the selection is unchanged.</summary>
+	/// <summary>An avatar response is current only after that page requested it and the selection is unchanged.</summary>
 	/// <param name="generation">The generation captured when the selection started.</param>
 	/// <param name="path">The path whose response arrived.</param>
-	/// <returns>True when the response may update the visible first page.</returns>
-	private bool FirstBatchAvatarResponseIsCurrent(int generation, string path)
+	/// <param name="skip">The window this response belongs to.</param>
+	/// <returns>True when the response may update that visible page.</returns>
+	private bool AvatarPageResponseIsCurrent(int generation, string path, int skip)
 	{
-		return _firstBatchAvatarsRequested
+		return _avatarPagesRequested.Contains(skip)
 			&& generation == DetailGeneration
 			&& generation == _generation
 			&& string.Equals(SelectedPath, path, StringComparison.Ordinal);
+	}
+
+	/// <summary>Member ids in one window. The first window starts at zero.</summary>
+	/// <param name="path">The selected occurrence path.</param>
+	/// <param name="skip">Unique direct members this window passed over.</param>
+	/// <returns>The ids this window may update.</returns>
+	private HashSet<string> PageMemberIds(string path, int skip)
+	{
+		return new HashSet<string>(
+			DirectMemberIds(path).Skip(skip).Take(MemberDetailBatchSize),
+			StringComparer.OrdinalIgnoreCase);
 	}
 
 	/// <summary>
@@ -589,8 +619,8 @@ internal sealed class WorkspaceTreeViewSession
 		_inflightPath = null;
 		_inflightSkip = 0;
 		_inflightGeneration = 0;
-		_firstBatchAvatarsRequested = false;
-		_firstBatchAvatarsFailed = false;
+		_avatarPagesRequested.Clear();
+		_avatarPagesFailed.Clear();
 		_cards.Clear();
 	}
 

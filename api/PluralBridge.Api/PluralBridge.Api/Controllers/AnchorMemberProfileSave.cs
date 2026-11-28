@@ -877,21 +877,31 @@ internal static class AnchorMemberProfileSave
 	/// <summary>
 	/// Accepts an optional avatar from the save body without writing it.
 	/// </summary>
-	/// <param name="request">Save body. Null, or both avatar fields undefined, means no avatar change. One field without the other fails.</param>
-	/// <param name="avatar">The accepted bytes, declared type, and header dimensions when validation succeeds. Null when no avatar was submitted or validation fails.</param>
+	/// <param name="request">Save body. Null, or both avatar fields undefined, means no avatar change. Both JSON null means remove the stored image. One field without the other fails.</param>
+	/// <param name="avatar">The accepted bytes, declared type, and header dimensions when validation succeeds. Null when no image was submitted, the image is being removed, or validation fails.</param>
+	/// <param name="remove">True when both avatar fields are JSON null. False when the image is unchanged or replaced.</param>
 	/// <param name="error">The validation message when the method returns false. Null when it returns true.</param>
-	/// <returns>True when no avatar was submitted, or the base64 decodes to a non-empty payload of at most 2 MiB whose declared-format signature yields header dimensions of at most 2048 pixels on an edge. The complete image is not decoded.</returns>
+	/// <returns>True when no avatar was submitted, both fields are JSON null, or the base64 decodes to a non-empty payload of at most 2 MiB whose declared-format signature yields header dimensions of at most 2048 pixels on an edge. The complete image is not decoded.</returns>
 	internal static bool TryPrepareAvatar(
 		AnchorMemberProfileSaveRequest? request,
 		out PreparedAvatar? avatar,
+		out bool remove,
 		out string? error)
 	{
 		avatar = null;
+		remove = false;
 		error = null;
 		if (request is null
 			|| request.AvatarContentType.ValueKind is JsonValueKind.Undefined
 			&& request.AvatarImageBase64.ValueKind is JsonValueKind.Undefined)
 		{
+			return true;
+		}
+
+		if (request.AvatarContentType.ValueKind is JsonValueKind.Null
+			&& request.AvatarImageBase64.ValueKind is JsonValueKind.Null)
+		{
+			remove = true;
 			return true;
 		}
 
@@ -1013,6 +1023,35 @@ internal static class AnchorMemberProfileSave
 		command.Parameters.Add("@Height", SqlDbType.Int).Value = avatar.Height;
 		command.Parameters.Add("@ByteSize", SqlDbType.Int).Value = avatar.Bytes.Length;
 		command.Parameters.Add("@ImageBytes", SqlDbType.VarBinary, -1).Value = avatar.Bytes;
+		await command.ExecuteNonQueryAsync(cancellationToken);
+	}
+
+	/// <summary>
+	/// Deletes the one avatar stored for the member. A member with no row is unchanged.
+	/// </summary>
+	/// <param name="connection">Open connection that owns <paramref name="transaction"/>.</param>
+	/// <param name="transaction">The profile transaction. This method does not authorize or commit.</param>
+	/// <param name="memberId">Member whose avatar row is deleted. Other members are not affected.</param>
+	/// <param name="cancellationToken">Cancels the command. Cancellation does not commit.</param>
+	/// <returns>The task completes when the delete has run.</returns>
+	/// <exception cref="Microsoft.Data.SqlClient.SqlException">51018 when pb_member_avatars is not installed.</exception>
+	internal static async Task RemoveAvatarAsync(
+		SqlConnection connection,
+		SqlTransaction transaction,
+		Guid memberId,
+		CancellationToken cancellationToken)
+	{
+		const string sql = """
+			SET NOCOUNT ON;
+			IF OBJECT_ID(N'dbo.pb_member_avatars', N'U') IS NULL
+			    THROW 51018, 'Avatar storage is not installed.', 1;
+
+			DELETE FROM dbo.pb_member_avatars
+			WHERE MemberId = @MemberId;
+			""";
+
+		await using var command = new SqlCommand(sql, connection, transaction);
+		command.Parameters.Add("@MemberId", SqlDbType.UniqueIdentifier).Value = memberId;
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
 

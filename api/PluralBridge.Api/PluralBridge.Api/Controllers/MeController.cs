@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using PluralBridge.Api.Workspace;
 using System.Data;
 using System.Diagnostics;
 using System.Globalization;
@@ -26,7 +27,8 @@ namespace PluralBridge.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class MeController(
 	IConfiguration configuration,
-	ILogger<MeController> logger) : ControllerBase
+	ILogger<MeController> logger,
+	WorkspaceContextStore contexts) : ControllerBase
 {
 	/// <summary>
 	/// Returns the legacy read-only access proof for the authenticated session.
@@ -291,7 +293,7 @@ public sealed class MeController(
 	/// <param name="request">Save body. Null or an anchor that is not a system, group, or place id is HTTP 400. Omitted fields are not written.</param>
 	/// <param name="cancellationToken">Cancels the connection, authorization, or write. A cancelled request is not mapped as a save failure.</param>
 	/// <returns>
-	/// HTTP 200 with the stored profile when the transaction commits. The profile object always includes the placement and avatar properties. Placement values are null for settings this response does not return as saved. avatarSaved says whether this request saved an avatar, and avatarUrl is null when it did not.
+	/// HTTP 200 with the stored profile when the transaction commits. The profile object always includes the placement and avatar properties. Placement values are null for settings this response does not return as saved. avatarSaved is true when this request stored or removed an avatar. avatarUrl is the image route after a store and null after a removal or when the avatar was not part of the save.
 	/// HTTP 401 when the session has no account. Validation and SQL authorization failures use their mapped status codes.
 	/// </returns>
 	/// <remarks>Profile, placement, and avatar commit in one transaction after authorization. Fronting is not part of this save.</remarks>
@@ -327,7 +329,7 @@ public sealed class MeController(
 				memberId);
 		}
 
-		if (!AnchorMemberProfileSave.TryPrepareAvatar(request, out var avatar, out var avatarError))
+		if (!AnchorMemberProfileSave.TryPrepareAvatar(request, out var avatar, out var removeAvatar, out var avatarError))
 		{
 			return AnchorProfileSaveError(
 				StatusCodes.Status400BadRequest,
@@ -419,8 +421,20 @@ public sealed class MeController(
 						avatar,
 						cancellationToken);
 				}
+				else if (removeAvatar)
+				{
+					await AnchorMemberProfileSave.RemoveAvatarAsync(
+						connection,
+						transaction,
+						memberId,
+						cancellationToken);
+				}
 
 				await transaction.CommitAsync(cancellationToken);
+				if (removeAvatar)
+				{
+					contexts.ReleaseRetainedAvatar(account.AccountId, profile.MemberId);
+				}
 
 				return Ok(new
 				{
@@ -451,7 +465,7 @@ public sealed class MeController(
 						placementPermissionCode = storedPlacement is { SetPermission: true }
 							? storedPlacement.PermissionCode
 							: null,
-						avatarSaved = avatar is not null,
+						avatarSaved = avatar is not null || removeAvatar,
 						avatarUrl = avatar is not null
 							? "/api/me/members/" + profile.MemberId.ToString("D") + "/avatar"
 							: null

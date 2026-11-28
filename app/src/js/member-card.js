@@ -1,7 +1,7 @@
 ﻿/**
  * Member-card editor. One card shows drafts, tracks modified controls, and saves or restores them.
  * Depends on window.PluralBridge.changeTracking for markers, leave, and shared updates. The navigator supplies saveProfile and saveFronting.
- * Direct Save and Cancel keep the card expanded. Fronting, when saveFronting is supplied, persists immediately and is not part of the profile body. Avatar bytes stay a local preview until Save confirms them.
+ * Direct Save and Cancel keep the card expanded. Fronting, when saveFronting is supplied, persists immediately and is not part of the profile body. Avatar bytes stay a local preview until Save confirms them. Remove avatar clears that preview and stays pending until Save or Cancel.
  * @param {object} member Initial member fields. Missing text is treated as empty. A missing member id is not invented.
  * @param {object} [options] Editing, preview, saveProfile, and saveFronting callbacks. A missing saveProfile uses the legacy edit path when that exists.
  * @returns {HTMLDetailsElement} The card element.
@@ -875,7 +875,7 @@ function createMemberAccordion(member, options) {
          * @param {Element|null} control A missing control is skipped.
          * @returns {void} Nothing is returned.
          */
-        [frontingButton, sharingButton, colorPencil, colorInput, avatarPencil, avatarFile].forEach(function (control) {
+        [frontingButton, sharingButton, colorPencil, colorInput, avatarPencil, avatarRemove, avatarFile].forEach(function (control) {
             if (control) {
                 control.disabled = isBusy;
             }
@@ -1211,6 +1211,8 @@ function createMemberAccordion(member, options) {
             return { saved: false, message: message };
         }
 
+        const removingAvatar = Boolean(pendingAvatar && pendingAvatar.remove === true);
+
         if (options && typeof options.saveProfile === "function") {
             setProfileBusy(true);
             setProfileStatus("Saving member.");
@@ -1272,6 +1274,15 @@ function createMemberAccordion(member, options) {
                             }
                             paintAvatar();
                             saved.push(avatarWrap);
+                        } else if (removingAvatar && outcome.profile.avatarSaved === true) {
+                            pendingAvatar = null;
+                            persistedValues.avatarObjectUrl = null;
+                            draftValues.avatarObjectUrl = null;
+                            if (member) {
+                                member.avatarObjectUrl = null;
+                            }
+                            paintAvatar();
+                            saved.push(avatarWrap);
                         }
                         changes.commit(cardDetails, saved);
                     }
@@ -1281,7 +1292,15 @@ function createMemberAccordion(member, options) {
                             avatarObjectUrl: outcome.profile.avatarUrl
                         }, cardDetails);
                     }
-                    if (before.indexOf(avatarWrap) >= 0 && !(outcome.profile.avatarSaved === true && outcome.profile.avatarUrl)) {
+                    if (removingAvatar && outcome.profile.avatarSaved === true && changes) {
+                        changes.publishShared(getMemberIdForSave(), {
+                            avatarObjectUrl: null
+                        }, cardDetails);
+                    }
+                    const avatarConfirmed = outcome.profile.avatarSaved === true && (
+                        outcome.profile.avatarUrl || removingAvatar
+                    );
+                    if (before.indexOf(avatarWrap) >= 0 && !avatarConfirmed) {
                         const message = "The avatar was not saved.";
                         setProfileStatus(message, "error");
                         return { saved: false, message: message };
@@ -1297,6 +1316,10 @@ function createMemberAccordion(member, options) {
                     }
                 } else {
                     applySuccessfulSave();
+                    if (removingAvatar) {
+                        pendingAvatar = null;
+                        paintAvatar();
+                    }
                     if (changes) {
                         changes.commit(cardDetails, before);
                     }
@@ -1564,9 +1587,15 @@ function createMemberAccordion(member, options) {
         }
 
         if (changes && marked.indexOf(avatarWrap) >= 0 && pendingAvatar) {
-            payload.avatarContentType = pendingAvatar.contentType;
-            payload.avatarImageBase64 = pendingAvatar.base64;
-            payload.avatarObjectUrl = draftValues.avatarObjectUrl;
+            if (pendingAvatar.remove === true) {
+                payload.avatarContentType = null;
+                payload.avatarImageBase64 = null;
+                payload.avatarObjectUrl = null;
+            } else {
+                payload.avatarContentType = pendingAvatar.contentType;
+                payload.avatarImageBase64 = pendingAvatar.base64;
+                payload.avatarObjectUrl = draftValues.avatarObjectUrl;
+            }
         }
 
         return payload;
@@ -1657,6 +1686,14 @@ function createMemberAccordion(member, options) {
     avatarPencil.title = "Choose an avatar image";
     avatarPencil.appendChild(createMemberActionIcon("edit"));
 
+    const avatarRemove = document.createElement("button");
+    avatarRemove.type = "button";
+    avatarRemove.className = "member-avatar-remove";
+    avatarRemove.hidden = true;
+    avatarRemove.textContent = "Remove";
+    avatarRemove.setAttribute("aria-label", "Remove avatar");
+    avatarRemove.title = "Remove avatar";
+
     const avatarFile = document.createElement("input");
     avatarFile.type = "file";
     avatarFile.accept = "image/png,image/jpeg,image/webp";
@@ -1745,6 +1782,7 @@ function createMemberAccordion(member, options) {
     avatarWrap.appendChild(avatarPlaceholder);
     if (previewHeader) {
         avatarWrap.appendChild(avatarPencil);
+        avatarWrap.appendChild(avatarRemove);
         avatarWrap.appendChild(avatarFile);
     }
     summaryMain.appendChild(avatarWrap);
@@ -2201,6 +2239,7 @@ function createMemberAccordion(member, options) {
         avatarPlaceholder.classList.remove("is-neutral");
         if (!draftValues.avatarObjectUrl) {
             avatarPlaceholder.hidden = false;
+            syncRemoveAvatar();
             return;
         }
 
@@ -2210,6 +2249,42 @@ function createMemberAccordion(member, options) {
         preview.alt = "";
         preview.src = draftValues.avatarObjectUrl;
         avatarWrap.insertBefore(preview, avatarPencil);
+        syncRemoveAvatar();
+    }
+
+    /**
+     * Shows Remove avatar while a saved image or a pending upload is visible.
+     * A pending removal has neither, so the button stays hidden until Cancel or a new image restores one.
+     * @returns {void} Nothing is returned.
+     */
+    function syncRemoveAvatar() {
+        if (!avatarRemove) {
+            return;
+        }
+
+        const pendingUpload = Boolean(pendingAvatar && pendingAvatar.remove !== true && pendingAvatar.base64);
+        avatarRemove.hidden = !draftValues.avatarObjectUrl && !pendingUpload;
+    }
+
+    /**
+     * Marks the current image for removal and shows the generated placeholder.
+     * A later avatar response cannot replace this draft while the avatar control stays marked.
+     * @returns {void} Nothing is returned.
+     */
+    function removeAvatar() {
+        if (isSaving) {
+            return;
+        }
+
+        releaseUnsavedAvatar();
+        pendingAvatar = { remove: true };
+        draftValues.avatarObjectUrl = null;
+        if (member) {
+            member.avatarObjectUrl = null;
+        }
+        notifyEdited(avatarWrap);
+        paintAvatar();
+        updateSaveButtonState();
     }
 
     /**
@@ -2640,6 +2715,17 @@ function createMemberAccordion(member, options) {
         }
         avatarPencil.addEventListener("mousedown", keepHeaderClick);
         avatarPencil.addEventListener("click", openAvatarChooser);
+        avatarRemove.addEventListener("mousedown", keepHeaderClick);
+        /**
+         * Removes the visible avatar without opening the file chooser.
+         *
+         * @param {MouseEvent} event Click on Remove avatar.
+         * @returns {void} Nothing is returned.
+         */
+        avatarRemove.addEventListener("click", function (event) {
+            keepHeaderClick(event);
+            removeAvatar();
+        });
         /**
          * Stops an avatar pointerdown, except the file input itself, from toggling the card.
          *
@@ -2659,7 +2745,7 @@ function createMemberAccordion(member, options) {
          * @returns {void} Nothing is returned.
          */
         avatarWrap.addEventListener("click", function (event) {
-            if (event.target === avatarFile || event.target === avatarPencil || avatarPencil.contains(event.target)) {
+            if (event.target === avatarFile || event.target === avatarPencil || avatarPencil.contains(event.target) || event.target === avatarRemove) {
                 return;
             }
             openAvatarChooser(event);

@@ -115,6 +115,30 @@ public sealed class WorkspaceContextStore
 	}
 
 	/// <summary>
+	/// Drops one member's retained image from every context held for the account.
+	/// </summary>
+	/// <param name="accountId">The authenticated account. Another account's contexts are left unchanged.</param>
+	/// <param name="memberId">The member whose saved avatar was removed.</param>
+	/// <returns>How many contexts had an entry removed.</returns>
+	/// <remarks>A context that did not retain that member is unchanged. This does not remove the context itself.</remarks>
+	internal int ReleaseRetainedAvatar(Guid accountId, Guid memberId)
+	{
+		lock (_gate)
+		{
+			var released = 0;
+			foreach (var entry in _entries.Values)
+			{
+				if (entry.Context.AccountId == accountId && entry.Context.ReleaseAvatar(memberId))
+				{
+					released++;
+				}
+			}
+
+			return released;
+		}
+	}
+
+	/// <summary>
 	/// Removes the context when the account matches. A missing id and another account's id do nothing.
 	/// </summary>
 	/// <param name="accountId">The authenticated account.</param>

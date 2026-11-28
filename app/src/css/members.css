@@ -1643,9 +1643,31 @@
 }
 
 .member-avatar-pencil:focus-visible,
-.member-color-pencil:focus-visible {
+.member-color-pencil:focus-visible,
+.member-avatar-remove:focus-visible {
 	outline: 2px solid var(--pb-focus);
 	outline-offset: 1px;
+}
+
+.member-avatar-remove {
+	position: absolute;
+	top: 0.15rem;
+	left: 0.15rem;
+	z-index: 2;
+	max-width: calc(100% - 0.3rem);
+	padding: 0.05rem 0.28rem;
+	border: 0;
+	border-radius: 999px;
+	background: var(--pb-card-control-bg);
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.28);
+	color: var(--pb-text-strong);
+	font-size: 0.68rem;
+	line-height: 1.2;
+	cursor: pointer;
+}
+
+.member-avatar-remove[hidden] {
+	display: none;
 }
 
 .member-avatar-wrap:hover .member-avatar-pencil,

@@ -1,6 +1,6 @@
 /**
  * Plural-map navigator. Loads /api/me/plural-map, draws the occurrence tree, and loads anchor member profiles for the selected anchor.
- * When developerTools.workspaceTreeEnabled is strictly true, the same view loads /api/me/workspace-tree, keeps that context id, and loads direct member cards for the selected anchor. The first window uses skip 0 and then requests that page's avatars. Later windows append cards and do not request avatars. The developer-tools initializer sets that flag to true when it is absent. Strict false keeps the plural-map path and its profile route.
+ * When developerTools.workspaceTreeEnabled is strictly true, the same view loads /api/me/workspace-tree, keeps that context id, and loads direct member cards for the selected anchor. Each window requests that page's avatars with the same skip. Those avatar reads stay in flight together. A new selection aborts every avatar read from the previous selection. The developer-tools initializer sets that flag to true when it is absent. Strict false keeps the plural-map path and its profile route.
  * Depends on window.PluralBridge.apiClient, window.PluralBridge.members, window.PluralBridge.memberChanges, and createMemberAccordion.
  * A newer selection aborts the previous profile request. A response is painted only when its generation and selected path still match.
  */
@@ -25,7 +25,7 @@ window.PluralBridge.navigator = (function () {
     let selectionGeneration = 0;
     let activeController = null;
     let memberDetailController = null;
-    let memberAvatarController = null;
+    let memberAvatarControllers = [];
     let memberDetailSerial = 0;
     let memberDetailInFlight = false;
     let memberDetailSkip = 0;
@@ -385,10 +385,10 @@ window.PluralBridge.navigator = (function () {
             memberDetailController = null;
         }
 
-        if (memberAvatarController) {
-            memberAvatarController.abort();
-            memberAvatarController = null;
-        }
+        memberAvatarControllers.forEach(function (controller) {
+            controller.abort();
+        });
+        memberAvatarControllers = [];
 
         if (activeController) {
             activeController.abort();
@@ -416,16 +416,13 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
-     * Starts the first-page avatar read. A later member page does not abort it. A new selection does, through beginRequest.
+     * Starts one page's avatar read. Another page's read keeps its own signal. A new selection aborts every signal through beginRequest.
      * @returns {AbortSignal} The signal for this avatar read.
      */
     function openMemberAvatarSignal() {
-        if (memberAvatarController) {
-            memberAvatarController.abort();
-        }
-
-        memberAvatarController = new AbortController();
-        return memberAvatarController.signal;
+        const controller = new AbortController();
+        memberAvatarControllers.push(controller);
+        return controller.signal;
     }
 
     /**
@@ -783,7 +780,7 @@ window.PluralBridge.navigator = (function () {
      * @param {object} profile Profile row for this member.
      * @param {string} id Normalized member id.
      * @param {boolean} includeAvatar False leaves the card image empty.
-     * @returns {void}
+     * @returns {HTMLElement|null} The card that was appended.
      * @throws {Error} When createMemberAccordion is not a function.
      */
     function appendMemberCard(list, row, profile, id, includeAvatar) {
@@ -854,6 +851,7 @@ window.PluralBridge.navigator = (function () {
             card.setAttribute("data-member-id", id);
         }
         list.appendChild(card);
+        return card;
     }
 
     /**
@@ -1146,11 +1144,12 @@ window.PluralBridge.navigator = (function () {
      * @param {object} row Selected anchor.
      * @param {Array<object>} profiles Profile rows for this window.
      * @param {number} skip Unique direct members this window passed over.
-     * @returns {void}
+     * @returns {Array<HTMLElement>} The cards this call appended. Cards already shown are not included.
      */
     function paintWorkspaceMemberPage(row, profiles, skip) {
+        const painted = [];
         if (!detail) {
-            return;
+            return painted;
         }
 
         const profilesById = {};
@@ -1185,7 +1184,10 @@ window.PluralBridge.navigator = (function () {
             }
 
             shownMemberIds[id] = true;
-            appendMemberCard(list, row, profilesById[id], id, false);
+            const card = appendMemberCard(list, row, profilesById[id], id, false);
+            if (card) {
+                painted.push(card);
+            }
         });
 
         const body = memberCardScroller(section);
@@ -1201,6 +1203,8 @@ window.PluralBridge.navigator = (function () {
         } else if (empty) {
             empty.remove();
         }
+
+        return painted;
     }
 
     /**
@@ -1231,16 +1235,23 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
-     * Requests avatars for the cards just painted on the first page.
-     * A later page does not call this. Failure leaves those cards in place and does not request again.
+     * Requests avatars for the cards just painted on one member page.
+     * The skip is the same window the cards used. A later page does not replace another page's read. Failure leaves those cards in place and does not request that page again.
+     * The workspace-open profile is recorded only for skip 0.
      * @param {object} row Selected anchor.
-     * @param {{generation: number, profileId: string|null}} request Generation captured for this selection, and the workspace-open run id when this page belongs to that open.
+     * @param {{generation: number, profileId: string|null}} request Generation captured for this selection. The workspace-open run id is present only on the first window of that open.
      * @param {number} serial Detail serial captured when the card request started.
+     * @param {number} skip Unique direct members this page passed over. Zero is the first page.
+     * @param {Array<HTMLElement>} pageCards Cards this page appended. An empty first page publishes the open report and does not request.
      * @returns {void}
      */
-    function requestFirstBatchAvatars(row, request, serial) {
-        if (!detail || !detail.querySelector(".member-card")) {
-            publishWorkspaceLoadReport(request);
+    function requestFirstBatchAvatars(row, request, serial, skip, pageCards) {
+        const avatarSkip = skip > 0 ? skip : 0;
+        const loadingCards = Array.isArray(pageCards) ? pageCards.slice() : [];
+        if (loadingCards.length === 0) {
+            if (avatarSkip === 0) {
+                publishWorkspaceLoadReport(request);
+            }
             return;
         }
 
@@ -1259,18 +1270,17 @@ window.PluralBridge.navigator = (function () {
             return;
         }
 
-        if (request.treeProfile) {
+        if (avatarSkip === 0 && request.treeProfile) {
             markAvatarProfile(request, "avatarRequestStart");
         }
 
-        const loadingCards = avatarCardsIn(detail);
         setCardsAvatarLoading(loadingCards, true);
         apiClient.readWorkspaceMemberAvatars(
             capturedContext,
             pathKey,
             openMemberAvatarSignal(),
-            request.profileId,
-            request.treeProfile ? {
+            avatarSkip === 0 ? request.profileId : null,
+            avatarSkip === 0 && request.treeProfile ? {
                 onResponse: function (response) {
                     if (request.treeProfile.avatarBrowser && response.headers && typeof response.headers.get === "function") {
                         request.treeProfile.avatarBrowser.serverHeader = response.headers.get("X-PB-Workspace-Profile");
@@ -1282,7 +1292,8 @@ window.PluralBridge.navigator = (function () {
                 jsonParsed: function () {
                     markAvatarProfile(request, "avatarJsonParsed");
                 }
-            } : null
+            } : null,
+            avatarSkip
         )
             /**
              * Paints images onto the cards already shown. A stale response is dropped before it creates an object URL.
@@ -1648,7 +1659,7 @@ window.PluralBridge.navigator = (function () {
                     return;
                 }
 
-                paintWorkspaceMemberPage(row, profiles, skip);
+                const paintedCards = paintWorkspaceMemberPage(row, profiles, skip);
                 if (skip === 0) {
                     if (request.treeProfile) {
                         request.treeProfile.cardCount = profiles.length;
@@ -1656,8 +1667,9 @@ window.PluralBridge.navigator = (function () {
                     }
 
                     markMemberProfile(request, "memberCardsDom");
-                    requestFirstBatchAvatars(row, request, serial);
                 }
+
+                requestFirstBatchAvatars(row, request, serial, skip, paintedCards);
                 memberDetailSkip = skip + memberDetailBatchSize;
                 if (memberDetailSkip >= directMemberIds(pathKey).length) {
                     memberDetailExhausted = true;
@@ -1761,7 +1773,7 @@ window.PluralBridge.navigator = (function () {
 
     /**
      * Loads the first direct-member window for the selected anchor in the retained workspace context.
-     * A late response is ignored. Later windows append cards. The first window requests avatars after its cards are shown.
+     * A late response is ignored. Later windows append cards and request avatars for the cards they added. The first window also records the workspace-open profile.
      * @param {object} row Selected anchor. A missing context id shows an error when this request is still current.
      * @param {string|null} [profileId] Run id captured by the workspace open that is selecting its first anchor. A later selection omits it.
      * @param {object} [profileRequest] The workspace-open request. Its profile supplies the origin for the first member page.

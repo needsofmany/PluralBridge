@@ -199,20 +199,22 @@ window.PluralBridge.apiClient = (function () {
     }
 
     /**
-     * Reads the first page of avatar bytes for the same occurrence as the member cards.
+     * Reads one page of avatar bytes for the same occurrence and skip as the member cards.
      * The server authorizes that page before it returns images. A null image leaves the card placeholder.
      * @param {string} contextId Opaque context id from the workspace-tree response.
      * @param {string} occurrence Selected anchor path.
      * @param {AbortSignal} [signal] Abort signal for this load. Abort rejects the returned promise.
-     * @param {string|null} [profileId] Run id captured for the workspace open. Omitted sends no profiling header.
+     * @param {string|null} [profileId] Run id captured for the workspace open. Omitted sends no profiling header. A later page omits it.
      * @param {{onResponse: function, bodyReceived: function, jsonParsed: function}|null} [profileMarks] First-batch timing hooks. Omitted sends the request without them.
+     * @param {number} [skip] Unique direct members to pass over. Omitted or zero requests the first window.
      * @returns {Promise<Array|object|null>} The image array. The caller checks that a successful body is an array.
      * @throws {Error} When the HTTP status is not OK.
      */
-    async function readWorkspaceMemberAvatars(contextId, occurrence, signal, profileId, profileMarks) {
+    async function readWorkspaceMemberAvatars(contextId, occurrence, signal, profileId, profileMarks, skip) {
         const query = new URLSearchParams();
         query.set("occurrence", occurrence || "");
-        query.set("skip", "0");
+        const avatarSkip = skip > 0 ? skip : 0;
+        query.set("skip", String(avatarSkip));
         const headers = {};
         if (profileId) {
             headers["X-PB-Workspace-Profile-Id"] = profileId;

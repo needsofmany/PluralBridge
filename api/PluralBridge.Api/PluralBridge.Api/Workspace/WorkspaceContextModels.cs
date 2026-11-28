@@ -177,7 +177,7 @@ internal sealed class WorkspaceContext
 	/// <returns>The retained entry. Null when <paramref name="loaded"/> is null. A member that already has an entry keeps that entry.</returns>
 	/// <remarks>
 	/// The byte array is stored as returned. A missing image does not create an entry and does not remove one.
-	/// This method does not authorize the member, and it does not read or write another context.
+	/// <see cref="ReleaseAvatar"/> removes an entry after a saved removal. This method does not authorize the member, and it does not read or write another context.
 	/// </remarks>
 	internal WorkspaceRetainedAvatar? RetainAvatar(Guid memberId, (byte[] Bytes, string ContentType)? loaded)
 	{
@@ -210,6 +210,20 @@ internal sealed class WorkspaceContext
 		lock (_avatarGate)
 		{
 			return _avatars.TryGetValue(memberId, out var retained) ? retained : null;
+		}
+	}
+
+	/// <summary>
+	/// Drops the image this context retained for one member.
+	/// </summary>
+	/// <param name="memberId">The member whose retained image is no longer valid.</param>
+	/// <returns>True when an entry was removed. False when this context had no image for that member.</returns>
+	/// <remarks>Other members in this context keep their entries. This method does not authorize the member or touch another context.</remarks>
+	internal bool ReleaseAvatar(Guid memberId)
+	{
+		lock (_avatarGate)
+		{
+			return _avatars.Remove(memberId);
 		}
 	}
 
