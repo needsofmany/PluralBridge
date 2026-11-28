@@ -299,8 +299,7 @@ internal static class AnchorMemberProfileSave
 			EXEC dbo.pb_show_tree_step5_topology_walker
 			    @AccountId = @AccountId;
 
-			EXEC dbo.pb_show_tree_step5_graph_expansion
-			    @AccountId = @AccountId;
+			""" + ExpansionRowsDeclarationSql + ExpansionResultCaptureSql + """
 
 			IF NOT EXISTS
 			(
@@ -1093,7 +1092,7 @@ internal static class AnchorMemberProfileSave
 
 			""" + SeedRowsDeclarationSql + SeedResultCaptureSql + """
 			EXEC dbo.pb_show_tree_step5_topology_walker @AccountId = @AccountId;
-			EXEC dbo.pb_show_tree_step5_graph_expansion @AccountId = @AccountId;
+			""" + ExpansionRowsDeclarationSql + ExpansionResultCaptureSql + """
 
 			IF NOT EXISTS
 			(
@@ -1503,7 +1502,7 @@ internal static class AnchorMemberProfileSave
 
 		await MeasureAvatarStageAsync(timing, AvatarReadTiming.GraphExpansionStage, async () =>
 		{
-			await using var expansion = new SqlCommand("EXEC dbo.pb_show_tree_step5_graph_expansion @AccountId = @AccountId;", connection);
+			await using var expansion = new SqlCommand(ExpansionRowsDeclarationSql + ExpansionResultCaptureSql, connection);
 			expansion.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
 			await expansion.ExecuteNonQueryAsync(cancellationToken);
 		});
@@ -1638,6 +1637,95 @@ internal static class AnchorMemberProfileSave
 		    EdgeLabel
 		FROM @SeedRows
 		WHERE RowKind = N'label';
+		""";
+
+	/// <summary>
+	/// The only accepted value of <c>@InputContractVersion</c> on graph expansion.
+	/// </summary>
+	internal const int GraphExpansionInputContractVersion = 1;
+
+	/// <summary>
+	/// Declares the table variables that pass graph inputs and receive the expansion result.
+	/// </summary>
+	/// <remarks>
+	/// Declare this once in a batch. <see cref="ExpansionResultCaptureSql"/> deletes and refills the variables.
+	/// An empty table variable is a legitimate empty input. SQL Server still requires each table-valued argument to be passed.
+	/// </remarks>
+	internal const string ExpansionRowsDeclarationSql = """
+		DECLARE @WalkTopology dbo.pb_WalkTopologyRows;
+		DECLARE @TopologyEdges dbo.pb_GraphEdgeRows;
+		DECLARE @ExistingGraphEdges dbo.pb_GraphEdgeRows;
+		DECLARE @ExpansionRows TABLE
+		(
+		    ParentObjectType nvarchar(32) NOT NULL,
+		    ParentObjectId uniqueidentifier NOT NULL,
+		    ChildObjectType nvarchar(32) NOT NULL,
+		    ChildObjectId uniqueidentifier NOT NULL,
+		    EdgeRank int NOT NULL,
+		    EdgeSource nvarchar(64) NOT NULL
+		);
+		""";
+
+	/// <summary>
+	/// Captures the expansion result, then replaces <c>#GraphEdges</c>.
+	/// </summary>
+	/// <remarks>
+	/// The variables from <see cref="ExpansionRowsDeclarationSql"/> and the caller temp tables must already exist.
+	/// <c>#GraphEdges</c> is deleted only after <c>INSERT … EXEC</c> succeeds.
+	/// </remarks>
+	internal const string ExpansionResultCaptureSql = """
+		DELETE FROM @WalkTopology;
+		DELETE FROM @TopologyEdges;
+		DELETE FROM @ExistingGraphEdges;
+		DELETE FROM @ExpansionRows;
+
+		INSERT INTO @WalkTopology (ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey)
+		SELECT ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey
+		FROM #WalkTopology;
+
+		INSERT INTO @TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+		SELECT ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource
+		FROM #TopologyEdges;
+
+		INSERT INTO @ExistingGraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+		SELECT ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource
+		FROM #GraphEdges;
+
+		INSERT INTO @ExpansionRows
+		(
+		    ParentObjectType,
+		    ParentObjectId,
+		    ChildObjectType,
+		    ChildObjectId,
+		    EdgeRank,
+		    EdgeSource
+		)
+		EXEC dbo.pb_show_tree_step5_graph_expansion
+		    @AccountId = @AccountId,
+		    @InputContractVersion = 1,
+		    @WalkTopology = @WalkTopology,
+		    @TopologyEdges = @TopologyEdges,
+		    @ExistingGraphEdges = @ExistingGraphEdges;
+
+		DELETE FROM #GraphEdges;
+
+		INSERT INTO #GraphEdges
+		(
+		    ParentObjectType,
+		    ParentObjectId,
+		    ChildObjectType,
+		    ChildObjectId,
+		    EdgeRank,
+		    EdgeSource
+		)
+		SELECT
+		    ParentObjectType,
+		    ParentObjectId,
+		    ChildObjectType,
+		    ChildObjectId,
+		    EdgeRank,
+		    EdgeSource
+		FROM @ExpansionRows;
 		""";
 
 	internal const string AvatarBatchGraphTableSql =

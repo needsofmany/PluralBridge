@@ -424,7 +424,10 @@ public sealed class WorkspaceAvatarBatchTests
 		Assert.Contains("INSERT INTO #TopologyEdges", AnchorMemberProfileSave.SeedResultCaptureSql, StringComparison.Ordinal);
 		Assert.Contains("INSERT INTO #SystemEdgeLabels", AnchorMemberProfileSave.SeedResultCaptureSql, StringComparison.Ordinal);
 		Assert.Equal(1, CountOf(single, "EXEC dbo.pb_show_tree_step5_topology_walker"));
-		Assert.Equal(1, CountOf(single, "EXEC dbo.pb_show_tree_step5_graph_expansion"));
+		Assert.Equal(0, CountOf(single, "EXEC dbo.pb_show_tree_step5_graph_expansion"));
+		Assert.Contains("ExpansionRowsDeclarationSql + ExpansionResultCaptureSql", single, StringComparison.Ordinal);
+		Assert.Equal(1, CountOf(AnchorMemberProfileSave.ExpansionResultCaptureSql, "EXEC dbo.pb_show_tree_step5_graph_expansion"));
+		Assert.Contains("@InputContractVersion = 1", AnchorMemberProfileSave.ExpansionResultCaptureSql, StringComparison.Ordinal);
 		Assert.DoesNotContain("#RequestedMemberIds", single, StringComparison.Ordinal);
 		Assert.DoesNotContain("#AvatarBatchGraphEdges", single, StringComparison.Ordinal);
 		Assert.DoesNotContain("BatchAvatarQuery", single, StringComparison.Ordinal);

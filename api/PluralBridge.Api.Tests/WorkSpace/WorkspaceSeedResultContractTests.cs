@@ -69,16 +69,20 @@ public sealed class WorkspaceSeedResultContractTests
 		AssertCaptured(Sql("Members", "009_inherit_example_visibility_permissions.sql"));
 	}
 
-	/// <summary>The opening seed uses the capture batch. Walker, expansion, and the labeler stay on the procedure command.</summary>
+	/// <summary>The opening seed and expansion use capture batches. Walker and the labeler stay on the procedure command.</summary>
 	[Fact]
 	public void OpeningSession_CapturesOnlyTheSeedProcedure()
 	{
 		var session = File.ReadAllText(WorkspaceFile("WorkspaceOpeningSession.cs"));
 		var seed = session.IndexOf("command.Text == WorkspaceOpeningPlan.SeedProcedure", StringComparison.Ordinal);
-		var capture = session.IndexOf("ExecuteSeedCaptureAsync", StringComparison.Ordinal);
+		var expansion = session.IndexOf("command.Text == WorkspaceOpeningPlan.ExpansionProcedure", StringComparison.Ordinal);
+		var seedCapture = session.IndexOf("ExecuteSeedCaptureAsync", StringComparison.Ordinal);
+		var expansionCapture = session.IndexOf("ExecuteExpansionCaptureAsync", StringComparison.Ordinal);
 
 		Assert.True(seed >= 0);
-		Assert.True(capture > seed);
+		Assert.True(expansion > seed);
+		Assert.True(seedCapture > seed);
+		Assert.True(expansionCapture > expansion);
 		Assert.Contains("ExecuteProcedureAsync", session, StringComparison.Ordinal);
 		Assert.Contains(WorkspaceOpeningPlan.SeedProcedure, AnchorMemberProfileSave.SeedResultCaptureSql, StringComparison.Ordinal);
 		Assert.Equal(1, CountOf(AnchorMemberProfileSave.SeedResultCaptureSql, "EXEC " + WorkspaceOpeningPlan.SeedProcedure));

@@ -139,8 +139,71 @@ BEGIN TRY
     EXEC dbo.pb_show_tree_step5_topology_walker
         @AccountId = @AccountId;
 
+    DECLARE @WalkTopology dbo.pb_WalkTopologyRows;
+    DECLARE @TopologyEdges dbo.pb_GraphEdgeRows;
+    DECLARE @ExistingGraphEdges dbo.pb_GraphEdgeRows;
+    DECLARE @ExpansionRows TABLE
+    (
+        ParentObjectType nvarchar(32) NOT NULL,
+        ParentObjectId uniqueidentifier NOT NULL,
+        ChildObjectType nvarchar(32) NOT NULL,
+        ChildObjectId uniqueidentifier NOT NULL,
+        EdgeRank int NOT NULL,
+        EdgeSource nvarchar(64) NOT NULL
+    );
+
+    DELETE FROM @WalkTopology;
+    DELETE FROM @TopologyEdges;
+    DELETE FROM @ExistingGraphEdges;
+    DELETE FROM @ExpansionRows;
+
+    INSERT INTO @WalkTopology (ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey)
+    SELECT ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey
+    FROM #WalkTopology;
+
+    INSERT INTO @TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    SELECT ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource
+    FROM #TopologyEdges;
+
+    INSERT INTO @ExistingGraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    SELECT ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource
+    FROM #GraphEdges;
+
+    INSERT INTO @ExpansionRows
+    (
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    )
     EXEC dbo.pb_show_tree_step5_graph_expansion
-        @AccountId = @AccountId;
+        @AccountId = @AccountId,
+        @InputContractVersion = 1,
+        @WalkTopology = @WalkTopology,
+        @TopologyEdges = @TopologyEdges,
+        @ExistingGraphEdges = @ExistingGraphEdges;
+
+    DELETE FROM #GraphEdges;
+
+    INSERT INTO #GraphEdges
+    (
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    )
+    SELECT
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    FROM @ExpansionRows;
 
     DECLARE @AccountMapAnchors TABLE
     (

@@ -139,10 +139,75 @@ BEGIN
     );
 
     --------------------------------------------------------------------------------
-    -- Step 4: graph expansion (refactored)
+    -- Step 4: graph expansion. Its one result set is captured here, and
+    -- #GraphEdges is replaced only after that capture succeeds. The render
+    -- result sets keep their current order.
     --------------------------------------------------------------------------------
+    DECLARE @WalkTopology dbo.pb_WalkTopologyRows;
+    DECLARE @TopologyEdges dbo.pb_GraphEdgeRows;
+    DECLARE @ExistingGraphEdges dbo.pb_GraphEdgeRows;
+    DECLARE @ExpansionRows TABLE
+    (
+        ParentObjectType NVARCHAR(32) NOT NULL,
+        ParentObjectId UNIQUEIDENTIFIER NOT NULL,
+        ChildObjectType NVARCHAR(32) NOT NULL,
+        ChildObjectId UNIQUEIDENTIFIER NOT NULL,
+        EdgeRank INT NOT NULL,
+        EdgeSource NVARCHAR(64) NOT NULL
+    );
+
+    DELETE FROM @WalkTopology;
+    DELETE FROM @TopologyEdges;
+    DELETE FROM @ExistingGraphEdges;
+    DELETE FROM @ExpansionRows;
+
+    INSERT INTO @WalkTopology (ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey)
+    SELECT ParentObjectType, ParentObjectId, ObjectType, ObjectId, Depth, PathKey
+    FROM #WalkTopology;
+
+    INSERT INTO @TopologyEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    SELECT ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource
+    FROM #TopologyEdges;
+
+    INSERT INTO @ExistingGraphEdges (ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource)
+    SELECT ParentObjectType, ParentObjectId, ChildObjectType, ChildObjectId, EdgeRank, EdgeSource
+    FROM #GraphEdges;
+
+    INSERT INTO @ExpansionRows
+    (
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    )
     EXEC dbo.pb_show_tree_step5_graph_expansion
-        @AccountId = @AccountId;
+        @AccountId = @AccountId,
+        @InputContractVersion = 1,
+        @WalkTopology = @WalkTopology,
+        @TopologyEdges = @TopologyEdges,
+        @ExistingGraphEdges = @ExistingGraphEdges;
+
+    DELETE FROM #GraphEdges;
+
+    INSERT INTO #GraphEdges
+    (
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    )
+    SELECT
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    FROM @ExpansionRows;
 
     IF OBJECT_ID('tempdb..#WalkGraph') IS NOT NULL DROP TABLE #WalkGraph;
     CREATE TABLE #WalkGraph

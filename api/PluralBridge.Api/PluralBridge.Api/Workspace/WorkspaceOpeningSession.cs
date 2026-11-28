@@ -144,6 +144,10 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 						{
 							await TimeCommand(profile, OpeningCommandName(command.Text), () => ExecuteSeedCaptureAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken));
 						}
+						else if (command.Text == WorkspaceOpeningPlan.ExpansionProcedure)
+						{
+							await TimeCommand(profile, OpeningCommandName(command.Text), () => ExecuteExpansionCaptureAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken));
+						}
 						else
 						{
 							await TimeCommand(profile, OpeningCommandName(command.Text), () => ExecuteProcedureAsync(connection, transaction, command.Text, resolvedAccount.AccountId, command.PassesAccountId, cancellationToken));
@@ -350,7 +354,7 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 	/// <param name="accountId">The authenticated account.</param>
 	/// <param name="cancellationToken">Cancels the seed procedure or the copy.</param>
 	/// <remarks>
-	/// Walker, expansion, and the labeler stay on <see cref="ExecuteProcedureAsync"/>.
+	/// Walker and the labeler stay on <see cref="ExecuteProcedureAsync"/>.
 	/// The seed procedure no longer writes <c>#TopologyEdges</c> or <c>#SystemEdgeLabels</c>.
 	/// </remarks>
 	private static async Task ExecuteSeedCaptureAsync(
@@ -361,6 +365,31 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 	{
 		await using var command = new SqlCommand(
 			AnchorMemberProfileSave.SeedRowsDeclarationSql + AnchorMemberProfileSave.SeedResultCaptureSql,
+			connection,
+			transaction);
+		command.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
+		await command.ExecuteNonQueryAsync(cancellationToken);
+	}
+
+	/// <summary>
+	/// Captures the expansion procedure's one result set and replaces the opening graph edges.
+	/// </summary>
+	/// <param name="connection">The open connection. It already owns the graph tables.</param>
+	/// <param name="transaction">The snapshot transaction.</param>
+	/// <param name="accountId">The authenticated account.</param>
+	/// <param name="cancellationToken">Cancels the expansion procedure or the copy.</param>
+	/// <remarks>
+	/// <c>#GraphEdges</c> is replaced only after the result is captured.
+	/// The command uses the same snapshot transaction as the walker and the labeler.
+	/// </remarks>
+	private static async Task ExecuteExpansionCaptureAsync(
+		SqlConnection connection,
+		SqlTransaction transaction,
+		Guid accountId,
+		CancellationToken cancellationToken)
+	{
+		await using var command = new SqlCommand(
+			AnchorMemberProfileSave.ExpansionRowsDeclarationSql + AnchorMemberProfileSave.ExpansionResultCaptureSql,
 			connection,
 			transaction);
 		command.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
