@@ -1,7 +1,9 @@
-/* Member browser app styles.
-   Consolidated Task 6 member management styles. */
+﻿/* Member workspace, cards, add and relationship dialogs, and the unsaved-changes prompt.
+   Theme colors come from the variables in base.css. This file does not switch light or dark.
+   The red modified-control outline is .pb-control-modified in base.css. */
 
-/* App/header compression for member-management view */
+/* Shared app-card, explainer, action-row, and developer-panel sizing.
+   These selectors are not limited to the member workspace. */
 
 .app-card {
 	padding: 1.05rem 1.2rem 1rem;
@@ -59,7 +61,9 @@
 	line-height: 1.05;
 }
 
-/* Member output shell */
+/* Member output shell.
+   legacy-app.css later sets .output-box to a 34rem scroller. The :has rule below is more specific, so a member list keeps max-height none and overflow visible.
+   shell.css also clears that limit for .application-main .output-box. */
 
 .output-box {
 	max-height: none;
@@ -72,28 +76,424 @@
 	overflow: visible;
 }
 
+#appOutput.output-box:has(.member-workspace) {
+	background: var(--pb-members-frame-gradient) 0 0 / 100% 100% no-repeat;
+}
+
+/* The shell centers .application-content at 1100px. A workspace cancels that limit. */
+.application-content:has(.member-workspace) {
+	width: 100%;
+	max-width: none;
+	margin-right: 0;
+	margin-left: 0;
+}
+
 .member-list {
 	display: flex;
 	flex-direction: column;
+	align-items: stretch;
+	gap: 0.75rem;
+	position: relative;
 	min-height: 0;
 	max-height: none;
 	overflow: visible;
+	padding-right: 0;
 }
 
-	.member-list > .output-heading {
-		flex: 0 0 auto;
-		margin: 0 0 0.15rem;
-		font-size: 1.35rem;
-		line-height: 1.1;
-	}
+/* isolation keeps the photo, map panel, and card stack in one stacking context.
+   The photo is object-positioned at center 46%. This file does not say why that offset was chosen. */
+.member-list > .member-workspace {
+	position: relative;
+	isolation: isolate;
+	display: flex;
+	flex: 1 1 auto;
+	width: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: var(--pb-surface-inset);
+}
 
-	.member-list > .output-note {
-		flex: 0 0 auto;
-		margin: 0 0 0.3rem;
-		line-height: 1.2;
-	}
+.member-workspace-photo {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center 46%;
+	opacity: var(--pb-workspace-photo-opacity);
+	border-radius: inherit;
+	pointer-events: none;
+	user-select: none;
+}
 
-/* Member toolbar */
+.member-content-stack {
+	position: relative;
+	z-index: 1;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Column layout keeps the heading, divider, and header buttons in place.
+   The tree below is the only region that scrolls. max-height still caps the panel.
+   A shorter assigned height shrinks the tree and leaves the header visible. */
+.member-systems-panel {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 min(22rem, 100%);
+	width: min(22rem, 100%);
+	max-width: 22rem;
+	max-height: 42rem;
+	min-height: 0;
+	overflow: hidden;
+	margin: 0 0.5rem 0 0;
+	padding: 0.6rem;
+	position: relative;
+	z-index: 1;
+	border: 1px solid var(--pb-accent-24);
+	border-radius: 0.75rem;
+	background: var(--pb-surface-raised);
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+.member-systems-panel > .member-systems-header {
+	flex: 0 0 auto;
+}
+
+/* The tree fills the space under the header and scrolls by itself.
+   Rows pack at the top. A stretched grid row would center a short tree in that space.
+   The first chevron's focus ring is 2px with a 2px offset. The scroller clips anything outside its padding edge, so the top and left padding leave that ring inside the tree. */
+.member-systems-panel > .member-systems-tree {
+	flex: 1 1 auto;
+	align-content: start;
+	min-height: 0;
+	overflow: auto;
+	overscroll-behavior: contain;
+	padding-top: 4px;
+	padding-left: 4px;
+}
+
+/* The panel is the first child of the workspace. Unpinned, it is removed from the flex row and covers the cards. Pinned, it returns to normal flow beside them.
+   Its z-index stays inside the workspace, below an open toolbar menu on the member list. */
+.member-systems-panel.is-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 5;
+}
+
+.member-systems-panel.is-pinned {
+	position: relative;
+}
+
+.member-systems-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.6rem;
+	margin-bottom: 0.45rem;
+}
+
+.member-systems-header-actions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 12px;
+}
+
+.member-systems-title {
+	margin: 0;
+	color: var(--pb-text-strong);
+	font-size: 0.98rem;
+	font-weight: 800;
+}
+
+.member-systems-pin-button,
+.member-systems-expand-all,
+.member-systems-pin-button[aria-pressed="true"],
+.member-systems-pin-button[aria-pressed="false"] {
+	width: 1.7rem;
+	height: 1.7rem;
+	padding: 0;
+	display: inline-grid;
+	place-items: center;
+	border: 1px solid var(--pb-accent-25);
+	border-radius: 0.45rem;
+	color: var(--pb-text-strong);
+	background: var(--pb-fill-subtle);
+}
+
+.member-systems-pin-button:hover,
+.member-systems-pin-button:focus-visible,
+.member-systems-expand-all:hover,
+.member-systems-expand-all:focus-visible,
+.member-systems-pin-button[aria-pressed="true"]:hover,
+.member-systems-pin-button[aria-pressed="true"]:focus-visible,
+.member-systems-pin-button[aria-pressed="false"]:hover,
+.member-systems-pin-button[aria-pressed="false"]:focus-visible {
+	color: var(--pb-text-strong);
+	background: var(--pb-accent-28);
+	outline: 2px solid var(--pb-focus);
+	outline-offset: 2px;
+}
+
+.member-systems-pin-icon {
+	width: 0.9rem;
+	height: 0.9rem;
+	opacity: 1;
+}
+
+/* The unpinned icon is the same pin, mirrored and tilted. */
+.member-systems-pin-icon.is-unpinned {
+	transform: scaleX(-1) rotate(-35deg);
+	opacity: 1;
+}
+
+.member-systems-tree {
+	display: grid;
+	gap: 0.08rem;
+}
+
+/* --system-node-level is set on the row by the tree renderer. */
+.member-system-node-row {
+	display: grid;
+	grid-template-columns: 1.75rem minmax(0, 1fr);
+	align-items: center;
+	gap: 0.35rem;
+	min-height: 1.75rem;
+	padding: 0.12rem 0.35rem;
+	border-radius: 0.45rem;
+	margin-left: calc(var(--system-node-level, 0) * 0.8rem);
+}
+
+.member-system-node-row:hover {
+	background: var(--pb-accent-10);
+}
+
+.member-system-tree-toggle,
+.member-system-tree-toggle:hover,
+.member-system-tree-toggle:focus-visible {
+	width: 1.75rem;
+	height: 1.75rem;
+	padding: 0;
+	display: inline-grid;
+	place-items: center;
+	border: 0;
+	border-radius: 0.35rem;
+	color: var(--pb-text-muted);
+	background: transparent;
+	line-height: 1;
+}
+
+.member-system-tree-toggle:hover,
+.member-system-tree-toggle:focus-visible {
+	background: var(--pb-accent-16);
+}
+
+.member-tree-chevron {
+	width: 16px;
+	height: 16px;
+	display: block;
+	transform: rotate(0deg);
+	transform-origin: 50% 50%;
+	transition: transform 150ms ease;
+}
+
+/* Preview cards add is-expanded from script. The plain summary chevron is rotated by legacy-app.css when the card is open. */
+.member-tree-chevron.is-expanded {
+	transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.member-tree-chevron {
+		transition: none;
+	}
+}
+
+.member-system-tree-spacer {
+	display: inline-block;
+	width: 1.75rem;
+	height: 1.75rem;
+}
+
+.member-system-node-label {
+	color: var(--pb-text-muted);
+	font-size: 0.82rem;
+	line-height: 1.15;
+	overflow-wrap: anywhere;
+}
+
+.member-system-node-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	width: 100%;
+	padding: 0.18rem 0.28rem;
+	border: 1px solid transparent;
+	border-radius: 0.38rem;
+	color: var(--pb-text-muted);
+	background: transparent;
+	font-size: 0.82rem;
+	line-height: 1.15;
+	text-align: left;
+	cursor: pointer;
+}
+
+.member-tree-node-content {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-width: 0;
+}
+
+.member-tree-node-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	min-width: 20px;
+	flex: 0 0 auto;
+	color: var(--pb-text-muted);
+	opacity: 1;
+}
+
+.member-system-node-button:hover .member-tree-node-icon,
+.member-system-node-button:focus-visible .member-tree-node-icon,
+.member-system-node-label .member-tree-node-icon {
+	color: var(--pb-text-muted);
+	opacity: 1;
+}
+
+.member-system-node-button.is-active .member-tree-node-icon {
+	color: var(--pb-text-strong);
+	opacity: 1;
+}
+
+.member-tree-node-text {
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.member-system-node-button:hover,
+.member-system-node-button:focus-visible {
+	background: var(--pb-accent-16);
+	outline: none;
+}
+
+.member-system-node-button.is-active {
+	border-color: var(--pb-accent-45);
+	background: var(--pb-accent-22);
+	color: var(--pb-text-strong);
+	font-weight: 800;
+}
+
+.member-screen-header {
+	display: flex;
+	flex: 0 0 auto;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+	width: 100%;
+	min-width: 0;
+	min-height: 4.5rem;
+	position: relative;
+	overflow: hidden;
+}
+
+.member-screen-header .output-heading {
+	flex: 0 1 auto;
+	min-width: min(7rem, 100%);
+	margin: 0;
+	font-size: 1.35rem;
+	line-height: 1.1;
+}
+
+.member-list > .output-note {
+	flex: 0 0 auto;
+	margin: 0;
+	line-height: 1.2;
+}
+
+.member-focus-note {
+	color: var(--pb-accent);
+	font-weight: 700;
+}
+
+.member-focus-notes {
+	display: grid;
+	gap: 0.25rem;
+	margin: 0;
+	min-height: 2.55rem;
+}
+
+.member-focus-notes .member-focus-note {
+	margin: 0;
+}
+
+/* An empty focus line stays in the layout so the notes block does not collapse. */
+.member-focus-note.is-placeholder {
+	visibility: hidden;
+}
+
+.member-screen-brand {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.85rem;
+	flex: 1 1 18rem;
+	min-width: 0;
+	max-width: 100%;
+	margin-left: auto;
+}
+
+.member-screen-header .member-brand-nameplate[hidden],
+.member-screen-header .member-brand-logo[hidden] {
+	display: none !important;
+}
+
+/* The 11.5rem subtracted here is not the logo's own max-width. No other source rule explains that reserve. */
+.member-screen-header .member-brand-nameplate {
+	display: block;
+	flex: 0 1 auto;
+	width: auto;
+	height: 2.75rem;
+	max-width: min(26rem, calc(100% - 11.5rem));
+	min-width: 0;
+	object-fit: contain;
+	object-position: center;
+	border: none;
+	background: transparent;
+	pointer-events: none;
+}
+
+/* Resets position, float, and stacking. No other source rule currently sets those on this logo. */
+.member-screen-header .member-brand-logo {
+	position: static;
+	top: auto;
+	right: auto;
+	float: none;
+	flex: 0 0 auto;
+	height: 4.5rem;
+	max-height: 4.5rem;
+	width: auto;
+	max-width: min(16rem, 42%);
+	display: block;
+	object-fit: contain;
+	object-position: right center;
+	border: none;
+	background: transparent;
+	border-radius: 0.65rem;
+	pointer-events: none;
+	z-index: auto;
+}
+
+/* Member toolbar.
+   z-index 1 sits with the list. An open Add menu raises the toolbar to 6 so its popover, at 7, paints above the workspace and the map overlay. */
 
 .member-toolbar {
 	display: flex;
@@ -102,11 +502,19 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.35rem;
-	margin: 0 0 0.35rem;
+	width: 100%;
+	margin: 0;
+	position: relative;
+	z-index: 1;
 	padding: 0.35rem 0.45rem;
-	border: 1px solid rgba(168, 199, 255, 0.22);
+	border: 1px solid var(--pb-accent-22);
 	border-radius: 0.75rem;
-	background: rgba(7, 10, 13, 0.32);
+	background-color: var(--pb-surface-inset);
+	background-image: linear-gradient(var(--pb-surface-muted), var(--pb-surface-muted));
+}
+
+.member-toolbar:has(.member-toolbar-add-menu[open]) {
+	z-index: 6;
 }
 
 .member-toolbar-group {
@@ -114,6 +522,14 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.35rem;
+}
+
+.member-toolbar-group:not(.member-toolbar-view-group) {
+	gap: 0.75rem;
+}
+
+.member-toolbar-add-menu {
+	position: relative;
 }
 
 .member-toolbar-button {
@@ -127,6 +543,27 @@
 	line-height: 1.05;
 }
 
+.member-toolbar-tree-toggle {
+	min-width: 6.9rem;
+	justify-content: center;
+	white-space: nowrap;
+}
+
+.member-toolbar-presentation {
+	flex: 0 0 7.6rem;
+	width: 7.6rem;
+	justify-content: center;
+	white-space: nowrap;
+}
+
+.member-toolbar-theme {
+	flex: 0 0 6.5rem;
+	width: 6.5rem;
+	justify-content: center;
+	white-space: nowrap;
+}
+
+/* Disabled toolbar buttons keep the resting background, so hover does not show the shared button outline. */
 	.member-toolbar-button:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
@@ -134,7 +571,7 @@
 
 		.member-toolbar-button:disabled:hover,
 		.member-toolbar-button:disabled:focus-visible {
-			background: #a8c7ff;
+			background: var(--pb-button-bg);
 			outline: none;
 		}
 
@@ -151,6 +588,89 @@
 	font-size: 0.78rem;
 }
 
+/* The Add trigger is a summary. The marker is removed so it can look like the other toolbar buttons. */
+.member-toolbar-add-trigger {
+	list-style: none;
+	cursor: pointer;
+	user-select: none;
+}
+
+.member-toolbar-add-trigger::-webkit-details-marker {
+	display: none;
+}
+
+.member-toolbar-add-trigger.is-primary {
+	color: var(--pb-button-text);
+	background: var(--pb-button-bg);
+}
+
+.member-toolbar-add-chevron {
+	font-size: 0.72rem;
+	font-weight: 900;
+	line-height: 1;
+}
+
+.member-toolbar-add-menu[open] > .member-toolbar-add-trigger {
+	color: var(--pb-button-text);
+	background: var(--pb-button-bg);
+}
+
+.member-toolbar-add-popover {
+	position: absolute;
+	top: calc(100% + 0.35rem);
+	left: 0;
+	z-index: 7;
+	display: grid;
+	gap: 0.25rem;
+	min-width: 11rem;
+	padding: 0.45rem;
+	border: 1px solid var(--pb-accent-24);
+	border-radius: 0.6rem;
+	background: var(--pb-surface-raised);
+	box-shadow: 0 12px 22px rgba(0, 0, 0, 0.4);
+}
+
+.member-toolbar-add-option {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 0.45rem;
+	padding: 0.38rem 0.52rem;
+	border: 1px solid var(--pb-accent-20);
+	border-radius: 0.45rem;
+	color: var(--pb-text-muted);
+	background: var(--pb-fill-subtle);
+	font-size: 0.79rem;
+	font-weight: 700;
+	cursor: pointer;
+	user-select: none;
+}
+
+.member-toolbar-add-option .member-tree-node-icon {
+	width: 18px;
+	height: 18px;
+	min-width: 18px;
+	flex: 0 0 auto;
+}
+
+.member-toolbar-add-separator {
+	height: 1px;
+	margin: 0.15rem 0.2rem;
+	background: var(--pb-accent-28);
+}
+
+.member-toolbar-add-option:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.member-toolbar-add-option:not(:disabled):hover,
+.member-toolbar-add-option:not(:disabled):focus-visible {
+	color: var(--pb-button-text);
+	background: var(--pb-button-bg);
+	outline: none;
+}
+
 /* Add/edit form panels */
 
 .member-add-container[hidden] {
@@ -160,9 +680,9 @@
 .member-add-panel,
 .member-edit-panel {
 	padding: 0.85rem 1rem 0.65rem;
-	border: 1px solid rgba(168, 199, 255, 0.22);
+	border: 1px solid var(--pb-accent-22);
 	border-radius: 0.85rem;
-	background: rgba(7, 10, 13, 0.32);
+	background: var(--pb-surface-muted);
 }
 
 .member-add-panel {
@@ -201,10 +721,10 @@
 		width: min(100%, 44rem);
 		min-height: 6.5rem;
 		padding: 0.65rem 0.75rem;
-		border: 1px solid rgba(148, 163, 184, 0.55);
+		border: 1px solid var(--pb-input-border);
 		border-radius: 0.5rem;
-		color: #e5e7eb;
-		background: rgba(15, 23, 42, 0.72);
+		color: var(--pb-input-text);
+		background: var(--pb-input-bg);
 		font: inherit;
 		resize: vertical;
 	}
@@ -228,23 +748,25 @@
 
 .member-form-status {
 	margin: 0;
-	color: #cbd5e1;
+	color: var(--pb-text-muted);
 	font-weight: 700;
 }
 
+/* An empty status line is removed. Error and success only change its color. */
 	.member-form-status:empty {
 		display: none;
 	}
 
 	.member-form-status.is-error {
-		color: #fecaca;
+		color: var(--pb-danger);
 	}
 
 	.member-form-status.is-success {
-		color: #bbf7d0;
+		color: var(--pb-success);
 	}
 
-/* Member list/card spacing */
+/* Member list and card summary.
+   The card list is a fixed 42rem scroller. The map panel's max-height is also 42rem. Text inside a card may wrap, but it cannot widen the scroller. */
 
 .member-scroll-list {
 	display: block;
@@ -260,6 +782,17 @@
 
 	.member-scroll-list .member-card {
 		margin-top: 0.28rem;
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.member-scroll-list .member-name,
+	.member-scroll-list .member-pronouns,
+	.member-scroll-list .member-profile-field-value,
+	.member-scroll-list .member-json {
+		min-width: 0;
+		max-width: 100%;
+		overflow-wrap: anywhere;
 	}
 
 		.member-scroll-list .member-card:first-child {
@@ -283,7 +816,7 @@
 	}
 
 	.member-summary:focus-visible {
-		outline: 2px solid rgba(168, 199, 255, 0.65);
+		outline: 2px solid var(--pb-accent-65);
 		outline-offset: 2px;
 		border-radius: 0.75rem;
 	}
@@ -312,13 +845,19 @@
 	flex: 0 0 auto;
 	width: 2.35rem;
 	height: 2.35rem;
-	border: 1px solid rgba(196, 181, 253, 0.55);
+	border: 1px solid var(--pb-accent-55);
 	border-radius: 0.65rem;
-	background: rgba(196, 181, 253, 0.22);
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+	background: var(--pb-accent-22);
+	box-shadow: inset 0 0 0 1px var(--pb-fill-subtle);
+}
+
+.member-avatar-placeholder[hidden] {
+	display: none !important;
 }
 
 .member-identity {
+	display: grid;
+	align-items: start;
 	flex: 1 1 auto;
 	gap: 0.12rem;
 	min-width: 0;
@@ -326,7 +865,14 @@
 
 .member-name,
 .member-pronouns {
+	display: block;
 	line-height: 1.15;
+}
+
+.member-card,
+.member-card > .member-summary,
+.member-card > .member-body {
+	background-color: var(--pb-card-bg);
 }
 
 /* Icons used by member profile actions */
@@ -335,7 +881,10 @@
 	flex: 0 0 auto;
 }
 
-/* Field-local member profile editing */
+/* Field-local member profile editing.
+   Name and Pronouns use a static surface with the same height, padding, and border as the short editor.
+   The description surface and its textarea share an 8rem minimum. field-sizing lets the textarea grow with its text.
+   The pencil stays out of the way until the row is hovered, focused, or being edited. */
 
 .member-profile-panel {
 	display: grid;
@@ -365,19 +914,19 @@
 
 	.member-profile-field-row:hover,
 	.member-profile-field-row:focus-within {
-		background: rgba(168, 199, 255, 0.08);
+		background: var(--pb-accent-08);
 	}
 
 	.member-profile-field-row.is-active {
-		background: rgba(168, 199, 255, 0.13);
+		background: var(--pb-accent-13);
 	}
 
 		.member-profile-field-row.is-active .member-profile-field-label {
-			color: #dbeafe;
+			color: var(--pb-text-strong);
 		}
 
 .member-profile-field-label {
-	color: #cbd5e1;
+	color: var(--pb-text-muted);
 	font-size: 0.82rem;
 	font-weight: 800;
 	line-height: 1.15;
@@ -385,12 +934,19 @@
 
 .member-profile-field-value {
 	min-width: 0;
-	color: #e5e7eb;
+	color: var(--pb-input-text);
 	line-height: 1.15;
 	overflow-wrap: anywhere;
 }
 
+.member-profile-field-value-long,
+.member-profile-field-textarea {
+	box-sizing: border-box;
+	min-height: 8rem;
+}
+
 .member-profile-field-value-long {
+	display: block;
 	line-height: 1.22;
 	white-space: pre-wrap;
 }
@@ -420,8 +976,13 @@
 
 	.member-profile-field-edit-button:not(:disabled):hover,
 	.member-profile-field-edit-button:not(:disabled):focus-visible {
-		background: rgba(168, 199, 255, 0.22);
-		transform: scale(1.03);
+		background: rgba(246, 196, 69, 0.28);
+		transform: none;
+	}
+
+	.member-profile-field-edit-button:not(:disabled):active {
+		background: rgba(246, 196, 69, 0.45);
+		transform: none;
 	}
 
 	.member-profile-field-edit-button:focus {
@@ -429,8 +990,8 @@
 	}
 
 	.member-profile-field-edit-button:focus-visible {
-		outline: 2px solid rgba(168, 199, 255, 0.7);
-		outline-offset: 2px;
+		outline: 2px solid var(--pb-focus);
+		outline-offset: 1px;
 	}
 
 	.member-profile-field-edit-button:disabled {
@@ -443,20 +1004,33 @@
 	width: 100%;
 	min-width: 0;
 	padding: 0.45rem 0.55rem;
-	border: 1px solid rgba(168, 199, 255, 0.55);
+	border: 1px solid var(--pb-accent-55);
 	border-radius: 0.45rem;
-	color: #e5e7eb;
-	background: rgba(15, 23, 42, 0.88);
+	color: var(--pb-input-text);
+	background: var(--pb-surface-overlay);
 	font: inherit;
 	line-height: 1.45;
+	cursor: text;
+	user-select: text;
 }
 
 .member-profile-field-input {
 	height: 2.15rem;
 }
 
+.member-profile-field-value-short {
+	display: block;
+	box-sizing: content-box;
+	height: 2.15rem;
+	padding: 0.45rem 0.55rem;
+	border: 1px solid var(--pb-accent-55);
+	border-radius: 0.45rem;
+	background: var(--pb-surface-overlay);
+	line-height: 1.45;
+}
+
 .member-profile-field-textarea {
-	min-height: 8rem;
+	field-sizing: content;
 	resize: vertical;
 }
 
@@ -465,13 +1039,16 @@
 }
 
 .member-profile-field-editor:focus-visible {
-	outline: 2px solid rgba(168, 199, 255, 0.7);
+	outline: 2px solid var(--pb-accent-70);
 	outline-offset: 2px;
 }
 
+/* Negative top margin pulls the Save row toward the fields. The amount is not explained elsewhere. */
 .member-profile-action-row {
 	display: flex;
+	align-items: center;
 	justify-content: flex-end;
+	gap: 0.5rem;
 	margin-top: -0.25rem;
 }
 
@@ -488,9 +1065,27 @@
 		cursor: pointer;
 	}
 
-	.member-profile-save-button:disabled {
+	.member-profile-save-button:disabled,
+	.member-profile-cancel-button:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
+	}
+
+.member-profile-cancel-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.38rem 0.65rem;
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
+.member-profile-cancel-button[hidden] {
+	display: none;
+}
+
+	.member-profile-cancel-button:not(:disabled) {
+		cursor: pointer;
 	}
 
 .member-profile-json-details {
@@ -499,63 +1094,1307 @@
 
 	.member-profile-json-details summary {
 		cursor: pointer;
-		color: #cbd5e1;
+		color: var(--pb-text-muted);
 		font-weight: 800;
 		line-height: 1.05;
 		padding: 0.02rem 0;
 	}
 
-/* Unsaved-change modal */
-
-.member-profile-unsaved-dialog {
-	width: min(92vw, 26rem);
+/* Add, group, system, place, and relationship dialog.
+   The dialog scrolls as a whole. Each tree scrolls inside a 14rem to 22rem box.
+   Member-only controls are removed in group, system, and place modes. */
+.member-add-dialog {
+	width: min(68rem, calc(100vw - 2rem));
+	max-width: calc(100vw - 2rem);
+	max-height: calc(100vh - 2rem);
+	max-height: calc(100dvh - 2rem);
 	margin: auto;
-	padding: 1rem;
-	border: 1px solid rgba(252, 211, 77, 0.65);
-	border-radius: 0.8rem;
-	background: #111827;
-	color: #e5e7eb;
-	box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.55);
+	padding: 1rem 1.1rem 1.15rem;
+	border: 1px solid var(--pb-accent-28);
+	border-radius: 0.9rem;
+	background: var(--pb-dialog-bg);
+	color: var(--pb-text-strong);
+	box-shadow: 0 1.5rem 4rem var(--pb-scrim);
+	overflow: auto;
 }
 
-	.member-profile-unsaved-dialog::backdrop {
-		background: rgba(0, 0, 0, 0.58);
-	}
+.member-add-dialog::backdrop {
+	background: var(--pb-scrim);
+}
 
-	.member-profile-unsaved-dialog[hidden] {
-		display: none;
-	}
-
-.member-profile-unsaved-message {
+.member-add-dialog-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.85rem;
 	margin: 0 0 0.75rem;
-	color: #fef3c7;
-	font-weight: 800;
-	line-height: 1.35;
 }
 
-.member-profile-unsaved-actions {
+.member-add-dialog-title {
+	margin: 0;
+	font-size: 1.45rem;
+	line-height: 1.15;
+}
+
+.member-add-dialog-heading .member-add-dialog-close {
+	flex: 0 0 auto;
+}
+
+.member-add-dialog-layout {
+	display: grid;
+	grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
+	gap: 1rem 1.25rem;
+	align-items: stretch;
+}
+
+.member-add-dialog-side,
+.member-add-dialog-main {
+	min-width: 0;
+}
+
+.member-add-dialog-side {
+	display: flex;
+	flex-direction: column;
+	gap: 0.65rem;
+	min-height: 0;
+}
+
+.member-add-dialog-side-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.member-add-dialog-side-label,
+.member-add-dialog-type {
+	margin: 0;
+	font-weight: 800;
+}
+
+.member-add-dialog .member-add-dialog-expand-all {
+	flex: 0 0 auto;
+}
+
+.member-add-dialog-tree {
+	flex: 1 1 auto;
+	align-content: start;
+	min-height: 14rem;
+	max-height: 22rem;
+	overflow: auto;
+	padding: 0.35rem;
+	border: 1px solid var(--pb-accent-22);
+	border-radius: 0.75rem;
+	background: var(--pb-surface-muted);
+}
+
+.member-add-dialog-tree-empty {
+	margin: 0.4rem;
+}
+
+.member-add-dialog-actions {
 	display: flex;
 	flex-wrap: wrap;
-	justify-content: flex-end;
-	gap: 0.4rem;
+	gap: 0.55rem;
+	margin-top: 1.25rem;
+	padding: 0.15rem 0.1rem 0.2rem;
 }
 
-.member-profile-unsaved-button {
+.member-add-dialog-save,
+.member-add-dialog-cancel,
+.member-add-dialog-fronting,
+.member-add-dialog-close {
+	min-height: 2.75rem;
+}
+
+.member-add-dialog .member-add-dialog-save {
+	min-width: 5.5rem;
+	border: 1px solid var(--pb-accent);
+	border-radius: 0.7rem;
+	background: var(--pb-button-bg);
+	color: var(--pb-button-text);
+}
+
+.member-add-dialog .member-add-dialog-save:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.member-add-dialog .member-add-dialog-cancel,
+.member-add-dialog .member-add-dialog-close {
+	border: 1px solid var(--pb-accent-35);
+	border-radius: 0.7rem;
+	background: var(--pb-fill-subtle);
+	color: var(--pb-text-strong);
+}
+
+.member-add-dialog .member-add-dialog-close {
+	width: 2.75rem;
+	padding: 0;
+	font-size: 1.4rem;
+	line-height: 1;
+}
+
+.member-add-dialog-main {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.member-add-dialog-toolbar {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 0.55rem;
+}
+
+.member-add-dialog[data-add-mode="group"] .member-add-dialog-member-only,
+.member-add-dialog[data-add-mode="system"] .member-add-dialog-member-only,
+.member-add-dialog[data-add-mode="place"] .member-add-dialog-member-only {
+	display: none !important;
+}
+
+.member-add-dialog-main .member-add-dialog-identity,
+.member-add-dialog-main .member-add-dialog-name-field,
+.member-add-dialog-main .member-add-dialog-description-field,
+.member-add-dialog[data-add-mode="group"] .member-add-dialog-identity,
+.member-add-dialog[data-add-mode="system"] .member-add-dialog-identity,
+.member-add-dialog[data-add-mode="place"] .member-add-dialog-identity,
+.member-add-dialog[data-add-mode="group"] .member-add-dialog-name-field,
+.member-add-dialog[data-add-mode="system"] .member-add-dialog-name-field,
+.member-add-dialog[data-add-mode="place"] .member-add-dialog-name-field {
+	width: 100%;
+	max-width: none;
+}
+
+.member-add-dialog[data-add-mode="group"] .member-add-dialog-name-field,
+.member-add-dialog[data-add-mode="system"] .member-add-dialog-name-field,
+.member-add-dialog[data-add-mode="place"] .member-add-dialog-name-field {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+/* display:none !important wins over the inline-flex in the next rule, so this Fronting control is not shown. The next rule still supplies its box. This file does not say why both rules are present. */
+.member-add-dialog .member-add-dialog-fronting,
+.member-add-dialog .member-add-dialog-fronting[hidden] {
+	display: none !important;
+}
+
+.member-add-dialog .member-add-dialog-fronting,
+.member-add-dialog .member-add-dialog-fronting[aria-pressed="false"] {
+	display: inline-flex;
+	flex: 0 0 11.5rem;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 11.5rem;
+	height: 2.75rem;
+	gap: 0.4rem;
+	padding: 0 0.7rem;
+	border: 1px solid var(--pb-accent-45);
+	border-radius: 0.7rem;
+	background: var(--pb-accent-16);
+	color: var(--pb-text-strong);
+	white-space: nowrap;
+}
+
+.member-add-dialog .member-add-dialog-fronting[aria-pressed="true"] {
+	background: var(--pb-button-bg);
+	color: var(--pb-button-text);
+}
+
+.member-add-dialog-fronting-icon,
+.member-add-dialog-pencil-icon {
+	display: block;
+}
+
+.member-add-dialog-identity {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.85rem 1rem;
+}
+
+.member-add-dialog-destination-name,
+.member-add-dialog-destination-name.is-empty,
+.member-add-dialog-destination-name:focus,
+.member-add-dialog-destination-name:focus-visible {
+	box-sizing: border-box;
+	flex: 1 1 12rem;
+	height: 2.75rem;
+	min-height: 2.75rem;
+	max-height: 2.75rem;
+	padding: 0.45rem 0.7rem;
+	border: 2px solid var(--pb-accent);
+	border-radius: 0.45rem;
+	outline: none;
+	font-weight: 800;
+	line-height: 1.7rem;
+	overflow: hidden;
+}
+
+.member-add-dialog-destination-name.is-empty {
+	border-color: var(--pb-accent-28);
+	color: var(--pb-text-faint);
+	font-weight: 800;
+}
+
+.member-add-dialog-media {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.85rem;
+}
+
+.member-add-dialog-field {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 1.75rem;
+	gap: 0.35rem 0.4rem;
+	align-items: center;
+}
+
+.member-add-dialog-label {
+	grid-column: 1 / -1;
+	font-weight: 800;
+}
+
+.member-add-dialog-color-field {
+	grid-template-columns: 2.5rem minmax(6rem, auto) 1.75rem;
+	align-items: center;
+}
+
+.member-add-dialog-color {
+	width: 2.5rem;
+	height: 2.5rem;
+	padding: 0;
+	border: 1px solid var(--pb-accent-45);
+	border-radius: 0.35rem;
+	background: transparent;
+}
+
+.member-add-dialog-avatar-field {
+	position: relative;
+	grid-template-columns: 8.5rem 1.75rem;
+	align-items: end;
+}
+
+.member-add-dialog-avatar {
+	width: 8.5rem;
+	height: 7.25rem;
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+	border: 1px solid var(--pb-accent-28);
+	border-radius: 0.35rem;
+	background: var(--pb-input-bg);
+	cursor: pointer;
+}
+
+.member-add-dialog-avatar-image {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.member-add-dialog-avatar-empty {
+	padding: 0.4rem;
+	color: var(--pb-text-faint);
+	font-size: 0.78rem;
+	text-align: center;
+}
+
+/* The file input stays in the grid but is clipped out of view. Script opens it from the frame and pencil. */
+.member-add-dialog-file {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	grid-column: 1;
+	grid-row: 1;
+}
+
+.member-add-dialog input[type="text"],
+.member-add-dialog textarea,
+.member-relationship-type-input {
+	width: 100%;
+	min-height: 2.5rem;
+	margin: 0;
+	padding: 0.45rem 0.65rem;
+	border: 1px solid var(--pb-input-border);
+	border-radius: 0.45rem;
+	color: var(--pb-input-text);
+	background: var(--pb-input-bg);
+	font: inherit;
+	cursor: text;
+	user-select: text;
+}
+
+.member-add-dialog textarea {
+	min-height: 8.5rem;
+	resize: vertical;
+}
+
+.member-add-dialog input[type="text"]:focus,
+.member-add-dialog textarea:focus,
+.member-add-dialog-color:focus {
+	outline: none;
+	border-color: var(--pb-accent);
+	box-shadow: 0 0 0 2px var(--pb-accent-35);
+}
+
+.member-add-dialog-description-field {
+	align-items: end;
+}
+
+.member-add-dialog .member-add-dialog-pencil {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-height: 2rem;
-	border-radius: 0.5rem;
-	padding: 0.32rem 0.55rem;
-	font-size: 0.84rem;
-	line-height: 1.1;
+	box-sizing: border-box;
+	width: 1.75rem;
+	height: 1.75rem;
+	min-width: 1.75rem;
+	padding: 0;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--pb-text-strong);
+	line-height: 0;
+	cursor: pointer;
+	user-select: none;
+	transform: none;
 }
 
-	.member-profile-unsaved-button:disabled {
-		opacity: 0.45;
-		cursor: not-allowed;
+.member-add-dialog .member-add-dialog-pencil:hover,
+.member-add-dialog .member-add-dialog-pencil:focus-visible {
+	background: rgba(246, 196, 69, 0.28);
+	transform: none;
+}
+
+.member-add-dialog .member-add-dialog-pencil:active {
+	background: rgba(246, 196, 69, 0.45);
+}
+
+.member-add-dialog .member-add-dialog-pencil:focus-visible {
+	outline: 2px solid var(--pb-focus);
+	outline-offset: 1px;
+}
+
+.member-add-dialog .member-add-dialog-pencil:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.member-add-dialog .member-add-dialog-pencil[hidden] {
+	display: none;
+}
+
+/* Pointer devices hide the dialog pencil until the field is hovered, focused, or marked revealed. */
+@media (hover: hover) {
+	.member-add-dialog .member-add-dialog-pencil {
+		opacity: 0;
 	}
 
-.member-profile-unsaved-status {
-	margin: 0.65rem 0 0;
+	.member-add-dialog-field:hover .member-add-dialog-pencil,
+	.member-add-dialog-field:focus-within .member-add-dialog-pencil,
+	.member-add-dialog .member-add-dialog-pencil.is-revealed,
+	.member-add-dialog .member-add-dialog-pencil:focus-visible {
+		opacity: 1;
+	}
+}
+
+.member-add-dialog-status {
+	margin: 0;
+}
+
+/* Below 720px the dialog becomes one column and the tree is shortened. */
+@media (max-width: 720px) {
+	.member-add-dialog {
+		width: calc(100vw - 1rem);
+		max-width: calc(100vw - 1rem);
+		padding: 0.85rem;
+	}
+
+	.member-add-dialog-layout,
+	.member-add-dialog-side {
+		grid-template-columns: 1fr;
+		min-height: 0;
+	}
+
+	.member-add-dialog-tree {
+		max-height: 16rem;
+	}
+
+	.member-add-dialog-actions {
+		margin-top: 0.85rem;
+	}
+}
+
+/* Preview card summary.
+   This three-column grid reserves a strip column. A later rule removes that column and pins the strip to the card instead. */
+.member-card-preview > .member-summary {
+	display: grid;
+	grid-template-columns: 0.42rem minmax(8rem, 1fr) minmax(0, max-content);
+	align-items: stretch;
+	gap: 0.55rem;
+	min-height: 3.2rem;
+	padding: 1px 0.65rem 1px 0;
+}
+
+.member-color-strip,
+.member-color-swatch {
+	background: var(--pb-fill-subtle);
+}
+
+.member-color-strip {
+	grid-row: 1 / span 2;
+	width: 0.42rem;
+	border-radius: 0.7rem 0 0 0.7rem;
+}
+
+/* Script adds is-generated when the strip is not an explicit #RRGGBB color. */
+.member-color-strip.is-generated {
+	background-image: repeating-linear-gradient(
+		45deg,
+		#000 0,
+		#000 1px,
+		transparent 1px,
+		transparent 8px
+	);
+}
+
+.member-card-preview .member-summary-main {
+	align-items: stretch;
+	min-width: 0;
+	padding: 1px 0;
+}
+
+.member-avatar-wrap {
+	position: relative;
+	display: grid;
+	flex: 0 0 auto;
+	align-self: stretch;
+	height: calc(100% - 2px);
+	margin: 1px 0;
+	padding: 3px;
+}
+
+.member-card-preview .member-avatar-wrap {
+	grid-template: 4.25rem / 4.25rem;
+}
+
+.member-card-preview .member-avatar-placeholder,
+.member-card-preview .member-avatar-image {
+	grid-area: 1 / 1;
+	width: 4.25rem;
+	height: 4.25rem;
+	min-height: 0;
+	border-radius: 0.65rem;
+	object-fit: cover;
+}
+
+.member-avatar-placeholder.is-neutral {
+	border-color: var(--pb-input-border);
+	background: var(--pb-fill-subtle);
+}
+
+/* The avatar pencil and color pencil are hidden until the control is hovered or focused.
+   The file and color inputs are kept in the document for script to open, but they do not receive pointer events. */
+.member-avatar-pencil,
+.member-color-pencil {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.member-avatar-pencil {
+	position: absolute;
+	right: 0.2rem;
+	bottom: 0.2rem;
+	z-index: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 1.45rem;
+	height: 1.45rem;
+	padding: 0;
+	border-radius: 999px;
+	background: var(--pb-card-control-bg);
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.28);
+	color: var(--pb-text-strong);
+	line-height: 0;
+	cursor: pointer;
+	user-select: none;
+	transform: none;
+}
+
+.member-avatar-pencil:hover,
+.member-color-pencil:hover {
+	background: rgba(246, 196, 69, 0.55);
+	transform: none;
+}
+
+.member-avatar-pencil:active,
+.member-color-pencil:active {
+	background: rgba(246, 196, 69, 0.72);
+	transform: none;
+}
+
+.member-avatar-pencil:focus-visible,
+.member-color-pencil:focus-visible {
+	outline: 2px solid var(--pb-focus);
+	outline-offset: 1px;
+}
+
+.member-avatar-wrap:hover .member-avatar-pencil,
+.member-avatar-wrap:focus-within .member-avatar-pencil,
+.member-profile-color-row:hover .member-color-pencil,
+.member-profile-color-row:focus-within .member-color-pencil,
+.member-avatar-pencil:focus-visible,
+.member-color-pencil:focus-visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.member-avatar-file,
+.member-color-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.member-summary-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.45rem 0.7rem;
+	min-width: 0;
+}
+
+.member-sharing-label {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35rem;
+	color: var(--pb-text-faint);
+	font-size: 0.92rem;
+}
+
+.member-sharing-control {
+	position: relative;
+}
+
+.member-card-preview .member-card-sharing,
+.member-card-preview .member-card-sharing:hover,
+.member-card-preview .member-card-sharing:focus,
+.member-card-preview .member-card-sharing:focus-visible,
+.member-card-preview .member-card-sharing[aria-expanded="true"] {
+	display: inline-flex;
+	flex: 0 0 15.5rem;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 15.5rem;
+	height: 2.75rem;
+	gap: 0.4rem;
+	padding: 0 0.7rem;
+	border: 1px solid var(--pb-accent-45);
+	border-radius: 0.7rem;
+	background: var(--pb-card-control-bg);
+	color: var(--pb-text-strong);
+	font: inherit;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.member-sharing-chevron {
+	display: inline-flex;
+	transform: rotate(90deg);
+}
+
+.member-sharing-chevron.is-open {
+	transform: rotate(270deg);
+}
+
+/* Visibility menu.
+   The list is position:fixed. Script sets its left, top, and width from the button.
+   z-index 40 puts it above the open card. While the menu is open the card also clears overflow and raises itself to 30. */
+.member-sharing-list {
+	position: fixed;
+	z-index: 40;
+	display: grid;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0.25rem;
+	border: 1px solid var(--pb-accent-45);
+	border-radius: 0.7rem;
+	background: var(--pb-menu-bg);
+	box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.35);
+}
+
+.member-card-preview.is-sharing-open {
+	position: relative;
+	z-index: 30;
+	overflow: visible;
+}
+
+.member-sharing-list[hidden] {
+	display: none !important;
+}
+
+.member-sharing-option {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 2.4rem;
+	padding: 0 0.7rem;
+	border-radius: 0.45rem;
+	color: var(--pb-text-strong);
+	cursor: pointer;
+	user-select: none;
+}
+
+.member-sharing-option.is-current,
+.member-sharing-option:focus,
+.member-sharing-option:hover {
+	background: var(--pb-accent-28);
+	color: var(--pb-text-strong);
+}
+
+.member-sharing-option:focus {
+	outline: none;
+}
+
+.member-sharing-option:focus-visible {
+	outline: 2px solid var(--pb-accent);
+	outline-offset: 1px;
+}
+
+/* Selected people is marked aria-disabled. It keeps its place and does not take the hover fill. */
+.member-sharing-option[aria-disabled="true"] {
+	color: var(--pb-disabled);
+	cursor: not-allowed;
+}
+
+.member-sharing-option[aria-disabled="true"]:hover {
+	background: transparent;
+}
+
+.member-sharing-icon {
+	flex: 0 0 auto;
+}
+
+.member-card-preview .member-name,
+.member-card-preview .member-pronouns {
+	overflow-wrap: anywhere;
+}
+
+/* The control declares a normal 1px border. Pressed true uses the button colors. Mixed and false use the card-control background.
+   The red modified-control indicator is separate from this normal border. */
+.member-card-preview .member-card-fronting,
+.member-card-preview .member-card-fronting:hover,
+.member-card-preview .member-card-fronting:focus,
+.member-card-preview .member-card-fronting:focus-visible,
+.member-card-preview .member-card-fronting[aria-pressed="false"],
+.member-card-preview .member-card-fronting[aria-pressed="mixed"] {
+	display: inline-flex;
+	flex: 0 0 11.5rem;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 11.5rem;
+	height: 2.75rem;
+	gap: 0.4rem;
+	padding: 0 0.7rem;
+	border: 1px solid var(--pb-accent-45);
+	border-radius: 0.7rem;
+	background: var(--pb-card-control-bg);
+	color: var(--pb-text-strong);
+	white-space: nowrap;
+}
+
+.member-card-preview .member-card-fronting[aria-pressed="true"] {
+	background: var(--pb-button-bg);
+	color: var(--pb-button-text);
+}
+
+.member-card-preview .member-card-expand-icon {
+	flex: 0 0 auto;
+	color: var(--pb-accent);
+}
+
+/* Preview fields shrink to their content, except Description, which keeps a flexible second column. */
+.member-card-preview .member-profile-fields {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.member-card-preview .member-profile-field-row {
+	grid-template-columns: minmax(5.5rem, 9rem) max-content max-content;
+	justify-content: start;
+	width: max-content;
+	max-width: 100%;
+}
+
+.member-card-preview .member-profile-field-row[data-member-profile-field="description"] {
+	align-items: start;
+	width: 100%;
+	grid-template-columns: minmax(5.5rem, 9rem) minmax(0, 1fr) max-content;
+}
+
+.member-card-preview .member-profile-json-details {
+	margin-top: 0.85rem;
+}
+
+.member-profile-color-row {
+	position: relative;
+	display: inline-flex;
+	grid-column: 2;
+	grid-row: 2;
+	align-items: center;
+	gap: 0.35rem;
+	align-self: center;
+}
+
+.member-color-swatch {
+	position: relative;
+	width: 1.7rem;
+	height: 1.7rem;
+	border: 1px solid var(--pb-input-border);
+	border-radius: 0.35rem;
+	cursor: pointer;
+}
+
+.member-card-preview .member-profile-save-button,
+.member-card-preview .member-profile-cancel-button {
+	box-sizing: border-box;
+	height: 2.75rem;
+	white-space: nowrap;
+}
+
+.member-card-preview .member-profile-save-button {
+	flex: 0 0 11.5rem;
+	width: 11.5rem;
+}
+
+/* Below 720px the summary stacks. Control labels are clipped and the buttons become icon-sized.
+   A later 720px block repeats the button size on the hover and focus selectors, which are more specific than this block. */
+@media (max-width: 720px) {
+	.member-card-preview > .member-summary {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.member-card-preview .member-summary-controls {
+		grid-column: 1;
+		justify-content: flex-start;
+	}
+
+	.member-card-preview .member-sharing-value,
+	.member-card-preview .member-fronting-label,
+	.member-card-preview .member-policy-value {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+	}
+
+	.member-card-preview .member-card-sharing,
+	.member-card-preview .member-card-fronting,
+	.member-card-preview .member-policy-button {
+		flex: 0 0 2.75rem;
+		width: 2.75rem;
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		padding: 0;
+	}
+}
+
+.member-card-preview {
+	position: relative;
+}
+
+/* The strip is positioned on the card, so the summary no longer needs the first grid column. */
+.member-card-preview > .member-color-strip {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	width: 0.55rem;
+	height: auto;
+	grid-row: auto;
+	border-radius: 0.7rem 0 0 0.7rem;
+}
+
+/* Replaces the earlier three-column summary. The strip is no longer a grid item. */
+.member-card-preview > .member-summary {
+	grid-template-columns: minmax(8rem, 1fr) minmax(0, max-content);
+	padding-left: 0.9rem;
+}
+
+.member-policy-control {
+	position: relative;
+}
+
+.member-policy-button,
+.member-policy-button:hover,
+.member-policy-button:focus,
+.member-policy-button:focus-visible,
+.member-policy-button[aria-expanded="true"],
+.member-card-preview .member-card-permission .member-policy-button,
+.member-card-preview .member-card-permission .member-policy-button:hover,
+.member-card-preview .member-card-permission .member-policy-button:focus,
+.member-card-preview .member-card-permission .member-policy-button:focus-visible,
+.member-card-preview .member-card-permission .member-policy-button[aria-expanded="true"] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 11.5rem;
+	height: 2.75rem;
+	gap: 0.4rem;
+	padding: 0 0.7rem;
+	border: 1px solid var(--pb-accent-45);
+	border-radius: 0.7rem;
+	background: var(--pb-card-control-bg);
+	color: var(--pb-text-strong);
+	font: inherit;
+	font-weight: 700;
+	white-space: nowrap;
+	outline: none;
+}
+
+.member-policy-button:focus-visible,
+.member-card-preview .member-card-permission .member-policy-button:focus-visible,
+.member-card-preview .member-card-sharing:focus-visible,
+.member-card-preview .member-card-fronting:focus-visible {
+	outline: 2px solid var(--pb-focus);
+	outline-offset: 2px;
+}
+
+/* Resting summary controls are pinned back to the card-control colors. The shared button rule would otherwise change a pressed or focused control. */
+.member-summary-controls .member-card-sharing:not(:hover):not(:focus-visible),
+.member-summary-controls .member-card-fronting:not(:hover):not(:focus-visible):not([aria-pressed="true"]),
+.member-summary-controls .member-policy-button:not(:hover):not(:focus-visible):not([aria-expanded="true"]) {
+	background: var(--pb-card-control-bg);
+	color: var(--pb-text-strong);
+	outline: none;
+}
+
+/* A quiet or hidden hint stays in the row. visibility hides the text without collapsing the reserved line. */
+.member-policy-hint,
+.member-policy-hint.is-quiet {
+	display: block !important;
+	min-height: 1.15rem;
+	margin: 0.2rem 0 0;
+	color: var(--pb-text-faint);
+	font-size: 0.75rem;
+	line-height: 1.2;
+}
+
+.member-policy-hint.is-quiet {
+	visibility: hidden;
+}
+
+.member-add-dialog-policy {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 16rem));
+	column-gap: 1rem;
+	align-items: start;
+}
+
+.member-add-dialog-policy-field {
+	display: grid;
+	grid-template-rows: 1.25rem 2.75rem minmax(1.15rem, auto);
+	align-items: stretch;
+	min-width: 0;
+}
+
+.member-add-dialog-policy-field > .member-add-dialog-label {
+	align-self: end;
+	line-height: 1.2rem;
+}
+
+.member-add-dialog-policy-field > .member-policy-control {
+	align-self: start;
+	height: 2.75rem;
+}
+
+.member-policy-hint[hidden] {
+	display: block !important;
+	visibility: hidden;
+}
+
+.member-profile-color-footer {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-top: 0.85rem;
+}
+
+.member-card-preview .member-profile-color-row {
+	display: grid;
+	grid-template-columns: auto auto auto;
+	grid-template-rows: auto auto;
+	align-items: center;
+	gap: 0.35rem 0.45rem;
+}
+
+.member-card-preview .member-color-help {
+	grid-column: 1 / -1;
+	margin: 0;
+	color: var(--pb-text-faint);
+	font-size: 0.78rem;
+}
+
+.member-card-preview .member-color-swatch {
+	width: 7.5rem;
+	height: 1.7rem;
+}
+
+/* Relationship dialog. The center column shares the side columns' rows through subgrid.
+   Below 900px the subgrid is replaced by stacked columns and the trees shrink to 14rem. */
+.member-relationship-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.member-relationship-footer {
+	display: grid;
+	grid-template-columns: minmax(9rem, 1fr) minmax(0, 2.4fr) minmax(9rem, 1fr);
+	align-items: center;
+	gap: 0.75rem;
+	margin-top: 1.25rem;
+	padding: 0.35rem 0.1rem 0.2rem;
+}
+
+.member-relationship-footer .member-add-dialog-actions {
+	margin-top: 0;
+	padding: 0;
+}
+
+.member-relationship-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 16.5rem minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	column-gap: 0.85rem;
+	row-gap: 0.35rem;
+	align-items: start;
+}
+
+.member-relationship-column,
+.member-relationship-center {
+	display: grid;
+	grid-row: 1 / span 2;
+	grid-template-rows: subgrid;
+	min-width: 0;
+	align-items: stretch;
+}
+
+.member-relationship-column-label {
+	margin: 0;
+	align-self: end;
+	font-weight: 800;
+	line-height: 1.2;
+}
+
+.member-relationship-center-body {
+	display: flex;
+	flex-direction: column;
+	gap: 1.35rem;
+	min-width: 0;
+}
+
+.member-relationship-kind-block {
+	display: grid;
+	gap: 0.25rem;
+}
+
+.member-relationship-tree {
+	height: 22rem;
+}
+
+.member-relationship-kind {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+}
+
+.member-relationship-arrow {
+	display: inline-flex;
+	flex: 0 0 2.75rem;
+	align-items: center;
+	justify-content: center;
+	width: 2.75rem;
+	height: 2.75rem;
+	color: var(--pb-text-strong);
+}
+
+.member-relationship-arrow-icon {
+	display: block;
+	width: 2.5rem;
+	height: 2.5rem;
+}
+
+.member-relationship-type-editor {
+	display: grid;
+	gap: 0.4rem;
+}
+
+.member-relationship-type-editor[hidden] {
+	display: none !important;
+}
+
+.member-relationship-type-actions {
+	display: flex;
+	gap: 0.45rem;
+}
+
+.member-relationship-type-status {
+	min-height: 1.15rem;
+	margin: 0;
+	color: var(--pb-warning);
+	font-size: 0.78rem;
+}
+
+.member-policy-custom {
+	margin-left: auto;
+	padding: 0.05rem 0.4rem;
+	border-radius: 999px;
+	background: var(--pb-accent-28);
+	color: var(--pb-text-strong);
+	font-size: 0.68rem;
+	font-weight: 800;
+}
+
+.member-add-dialog .member-system-node-button,
+.member-add-dialog .member-system-node-button:hover,
+.member-add-dialog .member-system-node-button:focus,
+.member-add-dialog .member-system-node-button:focus-visible,
+.member-add-dialog .member-system-node-button.is-active {
+	box-sizing: border-box;
+	min-height: 1.7rem;
+	border-width: 1px;
+	border-style: solid;
+	font-weight: 700;
+	outline: none;
+	outline-offset: 0;
+	cursor: pointer;
+	user-select: none;
+}
+
+/* A row that cannot be a destination uses the default cursor. Script also sets aria-disabled. */
+.member-add-dialog .member-system-node-button.is-not-destination,
+.member-add-dialog .member-system-node-button.is-not-destination:hover,
+.member-add-dialog .member-system-node-button.is-not-destination:focus {
+	cursor: default;
+	font-weight: 700;
+}
+
+.member-add-dialog .member-system-node-button:focus-visible {
+	box-shadow: inset 0 0 0 1px var(--pb-focus);
+}
+
+.member-add-dialog .member-system-tree-toggle,
+.member-add-dialog .member-member-list-toggle {
+	cursor: pointer;
+	user-select: none;
+}
+
+.member-add-dialog .member-member-list-toggle {
+	width: auto;
+	min-width: 1.75rem;
+	padding: 0 0.4rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 0.25rem;
+}
+
+.member-edit-pencil-icon {
+	display: block;
+	width: 16px;
+	height: 16px;
+	flex: 0 0 16px;
+	pointer-events: none;
+}
+
+.member-relationship-preview {
+	grid-column: 2;
+	margin: 0;
+	font-weight: 800;
+	text-align: center;
+	overflow-wrap: anywhere;
+}
+
+.member-relationship-footer .member-add-dialog-actions {
+	grid-column: 1;
+	justify-self: start;
+}
+
+.member-relationship-center .member-policy-button {
+	width: 100%;
+}
+
+@media (max-width: 900px) {
+	.member-relationship-layout,
+	.member-add-dialog-policy {
+		grid-template-columns: 1fr;
+	}
+
+	.member-relationship-layout {
+		grid-template-rows: none;
+	}
+
+	.member-relationship-column,
+	.member-relationship-center {
+		display: flex;
+		flex-direction: column;
+		grid-row: auto;
+		gap: 0.35rem;
+	}
+
+	.member-relationship-tree {
+		height: 14rem;
+	}
+
+	.member-relationship-footer {
+		grid-template-columns: 1fr;
+	}
+
+	.member-relationship-preview,
+	.member-relationship-footer .member-add-dialog-actions {
+		grid-column: 1;
+	}
+
+	.member-card-preview > .member-summary {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* The wide control rules also match hover and focus. This repeat keeps the icon size from losing to those selectors. */
+@media (max-width: 720px) {
+	.member-card-preview .member-card-sharing,
+	.member-card-preview .member-card-sharing:hover,
+	.member-card-preview .member-card-sharing:focus,
+	.member-card-preview .member-card-sharing:focus-visible,
+	.member-card-preview .member-card-sharing[aria-expanded="true"],
+	.member-card-preview .member-card-fronting,
+	.member-card-preview .member-card-fronting:hover,
+	.member-card-preview .member-card-fronting:focus,
+	.member-card-preview .member-card-fronting:focus-visible,
+	.member-card-preview .member-policy-button,
+	.member-card-preview .member-policy-button:hover,
+	.member-card-preview .member-policy-button:focus,
+	.member-card-preview .member-policy-button:focus-visible,
+	.member-card-preview .member-policy-button[aria-expanded="true"] {
+		flex: 0 0 2.75rem;
+		width: 2.75rem;
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		padding: 0;
+	}
+}
+
+/* Devices that do not hover keep the avatar pencil hidden. The wrap :hover rule is more specific when :hover still matches. */
+@media (hover: none) {
+	.member-avatar-pencil {
+		opacity: 0;
+		pointer-events: none;
+	}
+}
+
+.member-policy-button,
+.member-system-tree-toggle,
+.member-profile-field-edit-button,
+.member-color-pencil,
+.member-color-swatch {
+	cursor: pointer;
+	user-select: none;
+}
+
+/* Disabled controls that can otherwise look pressable. */
+.member-policy-button:disabled,
+.member-profile-field-edit-button:disabled,
+.member-toolbar-add-option:disabled,
+.member-add-dialog .member-add-dialog-pencil:disabled,
+.member-add-dialog .member-add-dialog-save:disabled {
+	cursor: not-allowed;
+}
+
+/* The unsaved label reserves its space while hidden. Script adds is-visible while the card is dirty.
+   Cancel uses the hidden attribute, which removes it until the card is dirty. */
+.member-card-unsaved-indicator {
+	visibility: hidden;
+	color: var(--pb-danger);
+	font-size: 0.75rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.member-card-unsaved-indicator.is-visible {
+	visibility: visible;
+}
+
+/* Leave prompt. Each changed field is indented. The actions stay on one line. */
+.member-change-dialog {
+	border: 1px solid var(--pb-danger);
+	border-radius: 12px;
+	background: var(--pb-dialog-bg, var(--pb-card-bg, #111));
+	color: inherit;
+	width: max-content;
+	max-width: calc(100vw - 2rem);
+	padding: 1.25rem;
+}
+
+.member-change-dialog::backdrop {
+	background: var(--pb-scrim, rgba(0, 0, 0, 0.55));
+}
+
+.member-change-summary {
+	margin: 0 0 0.75rem;
+}
+
+.member-change-heading,
+.member-change-note,
+.member-change-status {
+	margin: 0 0 0.75rem;
+}
+
+.member-change-heading {
+	margin-bottom: 0;
+}
+
+.member-change-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.member-change-list li {
+	padding-left: 1em;
+}
+
+.member-change-note,
+.member-change-status.is-error {
+	color: var(--pb-danger);
+}
+
+.member-change-actions {
+	display: flex;
+	flex-wrap: nowrap;
+	gap: 0.5rem;
+}
+
+.member-change-button {
+	cursor: pointer;
+	flex: 0 0 auto;
+	white-space: nowrap;
 }

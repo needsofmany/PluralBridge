@@ -81,7 +81,9 @@ public sealed class ImportBatchesController(
 				});
 			}
 
-			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext) || accessContext.CurrentSystem.SystemId != systemId)
+			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
+			    || accessContext.CurrentSystem is not { } currentSystem
+			    || currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -136,7 +138,7 @@ public sealed class ImportBatchesController(
 				phase = Globals.projectPhase,
 				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.importBatchesEndpointSegment}",
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				count = importBatches.Count,
 				importBatches
 			});

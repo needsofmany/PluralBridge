@@ -1,0 +1,719 @@
+Yes. **Each task should deliver one working piece of functionality, leave the existing system usable, and end with verification and a commit.** The number of tasks follows from the work.
+
+I’d organize the work in these broad stages, defining individual tasks as we reach them:
+
+1.  **Establish database change tracking.**  
+    Add the supporting storage, then introduce change recording in small slices. Each task verifies that existing writes still work, including rollback and multi-row operations.
+
+2.  **Make recorded changes usable.**  
+    Add revision checks and deferred processing incrementally. Verify that concurrent transactions cannot lose changes. Restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not  automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected here.
+
+3.  **Establish the parallel workspace foundation.**  
+    Add the developer switch and the new model. Verify that the existing path remains operational and switching resets state correctly.
+   
+3B. **concurrency and flood-testing work** (added)
+    Verify the in-memory messaging core with concurrency and flood tests covering TTL boundaries, duplicate and out-of-order completion reports, obligation registration races, poisoning, and accounting integrity under load. Keep this work isolated from application and database integration, then review the results and commit the verified tests before beginning Task 4.
+	
+4.  **Load the tree and establish its server context.**  
+    Deliver the new opening load, verify tree and authorization parity, then connect database freshness checks to the retained context.
+
+5.  **Load member details incrementally.**  
+    Add batch retrieval, then connect current selection, scrolling, and retained member information. Verify shared member identity and placement-specific state.
+
+6.  **Load images independently.**  
+    Add batch retrieval and the retained image collection, followed by replacement, deletion, and unused-image cleanup.
+
+7.  **Complete integration and acceptance.**  
+    Connect saves, immediate fronting, refresh, navigation, and session cleanup. Compare both paths for correctness, concurrency, and performance.
+
+Those are stages of work. **Before each individual task, we agree on its outcome, verification, and recovery path.** Cursor prepares that task; we review it; you apply and verify it; then you commit before we begin the next task.
+
+Standing commenting requirement: all code Cursor creates or modifies, including C#, JavaScript, and CSS, receives comments in the same way as the surrounding repository files. File headers stay the copyright and SPDX lines. C# types and methods use XML documentation for purpose, parameters, results, validation, and the invariants that are not obvious from the code. Comments explain intent. They do not restate every statement. This requirement applies to later tasks.
+
+Standing end-of-task requirement: before a task is checkpointed, review every outstanding C#, JavaScript, and CSS file created or modified for that task. Complete their commenting before the checkpoint, including files from earlier passes that still lack the required documentation. The review does not change executable behavior.
+
+For database changes, the checkpoint includes the migration script and an appropriate recovery method. Git preserves the script; database recovery must also be accounted for.
+
+Task 1, below, records the change-tracking investigation. Inventory is complete. 
+Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. Database implementation is not authorized. 
+Task 3, at the end of this file, is the isolated in-memory messaging core. Its checkpoint is commit 8801ca8. 
+Task 3B, after that section, is the concurrency and flood verification. Its checkpoint is commit c19ed42. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings.
+Task 4, after Task 3B, is the workspace opening tree and its server context. The full commenting review is complete. The final isolated result is 28 passed, zero failed, zero skipped, with no build warnings. The owner approved the final sidebar and header appearance and confirmed tree-only behavior. Manual fallback testing was omitted at the owner's direction. Failed refresh, sign-out cleanup, live tree parity, and the four database-backed plural-map tests remain unverified. Checkpoint not yet taken.
+Task 5a, after Task 4, is username/email-first sign-in and registration verification. Continue selects password for an active verified account, the six-digit code for a pending unverified account, and registration for an identifier that matches no account. A valid registration submit and an explicit resend show “Sending your verification email…” only while that request is in flight. The light theme follows the 1920 by 1024 login reference. The measured form is 354 by 499 pixels on that viewport, and every length scales by viewport height / 1024. Dark theme keeps that scale. A theme border frames the sign-in content from the heading through the legal footer without changing that content box. A saved pluralbridge.theme value of light or dark wins and is not cleared. With no saved value, the auth pages follow prefers-color-scheme. A light result paints a white page. An applied dark theme paints #101418. The sign-in page logs those facts as [auth-theme]. The sign-in visual work is complete. The workspace still treats a missing theme value as dark. The identity step shows Username or Email, Continue, and an opt-in remember checkbox. The password field stays on the password step. Provider buttons are disabled placeholders. Isolated tests passed. SQL row selection, locking, transactions, and the database clock are unverified. Turnstile and Mailpit are not in this slice. Checkpoint not yet taken.
+
+---
+
+# Task 1 — Database change-tracking contract
+
+Status: inventory complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
+
+Shared server-side graph and access context is approved. A retained context does not, by itself, prove that application data is current. Messaging accounting does not prove that either.
+
+The messaging pattern is governed by:
+
+D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Messaging Pattern — Governing Rules.txt
+
+---
+
+Task 2 records those rules. The list below matches the reconciled queue model. Earlier wording that the generic TTL start was undecided, that workers must not touch completion counters, and that accounting must not depend on FIFO with no exception is superseded.
+
+1. The publisher publishes a typed notification with identity, subject or payload, and a TTL it chooses. Lifetime policy belongs to the publisher. Publication stays small. Task processing is deferred.
+2. Every message has a publisher-chosen immutable TTL. TTL begins when the publisher sends the message. Every transport must define its precise send boundary and clock semantics. Those details remain open. Recovery and restart do not reset or extend the lifetime. A subscriber may publish a new message with a newly chosen TTL.
+3. Queue infrastructure owns delivery tracking, reference-counted outstanding obligations, dirty state, expiration, and queue health. Completed and Poisoned are the two terminal outcomes. Expired means the TTL has elapsed, and expiration before completion produces Poisoned. Stalled means unfinished work and is not a third terminal state. Infrastructure does not automatically retry domain work or create replacement assignments.
+4. Workers report through messages. They never directly modify shared accounting. The physical representation of the accounting remains open. The matching subscriber owns the task-specific response and any decision to publish replacement work. Subscriber internals are black boxes and are outside this task.
+5. Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected. Completions identify their assignments. Duplicate, late, expired, unknown, or obsolete completions must not double-discharge accounting or revive a terminal message.
+
+That earlier summary does not select a mechanism. It does not claim zero deadlocks, unlimited throughput, or guaranteed freshness. Its open list is durability, commit and rollback, missed wake-ups, restart, fan-out, atomic accounting, overload, TTL timing, and expiration enforcement. The governing open list is rules section 12, recorded in Task 2.
+
+The first inventory results are in `scripts/sqlserver/Diagnostics/Workspace/db-schema-inquiry-for-refactor.txt`, produced from `01_inventory_change_tracking.sql`. That file is the live evidence for those 21 tables and seven procedures. The 13 November catalog is not a substitute for it.
+
+The follow-up inventory was executed by the project owner at 2026-11-14 17:56:12 Pacific. No results file from that execution is in the repository. The findings below are attributed to that supplied execution, not to a saved script output.
+
+## Approved direction
+
+- Build the new workspace beside the current one. The Redesign document requires a developer switch, a clean reset, and the existing routes remaining available.
+- The new workspace builds the account graph once and retains a server-side snapshot for later detail and image requests. The opening request returns the navigation structure and an opaque context id. Later requests send that id and the keys they need. The context belongs to the authenticated account and is checked on every request. It holds topology and access facts. Profile fields, fronting, and image bytes stay on their own reads.
+- Changing anchors keeps the context. A workspace refresh replaces it. Profile text, fronting, and avatar edits do not by themselves force a graph rebuild.
+- Detail batches identify occurrences, at most 20. Image batches identify distinct member ids, at most 20.
+- The database remains authoritative for workspace data changes. Messaging completion establishes accounting completion. Subscriber contracts govern application-specific freshness. These statements are compatible. Messaging accounting does not solve database freshness. The concrete revision, queue, and subscriber mechanisms remain unresolved. Publication of a change stays small, and heavier processing is deferred, under the governing rules in Task 2. Correctness, concurrency, and robustness come before speed tuning.
+- The existing navigator route keeps `pb_show_tree_step4_members_by_email`. That measured call remains the baseline for the current path.
+
+## Conflicts in the other documents
+
+The opening conflict is corrected in the Implementation Rules file. The freshness mechanism below remains open.
+
+1. `Members Workspace — Model and Loading Implementation Rules.txt` now states that the shared server-side graph and access context is approved. The earlier sentence that called graph reuse unresolved is superseded. Concrete context freshness and lifecycle mechanisms remain open.
+
+2. The same file leaves the concrete expiry and invalidation mechanism open. The snapshot is approved. The database remains authoritative for workspace data changes, and messaging accounting does not solve that freshness. Proposals that update revision rows inside the writer’s transaction are historical. Where they conflict with the governing rules in Task 2, they are superseded. A time backstop is not decided.
+
+3. That file says the 2.278 second tree procedure stays unchanged. That matches the existing route. It does not require the new opening path to call step 4. The new path can run the same inner procedures once on caller-owned temp tables. No edit to step 4 is proposed.
+
+## Confirmed live findings
+
+Source: `scripts/sqlserver/Diagnostics/Workspace/db-schema-inquiry-for-refactor.txt`. The login had `VIEW DEFINITION` and `VIEW DATABASE STATE`, so the empty trigger and change-tracking results are not permission skips.
+
+- All 21 inventoried tables are present: placements, accounts, anchor visibility, custom fields, front history and its member table, group members, groups, member avatars, member visibility, members, object membership roles, object memberships, place members, places, roles, system membership roles, system membership statuses, system memberships, system relationships, and systems.
+- `pb_object_membership_roles`, `pb_anchor_visibility_permissions`, `pb_member_visibility_permissions`, and `pb_member_avatars` are installed. The disputed columns in the result are present.
+- `pb_front_history.SystemId` is nullable. `MemberId` is not. `EndTimeMs` is nullable.
+- `READ_COMMITTED_SNAPSHOT` is on (`is_read_committed_snapshot_on` = 1). `ALLOW_SNAPSHOT_ISOLATION` is on (`snapshot_isolation_state_desc` = `ON`). The database collation is `SQL_Latin1_General_CP1_CI_AS`.
+- No trigger rows were returned for the inventoried tables. The count of dbo table triggers outside that list is 0.
+- SQL Server Change Tracking is `not-enabled` for the database and for every inventoried table. No `rowversion` column was reported among the columns the script returned.
+- All seven procedures are present and `definition-available`: step 4 (4182 characters), seed (8228, modified 2026-11-12 04:42:52), walker (4278), expansion (7953), labeler (8489, modified 2026-11-12 04:46:08), render (4483, no parameters), and `pb_get_anchor_member_profiles_by_email` (16934, modified 2026-11-14 07:50:43, with `@BranchJson`).
+- The inventory omitted `ImageBytes` and account columns whose names matched password, secret, or credential. Those omissions are script filters, not evidence that the columns are absent. Index filters and included columns were not returned.
+
+Live nullability that the 13 November catalog does not show, and that the graph uses: `pb_members.SystemId`, `pb_groups.SystemId`, and `pb_group_members.SystemId` are nullable.
+
+### Live render result sets
+
+`pb_show_tree_step5_render_layer` has no parameters. It requires `#GraphEdges`. It uses `#GraphNodes` and `#WalkGraph` when they exist, and otherwise copies `##GraphNodes` or `##WalkGraph`. It then returns three result sets:
+
+1. `GraphNodeCounts`: `Section`, `ObjectType`, `NodeCount`, grouped from `#GraphNodes`.
+2. `GraphEdges`: `Section`, `ParentObjectType`, `ParentObjectId`, `ChildObjectType`, `ChildObjectId`, `EdgeRank`, `EdgeSource`.
+3. `HierarchyPreview`: `Section`, `TreeLine`, `PathKey`.
+
+`HierarchyPreview` adds a synthetic header that is not a graph node. For each walk row whose object is a group and whose parent is a system, the render inserts a row labeled `Groups`. Its path is the parent system path plus `.15|000000|groups|00000000-0000-0000-0000-000000000000`. Its display depth is the parent system depth plus one. Walk rows under that group path are shifted one level deeper so they draw under the header. The zero guid is not an object id and is not an authorization target.
+
+Step 4 selects `Context` (`Section`, `Email`, `AccountId`) before it calls the inner procedures. A client of step 4 therefore receives Context, then these three render sets, provided the inner procedures do not emit result sets of their own. The live seed, walker, expansion, and labeler bodies in the inventory write temp tables and do not end in a client `SELECT`.
+
+### One caller-owned build
+
+The new opening path can still do this on one connection, without changing a procedure:
+
+1. Create `#TopologyEdges`, `#SystemEdgeLabels`, `#WalkTopology`, `#GraphEdges`, `#WalkGraph`, and `#GraphNodes` on that connection.
+2. Execute seed, walker, expansion, labeler, and render once.
+3. Take `HierarchyPreview` as the navigation body, including the synthetic `Groups` rows. Take `GraphEdges` as the connectivity result set render already returns.
+4. Before the connection closes, copy `#WalkGraph`, `#GraphNodes`, and `#SystemEdgeLabels` as well. Render’s edge result set does not include path, depth, or the label text stored beside a system.
+5. Read access-membership facts for the anchors in that copy in the same construction boundary described below.
+
+The existing route keeps calling step 4. Calling step 4 from the new path would drop the temp tables at return. The edge and preview result sets would still arrive, and the structured walk would not.
+
+### Live label dependencies
+
+The live seed, in the inventory definition, builds system edge labels for legacy roots from two sources. Custom-field names come from placements whose child type is `customField`. Relationship text comes from `pb_anchor_relationships` where the source type is `system` and the source id is that root, plus parent text from `pb_system_relationships`. The anchor-relationship target is a system, group, or place. The label uses that target’s name. The target does not have to be a node in this account’s walk.
+
+The live labeler joins `pb_anchor_relationships` for every group and place node. The label appends `RelationshipType` and the target system, group, or place name. That target can also lie outside the navigable graph.
+
+The checked-in seed file still labels relationships from `pb_system_relationships` and `TargetSystemId`. It is behind the live procedure. The contract follows the live definition.
+
+The live profile procedure returns `vt.VisibilityTypeId`, `vt.VisibilityCode` as `VisibilityTypeCode`, and `vt.DisplayName` as `VisibilityTypeName` from `pb_visibility_types` joined on `pb_members.VisibilityTypeId`. Live foreign keys also point `pb_anchor_visibility_permissions.VisibilityTypeId` and `pb_member_visibility_permissions.VisibilityTypeId` at that lookup. A change to the lookup changes the code and name shown for every member and setting that stores the id. The lookup row does not carry those member or account ids.
+
+## Confirmed repository findings
+
+### One graph stack, one execution
+
+`scripts/sqlserver/Left Panel Tree/pb_show_tree_step4_members_by_email.sql` is the procedure `MeController.GetPluralMap` calls. Inside that procedure, after resolving `pb_accounts.AccountId` from `@Email` and selecting a Context result set, the body executes, in order:
+
+- `dbo.pb_show_tree_step5_topology_seed_builder` at line 52, after creating `#TopologyEdges` and `#SystemEdgeLabels`
+- `dbo.pb_show_tree_step5_topology_walker` at line 69, after creating `#WalkTopology`
+- `dbo.pb_show_tree_step5_graph_expansion` at line 86, after creating `#GraphEdges`
+- `dbo.pb_show_tree_step5_final_graph_walk_and_node_labeler` at line 111, after creating `#WalkGraph` and `#GraphNodes`
+- `dbo.pb_show_tree_step5_render_layer` at line 117
+
+The checked-in seed, walker, expansion, and labeler files are in `scripts/sqlserver/Left Panel Tree/`. The render procedure has no file there. The live definitions are in the inventory results and are cited under the live findings. The checked-in seed and labeler do not contain the `pb_anchor_relationships` reads that the live procedures contain.
+
+The inner procedures do not build a second topology. Avatar and profile graph reads in `AnchorMemberProfileSave.CreateGraphTablesAsync` create `#TopologyEdges`, `#SystemEdgeLabels`, `#WalkTopology`, and `#GraphEdges` on the open connection, then execute seed, walker, and expansion. They do not call the labeler or render. They also do not create `#WalkGraph` or `#GraphNodes`.
+
+SQL Server drops a temp table that was created inside a procedure when that procedure returns. Step 4 creates its temp tables, so they are gone when `GetPluralMap` finishes reading step 4. The API cannot copy `#GraphEdges` after that call.
+
+A temp table the caller creates before `EXEC` survives the inner procedures and lasts until the connection closes. That is already how the avatar path keeps `#GraphEdges` for its own query.
+
+Proposed opening execution, not implemented. On one connection the new path:
+
+1. Creates the caller-owned tables step 4 creates today: `#TopologyEdges`, `#SystemEdgeLabels`, `#WalkTopology`, `#GraphEdges`, `#WalkGraph`, and `#GraphNodes`.
+2. Executes seed, walker, expansion, labeler, and render once.
+3. Reads the render result sets as the navigation body.
+4. Copies `#GraphEdges`, `#WalkGraph`, `#GraphNodes`, and `#SystemEdgeLabels` into process memory before the connection closes.
+5. Reads current access-membership facts for the anchors in that copy. That read is not another graph build.
+
+The existing plural-map route continues to call step 4 unchanged.
+
+No procedure change is required for that shape. A procedure change would be required only if the new path called step 4 itself and also needed the edges back. Step 4 would then have to emit extra result sets, which changes the contract `PluralMapReader` already consumes. That change is not proposed.
+
+The labeler requires `#GraphEdges` to exist and inserts into `#WalkGraph` and `#GraphNodes`; it does not create those two tables. The walker inserts into `#WalkTopology` and does not create it. The caller has to create all three. The live render procedure reads those tables and returns the navigation result sets documented below.
+
+### What a retained context must be able to answer
+
+From the live procedures in the inventory and from `AnchorWriteAuthorization`. The profile procedure is installed. Its parameter list includes `@BranchJson`.
+
+Graph connectivity and occurrence identity:
+
+- `pb_account_object_placements` for the account, including parent and child type and id and `PlacementRank`.
+- `pb_system_memberships` with `pb_system_membership_statuses.StatusName = N'Active'`. The seed does not read `IsActive`.
+- `pb_system_relationships` parent links (`ParentSystemId`, `TargetSystemId IS NULL`) and, separately, label text.
+- `pb_groups` (`SystemId`, `ParentGroupId`, `ParentSourceGroupId`, `SourceGroupId`, `GroupName`).
+- `pb_group_members` and `pb_members`.
+- `pb_members.SystemId` for system-member edges, suppressed when the member is already on a place under that system.
+- `pb_place_members` (`PlaceId`, `MemberId`, `MembershipRank`).
+- Names and `EdgeRank` feed labels and order. `PathKey` is produced by the walk. It is not a stored key.
+
+Read authorization, which is not the avatar rule:
+
+- Profile reads use `pb_object_memberships` plus a status row with `StatusName = N'Active'` and `IsActive = 1` (`008_profile_supporting_reads.sql`). Anchor failures are 50004 through 50008. Ambiguous group or place membership is 50009. A supplied `@BranchJson` is checked against the graph.
+- Avatar reads require a member child in `#GraphEdges` only.
+- `AnchorWriteAuthorization.Decide` grants a write only from an active Owner role on the selected branch. The locked read joins `pb_object_memberships`, `pb_object_membership_roles`, and `pb_roles` with `RoleName = N'Owner'`. A permission code of owner is not that role. `pb_system_membership_roles` is not part of that join.
+
+`pb_members.IsArchived` and `pb_systems.IsArchived` are not filters in this stack. Archive is not removal.
+
+`pb_anchor_relationships` is read by the live seed and the live labeler. It is in the contract. The earlier statement that the current step 5 scripts do not read it was wrong.
+
+These tables are still not read by the live step 5 definitions in the inventory. They stay out of the contract until a current reader uses them: `pb_account_object_links`, `pb_system_object_links`, `pb_system_object_placements`, `pb_system_relationship_edges`, `pb_group_system_contexts`, `pb_member_system_contexts`, `pb_visibility_scopes`, `pb_visibility_scope_members`.
+
+`pb_visibility_types` is not a step 5 graph table. The live profile procedure reads it. It is in the refresh contract, below.
+
+### Writers and schema evidence
+
+The product API does not insert, update, or delete placements, system relationships, group membership, place membership, object membership, or system membership. Those changes arrive from tests, import scripts, and SQL outside the API. The API has no `DELETE` against these tables. External SQL can delete. `TRUNCATE` does not fire DML triggers. `BULK INSERT` does not fire them unless `FIRE_TRIGGERS` is set.
+
+Product writes that do exist:
+
+- `AnchorMemberProfileSave` updates `pb_members`, inserts or updates `pb_member_visibility_permissions`, `pb_member_avatars`, and `pb_front_history`, and inserts `pb_member_write_audit`.
+- `MembersController` inserts and updates `pb_members`. An insert sets `SystemId`, which is a graph edge.
+- Account code updates `pb_accounts`, including email. `UQ_pb_accounts_Email` is in the catalog script. An email change changes step 4’s lookup and does not change an edge. The retained context is bound to `AccountId`.
+- `AccountTestDatabase` inserts systems, system memberships, object memberships, system membership roles, and members.
+- `009_inherit_example_visibility_permissions.sql` inserts visibility rows only, and only when applied.
+
+The 13 November catalog script contains no `CREATE TRIGGER`, no change-tracking enablement, and no `rowversion` on these tables. That catalog also omits `pb_object_membership_roles`, both visibility tables, and `pb_member_avatars`, and it shows `pb_front_history.SystemId` as not null. Script 001 says the role table was created. Scripts 004, 005, and 006 say they have not been executed. None of those statements establishes the live database. The inventory script is the check.
+
+## Proposed contract
+
+Historical. Not approved. Superseded where it conflicts with the governing rules recorded in Task 2. The text is kept. It is not an instruction to implement.
+
+The categories below record which data a change affects. They replace the earlier idea that a context becomes stale only when a queue row names an object id the snapshot already contains. That rule misses a new grant, a new root, and any new child whose id is not yet in the snapshot.
+
+Any part of this proposal that assigns revision-counter updates, dependency lookups, or domain-specific recovery to a trigger or to queue management conflicts with those rules where it chooses a database transport, restarts or extends a lifetime, retries domain work from infrastructure, or leaves outstanding accounting in place after TTL expiration. Publication stays small under the governing rules. Domain response and replacement work belong to the matching subscriber. Queue infrastructure does not construct that work.
+
+### Categories
+
+A change belongs to every category it actually affects. Display name is member content and navigation display. It is not a connectivity change.
+
+| Category | What changes | Effect on the retained read context |
+| --- | --- | --- |
+| GraphAccess | Placements; object memberships; system memberships; status lookup rows; relationship parent or target links; group structure; group, place, and system member edges; `pb_members.SystemId` | The account’s connectivity and read-authorization snapshot is stale. |
+| NavigationDisplay | Names, `PlacementRank`, `EdgeRank`, `MembershipRank`, `RelationshipRank`, `GroupName`, `SystemName`, `PlaceName`, `DisplayName` as a sort key, custom-field labels, relationship type and label text | Navigation labels and order are stale. Connectivity and read authorization are not. |
+| Member | Profile fields on `pb_members` other than `SystemId` | That member’s detail record is stale. The graph context is not. |
+| PlacementSetting | `pb_anchor_visibility_permissions`, `pb_member_visibility_permissions` | That anchor or placement setting is stale. The graph context is not. |
+| Fronting | `pb_front_history`, `pb_front_history_members` | That member’s fronting is stale. The graph context is not. |
+| Avatar | `pb_member_avatars` | That member’s image is stale. The graph context is not. |
+| WriteAuthorization | `pb_object_membership_roles`, `pb_roles` where the row is the Owner role the write path joins, and `pb_system_membership_roles` | No effect on the read context. Saves keep using the live write query. |
+
+`pb_system_membership_roles` is included so a later change in the write path cannot silently depend on an untracked table. Current `AnchorWriteAuthorization` does not read it. Role changes do not invalidate navigator, profile-read, or avatar authorization, because those paths do not consult roles. They also do not need a snapshot bump while writes stay on the live query. The queue still records them so the evidence exists if a later design snapshots write facts.
+
+### Scope without a graph walk
+
+The trigger does not discover accounts. It writes the keys that are on the changed row, including the deleted image and the inserted image.
+
+- The row has `AccountId`. Bump that account’s graph or display revision, including when the new object id is not in any snapshot. This covers a new placement, a new legacy root, a new access grant, and removal of any of those.
+- The row has no `AccountId`. Bump a revision for each old and new endpoint key: parent and child, system and group, place and member. A context is stale when it contains any of those keys. An added child is noticed because the parent key moves, not because the new child was already stored. An account whose context contains neither endpoint does not show that object today. Its next opening load reads the database directly.
+- The row is `pb_system_membership_statuses`, or the trigger cannot name an account or an endpoint. Bump one global graph revision. Every retained context stores that value and becomes stale. This is the conservative case, used for a lookup change that rewrites the meaning of many memberships.
+- A navigation-display column on the same row bumps the display revision for that same account, endpoint, or global scope. It does not bump the graph revision.
+
+A context built for account A stores four kinds of values: A’s graph revision, A’s display revision, the global graph and display revisions, and the graph and display revisions of each object id it contains. The next request treats the context as stale for connectivity when any stored graph revision differs. It treats navigation as stale when any stored display revision differs. A difference is enough. The numbers are not an order of commits.
+
+New reachability that this covers:
+
+- New grant or new root with `AccountId`: the account revision moves even though the new id is absent from the snapshot.
+- Addition under a parent the account already reaches: the parent endpoint revision moves.
+- Removal: the deleted endpoint and the account id, when present, both move.
+- Relationship change: every old and new system id moves. A context that holds any of them is stale.
+- Change that only creates an object nobody’s context contains, and that has no `AccountId`: no current context can display it. The next opening load sees it. No broadcast.
+
+Checking only the object ids already displayed is not enough for labels. The live seed and labeler embed the name of an anchor-relationship target that may not appear in the walk. A rename or delete of that target updates `pb_systems`, `pb_groups`, or `pb_places`, not the relationship row. Who performs that lookup is not decided. Putting it in a trigger or in queue management is part of this historical proposal and is superseded where it conflicts with the governing rules.
+
+Earlier drafts both called the queue a diagnostic log and left that job unresolved. Neither draft is approved. Whether a queue carries freshness, history, or only a generic notification is open.
+
+### Follow-up inventory
+
+Owner-supplied execution at 2026-11-14 17:56:12 Pacific. Inventory is complete.
+
+- `pb_anchor_relationships` and `pb_visibility_types` both exist.
+- Neither table has triggers. Neither reported a `rowversion` column.
+- `pb_anchor_relationships` primary key is `AnchorRelationshipId`. The unique source key is `SourceObjectType`, `SourceObjectId`. The target index is `TargetObjectType`, `TargetObjectId`. There are no incoming or outgoing foreign keys. Trusted, enabled checks restrict both endpoints to system, group, or place, prohibit a direct self-reference, and require a nonblank `RelationshipType`. Defaults exist for `AnchorRelationshipId` and `CreatedAtUtc`.
+- `pb_visibility_types` primary key is `VisibilityTypeId`. `VisibilityCode` is unique. Incoming foreign keys come from `pb_members`, `pb_anchor_visibility_permissions`, and `pb_member_visibility_permissions`. No outgoing foreign keys, included index columns, or filters were reported.
+
+The unique source key means one relationship row per source object. The target index can return many sources for one target. The live profile read still supplies `VisibilityCode` and `DisplayName` from this lookup.
+
+## Proposals requiring revision
+
+Historical. Not approved. Superseded where they conflict with the governing rules recorded in Task 2. The notes are kept. They are not current instructions.
+
+These ideas are superseded where they conflict with rules sections 3, 5, and 9: a database insert or commit mandated as the TTL start; recovery or restart starting a new lifetime; infrastructure automatically retrying domain work or creating a replacement assignment; TTL expiration leaving outstanding accounting outstanding indefinitely; poison cleanup treated as Completed because outstanding accounting fell to zero.
+
+The notes below preserve the earlier design discussion. The items that put revision-counter updates, dependency lookups, or domain-specific recovery on a trigger or on queue management are in that superseded set.
+
+1. Trigger publication and deferred cleanup. The draft had the trigger collect revision keys and publish those revisions in the writer's transaction, then insert queue rows, while a processor only deleted old queue rows. Alternatives were a queue-only trigger with the processor publishing revisions, or revisions with no queue. The tradeoff was lock time against a gap while a processor is down. This assigns domain publication and recovery shape to the trigger and the processor. It requires revision. Retention length, column names, and whether write-authorization changes are notified while saves stay on the live write query remain open.
+
+2. Where a revision becomes visible. The draft preferred counters updated in the writer's transaction over waiting for a processor. It also said a queue identity is not commit order. Both the direct update and the queued update are mechanisms. Neither is approved. Overlapping writers and a crashed processor are still open problems, not solved by the messaging boundaries.
+
+3. Opening-build isolation. The draft used one SNAPSHOT transaction to read counters, build the graph, and read access facts, with later requests reading current counters under the database default. The alternative was one statement at a time under read committed snapshot. Two reads inside one snapshot do not prove that nobody committed during the build. This construction is not approved. A time backstop beside any later check is open.
+
+4. A request already running after revocation. The draft treated the counter compare, plus the account binding, as the point where a request may use the retained context, and allowed that request to finish if revocation committed afterward. Cancelling the in-flight response was the alternative. This policy is not approved. How long a context id lives, and which session may hold it, are open.
+
+5. What survives cleanup. The draft kept revision rows, allowed queue history to be deleted, and required a full opening build when a reader still needed a deleted history row. Keeping history forever, or deleting the revision rows, were the alternatives. This is not approved. Who deletes history, and how a cleanup crash is retried, are open.
+
+6. Labels for targets outside the displayed graph. The draft had the trigger seek pb_anchor_relationships on the target index and update display revisions for each source. A global display revision, or the same seek in a processor or a reader, were the alternatives. The target index can support that seek. Placing the seek and the revision update in the trigger, or placing domain recovery in queue management, requires revision. Whether a label change reruns the opening build or patches labels is open.
+
+7. Visibility lookup. The draft had a visibility-type change update one global member revision and one global placement-setting revision, without a graph revision. The alternative was a fan-out across pb_members and both permission tables. The profile dependency on VisibilityCode and DisplayName is confirmed. Which component publishes the notification, and whether the response is global or per row, is open.
+
+The same drafts also specified lock order, an update-then-insert for a missing revision row, duplicate-key handling, and no retry inside the trigger after deadlock 1205. Those are mechanisms. They are not approved, and they do not establish zero deadlocks.
+
+A proposed stored shape, also not approved, was one account revision row, one object revision row, one global revision row, one content revision row, and an append-only queue row per changed source key. A sequence on that queue would not be commit order.
+
+TRUNCATE and bulk load without FIRE_TRIGGERS still bypass a database trigger. What happens after those statements is unresolved.
+
+These questions stay open with the messaging questions. None is accepted.
+
+- Concrete freshness, revision, queue, and subscriber mechanisms.
+- Column names, types, and any retention threshold.
+- Whether write-authorization changes are notified while saves use the live write query.
+- Whether a navigation-display change reruns the opening build or patches labels.
+- Context ownership and lifetime across sessions and API instances. Process memory is not shared. Restart drops it.
+- A time backstop beside whatever later check is chosen.
+
+## Inventory
+
+Both inventories are complete. Do not edit the scripts.
+
+- `D:\Src\Needs of the Many\PluralBridge\scripts\sqlserver\Diagnostics\Workspace\01_inventory_change_tracking.sql`, with results in `scripts/sqlserver/Diagnostics/Workspace/db-schema-inquiry-for-refactor.txt`.
+- `D:\Src\Needs of the Many\PluralBridge\scripts\sqlserver\Diagnostics\Workspace\02_inventory_remaining_dependencies.sql`. The owner ran it at 2026-11-14 17:56:12 Pacific. The findings are recorded above. A results file from that run is not in the repository.
+
+## Smallest next implementation task
+
+There is no authorized implementation slice. Inventory is complete. Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
+
+The earlier conditional slice, empty revision tables and an empty queue with no triggers, is not authorized. It depended on a trigger and revision design that is historical and superseded where it conflicts with the governing rules. No migration is prepared.
+
+A later task still has to name its outcome, verification, and recovery path before any script is written. No existing table is altered by this document.
+
+---
+
+# Task 2 — Messaging pattern reset
+
+Status: Task 2: messaging responsibility, lifetime, and accounting rules reconciled; documentation awaiting review and checkpoint. Concrete implementation contracts remain open. No implementation authorized.
+
+Authority for the messaging pattern:
+
+D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Messaging Pattern — Governing Rules.txt
+
+That file is the authority and supersedes conflicting earlier messaging proposals. D:\Src\Needs of the Many\PluralBridge\docs\plans\models\PubSub Queue Model.txt is reconciled to it. The historical proposals earlier in this file are kept and remain superseded where they conflict.
+
+This reconciliation does not change the approved workspace redesign, the approved shared server-side context, the completed inventory findings, the checkpoint history, or the working method at the top of this file. It does not mark review or checkpoint complete. Messaging accounting does not solve database freshness.
+
+The governing requirements, by section:
+
+1. Authority and scope. The pattern is transport-independent. A database, an in-memory queue, or another transport may implement it. Subscriber internals are black boxes and are outside this task. Storage, synchronization, transport, and recovery mechanisms remain subject to review.
+
+2. Separation of responsibilities. The publisher creates a typed message, supplies its identity, subject or key, payload, and TTL, and sends it through the publication interface. Publication stays small. The queue infrastructure owns delivery tracking, reference-counted outstanding-work accounting, expiration enforcement, and queue health. It publishes generic results and lifecycle notifications. It does not take task-specific processing or recovery decisions. The subscriber reports completion and the result through messages, does not directly modify shared reference counts or dirty state, and decides whether to publish replacement work as a new message with its own identity and TTL.
+
+3. Message lifetime. Every message has a publisher-chosen TTL. That includes domain notifications, completion reports, result messages, error notifications, poison notifications, and other lifecycle messages. TTL begins when the publisher sends the message. The generic TTL start is that send. It is not undecided. Every transport must define its precise send boundary and clock semantics. Those details remain open. The generic pattern does not mandate a database insert, a commit, subscriber activation, or a processing-start boundary. The lifetime is immutable. Delivery, processing, persistence, recovery, and restart do not reset, pause, or extend it. A replacement is a new message with a newly chosen TTL. It does not revive or extend the original.
+
+4. Reference-counted dirty state. Infrastructure owns outstanding obligations and dirty state for a defined message or task scope. Accepted work registers its obligations. An accepted completion report discharges only its identified obligation, exactly once. The scope remains dirty while obligations remain. Completion of older work must not erase newer obligations. Workers report through messages and never directly modify that shared accounting. The physical representation, including a counter, a bitset, or records, remains open.
+
+5. Two terminal outcomes. Completed means the registered outstanding obligations were accounted for before TTL expiration. Infrastructure closes the message and publishes its result. Poisoned means TTL expires before the message completes. Infrastructure retires the message, closes its remaining bookkeeping obligations, and publishes the poison outcome. Exactly one terminal outcome applies. Expired means the TTL has elapsed. Expiration before completion produces Poisoned. Stalled means unfinished work and may produce a health notification. It is not a third terminal state. Poison cleanup must not manufacture a Completed outcome because the cleanup reduced outstanding accounting to zero. An accepted completion report may carry an error result and still discharge its identified obligation. Publishing Error or StillDirty alone does not discharge an obligation of the original work. An error does not, by itself, create a third terminal message state.
+
+6. Completed does not mean successful. Completed is lifecycle accounting. The published result carries success, error, or another defined result. A message may complete with an error result. Zero outstanding obligations is accounting completion for that scope only. The database remains authoritative for workspace data changes. Subscriber contracts govern application-specific freshness. Those statements are compatible with accounting completion. Messaging accounting does not solve database freshness.
+
+7. Completion and concurrency. Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected. Every completion identifies the work it reports. An accepted completion report discharges only that obligation, exactly once. A duplicate, late, expired, unknown, or obsolete completion must not double-discharge accounting, close another obligation, or revive a terminal message. Every completion report has its own TTL and must be valid when accepted. The atomic transition and the exact deadline boundary remain open. Retiring a message does not stop an executing worker or undo that worker’s effects. A late report cannot revive the message.
+
+8. Results, errors, dirty notifications, and poison notifications. Infrastructure publishes typed outcomes that can be associated with the original message and work. These include completion and results, errors, poison, and relevant nonterminal health or StillDirty notifications. StillDirty reports outstanding work. Publishing Error or StillDirty alone does not discharge an obligation belonging to the original work. StillDirty does not authorize infrastructure to construct a domain-specific replacement. The matching subscriber decides whether to publish replacement work with a new identity and TTL. Every resulting message follows the same TTL rules. No message is exempt from TTL.
+
+9. Queue health. Poisoned, expired, or stalled work must not indefinitely obstruct unrelated work. Supervision must remain effective when a worker fails, disappears, or never reports completion. Infrastructure owns detection, accounting cleanup, retirement, and generic outcome reporting. Subscribers own domain recovery and reposting. Infrastructure must not introduce automatic domain retries, replacement assignments, or lifetime extensions. Lifecycle reporting needs a bounded feedback policy so health-notification failures cannot form an endless chain. That policy is not designed. TTL still applies to every message.
+
+10. Multiple subscribers. Message type determines which subscribers are interested. One subscriber’s completion must not discharge another subscriber’s obligation. How registration and completion are tracked across subscribers is unresolved. No particular notification, delivery, assignment, or report identity is mandated.
+
+11. Durability and overload. Required pending work must remain discoverable after a missed wake-up or restart under the selected transport’s durability contract. Recovery preserves message identity, accounting integrity, and the original TTL. Expired messages remain expired. Retained metadata or outcome evidence does not make a message eligible for delivery again. Capacity limits, publication refusal, transaction coupling, and storage-failure behavior require explicit decisions. Required work must not be silently discarded. A database adapter’s commit and rollback coupling, and its publication-failure behavior, require a separate review. No schema, lock strategy, transport, retry threshold, or numeric capacity limit is approved.
+
+12. Open implementation decisions. The precise send boundary and clock remain open. The generic TTL start is send and is not open. The obligation representation, atomic handling of arrivals, completions, and expiration, fan-out and subscriber registration, durable publication and transaction coupling, missed wake-up and restart recovery, capacity and publication failure, queue-health execution and bounded lifecycle reporting, evidence retention and cleanup, any task-specific processing or result ordering, the concrete subscriber freshness mechanism, and subscriber internals remain open. No workspace-specific ordering contract is selected. Database authority, accounting completion, and subscriber-governed application freshness are compatible.
+
+13. Working method. The method at the top of this file stands. One later task is one verifiable piece. This reset does not authorize that task.
+
+## Problem list
+
+Items 1, 2, 3, 4, 7, 8, 9, and 10 are resolved by the authorized clarifications. Items 5 and 6 stay deferred. This list does not reopen the resolved rules. Review and checkpoint of this documentation are not complete.
+
+1. Resolved. TTL begins when the publisher sends the message. Every transport must define its precise send boundary and clock semantics. Those details remain open. The generic start is not undecided. Every message keeps its publisher-chosen immutable TTL. Recovery does not reset or extend it.
+
+2. Resolved. Completed and Poisoned are the two terminal outcomes. Expired means the TTL has elapsed. Expiration before completion produces Poisoned, retirement, and closure of the remaining bookkeeping obligations. Stalled means unfinished work and may produce a health notification. It is not a third terminal state. Poison cleanup cannot produce Completed merely because outstanding accounting falls to zero.
+
+3. Resolved. An accepted completion report discharges only its identified obligation, exactly once. Its result may be success, error, or another defined result. Publishing Error or StillDirty alone does not discharge an obligation of the original work. StillDirty reports outstanding work. The matching subscriber decides whether to publish replacement work with a new identity and TTL. Duplicate, late, expired, unknown, or obsolete reports cannot double-discharge accounting or revive a terminal message.
+
+4. Resolved. The statements are compatible. The database remains authoritative for workspace data changes. Messaging completion is accounting completion. Subscriber contracts govern application-specific freshness. Messaging accounting does not solve database freshness. The concrete freshness mechanism remains open.
+
+5. Deferred for a later implementation task. The database-adapter contract for transaction coupling and publication-failure behavior is not written. Required work must not be silently discarded. No message is exempt from TTL. Capacity, publication refusal, and storage-failure behavior remain open with that contract.
+
+6. Deferred for a later implementation task. Bounded lifecycle reporting that prevents an endless notification chain is not designed. No message is exempt from TTL.
+
+7. Resolved. Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected.
+
+8. Resolved. Infrastructure owns reference-counted outstanding obligations and dirty state. Their physical representation remains open. Workers report through messages and never directly modify shared accounting.
+
+9. Resolved. Stage 2 verifies that restart recovery and repeated bookkeeping preserve accounting integrity, message identity, and the original TTL. Infrastructure does not automatically retry domain work or create replacement assignments. Subscriber-selected replacement work is a new publication. No recovery mechanism is selected.
+
+10. Resolved. Shared server-side graph and access context is approved. The Implementation Rules opening statement is corrected. Concrete context freshness and lifecycle mechanisms remain open.
+
+---
+
+# Task 3 — In-memory messaging core
+
+Status: checkpoint confirmed at commit 8801ca8. The project owner’s focused verification passed: 17 tests, zero failures, zero skipped, and no build warnings. The commenting review is included in that commit. Flood verification is Task 3B.
+
+Scope: an isolated in-memory messaging core and focused tests. This is the first implementation of lifecycle and accounting behavior. Database durability, application integration, controllers, workspace behavior, triggers, and startup registration are not part of this slice.
+
+For this in-memory transport, send is acceptance through `Publish` or `PublishCompletion`. The send instant is the monotonic clock value captured during that call. Elapsed time greater than or equal to TTL is expiration. Accounting transitions use one gate per core instance. Subscriber code is not called. Lifecycle observations are copied out after the gate is released. They are not messages, they carry no separate TTL, and they are not published back into the core. Publishing them as new messages would require the deferred bounded-feedback policy, which this slice does not decide.
+
+A completion report is a typed envelope with its own identity and positive TTL. `PublishCompletion` captures its send instant and does not discharge. `AcceptCompletion` discharges the identified obligation only while that report is unexpired and the work message is still active. A single call cannot observe an expired report, because elapsed time at the send instant is zero.
+
+Corrections prepared, still not built or tested:
+
+- A second completion report that arrives after the parent is Completed or Poisoned is `TerminalMessage`. `ObligationAlreadyDischarged` applies only while that parent is still active because another obligation is unfinished. Neither path discharges an obligation twice or records a second terminal outcome.
+- Public results, message snapshots, and lifecycle history return `ReadOnlyCollection` wrappers over defensive copies, including nested obligation and identity lists. A caller cannot change retained history through a returned collection. The accounting gate is unchanged, and subscriber code stays outside it.
+- Unknown-target and unknown-obligation rejection consumes that completion-report identity. A later `AcceptCompletion` for the same identity returns `DuplicateCompletionReport` and does not discharge, even if the target or obligation now exists. A newly published report with a new identity can discharge the now-existing active obligation only while both that report's TTL and the work message's TTL are unexpired.
+
+The owner's focused verification, including the warning fixes, passed: 17 tests, zero failures, zero skipped, and no build warnings. Those warning fixes replaced single-item count assertions with `Assert.Single` and made the concurrency test wait with `await Task.WhenAll` after an asynchronous start signal. The concurrent work and the assertions were unchanged.
+
+Commenting review, prepared while the checkpoint is paused. Executable behavior was not changed. The four messaging production files and `InMemoryMessagingCoreTests.cs` now document the send boundary, the monotonic clock, the greater-than-or-equal TTL boundary, accounting ownership, the single gate, exactly-once discharge, the two terminal transitions, poison cleanup, immutable snapshots, retained outcome evidence, each focused test, and the limits of this in-memory slice. The standing commenting requirement is recorded above with the working method.
+
+## Follow-up — concurrency and flood testing
+
+This follow-up is Task 3B. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings. The commenting review is recorded there, and the checkpoint is still pending. It is not part of commit 8801ca8. It does not add application integration, lifecycle publication, database work, or a resolution of the deferred adapter and bounded-feedback contracts.
+
+Recovery: revert only this slice. Remove the four production files and the test file listed below, and remove this Task 3 section from this plan. Do not revert Task 1, Task 2, or unrelated files.
+
+Files:
+
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\IMessagingClock.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\ManualMessagingClock.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\MessagingContracts.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Messaging\InMemoryMessagingCore.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Messaging\InMemoryMessagingCoreTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
+
+Verification, to be run by the project owner from the repository root:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter FullyQualifiedName~InMemoryMessagingCoreTests`
+
+That command builds the test project and its API reference. The API project already contains a browser-app sync target, so the build can copy browser assets. This slice does not change that target.
+
+The deferred contracts remain deferred. The database-adapter transaction and publication-failure contract is not written. The bounded lifecycle-reporting policy is not designed. No message envelope created by this slice is exempt from TTL. No implementation beyond this isolated core is authorized.
+
+---
+
+# Task 3B — Concurrency and flood verification
+
+Status: checkpoint confirmed at commit c19ed42. The owner’s verification passed: 31 tests, zero failures, zero skipped, and no build warnings.
+
+The first owner run was 31 tests, 30 passed, one failed, zero skipped. Both projects compiled. `RejectedAndLateReports_DoNotChangeUnrelatedAccounting` expected `Completed` and observed a null terminal value because the test discharged `added` and left `keep` outstanding. The correction completes `keep` with its own report, then `added`, while the manual clock is still zero.
+
+The owner’s verification after that correction passed: 31 tests, zero failures, zero skipped, and no build warnings.
+
+Commenting review, before the checkpoint. Executable behavior and assertions were not changed. `InMemoryMessagingCoreConcurrencyTests.cs` is the only code file this task created. Its comments now cover each test, the helpers, the shared start signal, the manual clock, the workload sizes, the hang watchdogs, the ledger invariants, and the legal race outcomes. Production messaging files were not modified for this task.
+
+Baseline: Task 3 checkpoint commit 8801ca8 is confirmed. That commit’s focused verification passed: 17 tests, zero failures, zero skipped, and no build warnings. Those tests stay intact. This task does not change production code, the governing rules, application integration, or database objects.
+
+Scope: concurrency and flood tests for the isolated in-memory core, through its public API. The manual clock arranges TTL. A wall-clock watchdog fails a stuck test. It is test supervision, not message TTL and not a throughput requirement. Eight workers pull indexes. There is not one task per message. Shuffles use seed 8801. Each work message in the flood has two obligations.
+
+The tests cover:
+
+- Concurrent publication and completion of 100, 1,000, and 10,000 work messages, with the clock held steady, mixed success and error results, shuffled completion order, and duplicate submissions. Every accepted obligation discharges at most once, the accepted result stays on that identity, each parent is Completed once, and none are Poisoned.
+- Concurrent duplicate work identities and, separately, duplicate completion-report identities. Exactly one publication of each identity is accepted. A rejected duplicate does not replace payload, TTL, send instant, or the accepted result.
+- Work and completion-report TTL one tick before expiration, exactly at expiration, and after expiration. Elapsed time greater than or equal to TTL is expired. An expired report does not discharge active work. Expired unfinished work is Poisoned once and is not Completed.
+- Controlled registration-before-completion and completion-before-registration. Repeated races among final completion, additional registration, and expiration, plus concurrent supervision. The assertion accepts whichever legal outcome the race produced: an accepted extra obligation is present, a rejected registration adds nothing, Completed means every accepted obligation is discharged, Poisoned means each accepted obligation is discharged or retired, and exactly one terminal outcome exists. Later calls do not revive the parent. Repeating the race does not prove every interleaving.
+- A mixed workload: some messages are completed, some are left unfinished and then expired, and fresh work is published and completed while supervision runs and again afterward. A pass shows progress for this workload. It does not show zero deadlocks or unlimited throughput.
+- Unknown targets, unknown obligations, repeated acceptance of a consumed report, and reports after completion or poison. Rejection does not change unrelated accounting. Unknown-target and unknown-obligation rejection consumes that report identity. A new report identity can discharge once the active obligation exists. Every report keeps its own TTL.
+- Evidence is read at phase boundaries, not inside the publish or accept loops. Settlement checks unique identities, exactly-once discharge, one terminal outcome, preserved error results, and unchanged TTL and send instants against a ledger the test recorded when each publication was accepted.
+
+Files:
+
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Messaging\InMemoryMessagingCoreConcurrencyTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
+
+Verification, to be run by the project owner from the repository root with the API stopped:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter "FullyQualifiedName~InMemoryMessagingCoreTests|FullyQualifiedName~InMemoryMessagingCoreConcurrencyTests"`
+
+That command builds the test project and its API reference. The API project already contains a browser-app sync target, so the build can copy browser assets. This task does not change that target.
+
+Limitations: database-adapter transaction coupling and bounded lifecycle publication stay deferred. Lifecycle observations are still not published back into the core. Scheduler-dependent repetitions are not an exhaustive interleaving proof.
+
+Recovery: remove `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Messaging\InMemoryMessagingCoreConcurrencyTests.cs` and remove this Task 3B section. Do not remove the Task 3 checkpoint or its files.
+
+---
+
+# Task 4 — Load the tree and establish its server context
+
+Status: commenting review complete and prepared for checkpoint. The owner approved the final sidebar and header and confirmed tree-only behavior. The checkpoint itself has not been taken.
+
+The first owner build stopped with five compilation errors before tests ran. `WorkspaceOpeningException` was sealed while three opening failures derived from it. The public workspace controller constructor also took `WorkspaceTreeService` and `WorkspaceContextStore` while those types were internal. The corrections remove `sealed` from the base exception, make the service and store public, and make the store's clock and settings contracts public so the public store constructor stays consistent. The SQL session, captured rows, and context models stay internal. The service's public constructor creates that SQL session; tests still pass a session through the internal constructor.
+
+Build, 2026-11-17, from the repository root: `dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj"`. Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:01:17.78. Restore retried several NuGet lookups after "No such host is known" and then restored both projects. No output-file lock. The existing browser-asset sync ran and reported `SYNC_BROWSER_APP_OK`, `SYNC_CHECK_OK`, and `ALLOWLIST_CHECK_OK`. The build log shows copies of `developer-tools.js`, `legacy-app.js`, and `navigator.js` into `wwwroot\app\js`. No source files were changed by that build.
+
+Owner test run: 32 tests, 31 passed, one failed, zero skipped. `Store_KeepsAnAcquiredCopyAfterEviction` failed at line 240 with `WorkspaceContextTooLargeException`: estimate 962 bytes, budget 948 bytes. The fixture set the budget to the first context's estimate. The replacement path is longer, so the size estimator correctly counted a larger second context and the store rejected it before eviction. The production estimator and budget check were not changed. The fixture now uses the larger of the two actual estimates, asserts that each context fits, asserts that both together exceed the budget, and still checks that publishing the second evicts the first while the acquired copy remains readable.
+
+Build after that fixture correction, 2026-11-17: the same `dotnet build` succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:09.09. Restore was up to date. No output-file lock. The browser-asset sync reported the same three OK results. No production source changed. Tests were not run again.
+
+Commenting review before the isolated rerun: the Task 4 C# files keep copyright and SPDX headers, and their declarations describe the current public and internal split. `developer-tools.js`, `navigator.js`, and `legacy-app.js` document the workspace-tree flag, the path switch, and sign-out release. No Task 4 CSS was added. `ReadAnchorNamesAsync` had only the transaction parameter documented; its summary, the other parameters, and the return value are now documented. That documentation change does not change the read.
+
+Isolated test command, 2026-11-17, from the repository root:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter "FullyQualifiedName~WorkspaceTreeTests|FullyQualifiedName~PluralMapEndpointTests.Map_|FullyQualifiedName~PluralMapEndpointTests.DerivePreview_|FullyQualifiedName~PluralMapEndpointTests.SelectFirstAnchor_|FullyQualifiedName~PluralMapEndpointTests.ImmediateChildren_|FullyQualifiedName~PluralMapEndpointTests.ApplyAnchorNames_"`
+
+Result: Passed, Failed 0, Passed 28, Skipped 0, Total 28, duration 143 ms. The build reported 0 Warning(s) and 0 Error(s). Restore was up to date. No output-file lock. The browser-asset sync reported `SYNC_BROWSER_APP_OK`, `SYNC_CHECK_OK`, and `ALLOWLIST_CHECK_OK`, including `SYNC_CHECK_CONTENT_DRIFT=0`.
+
+The requested filter also names `PluralMapEndpointTests` as a whole, which is 17 tests plus the 15 workspace-tree tests, 32 in total. These four were not run because each opens the account database through `AccountTestDatabase` or `SqlConnection`, and `HttpOutput_MatchesDirectProcedureOutput` also executes `dbo.pb_show_tree_step4_members_by_email`:
+
+- `UnauthenticatedRequest_Returns401`
+- `SeparateRuntimeAccounts_ReceiveTheirOwnContext`
+- `AccountWithoutSystemMembership_Succeeds`
+- `HttpOutput_MatchesDirectProcedureOutput`
+
+Owner browser result: after Control+F5, the new workspace showed the intended tree-only behavior. The owner later confirmed that the new tree path works and chose to omit manual fallback testing. The `workspaceTreeEnabled` default remains true. `setWorkspaceTreeEnabled(false)` remains the explicit fallback in code. The initializer runs only when the property is absent. This file does not read or write browser storage, so a value set during the page does not survive a fresh load. The exported initializer is still named `ensureWorkspaceTreeDisabledByDefault`.
+
+Additional owner-requested UI change for testing: on each page load the MAIN sidebar section is expanded and every other sidebar section is collapsed, including sections that are not in the supplied screenshot. The sidebar interaction is now complete in `shell.js` and `shell.css`, including the later account header, disabled search preview, section and sidebar controls, sentence-case labels, and tighter rows. Each heading row is the keyboard toggle, with `aria-expanded` and `aria-controls` pointing at that section's content region. A decorative outline icon sits at the left of the label. A right-pointing chevron sits at the right edge of the row and rotates down when the section is expanded. The content height slides open and closed with the content's own height, and a second toggle during the animation reverses that transition. An expanded group shows a thin guide under the heading icon, and that guide closes with the group. Expand-all opens every section when any is closed and collapses every section when all are open. Collapsing the sidebar hides the account header, search row, sections, and sign-out, and leaves one restore control. The account name is the authenticated account display name. The search field does not search. The sidebar scroller is 6px in Chromium and `scrollbar-width: thin` in Firefox. `prefers-reduced-motion` removes the animation. The Members page remains the selected route. Sidebar expansion is not read from storage, so a saved expansion cannot replace those initial defaults. `workspaceTreeEnabled` and the workspace loading path were not changed. Browser verification of this combined sidebar is pending.
+
+Sidebar verification, 2026-11-17: `dotnet build "api\PluralBridge.Api\PluralBridge.Api\PluralBridge.Api.csproj" -p:UseAppHost=false` succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:20.83. The output was not locked. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The same isolated 28-test filter then passed: Failed 0, Passed 28, Skipped 0, duration 226 ms. Those tests do not exercise the sidebar. No database connection was opened.
+
+Sidebar interaction completion, 2026-11-17. The default output was locked by `PluralBridge.Api` process 13636 and Visual Studio process 6060. Those processes were left running. `PluralBridge.Api.exe` and `PluralBridge.Api.dll` could not be replaced there. The successful build used an output directory outside the repository:
+
+`dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" -p:UseAppHost=false -p:OutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar\ -p:IntermediateOutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar-obj\`
+
+Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:14.69. The browser sync copied `shell.js` and `shell.css` into `wwwroot\app` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`.
+
+`dotnet test "C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar\PluralBridge.Api.Tests.dll"` with the same isolated filter: Passed, Failed 0, Passed 28, Skipped 0, duration 341 ms. Those tests do not exercise the sidebar. Browser verification of the accordion is pending.
+
+Sidebar refinements, 2026-11-17. The same default output remained locked by `PluralBridge.Api` process 13636 and Visual Studio process 6060. The successful build repeated the outside-repository command above. Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:06.53. Sync again copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter then passed: Failed 0, Passed 28, Skipped 0, duration 204 ms. Those tests do not exercise the sidebar. Browser verification of the icons, guide, and thin scrollbar is pending.
+
+Sidebar account header and controls, 2026-11-17. Build command:
+
+`dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" -p:UseAppHost=false -p:OutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar\ -p:IntermediateOutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-sidebar-obj\`
+
+Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:08.54. Sync copied `index.html`, `shell.js`, and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter then passed: Failed 0, Passed 28, Skipped 0, duration 157 ms. Those tests do not establish browser-layout correctness. The owner browser check and the checkpoint remain pending.
+
+Sidebar visual match, 2026-11-17. The account row uses the nameplate at its own aspect ratio, with a divider beneath it. The restore control stays hidden while the sidebar is open. Whole-sidebar visibility uses a left or right double chevron, and expand-all keeps its own vertical pair. Section headings and child items use the same regular weight and size. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:07.87. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 202 ms. Those tests do not establish browser-layout correctness. Commenting review for this pass covered `shell.js`, `shell.css`, and the existing Task 4 C# and JavaScript comments. Browser verification and the checkpoint remain pending.
+
+Sidebar account mark, 2026-11-17. The account row now uses the existing person icon beside the signed-in name. Truncation, the full-name tooltip, and the divider remain. The large nameplate and girder on the right were not changed. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:10.11. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 259 ms. Those tests do not establish browser-layout correctness. Browser verification and the checkpoint remain pending.
+
+Shared header band, 2026-11-17. The account row and the existing girder and bridge artwork share one band. The sidebar column sizes the left cell, and the navigation continues that column below a full-width divider. Search, section controls, and the left double chevron stay in the sidebar. Collapsing hides the account, search, navigation, and sign-out, and leaves the right double chevron in the left edge of the band. The members title, toolbar, and tree stay in the workspace. The phone layout still uses its own header and the members-screen copy of the artwork. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:10.19. It did not update the running application's binaries. Sync copied `legacy-app.js`, `shell.js`, and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 231 ms. Those tests do not establish browser-layout correctness. Commenting review for this pass covered the shell header, the desktop artwork handoff in `legacy-app.js`, and the existing Task 4 C# and JavaScript comments, including `WorkspaceTreeViewSession`. Browser verification and the checkpoint remain pending.
+
+Header actions, 2026-11-17. Support, the notification bell, and the header account icon sit to the right of the girder and bridge artwork. None of the three has an implemented destination, so each is a disabled placeholder. Support shows its label. The bell's accessible name is Notifications. The person icon's accessible name is Account. Tooltips say the action is not available. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:07.60. It did not update the running application's binaries. Sync copied `shell.js` and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 202 ms. Those tests do not establish browser-layout correctness. Browser verification and the checkpoint remain pending.
+
+Checkpoint commenting review: comments on the flag now say the absent property becomes true, and the navigator comment says strict false keeps the plural-map path. `WorkspaceTreeViewSession` still starts with the flag off because that class is the test specification, not the browser initializer. The workspace service registration comment states that the service creates its SQL session and that idle timeout and budget come from configuration.
+
+Checkpoint build and test, 2026-11-17. The running API, process 37700, and Visual Studio, process 6060, held `PluralBridge.Api.exe` and `PluralBridge.Api.dll`. Those processes were left running. The default output path therefore could not be updated. The successful command redirected output and intermediate files outside the repository and did not produce an application host:
+
+`dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" -p:UseAppHost=false -p:OutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-out\ -p:IntermediateOutputPath=C:\Users\stacy\AppData\Local\Temp\pb-task4-obj\`
+
+Result: succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:15.34. The browser-asset sync reported `SYNC_BROWSER_APP_OK`, `SYNC_CHECK_OK` with `SYNC_CHECK_CONTENT_DRIFT=0`, and `ALLOWLIST_CHECK_OK`. Authoritative `app\src` and generated `wwwroot\app` matched.
+
+`dotnet test "C:\Users\stacy\AppData\Local\Temp\pb-task4-out\PluralBridge.Api.Tests.dll" --filter "FullyQualifiedName~WorkspaceTreeTests|FullyQualifiedName~PluralMapEndpointTests.Map_|FullyQualifiedName~PluralMapEndpointTests.DerivePreview_|FullyQualifiedName~PluralMapEndpointTests.SelectFirstAnchor_|FullyQualifiedName~PluralMapEndpointTests.ImmediateChildren_|FullyQualifiedName~PluralMapEndpointTests.ApplyAnchorNames_"`
+
+Result: Passed, Failed 0, Passed 28, Skipped 0, Total 28, duration 286 ms. The four database-backed plural-map tests were not run. No database connection was opened.
+
+Approved behavior implemented in this preparation:
+
+- `GET /api/me/workspace-tree` runs beside `GET /api/me/plural-map`. The plural-map route still calls step 4.
+- The browser flag is `workspaceTreeEnabled`. When the property is absent, initialization sets it to true. On loads only the new tree, keeps its context id, and changes anchor selection as focus only. It does not request profiles, member details, or avatars, and it does not fall back to the old path. `setWorkspaceTreeEnabled(false)` keeps the existing plural-map, profile, and avatar behavior.
+- Switching paths clears the visible cards, selection, and pending load. A late response from the previous generation or mode does not paint. Sign-out releases the client-held context while the session is still authenticated, then continues the existing logout if release fails.
+- One connection and one SNAPSHOT transaction perform account resolution, caller-owned temp tables, the installed seed, walker, expansion, labeler, and render procedures once, the graph and membership copies, and the anchor-name reads. The transaction commits before the immutable context is published. A failed or cancelled build publishes nothing. SQL error 3952 stops the build and does not switch isolation. No procedure or database-option change is included.
+- The response is `contextId`, `accountId`, and `hierarchyPreview`. Graph edges, walk occurrences, labels, and access-membership facts stay on the server. The zero guid on a Groups header is not an access fact. The retained facts can show seed Active status, the profile procedure's single Active-and-IsActive membership, and duplicate memberships. They are not a current authorization decision.
+- Each opening creates an independent context. Lookup and release require the authenticated account. Missing, expired, evicted, and wrong-account lookups share `context_unavailable`. Release is repeatable and the HTTP result does not distinguish those cases.
+- Idle expiration defaults to 30 minutes in `WorkspaceContext:IdleTimeout`. The server measures elapsed UTC time. Account-bound use renews that period. A longer setting does not revive a context that has already expired. A context larger than `WorkspaceContext:BudgetBytes` (default 128 MiB) is rejected. Expired contexts are reclaimed before least-recently-used contexts. The estimate counts string and row overhead. It is not a measured GC size. A hosted cleanup pass runs once a minute and does not overlap itself. The store lock is not held during SQL.
+- Database freshness detection is deferred. Later detail and image requests must not treat this context as current authorization until that contract is approved. The messaging core stays unwired. No triggers, revision tables, queue processing, detail batches, or avatar batches were added.
+
+There is no existing developer-settings endpoint or access policy. The idle timeout and budget are process configuration, not a value an ordinary workspace request can send, and not a browser control. They are not messaging TTLs.
+
+Files:
+
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceClock.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextOptions.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextModels.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextStore.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceContextCleanupService.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceOpeningPlan.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceOpeningSession.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Workspace\WorkspaceTreeViewSession.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Controllers\WorkspaceTreeController.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Controllers\PluralMap.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Controllers\AccessContextHelper.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Program.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\appsettings.json`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\developer-tools.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\navigator.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\legacy-app.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\js\shell.js`
+- `D:\Src\Needs of the Many\PluralBridge\app\src\css\shell.css`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\developer-tools.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\navigator.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\legacy-app.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\js\shell.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\app\css\shell.css`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\WorkSpace\WorkspaceTreeTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
+
+The full plural-map class remains an owner command because four of its tests open the account database. It was not run for this checkpoint:
+
+`dotnet test "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --filter "FullyQualifiedName~PluralMapEndpointTests|FullyQualifiedName~WorkspaceTreeTests"`
+
+That command builds the test project and its API reference. The API project already contains a browser-app sync target, so the build can copy browser assets. This task does not change that target. The isolated unit tests do not open a database connection and do not prove live render parity. The default output path is locked while the API process is running.
+
+Manual checks:
+
+- Confirmed by the owner: the new tree path works. Manual fallback testing was omitted by the owner.
+- Pending: `PluralBridge.navigator.refresh()` reloads the current path. If that workspace reload fails, the previous tree remains.
+- Pending: sign-out releases the client-held context and still completes logout when release fails.
+- Confirmed by the owner: the final sidebar and header appearance. The person icon and account name occupy the sidebar column of the shared band, the girder and bridge artwork stay on the right with Support, the notification bell, and the account icon after them, and one divider runs under the band. Those three header actions are disabled placeholders. The checkpoint has not been taken.
+- The idle timeout and budget are in `api/PluralBridge.Api/PluralBridge.Api/appsettings.json` under `WorkspaceContext`. The defaults are `00:30:00` and `134217728`. Their runtime enforcement has not been checked against a live process.
+- Pending: live tree parity against the installed procedures. Compare one account's new hierarchy with the existing plural map.
+
+Commenting review, 2026-11-17, completed for the whole Task 4 set before checkpointing. Comments only. The review covered the workspace opening session, plan, store, cleanup, models, clock, options, controller, plural-map render mapping, account resolution, view-session specification, tests, Program.cs registration, and the browser shell, navigator, developer-tools flag, and sign-out release. The same outside-repository build succeeded, 0 Warning(s), 0 Error(s), elapsed 00:00:20.68. It did not update the running application's binaries. Sync copied `developer-tools.js`, `navigator.js`, `shell.js`, and `shell.css` and reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. The isolated filter passed: Failed 0, Passed 28, Skipped 0, duration 152 ms. Those tests do not prove live render parity or browser layout. The owner approved the final sidebar and header and confirmed tree-only behavior. Manual fallback testing was omitted at the owner's direction. Failed refresh, sign-out cleanup, live tree parity, and the four database-backed plural-map tests were not run and are not claimed as passed. The checkpoint has not been taken.
+
+Limitations: database freshness detection remains deferred, and the retained context is not current authorization for later detail or image reads. Idle expiration is server configuration, not a browser developer control. JavaScript behavior has no automated browser test coverage. Initial-load performance tuning is deferred. The messaging core remains unwired. The database-adapter contract and bounded lifecycle publication also remain deferred. A context that was already acquired can still be read after the store evicts it. That is resource lifetime, not an access or freshness guarantee.
+
+Recovery: remove the new Workspace files, `WorkspaceTreeController.cs`, and `WorkspaceTreeTests.cs`. Revert the Task 4 edits in `PluralMap.cs`, `AccessContextHelper.cs`, `Program.cs`, `appsettings.json`, `developer-tools.js`, `navigator.js`, `legacy-app.js`, `shell.js`, `shell.css`, `index.html`, and this Task 4 section. Do not remove the Task 3 or Task 3B files.
+
+---
+
+# Task 5a — Username or email first, then the verification code or the password
+
+Status: first server slice implemented. Checkpoint pending. Browser registration and login pages, Cloudflare Turnstile, and Mailpit or an SMTP adapter are not part of this slice. Task 4 workspace and shell behavior was not changed. No migration was added.
+
+## Implemented behavior
+
+- `POST /api/account/continue` looks up a username or email with the existing trim-and-uppercase normalization. An active, verified account continues to the password step. A pending, unverified account continues to the six-digit code. An identifier that matches no account continues to registration. That registration result does not create an account, send mail, or issue a session. Disabled, locked, deleted, and ambiguous identities keep the shared unsuccessful result. One account whose username and email are the same value remains that one account. Successful continuation, including the registration step, is not audited, because the existing audit check constraints have no event for that result. A decline reuses `LoginRejected` and `invalid_credentials`. A blank identity stays a decline.
+- Registration still collects and hashes the password before the account is created. New `registration_verification` codes expire ten minutes after issuance through `Globals.registrationVerificationCodeExpirationMinutes`. Password reset, username recovery, and contact verification still use the existing fifteen minutes. Existing code rows keep the expiry already stored. SQL acceptance uses `ExpiresAtUtc` and `SYSUTCDATETIME()`. An equal timestamp is expired.
+- Verification consumes one eligible code and activates a still-pending account in the same transaction. One consumed row and one activated row are required. A disabled, locked, or deleted account is rechecked inside that transaction and is not reactivated. An identifier that matches more than one distinct account is ineligible: the transaction commits with no code consumption and no account change. A wrong code increments the attempt count only while the row is unconsumed and still under five attempts. Expired, consumed, attempt-exhausted, superseded, and incorrect codes do not activate the account. Verification does not issue a session cookie.
+- `POST /api/account/resend-registration-code` replaces the registration code for an eligible pending account after a 60-second cooldown measured from `IssuedAtUtc`. The replacement has its own ten-minute expiry. Prior unconsumed registration codes are consumed in the same transaction as the insert. Unknown, ineligible, and ambiguous identities receive the generic accepted response and no mail. Delivery uses the stored normalized email through the configured adapter and runs after the transaction commits. A delivery failure is reported as a failure and does not restore the older code. Continue does not resend.
+- Registration email bodies say ten minutes. Password reset, username recovery, and contact verification bodies say fifteen. `Globals.accountCodeEmailExpiresLine` was unused and has been removed. The development outbox and the disabled adapter do not compose an expiry sentence.
+- Verification and resend lock the account row with `UPDLOCK, HOLDLOCK` before that account's registration codes. That lock style is already used by the anchor write and profile-save paths. No new table, application lock, or schema change was introduced.
+- Password sign-in and the password-reset request use the same one-account rule through `AccountIdentityMatches`. An ambiguous sign-in returns the existing invalid-credentials result, does not record last login, and does not produce the successful result from which the controller or the browser login post issues a session. One ineligible account still returns the unavailable result. An ambiguous reset request returns the existing instructions-sent response, stores no code, and sends no mail. Eligibility is applied only after one account remains. Reset-code consumption in `ResetPasswordAsync` was not changed.
+- The login read and the last-login update now use separate connections, as do the reset lookup and the reset-code insert. Those pairs were not wrapped in a transaction before. The password check still sits between the login read and the last-login update.
+- Browser sign-in, served from `wwwroot/auth/login.html`, starts with username or email and Continue. Password, the six-digit code, and registration stay hidden until `POST /api/account/continue` selects `password`, `verification`, or `registration`. The password step copies the typed identity into the password form and posts the existing `/login` form, so the cookie, validation, and redirect stay on that route. The code step shows that same identity. The registration step copies an identity containing `@` into the email field and any other identity into the username field, then shows the existing registration form. Showing that form does not post it. Submit still uses the existing JSON registration contract. A valid submit replaces the form with “Sending your verification email…” and a progress indicator until the same registration request returns. Success opens the six-digit code for that email. `delivery_failed` opens the code step, says the account was created but the email could not be sent, and keeps resend under the server cooldown. A validation failure returns to the form with the server message. A network error says the outcome is unknown and offers Return to the form or Enter verification code; neither posts registration again. Send new code uses the same sending screen and the existing resend request. A network error on resend returns to the code step and does not claim that no code was sent. A local `ReturnUrl` is honored. An external or protocol-relative value falls back to `/app/`. Changing identity clears the password and code. Refresh starts again at identity entry. Verification posts `{ email, code }` to the existing verification route, then shows the password step without signing the person in. A 60-second countdown is presentation only. The script was not executed.
+- The auth pages read `pluralbridge.theme` the same way the workspace does and set `data-theme` before paint. Dark remains the default. Google, Apple, GitHub, and Continue with SSO are disabled buttons with unavailable labels. They do not navigate or start authentication. The login reference is the identity step: Username or Email, Continue, the remember checkbox, Sign up, Forgot your email or password, and the legal sentence. Remember stores only the username or email in `pluralbridge.rememberedIdentity` when checked, prefills it later, and removes it when unchecked. Prefill does not call continue. The password field is shown only after continuation selects password. Sign up goes to `/register`. The email recovery word goes to `/forgot-username`, and password goes to `/forgot-password`. The legal sentence has no destination. The form scales uniformly with viewport height. A viewport narrower than 354/1024 of its height clips that form; the tested 390 by 844 and 1280 by 800 viewports do not. The workspace sidebar and header were not changed.
+- `GET /register` serves `wwwroot/auth/register.html` and has no authorization requirement. The sign-in link is `<a class="auth-link" href="/register">Create account</a>`, outside the password form. `auth-pages.js` does not call `preventDefault` on that link. There is no fallback authorization policy. `GET /login`, `GET /forgot-username`, and `GET /forgot-password` are anonymous in the same way. `GET /app/` and the other application routes still call `RequireAuthorization()`. An isolated host requested `GET /register` with no cookie and with redirects left visible: status 200, no Location header, and a body containing `data-auth-page="register"` and `id="registerForm"`. The same host's unauthenticated `GET /app/` is a 302 to `/login`. The owner's report — the sign-in screen stays up, the address is unused, and the visible logs have no useful error — was not reproduced. No production behavior was changed for that report. The page is not an `app/src` file and was not added to the `/auth/{fileName}` asset list. Registration posts the existing JSON contract, including the password. After acceptance, the page shows the six-digit code step and the ten-minute wording. A `delivery_failed` response uses `Globals.accountRegistrationDeliveryFailed`: the account was created, but the verification email could not be sent. The reason code stays `delivery_failed`, and resend remains available after the server cooldown. The page shows that response. Forgot-username and forgot-password pages were not changed. Task 4 workspace files were not changed. Turnstile was not added.
+- Successful verification on either page asks `POST /api/account/continue` before showing the password step. The identity and a local return path stay on the page. The password and the code are not put in the URL or browser storage. `verified=1` is not used. The password form still posts to `/login`, which is what issues the session. If continuation does not select the password step, the identity remains filled in and the person can ask the server again without retyping it.
+
+## Files
+
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AccountIdentityMatches.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AccountCredentialDirectory.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AccountRepository.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AccountRegistrationGate.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\Service\AccountService.Login.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\Service\AccountService.PasswordReset.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\Service\AccountService.RegistrationAccess.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\Service\AccountService.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\Service\AccountService.Registration.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AccountContracts.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AccountCodeService.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AzureAccountCodeDelivery.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AccountCodeDelivery.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Controllers\AccountController.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Globals.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Program.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Account\AccountRegistrationAccessTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Account\AccountCredentialAmbiguityTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\Account\AuthReturnDestination.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\auth\login.html`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\auth\register.html`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\auth\auth-pages.js`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api\PluralBridge.Api\wwwroot\auth\auth.css`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Account\AccountBrowserContractTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\api\PluralBridge.Api.Tests\Account\AccountRegisterRouteTests.cs`
+- `D:\Src\Needs of the Many\PluralBridge\docs\plans\models\db-refactor-plan.txt`
+
+This slice did not change `app/src`. The API build still runs the existing browser sync. The last sync reported `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`.
+
+## Commands and results
+
+Build, from the repository root, with restore already completed:
+
+`dotnet build "api\PluralBridge.Api.Tests\PluralBridge.Api.Tests.csproj" --no-restore -p:UseAppHost=false -p:OutputPath="C:\Users\stacy\AppData\Local\Temp\pb-task5a-auth\\" -p:IntermediateOutputPath="C:\Users\stacy\AppData\Local\Temp\pb-task5a-auth-obj\\"`
+
+Result after the viewport-scaled login reference: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:22.57. The build wrote `C:\Users\stacy\AppData\Local\Temp\pb-task5a-auth\` with `UseAppHost=false` so it would not copy over the running application. The running binaries were not updated and the live application was not restarted. The auth pages are outside `app/src`. `SYNC_CHECK_CONTENT_DRIFT=0` and `ALLOWLIST_CHECK_OK`. No new name was added to the `/auth/{fileName}` allowlist. `register.html` is served by `GET /register`.
+
+Isolated tests, from that unlocked build:
+
+`dotnet test "C:\Users\stacy\AppData\Local\Temp\pb-task5a-auth\PluralBridge.Api.Tests.dll" --filter "FullyQualifiedName~AccountRegistrationAccessTests|FullyQualifiedName~AccountCredentialAmbiguityTests|FullyQualifiedName~AccountBrowserContractTests|FullyQualifiedName~AccountRegisterRouteTests"`
+
+Result after the white sign-in investigation: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:05.73, written to `C:\Users\stacy\AppData\Local\Temp\pb-task5a-auth\`. The running application was not updated. Isolated tests: Failed 0, Passed 30, Skipped 0, Total 30, Duration 3 s. A white page was reproduced when the saved theme is light and when the system preference is light. An applied dark theme stayed #101418. The owner's browser storage was not read, so a saved light choice is not confirmed. The page now logs `[auth-theme]` on refresh. The saved value was not cleared. These tests do not execute the auth pages in a browser. A separate Chrome session loaded the real sign-in page from an isolated host at `127.0.0.1:8766`. The content box stayed 354 by 503 at 1920 by 1024, with the same internal positions, and the theme outline sat 20 pixels outside that box. The same scale held at 1280 by 800 and 390 by 844 in light and dark. With no saved theme, system light produced light and system dark produced dark. Saved light stayed light under system dark, and saved dark stayed dark under system light. A system change updated an unsaved page and did not override a saved choice. Light background was white and dark background was #101418 for the page. The continuation, registration, sending, resend, late-response, password, remember, and placeholder checks passed. That host is not the running application. The sign-in visual work is complete. The Task 5a checkpoint remains pending. The registration-access tests include the password step, the verification step, the unused-identity registration step, and the restricted-account decline. The credential tests are included. The contract tests check JSON names, the three `nextStep` values, the local return path, and the registration delivery-failure sentence. `BrowserScript_RoutesEachContinuationStepAndCarriesTheIdentity` and `BrowserPages_ShowSendingProgressAndUnavailableProviders` read the auth files as text. They do not execute the script and do not open a browser. The two route tests request `GET /register` and `GET /app/` with no cookie. Their host uses the disabled mail adapter and a non-routable account connection string, and those requests do not open that connection. Node is not available, so the auth-page script was not executed.
+
+Sixteen of those tests are the registration-access set: continuation, verification, resend, lifetimes, expiry wording, and the in-memory registration lock. Seven are the credential set: distinct-account selection, unambiguous sign-in, a wrong password, one ineligible account, two accounts on sign-in, one account matching both identity fields, unambiguous reset, an ineligible reset, and two accounts on reset. The credential tests use an in-memory directory. They do not prove that SQL Server returns every matching row. The registration tests do not prove `UPDLOCK`, transaction rollback, or `SYSUTCDATETIME()`.
+
+Database-backed account tests were not run. No SQL was executed. No email was sent.
+
+## Owner checks still pending
+
+- A new registration code stores an expiry ten minutes after the database insert. Password reset, username recovery, and contact verification still store fifteen minutes.
+- One correct verification consumes the code and activates only a pending account, and the response sets no session cookie.
+- A wrong code increments the attempt count. The sixth wrong attempt does not activate the account. An expired code and an already consumed code do not activate it.
+- Two concurrent correct verifications of the same code produce one success.
+- Resend inside 60 seconds sends nothing. A resend after 60 seconds consumes the older code and inserts a new ten-minute code. A delivery failure leaves the older code consumed.
+- Continue sends no mail and sets no cookie. An unused identity shows the registration form with the typed value filled in and does not create an account until that form is submitted. Disabled, locked, and deleted accounts stay on the unsuccessful result. An active account that is not email-verified, and a pending account that is already email-verified, also stay there until the owner chooses otherwise.
+- One identifier that matches two accounts does not continue, consume a code, change either account, or send mail. One account whose username and email are the same value can still be verified.
+- An identifier that matches two accounts does not sign either one in, does not change either last-login time, and does not issue a session. The same identifier does not store a reset code or send reset mail. One account whose username and email are the same value can still sign in and request a reset.
+- Existing password sign-in, forgot username, forgot password, reset-code consumption, and contact verification still work.
+- The manual mailbox `needsofthemany@thepluralbridge.org` is an owner test address only. It is not hard-coded, and other recipients must not be redirected to it.
+- Browser checks, with the application restarted by the owner: Continue on an active verified account shows the password for that identity; Continue on a pending unverified account shows the six-digit code for that identity; Continue on an unused identity shows the registration form with that identity filled in and does not create an account; a value containing `@` lands in the email field and any other value lands in the username field; a valid registration submit shows “Sending your verification email…” only until the response, then the code step; a delivery failure says the account was created but the email could not be sent and still allows resend after the server cooldown; a network failure does not claim that no account was created and does not submit again by itself; Send new code uses the same sending screen; password sign-in still sets the cookie and returns only to a local path; changing identity clears both secret fields; refresh returns to identity entry; a code can be pasted with a leading zero; an accepted code on either page asks continuation and then shows the password for the same identity without a session; forgot-username and forgot-password still post to their existing routes; the centered layout, blue primary action, password visibility, and light and dark theme match the reference without horizontal clipping; Google, Apple, GitHub, and Continue with SSO stay disabled.
+- The Create account click still needs one Network record from the owner's browser, because the current source and the route test return the registration document. On the click, record the document request: full URL, method, status, Location header, and whether the body is the sign-in document (`data-auth-page="login"`) or the registration document (`data-auth-page="register"` and `id="registerForm"`). Also record the address bar before and after the click. If the click produces no request, record the clicked element's tag and `href`.
+
+## Recovery
+
+Remove `AccountRegistrationGate.cs`, `AccountService.RegistrationAccess.cs`, `AccountIdentityMatches.cs`, `AccountCredentialDirectory.cs`, `AuthReturnDestination.cs`, `register.html`, `AccountRegistrationAccessTests.cs`, `AccountCredentialAmbiguityTests.cs`, `AccountBrowserContractTests.cs`, and `AccountRegisterRouteTests.cs`. Revert the Task 5a edits in `AccountService.cs`, `AccountService.Registration.cs`, `AccountService.Login.cs`, `AccountService.PasswordReset.cs`, `AccountRepository.cs`, `AccountController.cs`, `AccountContracts.cs`, `Globals.cs`, `AccountCodeService.cs`, `AccountCodeDelivery.cs`, `AzureAccountCodeDelivery.cs`, `Program.cs`, `login.html`, `auth-pages.js`, and `auth.css`. No migration was added, so there is no schema rollback. Existing code rows keep their stored expiry. Do not remove the Task 4 files. The `/auth/{fileName}` allowlist does not need a reversal because no file name was added to it.
+
+## Blocked and deferred
+
+- A dedicated successful-continuation audit event or reason would require a change to the `pb_account_audit_events` check constraints. That migration was not prepared. Successful continuation stays unaudited.
+- `POST /api/account/continue` has no request rate limit. Resend has only the 60-second cooldown. Both belong in the later Turnstile review.
+- Cloudflare Turnstile is the next slice. It was not added, and these pages do not claim bot protection. Mailpit remains deferred. Task 5b and Task 5c were not started.
+
+## Problem list
+
+- The cooldown response and the delivery-failure response are more specific than the unknown-identity response, so each one shows that an eligible pending account was found. The expired-code message also stays distinct from the other code failures.
+- `VerifyRegistrationRequest.Email` still has that property name, and the same value is also accepted as a username.
+- The in-memory tests use substitute lookups. They are not evidence that SQL Server returns every matching row, takes `UPDLOCK`, rolls a transaction back, or applies `SYSUTCDATETIME()`.
+- An unused identity now has its own continuation result, so that response shows that no account matched. Ambiguous matches stay on the shared unsuccessful result.
+- Disabled, locked, and deleted accounts stay declined, including when they are unverified. An active account with `IsEmailVerified` false, and a pending account with `IsEmailVerified` true, also stay declined. Those two inconsistent pairs are waiting on an owner decision before they follow the verified-or-unverified rule.
+- A typed identity containing `@` is copied into the registration email field. Any other typed identity is copied into the username field. The other field is left empty. A username that itself contains `@` would be placed in the email field.
+- The page checks ran in headless Chrome against an isolated host. They are not a committed test project. Node.js, npm, Playwright, Puppeteer, and Selenium are still not installed. A password-manager product was not driven; the identity and password fields carry `autocomplete="username"` and `autocomplete="current-password"`.
+- The rendered identity form at 1920 by 1024 is 354 by 497 pixels of ink against the reference ink box of 354 by 499. Element tops from the title match the reference for the provider row, the field, the Continue button, and the legal line. The remaining image difference is the approved checkbox sentence, the unchecked initial box, the removed button paste, and system-font rasterization. Mean channel delta against the reference crop was 14.3. The running application was not restarted.
+- Google, Apple, GitHub, and SSO controls are visual placeholders. No provider icons were already in the auth assets, so the pages use inline marks. They do not authenticate.
+- The checkpoint has not been taken. Turnstile is next. Mailpit remains deferred until afterward.
+

@@ -1,0 +1,263 @@
+PubSub Messaging Pattern — Governing Rules
+
+1. Authority and scope
+
+These rules govern the reusable messaging pattern.
+
+The project owner makes final decisions with the reviewing assistant.
+Cursor investigates and prepares authorized changes within those decisions.
+
+The pattern is transport-independent. It may be implemented using a database,
+an in-memory queue, or another transport.
+
+Subscriber internals are black boxes and belong to a later task.
+Concrete storage, synchronization, transport, and recovery mechanisms remain
+subject to review.
+
+
+2. Separation of responsibilities
+
+Publisher:
+- Creates a typed message.
+- Supplies its identity, subject/key, payload, and TTL.
+- Sends the message through the defined publication interface.
+- Keeps publication small and hands task processing to subscribers.
+
+Queue infrastructure/coordinator:
+- Owns delivery tracking and reference-counted outstanding-work accounting.
+- Owns expiration enforcement and queue health.
+- Detects and retires poisoned or stalled work according to the agreed
+  lifecycle rules.
+- Publishes generic results and lifecycle notifications.
+- Keeps task-specific processing and recovery decisions with subscribers.
+
+Subscriber/worker:
+- Recognizes relevant message types and performs its assigned work.
+- Reports completion and its result through messages.
+- Never directly modifies shared reference counts or dirty state.
+- Decides whether a lifecycle outcome requires replacement work.
+- Publishes any replacement as a new message with its own identity and TTL.
+
+
+3. Message lifetime
+
+Every message has a publisher-chosen TTL.
+
+This includes domain notifications, completion reports, result messages,
+error notifications, poison notifications, and other lifecycle messages.
+
+TTL begins when the publisher sends the message. The generic TTL start
+is that send. It is not undecided.
+
+Each transport must define its precise send boundary and clock semantics.
+Those transport details remain open. The generic pattern does not mandate a
+database insert, commit, subscriber activation, or processing-start boundary.
+
+The chosen lifetime is immutable. Delivery, processing, persistence,
+recovery, and restart do not reset, pause, or extend it.
+
+A replacement is a new message with a newly chosen TTL.
+It does not revive or extend the original message.
+
+
+4. Reference-counted dirty state
+
+Infrastructure owns the accounting for outstanding obligations within a
+defined message/task scope.
+
+Accepted work registers its obligations. An accepted completion report
+discharges only its identified obligation, exactly once.
+
+While obligations remain outstanding, the scope remains dirty.
+
+New work arriving during processing must remain represented. Completion of
+older work must not erase or discharge newer obligations.
+
+The identity and scope of each obligation must be explicit. The concrete
+representation—counter, bitset, records, or another mechanism—is an
+implementation decision requiring review.
+
+Registration, completion accounting, and terminal-state decisions must be
+coordinated so an arrival racing with completion cannot be lost.
+
+
+5. Two terminal outcomes
+
+An accepted active message has two terminal outcomes:
+
+COMPLETED:
+All registered outstanding obligations have been accounted for before TTL
+expires. Infrastructure closes the message and publishes its result.
+
+POISONED:
+TTL expires before the message completes. Infrastructure retires the message,
+closes its remaining bookkeeping obligations, and publishes the poison outcome.
+
+Exactly one terminal outcome applies.
+
+Expired describes TTL having elapsed. Expiration before completion causes
+the Poisoned outcome, retirement, and closure of the remaining bookkeeping
+obligations. Expired is not a third terminal outcome.
+
+Stalled describes unfinished work and may produce a health notification.
+It is not a third terminal state.
+
+Poison cleanup must not produce Completed merely because cleanup reduced
+outstanding accounting to zero.
+
+An accepted completion report discharges the obligation it identifies.
+Its result may be success, error, or another defined result. Publishing an
+Error notification or a StillDirty notification alone does not discharge an
+obligation belonging to the original work. An error does not, by itself,
+create a third terminal message state.
+
+
+6. Completed does not mean successful
+
+Completed describes lifecycle accounting.
+
+The published result describes the work’s outcome: success, error, or another
+defined result.
+
+A message may complete with an error result.
+
+Zero outstanding obligations establishes accounting completion for that scope.
+It does not solve database freshness.
+
+The database remains authoritative for workspace data changes. Messaging
+completion establishes accounting completion. Subscriber contracts govern
+application-specific freshness. These statements are compatible.
+
+
+7. Completion and concurrency
+
+Infrastructure accounting tolerates out-of-order completion reports.
+A task may separately require processing or result ordering. No
+workspace-specific ordering contract is selected by these rules.
+
+Every completion identifies the work it reports.
+
+Duplicate, late, expired, unknown, or obsolete completion reports must not
+double-discharge accounting, close another obligation, or revive a terminal
+message.
+
+Every completion report has its own TTL and must be valid when accepted.
+
+Infrastructure must arbitrate completion versus TTL expiration consistently.
+The atomic transition and exact deadline-boundary implementation remain open.
+
+Retiring a message does not physically stop an executing worker or undo its
+effects. Late reports cannot revive that message. Subscriber-specific handling
+of external effects belongs to the later subscriber design.
+
+
+8. Results, errors, dirty notifications, and poison notifications
+
+Infrastructure publishes typed outcomes with enough identity to associate
+them with the original message and work.
+
+These include completion/results, errors, poison, and relevant nonterminal
+health or StillDirty notifications.
+
+A StillDirty notification reports outstanding work. Publishing it does not
+discharge an obligation belonging to the original work. It does not authorize
+the queue manager to construct a domain-specific replacement task.
+
+The matching subscriber decides whether to publish replacement work. That
+replacement is a new message with its own identity and TTL.
+
+All resulting messages obey the same publisher-owned TTL rules.
+
+
+9. Queue health
+
+Queue health is a primary correctness requirement.
+
+Poisoned work, work whose TTL has expired, and stalled unfinished work must
+not indefinitely obstruct unrelated work. Expired and stalled are not extra
+terminal outcomes. They are defined in section 5.
+
+Supervision must remain effective when a worker fails, disappears, or never
+reports completion.
+
+The infrastructure owns detection, accounting cleanup, retirement, and generic
+outcome reporting. Subscribers own domain-specific recovery and reposting.
+
+Automatic domain retries, replacement assignments, or lifetime extensions
+must not be introduced by queue infrastructure.
+
+Lifecycle reporting must have a bounded feedback policy so failures in health
+notifications cannot generate an endless notification chain. That mechanism
+remains to be designed while preserving TTL on every message.
+
+
+10. Multiple subscribers
+
+Message types determine which subscribers are interested.
+
+One subscriber’s completion must not discharge another subscriber’s outstanding
+obligation.
+
+The generic contract must define registration and completion tracking across
+subscribers. Subscriber implementations remain outside this task.
+
+The concrete notification, delivery, assignment, and report identities are
+subject to review; no particular table structure is mandated.
+
+
+11. Durability and overload
+
+Required pending work must remain discoverable after a missed wake-up or
+restart according to the selected transport’s durability contract.
+
+Recovery preserves message identity, accounting integrity, and original TTL.
+Expired messages remain expired.
+
+Retained metadata or outcome evidence does not revive a message or make it
+eligible for delivery again.
+
+Capacity limits, publication refusal, transaction coupling, and behavior during
+storage failure require explicit decisions. Required work must never be
+silently discarded.
+
+For a database implementation, commit/rollback coupling and publication-failure
+behavior require a separately reviewed adapter contract.
+
+Concurrency, robustness, and recovery lead the design. Performance tuning
+follows measured behavior.
+
+
+12. Open implementation decisions
+
+The following remain open:
+- Precise send boundary and clock implementation for each transport.
+  The generic TTL start is send and is not open.
+- Obligation registration and reference-accounting mechanism.
+- Atomic handling of arrivals, completions, and expiration.
+- Fan-out and subscriber-registration semantics.
+- Durable publication and transaction coupling.
+- Missed-wake-up and restart recovery.
+- Capacity, backpressure, and publication-failure behavior.
+- Queue-health execution and bounded lifecycle reporting.
+- Evidence retention and cleanup.
+- Any task-specific processing or result ordering, and the concrete
+  subscriber freshness mechanism. No workspace-specific ordering contract
+  is selected. Database authority, accounting completion, and
+  subscriber-governed application freshness are compatible.
+- Subscriber internals.
+
+No database schema, lock strategy, transport, retry threshold, or numeric
+capacity limit is approved by these rules.
+
+
+13. Working method
+
+Implement one small, independently verifiable piece of functionality per task.
+
+Each task must leave the existing system operational and define its verification
+and recovery path.
+
+Cursor prepares authorized changes. The project owner performs builds, tests,
+database execution, and Git operations.
+
+Review and checkpoint each accepted task before proceeding.

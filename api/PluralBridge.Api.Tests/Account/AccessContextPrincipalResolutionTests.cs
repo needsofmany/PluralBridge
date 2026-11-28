@@ -51,16 +51,59 @@ public sealed class AccessContextPrincipalResolutionTests
 
 			Assert.NotNull(accessContext);
 			Assert.Equal(accountId, accessContext.CurrentAccount.AccountId);
+			Assert.NotNull(accessContext.CurrentSystem);
+			Assert.NotNull(accessContext.CurrentObject);
 			Assert.Equal(fixture.SystemId, accessContext.CurrentSystem.SystemId);
 			Assert.Equal(
 				fixture.SystemMembershipId,
 				accessContext.CurrentSystem.SystemMembershipId);
+			Assert.Equal("system", accessContext.CurrentObject.ObjectType);
+			Assert.Equal(fixture.SystemId.ToString(), accessContext.CurrentObject.ObjectId);
 
 			var membership = Assert.Single(accessContext.MembershipAccess);
 
 			Assert.Equal(accountId, membership.AccountId);
 			Assert.Equal(fixture.SystemId, membership.SystemId);
 			Assert.Equal(fixture.SystemMembershipId, membership.SystemMembershipId);
+		}
+		finally
+		{
+			await AccountTestDatabase.CleanupRuntimeTestAccountsAsync();
+		}
+	}
+
+	[Fact]
+	public async Task ResolveCurrentAccessAsync_AllowsAccountWithNoSystemMembership()
+	{
+		var testId = Guid.NewGuid().ToString("N");
+		var username = $"{AccountTestGlobals.TestAccounts.UsernamePrefix}access_nomembership_{testId}";
+		var email = $"{username}@{AccountTestGlobals.TestAccounts.EmailDomain}";
+		var displayName = $"{AccountTestGlobals.TestAccounts.DisplayNamePrefix}Access No Membership";
+
+		await AccountTestDatabase.CleanupRuntimeTestAccountsAsync();
+
+		try
+		{
+			var accountId = await RegisterAndActivateAccountAsync(
+				username,
+				email,
+				displayName);
+
+			var principal = CreatePrincipal(accountId.ToString());
+			var connectionString = AccountTestDatabase.GetConnectionString();
+
+			await using var connection = new SqlConnection(connectionString);
+			await connection.OpenAsync();
+
+			var accessContext = await AccessContextHelper.ResolveCurrentAccessAsync(
+				connection,
+				principal);
+
+			Assert.NotNull(accessContext);
+			Assert.Equal(accountId, accessContext.CurrentAccount.AccountId);
+			Assert.Empty(accessContext.MembershipAccess);
+			Assert.Null(accessContext.CurrentObject);
+			Assert.Null(accessContext.CurrentSystem);
 		}
 		finally
 		{

@@ -4,9 +4,9 @@
 .member-management-panel {
 	margin: 1.5rem 0;
 	padding: 1rem;
-	border: 1px solid rgba(168, 199, 255, 0.28);
+	border: 1px solid var(--pb-accent-28);
 	border-radius: 0.85rem;
-	background: rgba(15, 23, 42, 0.34);
+	background: var(--pb-surface-muted);
 }
 
 	.member-management-panel .button-row {
@@ -16,13 +16,13 @@
 .developer-tools-panel {
 	margin: 1.5rem 0;
 	padding: 1rem;
-	border: 1px dashed rgba(148, 163, 184, 0.45);
+	border: 1px dashed var(--pb-input-border);
 	border-radius: 0.85rem;
-	background: rgba(7, 10, 13, 0.28);
+	background: var(--pb-surface-muted);
 }
 
 .developer-tools-summary {
-	color: #cbd5e1;
+	color: var(--pb-text-muted);
 	font-weight: 800;
 	cursor: pointer;
 }

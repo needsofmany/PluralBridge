@@ -1,0 +1,86 @@
+Plural Bridge Development Plan and Captured Design
+==================================================
+
+RELEVANT FRONTEND RESPONSIBILITIES
+
+app/src/js/legacy-app.js:
+Builds Members workspace/panel frame, header and pin.
+Contains createMemberAccordion and exposes it through
+window.PluralBridge.createMemberAccordion.
+
+app/src/js/navigator.js:
+Tree rendering, selection, expansion, profile loading, right-pane rendering.
+
+app/src/js/members.js:
+Toolbar including the currently named “Systems” visibility toggle.
+
+app/src/js/api-client.js:
+readAnchorMemberProfiles(objectType, anchorName, signal).
+
+createMemberAccordion(profile, { allowProfileEditing: false }) is used for
+this pane. It omits edit/save controls and avoids old current-system writes.
+
+Procedure error numbers:
+50001 missing/blank input
+50002 unsupported anchor type
+50003 missing/ambiguous account email
+50004 anchor absent from that account’s map
+50005 multiple matching map anchors by type/name
+50006 no access membership
+50007 multiple matching access memberships
+50008 membership inactive or status unresolved
+
+HTTP mapping:
+50001,50002,50005,50007 → 400
+50004 → 404
+50006,50008 → 403
+50003 and other SQL errors → fixed 500
+Match SqlException.Number, not message text.
+
+NEXT FOUR AGREED TREE TASKS — NOT IMPLEMENTED YET
+
+1. Change “Systems” toggle to “Show Tree” / “Hide Tree”.
+   Keep button width stable.
+2. Fully expand the tree after sign-in.
+   Preserve initial first-top-level-anchor focus and profile loading.
+3. Add expand-all / collapse-all icon control.
+4. Clicking a member in the left tree brings the corresponding right-hand
+   card into view. If another anchor must be selected, load that occurrence’s
+   anchor first, then scroll to the matching member.
+
+ORIGINAL SHELL REMAINING LIST
+
+4.5 Touch-safe navigation checkpoint (crossed out in supplied working copy).
+5 Account screens: Profile, Security, System; reuse account business logic.
+6 Current Fronting and member fronting control.
+7 Groups browsing and selected-group work — largely covered by anchors now.
+8 Import UI — explicitly moved to end.
+9 Member-scoped avatar management.
+10 Member-scoped Notes.
+11 Manage Fields plus member custom-field presentation.
+12 Audit screen.
+13 Saved Views.
+14 Fronting History.
+15 Final pass replacing global navigation placeholders with real screens.
+
+FRONTING / HISTORY DESIGN — CAPTURED, NOT IMPLEMENTING NOW
+
+Stacy’s timeline idea:
+- Horizontal time axis.
+- One member lane per row; more members stack vertically.
+- Adjustable time scale.
+- Overlapping intervals show co-fronting.
+- Fixed visible names/avatars and time ruler.
+- Click interval for name/avatar/start/end/duration/Edit/Comments.
+- Clear ongoing intervals and continuation outside selected range.
+- Preserve range/filter when switching graph and report.
+
+For first cut, leaning toward CURRENT FRONTING operational UI and HISTORY
+AS A REPORT; timeline can follow. Do not treat combined screen as finalized.
+
+New idea:
+Reuse left anchor tree to scope fronting/history.
+Top anchor can show the branch; nested anchor narrows it.
+Descendant rules still need explicit definition.
+Avoid duplicating one underlying event merely because a member is reachable
+through several paths.

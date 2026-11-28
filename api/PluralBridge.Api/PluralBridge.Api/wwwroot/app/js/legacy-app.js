@@ -1,6 +1,10 @@
 ﻿const apiBaseUrl = "";
 
 let selectedSystemId = null;
+const membersUiStorageKeyPrefix = "pb.membersUiState.";
+let membersUiStorageKey = null;
+let membersUiStorageLoaded = false;
+let membersUiStorageLoading = false;
 
 const output = document.getElementById("appOutput");
 const contractButtons = document.querySelectorAll("[data-contract]");
@@ -46,11 +50,21 @@ const endpointBuilders = {
 
 function updateSessionStatus() {
     if (sessionStatus) {
-        sessionStatus.textContent = "You are signed in to the read-only PluralBridge demo.";
+        sessionStatus.textContent = "You are signed in to PluralBridge.";
     }
 }
 
 function clearOutput() {
+    const membersApi = window.PluralBridge && window.PluralBridge.members
+        ? window.PluralBridge.members
+        : null;
+    if (membersApi && typeof membersApi.releaseAddMenuHandlers === "function") {
+        membersApi.releaseAddMenuHandlers();
+    }
+    if (membersApi && typeof membersApi.closeAddMemberDialog === "function") {
+        membersApi.closeAddMemberDialog();
+    }
+
     output.replaceChildren();
 }
 
@@ -63,6 +77,156 @@ function renderPayload(payload) {
 
     output.appendChild(jsonBlock);
     updateSessionStatus();
+}
+
+function renderSelectionNote(labelText) {
+    clearOutput();
+
+    const wrapper = document.createElement("section");
+    wrapper.className = "member-list";
+
+    const note = document.createElement("p");
+    note.className = "output-note";
+    note.textContent = (labelText || "Item") + " selected.";
+
+    wrapper.appendChild(note);
+    output.appendChild(wrapper);
+    updateSessionStatus();
+}
+
+function readMembersUiStateFromStorage(storageKey) {
+    if (!storageKey || typeof window.localStorage === "undefined") {
+        return null;
+    }
+
+    try {
+        const raw = window.localStorage.getItem(storageKey);
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function writeMembersUiStateToStorage(state) {
+    if (!membersUiStorageKey || typeof window.localStorage === "undefined") {
+        return;
+    }
+
+    const snapshot = {
+        version: 3,
+        systemPanelPinned: Boolean(state.systemPanelPinned),
+        systemPanelOpen: Boolean(state.systemPanelOpen),
+        preferredSelectionKind: state.preferredSelectionKind || "system",
+        preferredSystemId: state.preferredSystemId || null,
+        preferredGroupKey: state.preferredGroupKey || null,
+        expandedSystemTreeNodes: state.expandedSystemTreeNodes || {}
+    };
+
+    try {
+        window.localStorage.setItem(
+            membersUiStorageKey,
+            JSON.stringify(snapshot)
+        );
+    } catch (error) {
+        // Ignore storage write failures in restricted environments.
+    }
+}
+
+function applyPersistedMembersUiState(state, persistedState) {
+    if (!persistedState || typeof persistedState !== "object") {
+        return;
+    }
+
+    const persistedVersion =
+        typeof persistedState.version === "number"
+            ? persistedState.version
+            : 0;
+
+    if (persistedVersion >= 3) {
+        if (typeof persistedState.systemPanelPinned === "boolean") {
+            state.systemPanelPinned = persistedState.systemPanelPinned;
+        }
+
+        if (typeof persistedState.systemPanelOpen === "boolean") {
+            state.systemPanelOpen = persistedState.systemPanelOpen;
+        } else if (state.systemPanelPinned) {
+            state.systemPanelOpen = true;
+        }
+    }
+
+    if (typeof persistedState.preferredSystemId === "string") {
+        state.preferredSystemId = persistedState.preferredSystemId;
+    }
+
+    if (
+        persistedState.preferredSelectionKind === "group" ||
+        persistedState.preferredSelectionKind === "system"
+    ) {
+        state.preferredSelectionKind = persistedState.preferredSelectionKind;
+    }
+
+    if (typeof persistedState.preferredGroupKey === "string") {
+        state.preferredGroupKey = persistedState.preferredGroupKey;
+    }
+
+    if (
+        persistedState.expandedSystemTreeNodes &&
+        typeof persistedState.expandedSystemTreeNodes === "object"
+    ) {
+        state.expandedSystemTreeNodes = Object.assign(
+            {
+                "systems-root": true
+            },
+            persistedState.expandedSystemTreeNodes
+        );
+    }
+}
+
+function ensureMembersUiStateLoaded(state, rerender) {
+    if (membersUiStorageLoaded || membersUiStorageLoading) {
+        return;
+    }
+
+    const apiClient =
+        window.PluralBridge && window.PluralBridge.apiClient
+            ? window.PluralBridge.apiClient
+            : null;
+
+    if (!apiClient || typeof apiClient.fetchJson !== "function") {
+        membersUiStorageLoaded = true;
+        return;
+    }
+
+    membersUiStorageLoading = true;
+
+    apiClient.fetchJson("/api/me")
+        .then(function (payload) {
+            const accountId =
+                payload &&
+                payload.currentAccount &&
+                payload.currentAccount.accountId
+                    ? String(payload.currentAccount.accountId)
+                    : "anonymous";
+
+            membersUiStorageKey =
+                membersUiStorageKeyPrefix + accountId.toLowerCase();
+
+            const persistedState =
+                readMembersUiStateFromStorage(membersUiStorageKey);
+
+            applyPersistedMembersUiState(state, persistedState);
+        })
+        .catch(function () {
+            membersUiStorageKey = membersUiStorageKeyPrefix + "anonymous";
+        })
+        .finally(function () {
+            membersUiStorageLoading = false;
+            membersUiStorageLoaded = true;
+
+            if (typeof rerender === "function") {
+                rerender();
+            }
+        });
 }
 
 function getSourceSystemsFromPayload(payload) {
@@ -154,7 +318,7 @@ function renderSourceSystems(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = sourceSystems.length + " source systems returned from the read-only demo API.";
+    note.textContent = sourceSystems.length + " source systems returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -268,7 +432,7 @@ function renderSystems(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = systems.length + " systems returned from the read-only demo API.";
+    note.textContent = systems.length + " systems returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -332,11 +496,11 @@ function renderMe(payload) {
 
     const heading = document.createElement("h2");
     heading.className = "output-heading";
-    heading.textContent = "Demo session";
+    heading.textContent = "Session";
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = "Read-only PluralBridge proof context for the protected demo session.";
+    note.textContent = "PluralBridge proof context for this session.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -514,7 +678,7 @@ function renderPrivacyBuckets(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = privacyBuckets.length + " privacy buckets returned from the read-only demo API.";
+    note.textContent = privacyBuckets.length + " privacy buckets returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -627,7 +791,7 @@ function renderCustomFields(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = customFields.length + " custom fields returned from the read-only demo API.";
+    note.textContent = customFields.length + " custom fields returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -770,7 +934,7 @@ function renderImportBatches(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = importBatches.length + " import batches returned from the read-only demo API.";
+    note.textContent = importBatches.length + " import batches returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -901,7 +1065,7 @@ function renderSourceRecords(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = sourceRecords.length + " source records returned from the read-only demo API.";
+    note.textContent = sourceRecords.length + " source records returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -1036,7 +1200,7 @@ function renderSourceIdMappings(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = sourceIdMappings.length + " source ID mappings returned from the read-only demo API.";
+    note.textContent = sourceIdMappings.length + " source ID mappings returned from the read-only  API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -1070,7 +1234,7 @@ function renderImportMetadata(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = "Read-only import health and lineage summary for this demo system.";
+    note.textContent = "Import health and lineage summary for this system.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -1185,742 +1349,674 @@ function getMemberDescription(member) {
     return member && member.description ? member.description : "No description available.";
 }
 
-function createMemberAccordion(member) {
-    function createMemberActionIcon(iconName) {
-        const svgNamespace = "http://www.w3.org/2000/svg";
+function getMembersUiState() {
+    window.PluralBridge = window.PluralBridge || {};
 
-        const svg = document.createElementNS(svgNamespace, "svg");
-        svg.setAttribute("class", "member-toggle-icon");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "16");
-        svg.setAttribute("height", "16");
-        svg.setAttribute("aria-hidden", "true");
-        svg.setAttribute("focusable", "false");
-
-        const path = document.createElementNS(svgNamespace, "path");
-        path.setAttribute("fill", "currentColor");
-
-        if (iconName === "json") {
-            path.setAttribute("d", "M8.6 7.4 4 12l4.6 4.6L7.2 18 1.2 12l6-6 1.4 1.4zm6.8 0L16.8 6l6 6-6 6-1.4-1.4L20 12l-4.6-4.6zM13.2 5h2L10.8 19h-2l4.4-14z");
-        } else if (iconName === "save") {
-            path.setAttribute("d", "M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zM7 5h8v5H7V5zm10 14H7v-6h10v6z");
-        } else {
-            path.setAttribute("d", "M4 17.3V21h3.7L18.8 9.9l-3.7-3.7L4 17.3zM20.7 8c.4-.4.4-1 0-1.4l-2.3-2.3c-.4-.4-1-.4-1.4 0l-1.2 1.2 3.7 3.7L20.7 8z");
-        }
-
-        svg.appendChild(path);
-        return svg;
+    if (!window.PluralBridge.membersUiState) {
+        window.PluralBridge.membersUiState = {
+            systemPanelOpen: true,
+            systemPanelPinned: true,
+            expandedSystemTreeNodes: {
+                "systems-root": true
+            },
+            activeSystemId: null,
+            activeGroupKey: null,
+            activeGroupMemberIds: [],
+            preferredSystemId: null,
+            preferredSelectionKind: "system",
+            preferredGroupKey: null,
+            restorePreferredSystemAttempted: false,
+            systemNameById: {},
+            groupByKey: {},
+            systemTreeData: null,
+            systemTreeLoading: false,
+            systemTreeError: null
+        };
     }
 
-    function getMemberIdForSave() {
-        return member && member.memberId ? member.memberId : "";
+    return window.PluralBridge.membersUiState;
+}
+
+function getSystemsFromPayloadForTree(payload) {
+    if (Array.isArray(payload)) {
+        return payload;
     }
 
-    function getProfilePlaceholder(fieldName) {
-        if (fieldName === "displayName") {
-            return "(unnamed member)";
-        }
-
-        if (fieldName === "pronouns") {
-            return "Not set";
-        }
-
-        return "No description available.";
+    if (payload && Array.isArray(payload.systems)) {
+        return payload.systems;
     }
 
-    function getProfileDisplayText(fieldName) {
-        const value = draftValues[fieldName];
+    return [];
+}
 
-        if (value) {
-            return value;
-        }
-
-        return getProfilePlaceholder(fieldName);
+function getSystemParentId(system) {
+    if (!system) {
+        return null;
     }
 
-    function hasDirtyFields() {
-        return draftValues.displayName !== persistedValues.displayName ||
-            draftValues.pronouns !== persistedValues.pronouns ||
-            draftValues.description !== persistedValues.description;
+    if (system.parentSystemId) {
+        return String(system.parentSystemId);
     }
 
-    function setProfileStatus(message, statusType) {
-        profileStatus.classList.remove("is-error");
-        profileStatus.classList.remove("is-success");
-        profileStatus.textContent = message || "";
-
-        if (statusType === "error") {
-            profileStatus.classList.add("is-error");
-        }
-
-        if (statusType === "success") {
-            profileStatus.classList.add("is-success");
-        }
+    if (system.systemParentId) {
+        return String(system.systemParentId);
     }
 
-    function setGuardStatus(message, statusType) {
-        guardStatus.classList.remove("is-error");
-        guardStatus.classList.remove("is-success");
-        guardStatus.textContent = message || "";
-
-        if (statusType === "error") {
-            guardStatus.classList.add("is-error");
-        }
-
-        if (statusType === "success") {
-            guardStatus.classList.add("is-success");
-        }
+    if (system.parentId) {
+        return String(system.parentId);
     }
 
-    function updateSummaryPreview() {
-        name.textContent = getProfileDisplayText("displayName");
-        pronouns.textContent = draftValues.pronouns || "";
+    if (system.parentSystem && system.parentSystem.systemId) {
+        return String(system.parentSystem.systemId);
     }
 
-    function updateStaticFieldDisplay(fieldName) {
-        const rowInfo = fieldRows[fieldName];
+    return null;
+}
 
-        if (!rowInfo) {
-            return;
-        }
-
-        rowInfo.value.textContent = getProfileDisplayText(fieldName);
-        rowInfo.value.dataset.draftValue = draftValues[fieldName] || "";
+function getSystemName(system) {
+    if (system && system.systemName) {
+        return system.systemName;
     }
 
-    function updateAllStaticFieldDisplays() {
-        Object.keys(fieldRows).forEach(function (fieldName) {
-            updateStaticFieldDisplay(fieldName);
+    return "(unnamed system)";
+}
+
+function getSystemGroups(system) {
+    if (system && Array.isArray(system.groups)) {
+        return system.groups;
+    }
+
+    if (system && Array.isArray(system.systemGroups)) {
+        return system.systemGroups;
+    }
+
+    return [];
+}
+
+function getGroupName(group) {
+    if (group && group.groupName) {
+        return group.groupName;
+    }
+
+    if (group && group.name) {
+        return group.name;
+    }
+
+    return "(unnamed group)";
+}
+
+function getGroupParentId(group) {
+    if (!group) {
+        return null;
+    }
+
+    if (group.parentGroupId) {
+        return String(group.parentGroupId);
+    }
+
+    if (group.parentId) {
+        return String(group.parentId);
+    }
+
+    return null;
+}
+
+function getGroupSourceId(group) {
+    if (group && group.sourceGroupId) {
+        return String(group.sourceGroupId);
+    }
+
+    return null;
+}
+
+function getGroupParentSourceId(group) {
+    if (group && group.parentSourceGroupId) {
+        return String(group.parentSourceGroupId);
+    }
+
+    return null;
+}
+
+function getGroupMemberIds(group) {
+    if (group && Array.isArray(group.memberIds)) {
+        return group.memberIds.map(function (memberId) {
+            return String(memberId).toLowerCase();
         });
-
-        updateSummaryPreview();
-        updateSaveButtonState();
     }
 
-    function updateSaveButtonState() {
-        if (!saveButton) {
-            return;
-        }
+    if (group && Array.isArray(group.members)) {
+        return group.members.map(function (member) {
+            if (member && member.memberId) {
+                return String(member.memberId).toLowerCase();
+            }
 
-        const isDirty = hasDirtyFields();
-
-        saveButton.disabled = isSaving || !isDirty;
-        saveButton.title = isDirty ? "Save profile changes" : "No profile changes to save";
-    }
-
-    function closeActiveEditor(applyChange) {
-        if (!activeEdit) {
-            return;
-        }
-
-        const editState = activeEdit;
-        activeEdit = null;
-
-        if (applyChange) {
-            draftValues[editState.fieldName] = editState.editor.value.trim();
-            setProfileStatus("");
-        }
-
-        updateStaticFieldDisplay(editState.fieldName);
-
-        if (editState.editor.parentNode) {
-            editState.editor.replaceWith(editState.displayElement);
-        }
-
-        editState.row.classList.remove("is-active");
-        editState.editButton.disabled = isSaving;
-
-        updateSummaryPreview();
-        updateSaveButtonState();
-    }
-
-    function createEditorForField(fieldName, isLongText) {
-        let editor = null;
-
-        if (isLongText) {
-            editor = document.createElement("textarea");
-            editor.rows = 6;
-            editor.className = "member-profile-field-editor member-profile-field-textarea";
-        } else {
-            editor = document.createElement("input");
-            editor.type = "text";
-            editor.className = "member-profile-field-editor member-profile-field-input";
-            editor.autocomplete = "off";
-        }
-
-        editor.value = draftValues[fieldName] || "";
-        editor.setAttribute("aria-label", "Edit " + fieldLabels[fieldName]);
-
-        editor.addEventListener("blur", function () {
-            closeActiveEditor(true);
+            return String(member).toLowerCase();
         });
+    }
 
-        editor.addEventListener("keydown", function (event) {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                closeActiveEditor(false);
+    return [];
+}
+
+function toGroupSelectionKey(systemId, groupId) {
+    return String(systemId).toLowerCase() + ":" + String(groupId).toLowerCase();
+}
+
+function ensureDefaultMembersTreeExpansion(state, activeSystemId) {
+    if (!state || !state.systemTreeData) {
+        return false;
+    }
+
+    if (!state.expandedSystemTreeNodes || typeof state.expandedSystemTreeNodes !== "object") {
+        state.expandedSystemTreeNodes = {};
+    }
+
+    let changed = false;
+
+    if (state.expandedSystemTreeNodes["systems-root"] !== true) {
+        state.expandedSystemTreeNodes["systems-root"] = true;
+        changed = true;
+    }
+
+    function expandDefaults(node) {
+        if (!node) {
+            return;
+        }
+
+        const children = Array.isArray(node.children) ? node.children : [];
+        if (children.length > 0 && !(node.id in state.expandedSystemTreeNodes)) {
+            state.expandedSystemTreeNodes[node.id] = true;
+            changed = true;
+        }
+
+        children.forEach(function (childNode) {
+            expandDefaults(childNode);
+        });
+    }
+
+    expandDefaults(state.systemTreeData);
+
+    if (activeSystemId) {
+        const systemExpansionKey = String(activeSystemId);
+        if (!(systemExpansionKey in state.expandedSystemTreeNodes)) {
+            state.expandedSystemTreeNodes[systemExpansionKey] = true;
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+function sortSystemTreeNodes(nodes) {
+    nodes.sort(function (left, right) {
+        return left.name.localeCompare(right.name);
+    });
+
+    nodes.forEach(function (node) {
+        if (Array.isArray(node.children) && node.children.length > 0) {
+            sortSystemTreeNodes(node.children);
+        }
+    });
+}
+
+function buildMembersSystemTree(systems) {
+    const nodeById = new Map();
+    const systemNameById = {};
+    const groupByKey = {};
+
+    systems.forEach(function (system) {
+        if (!system || !system.systemId) {
+            return;
+        }
+
+        const nodeId = String(system.systemId);
+        const nodeName = getSystemName(system);
+        systemNameById[nodeId.toLowerCase()] = nodeName;
+
+        nodeById.set(nodeId, {
+            id: nodeId,
+            type: "system",
+            name: nodeName,
+            system: system,
+            children: []
+        });
+    });
+
+    const roots = [];
+
+    systems.forEach(function (system) {
+        if (!system || !system.systemId) {
+            return;
+        }
+
+        const nodeId = String(system.systemId);
+        const node = nodeById.get(nodeId);
+        const parentId = getSystemParentId(system);
+
+        if (parentId && nodeById.has(parentId)) {
+            nodeById.get(parentId).children.push(node);
+        } else {
+            roots.push(node);
+        }
+
+        const groups = getSystemGroups(system);
+        if (groups.length === 0) {
+            return;
+        }
+
+        const groupNodeById = new Map();
+        const groupIdBySourceId = new Map();
+        const rootGroups = [];
+
+        groups.forEach(function (group) {
+            if (!group || !group.groupId) {
                 return;
             }
 
-            if (!isLongText && event.key === "Enter") {
-                event.preventDefault();
-                closeActiveEditor(true);
+            const groupId = String(group.groupId);
+            const sourceGroupId = getGroupSourceId(group);
+            if (sourceGroupId) {
+                groupIdBySourceId.set(sourceGroupId.toLowerCase(), groupId);
             }
         });
 
-        return editor;
-    }
+        groups.forEach(function (group) {
+            if (!group || !group.groupId) {
+                return;
+            }
 
-    function startEditingField(fieldName) {
-        const rowInfo = fieldRows[fieldName];
+            const groupId = String(group.groupId);
+            const normalizedGroupId = groupId.toLowerCase();
+            const groupSelectionKey = toGroupSelectionKey(nodeId, groupId);
 
-        if (!rowInfo || isSaving) {
-            return;
-        }
+            const groupNode = {
+                id: "group:" + groupSelectionKey,
+                type: "group",
+                name: getGroupName(group),
+                groupId: groupId,
+                systemId: nodeId,
+                groupSelectionKey: groupSelectionKey,
+                memberIds: getGroupMemberIds(group),
+                children: []
+            };
 
-        if (activeEdit && activeEdit.fieldName === fieldName) {
-            activeEdit.editor.focus();
-            return;
-        }
-
-        closeActiveEditor(true);
-
-        const editor = createEditorForField(fieldName, rowInfo.isLongText);
-
-        rowInfo.row.classList.add("is-active");
-        rowInfo.editButton.disabled = true;
-        rowInfo.value.replaceWith(editor);
-
-        activeEdit = {
-            fieldName: fieldName,
-            row: rowInfo.row,
-            displayElement: rowInfo.value,
-            editor: editor,
-            editButton: rowInfo.editButton
-        };
-
-        window.setTimeout(function () {
-            editor.focus();
-            editor.select();
-        }, 0);
-    }
-
-    function createMemberProfileFieldRow(labelText, fieldName, rawValue, isLongText) {
-        const row = document.createElement("div");
-        row.className = "member-profile-field-row";
-        row.dataset.memberProfileField = fieldName;
-
-        const label = document.createElement("span");
-        label.className = "member-profile-field-label";
-        label.textContent = labelText;
-
-        const value = document.createElement("span");
-        value.className = "member-profile-field-value";
-        value.dataset.memberProfileValue = fieldName;
-        value.dataset.persistedValue = rawValue || "";
-        value.dataset.draftValue = rawValue || "";
-        value.textContent = rawValue || getProfilePlaceholder(fieldName);
-
-        if (isLongText) {
-            value.classList.add("member-profile-field-value-long");
-        }
-
-        const editButton = document.createElement("button");
-        editButton.type = "button";
-        editButton.className = "member-profile-field-edit-button";
-        editButton.dataset.memberProfileEdit = fieldName;
-        editButton.title = "Edit " + labelText;
-        editButton.setAttribute("aria-label", "Edit " + labelText);
-
-        editButton.appendChild(createMemberActionIcon("edit"));
-
-        editButton.addEventListener("click", function () {
-            startEditingField(fieldName);
+            groupNodeById.set(normalizedGroupId, groupNode);
+            groupByKey[groupSelectionKey] = groupNode;
         });
 
-        row.appendChild(label);
-        row.appendChild(value);
-        row.appendChild(editButton);
+        groups.forEach(function (group) {
+            if (!group || !group.groupId) {
+                return;
+            }
 
-        fieldRows[fieldName] = {
-            row: row,
-            value: value,
-            editButton: editButton,
-            isLongText: isLongText
-        };
+            const groupId = String(group.groupId);
+            const normalizedGroupId = groupId.toLowerCase();
+            const groupNode = groupNodeById.get(normalizedGroupId);
+            if (!groupNode) {
+                return;
+            }
+            let parentGroupId = getGroupParentId(group);
 
-        return row;
-    }
+            if (!parentGroupId) {
+                const parentSourceGroupId = getGroupParentSourceId(group);
+                if (parentSourceGroupId) {
+                    parentGroupId = groupIdBySourceId.get(parentSourceGroupId.toLowerCase()) || null;
+                }
+            }
 
-    function createProfileSaveButton() {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "member-profile-save-button";
-        button.disabled = true;
-        button.title = "No profile changes to save.";
+            const normalizedParentGroupId = parentGroupId
+                ? String(parentGroupId).toLowerCase()
+                : null;
 
-        button.appendChild(createMemberActionIcon("save"));
-
-        const label = document.createElement("span");
-        label.textContent = "Save";
-
-        button.appendChild(label);
-
-        button.addEventListener("click", saveProfileChanges);
-
-        return button;
-    }
-
-    function setProfileBusy(isBusy) {
-        isSaving = isBusy;
-
-        Object.keys(fieldRows).forEach(function (fieldName) {
-            fieldRows[fieldName].editButton.disabled = isBusy;
+            if (normalizedParentGroupId && groupNodeById.has(normalizedParentGroupId)) {
+                groupNodeById.get(normalizedParentGroupId).children.push(groupNode);
+            } else {
+                rootGroups.push(groupNode);
+            }
         });
 
-        if (activeEdit && activeEdit.editor) {
-            activeEdit.editor.disabled = isBusy;
-        }
+        sortSystemTreeNodes(rootGroups);
 
-        updateSaveButtonState();
-    }
-
-    function setGuardBusy(isBusy) {
-        saveChangesButton.disabled = isBusy;
-        discardChangesButton.disabled = isBusy;
-        keepEditingButton.disabled = isBusy;
-    }
-
-    function buildMemberEditRequest() {
-        return {
-            displayName: draftValues.displayName.trim(),
-            pronouns: draftValues.pronouns.trim(),
-            description: draftValues.description.trim()
-        };
-    }
-
-    function applySuccessfulSave() {
-        persistedValues.displayName = draftValues.displayName;
-        persistedValues.pronouns = draftValues.pronouns;
-        persistedValues.description = draftValues.description;
-
-        Object.keys(fieldRows).forEach(function (fieldName) {
-            fieldRows[fieldName].value.dataset.persistedValue = persistedValues[fieldName] || "";
-            fieldRows[fieldName].value.dataset.draftValue = draftValues[fieldName] || "";
-            updateStaticFieldDisplay(fieldName);
+        rootGroups.forEach(function (groupNode) {
+            node.children.push(groupNode);
         });
+    });
 
-        if (member) {
-            member.displayName = persistedValues.displayName;
-            member.pronouns = persistedValues.pronouns;
-            member.description = persistedValues.description;
-        }
+    sortSystemTreeNodes(roots);
 
-        jsonBlock.textContent = JSON.stringify(member, null, 2);
+    return {
+        id: "systems-root",
+        type: "root",
+        name: "Systems",
+        systemNameById: systemNameById,
+        groupByKey: groupByKey,
+        children: roots
+    };
+}
 
-        updateSummaryPreview();
-        updateSaveButtonState();
+function requestMembersSystemTree(state, onComplete) {
+    if (state.systemTreeData || state.systemTreeLoading) {
+        return;
     }
 
-    async function saveProfileChanges() {
-        closeActiveEditor(true);
-
-        if (!hasDirtyFields()) {
-            updateSaveButtonState();
-            return true;
-        }
-
-        const memberId = getMemberIdForSave();
-
-        if (!memberId) {
-            setProfileStatus("Member edit is not available because this member has no member ID.", "error");
-            return false;
-        }
-
-        const apiClient = window.PluralBridge && window.PluralBridge.apiClient
+    const apiClient =
+        window.PluralBridge && window.PluralBridge.apiClient
             ? window.PluralBridge.apiClient
             : null;
 
-        if (!apiClient || typeof apiClient.editMember !== "function") {
-            setProfileStatus("Member edit is not available in the current browser session.", "error");
-            return false;
-        }
-
-        const request = buildMemberEditRequest();
-
-        if (!request.displayName) {
-            setProfileStatus("Name is required.", "error");
-            updateSaveButtonState();
-            return false;
-        }
-
-        setProfileBusy(true);
-        setProfileStatus("Saving member.");
-
-        try {
-            await apiClient.editMember(memberId, request);
-            applySuccessfulSave();
-            setProfileStatus("Member saved.", "success");
-            return true;
-        } catch (error) {
-            setProfileStatus("Member could not be saved. Confirm the API is running and try again.", "error");
-            return false;
-        } finally {
-            setProfileBusy(false);
-        }
+    if (!apiClient || typeof apiClient.fetchJson !== "function") {
+        state.systemTreeError = "System list could not be loaded in this session.";
+        return;
     }
 
-    function discardProfileChanges() {
-        closeActiveEditor(false);
+    state.systemTreeLoading = true;
+    state.systemTreeError = null;
 
-        draftValues.displayName = persistedValues.displayName;
-        draftValues.pronouns = persistedValues.pronouns;
-        draftValues.description = persistedValues.description;
+    apiClient.fetchJson("/api/systems")
+        .then(function (payload) {
+            const systems = getSystemsFromPayloadForTree(payload);
+            state.systemTreeData = buildMembersSystemTree(systems);
+            state.systemNameById = state.systemTreeData.systemNameById || {};
+            state.groupByKey = state.systemTreeData.groupByKey || {};
+            state.systemTreeLoading = false;
 
-        setProfileStatus("");
-        updateAllStaticFieldDisplays();
-    }
-
-    function showUnsavedDialog() {
-        setGuardStatus("");
-
-        guardDialog.hidden = false;
-        guardDialog.removeAttribute("hidden");
-
-        if (typeof guardDialog.showModal === "function" && !guardDialog.open) {
-            guardDialog.showModal();
-        } else {
-            guardDialog.setAttribute("open", "open");
-        }
-
-        keepEditingButton.focus();
-    }
-
-    function hideUnsavedDialog() {
-        if (typeof guardDialog.close === "function" && guardDialog.open) {
-            guardDialog.close();
-        }
-
-        guardDialog.hidden = true;
-        guardDialog.removeAttribute("open");
-        setGuardStatus("");
-        setGuardBusy(false);
-    }
-
-    function completePendingLeave(shouldLeave) {
-        const resolve = pendingLeaveResolve;
-        const action = pendingLeaveAction;
-
-        pendingLeaveResolve = null;
-        pendingLeaveAction = null;
-
-        hideUnsavedDialog();
-
-        if (shouldLeave && typeof action === "function") {
-            action();
-        }
-
-        if (typeof resolve === "function") {
-            resolve(shouldLeave);
-        }
-    }
-
-    function requestProfileLeave(leaveAction) {
-        closeActiveEditor(true);
-
-        if (!hasDirtyFields()) {
-            if (typeof leaveAction === "function") {
-                leaveAction();
+            if (typeof onComplete === "function") {
+                onComplete();
             }
+        })
+        .catch(function (error) {
+            state.systemTreeLoading = false;
+            state.systemTreeError = error && error.message
+                ? "System list could not be loaded right now (" + error.message + ")."
+                : "System list could not be loaded right now.";
 
-            return Promise.resolve(true);
-        }
-
-        if (pendingLeaveResolve) {
-            return Promise.resolve(false);
-        }
-
-        pendingLeaveAction = leaveAction || null;
-        showUnsavedDialog();
-
-        return new Promise(function (resolve) {
-            pendingLeaveResolve = resolve;
+            if (typeof onComplete === "function") {
+                onComplete();
+            }
         });
-    }
-
-    async function saveChangesAndLeave() {
-        setGuardBusy(true);
-        setGuardStatus("Saving changes.");
-
-        const didSave = await saveProfileChanges();
-
-        if (didSave) {
-            completePendingLeave(true);
-            return;
-        }
-
-        setGuardBusy(false);
-        setGuardStatus("Changes could not be saved. Keep editing or discard changes.", "error");
-    }
-
-    function discardChangesAndLeave() {
-        discardProfileChanges();
-        completePendingLeave(true);
-    }
-
-    function returnToCurrentProfile() {
-        cardDetails.open = true;
-
-        window.setTimeout(function () {
-            cardDetails.scrollIntoView({
-                block: "center",
-                inline: "nearest"
-            });
-
-            try {
-                summary.focus({
-                    preventScroll: true
-                });
-            } catch (error) {
-                summary.focus();
-            }
-        }, 0);
-    }
-
-    function keepEditing() {
-        completePendingLeave(false);
-        returnToCurrentProfile();
-    }
-    function createGuardActionButton(labelText, className) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = className;
-        button.textContent = labelText;
-        return button;
-    }
-
-    const draftValues = {
-        displayName: member && member.displayName ? member.displayName : "",
-        pronouns: member && member.pronouns ? member.pronouns : "",
-        description: member && member.description ? member.description : ""
-    };
-
-    const persistedValues = {
-        displayName: draftValues.displayName,
-        pronouns: draftValues.pronouns,
-        description: draftValues.description
-    };
-
-    const fieldLabels = {
-        displayName: "Name",
-        pronouns: "Pronouns",
-        description: "Description"
-    };
-
-    const fieldRows = {};
-    let activeEdit = null;
-    let isSaving = false;
-    let pendingLeaveResolve = null;
-    let pendingLeaveAction = null;
-
-    const cardDetails = document.createElement("details");
-    cardDetails.className = "member-card";
-
-    const summary = document.createElement("summary");
-    summary.className = "member-summary";
-
-    const summaryMain = document.createElement("span");
-    summaryMain.className = "member-summary-main";
-
-    const avatarPlaceholder = document.createElement("span");
-    avatarPlaceholder.className = "member-avatar-placeholder";
-    avatarPlaceholder.setAttribute("aria-hidden", "true");
-
-    const red = Math.floor(Math.random() * 256);
-    const green = Math.floor(Math.random() * 256);
-    const blue = Math.floor(Math.random() * 256);
-
-    avatarPlaceholder.style.backgroundColor = "rgb(" + red + ", " + green + ", " + blue + ")";
-    avatarPlaceholder.style.borderColor = "rgba(" + red + ", " + green + ", " + blue + ", 0.85)";
-
-    const identity = document.createElement("span");
-    identity.className = "member-identity";
-
-    const name = document.createElement("span");
-    name.className = "member-name";
-    name.textContent = getProfileDisplayText("displayName");
-
-    const pronouns = document.createElement("span");
-    pronouns.className = "member-pronouns";
-    pronouns.textContent = draftValues.pronouns || "";
-
-    const chevron = document.createElement("span");
-    chevron.className = "member-chevron";
-    chevron.setAttribute("aria-hidden", "true");
-    chevron.textContent = "v";
-
-    identity.appendChild(name);
-    identity.appendChild(pronouns);
-
-    summaryMain.appendChild(avatarPlaceholder);
-    summaryMain.appendChild(identity);
-
-    summary.appendChild(summaryMain);
-    summary.appendChild(chevron);
-
-    summary.addEventListener("click", async function (event) {
-        const currentGuard = window.PluralBridge && window.PluralBridge.memberProfileGuard
-            ? window.PluralBridge.memberProfileGuard
-            : null;
-
-        if (
-            !cardDetails.open &&
-            currentGuard &&
-            currentGuard !== profileGuard &&
-            typeof currentGuard.hasDirtyChanges === "function" &&
-            currentGuard.hasDirtyChanges() &&
-            typeof currentGuard.requestLeave === "function"
-        ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            await currentGuard.requestLeave(function () {
-                cardDetails.open = true;
-            });
-
-            return;
-        }
-
-        if (cardDetails.open && hasDirtyFields()) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            requestProfileLeave(function () {
-                cardDetails.open = false;
-            });
-        }
-    });
-
-    cardDetails.appendChild(summary);
-
-    const body = document.createElement("div");
-    body.className = "member-body";
-
-    const profilePanel = document.createElement("section");
-    profilePanel.className = "member-profile-panel";
-    profilePanel.setAttribute("aria-label", "Member profile fields");
-
-    const profileHeading = document.createElement("h3");
-    profileHeading.className = "me-section-heading";
-    profileHeading.textContent = "Profile";
-
-    const profileFields = document.createElement("div");
-    profileFields.className = "member-profile-fields";
-
-    profileFields.appendChild(createMemberProfileFieldRow("Name", "displayName", draftValues.displayName, false));
-    profileFields.appendChild(createMemberProfileFieldRow("Pronouns", "pronouns", draftValues.pronouns, false));
-    profileFields.appendChild(createMemberProfileFieldRow("Description", "description", draftValues.description, true));
-
-    const profileActions = document.createElement("div");
-    profileActions.className = "member-profile-action-row";
-
-    const saveButton = createProfileSaveButton();
-    profileActions.appendChild(saveButton);
-
-    const profileStatus = document.createElement("p");
-    profileStatus.className = "member-form-status";
-    profileStatus.setAttribute("aria-live", "polite");
-    profileStatus.textContent = "";
-
-    const guardDialog = document.createElement("dialog");
-    guardDialog.className = "member-profile-unsaved-dialog";
-    guardDialog.setAttribute("aria-label", "Unsaved member profile changes");
-    guardDialog.hidden = true;
-
-    const guardMessage = document.createElement("p");
-    guardMessage.className = "member-profile-unsaved-message";
-    guardMessage.textContent = "This member has unsaved profile changes.";
-
-    const guardButtonRow = document.createElement("div");
-    guardButtonRow.className = "member-profile-unsaved-actions";
-
-    const saveChangesButton = createGuardActionButton("Save changes", "member-profile-unsaved-button");
-    const discardChangesButton = createGuardActionButton("Discard changes", "member-profile-unsaved-button");
-    const keepEditingButton = createGuardActionButton("Keep editing", "member-profile-unsaved-button");
-
-    saveChangesButton.addEventListener("click", saveChangesAndLeave);
-    discardChangesButton.addEventListener("click", discardChangesAndLeave);
-    keepEditingButton.addEventListener("click", keepEditing);
-
-    guardDialog.addEventListener("cancel", function (event) {
-        event.preventDefault();
-        keepEditing();
-    });
-
-    guardButtonRow.appendChild(saveChangesButton);
-    guardButtonRow.appendChild(discardChangesButton);
-    guardButtonRow.appendChild(keepEditingButton);
-
-    const guardStatus = document.createElement("p");
-    guardStatus.className = "member-form-status member-profile-unsaved-status";
-    guardStatus.setAttribute("aria-live", "polite");
-    guardStatus.textContent = "";
-
-    guardDialog.appendChild(guardMessage);
-    guardDialog.appendChild(guardButtonRow);
-    guardDialog.appendChild(guardStatus);
-
-    profilePanel.appendChild(profileHeading);
-    profilePanel.appendChild(profileFields);
-    profilePanel.appendChild(profileActions);
-    profilePanel.appendChild(profileStatus);
-    profilePanel.appendChild(guardDialog);
-
-    const jsonBlock = document.createElement("pre");
-    jsonBlock.className = "member-json json-output";
-    jsonBlock.textContent = JSON.stringify(member, null, 2);
-
-    const rawJsonDetails = document.createElement("details");
-    rawJsonDetails.className = "member-profile-json-details";
-
-    const rawJsonSummary = document.createElement("summary");
-    rawJsonSummary.textContent = "Raw JSON";
-
-    rawJsonDetails.appendChild(rawJsonSummary);
-    rawJsonDetails.appendChild(jsonBlock);
-
-    body.appendChild(profilePanel);
-    body.appendChild(rawJsonDetails);
-    cardDetails.appendChild(body);
-
-    const profileGuard = {
-        hasDirtyChanges: hasDirtyFields,
-        requestLeave: requestProfileLeave
-    };
-
-    cardDetails.addEventListener("toggle", function () {
-        window.PluralBridge = window.PluralBridge || {};
-
-        if (cardDetails.open) {
-            window.PluralBridge.memberProfileGuard = profileGuard;
-            return;
-        }
-
-        if (window.PluralBridge.memberProfileGuard === profileGuard) {
-            window.PluralBridge.memberProfileGuard = null;
-        }
-    });
-
-    updateSaveButtonState();
-
-    return cardDetails;
 }
 
-function renderMembers(payload) {
-    clearOutput();
+function createMembersSystemPanel(state, rerenderMembers, selectSystem, selectGroup) {
+    const panel = document.createElement("aside");
+    panel.className = "member-systems-panel";
 
-    const members = getMembersFromPayload(payload);
+    const isVisible = state.systemPanelPinned || state.systemPanelOpen;
 
+    panel.hidden = !isVisible;
+
+    if (!state.systemPanelPinned) {
+        panel.classList.add("is-overlay");
+    } else {
+        panel.classList.add("is-pinned");
+    }
+
+    const header = document.createElement("div");
+    header.className = "member-systems-header";
+
+    const heading = document.createElement("h3");
+    heading.className = "member-systems-title";
+    heading.textContent = "Plural map navigator";
+
+    function createPinIcon(isPinned) {
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("class", "member-systems-pin-icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+
+        if (!isPinned) {
+            svg.classList.add("is-unpinned");
+        }
+
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("fill", "currentColor");
+        path.setAttribute("d", "M16 3c.6 0 1 .4 1 1v1.5l1.7 1.7c.4.4.4 1 0 1.4L17 10.3V14l2 2v1H13v4l-1 1-1-1v-4H5v-1l2-2v-3.7L5.3 8.6a1 1 0 0 1 0-1.4L7 5.5V4c0-.6.4-1 1-1h8z");
+        svg.appendChild(path);
+
+        return svg;
+    }
+
+    const pinButton = document.createElement("button");
+    pinButton.type = "button";
+    pinButton.className = "member-systems-pin-button";
+    pinButton.setAttribute("aria-pressed", String(state.systemPanelPinned));
+    pinButton.setAttribute("aria-label", state.systemPanelPinned ? "Unpin panel" : "Pin panel");
+    pinButton.title = state.systemPanelPinned ? "Unpin panel" : "Pin panel";
+    pinButton.appendChild(createPinIcon(state.systemPanelPinned));
+
+    pinButton.addEventListener("click", function () {
+        if (state.systemPanelPinned) {
+            state.systemPanelPinned = false;
+            state.systemPanelOpen = false;
+        } else {
+            state.systemPanelPinned = true;
+            state.systemPanelOpen = true;
+        }
+        if (state.pluralMapNavigator) {
+            const visible = state.systemPanelPinned || state.systemPanelOpen;
+            panel.hidden = !visible;
+            panel.classList.toggle("is-pinned", state.systemPanelPinned);
+            panel.classList.toggle("is-overlay", !state.systemPanelPinned);
+            pinButton.setAttribute("aria-pressed", String(state.systemPanelPinned));
+            pinButton.setAttribute("aria-label", state.systemPanelPinned ? "Unpin panel" : "Pin panel");
+            pinButton.title = state.systemPanelPinned ? "Unpin panel" : "Pin panel";
+            pinButton.replaceChildren(createPinIcon(state.systemPanelPinned));
+            const systemsButton = document.querySelector(".member-toolbar .member-toolbar-tree-toggle");
+            const membersApi = window.PluralBridge && window.PluralBridge.members
+                ? window.PluralBridge.members
+                : null;
+            if (systemsButton && membersApi && typeof membersApi.setTreeToggleVisible === "function") {
+                membersApi.setTreeToggleVisible(systemsButton, visible);
+            }
+            return;
+        }
+
+        writeMembersUiStateToStorage(state);
+        rerenderMembers();
+    });
+
+    header.appendChild(heading);
+
+    const headerActions = document.createElement("div");
+    headerActions.className = "member-systems-header-actions";
+
+    if (state.pluralMapNavigator) {
+        const expandAllButton = document.createElement("button");
+        expandAllButton.type = "button";
+        expandAllButton.className = "member-systems-expand-all";
+        expandAllButton.setAttribute("aria-label", "Expand all");
+        expandAllButton.title = "Expand all";
+        const initialIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        initialIcon.setAttribute("class", "member-tree-chevron");
+        initialIcon.setAttribute("viewBox", "0 0 24 24");
+        initialIcon.setAttribute("aria-hidden", "true");
+        initialIcon.setAttribute("focusable", "false");
+        const initialPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        initialPath.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+        initialPath.setAttribute("fill", "none");
+        initialPath.setAttribute("stroke", "currentColor");
+        initialPath.setAttribute("stroke-width", "1.75");
+        initialPath.setAttribute("stroke-linecap", "round");
+        initialPath.setAttribute("stroke-linejoin", "round");
+        initialIcon.appendChild(initialPath);
+        expandAllButton.appendChild(initialIcon);
+        expandAllButton.addEventListener("click", function () {
+            const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+                ? window.PluralBridge.navigator
+                : null;
+            if (navigatorView && typeof navigatorView.toggleAllExpansion === "function") {
+                navigatorView.toggleAllExpansion();
+            }
+        });
+        headerActions.appendChild(expandAllButton);
+    }
+
+    headerActions.appendChild(pinButton);
+    header.appendChild(headerActions);
+    panel.appendChild(header);
+
+    const tree = document.createElement("div");
+    tree.className = "member-systems-tree";
+
+    if (state.pluralMapNavigator) {
+        panel.appendChild(tree);
+        return panel;
+    }
+
+    if (state.systemTreeLoading) {
+        const loading = document.createElement("p");
+        loading.className = "output-note";
+        loading.textContent = "Loading systems.";
+        tree.appendChild(loading);
+        panel.appendChild(tree);
+        return panel;
+    }
+
+    if (state.systemTreeError) {
+        const error = document.createElement("p");
+        error.className = "output-note";
+        error.textContent = state.systemTreeError;
+        tree.appendChild(error);
+        panel.appendChild(tree);
+        return panel;
+    }
+
+    if (!state.systemTreeData) {
+        const empty = document.createElement("p");
+        empty.className = "output-note";
+        empty.textContent = "No system structure available yet.";
+        tree.appendChild(empty);
+        panel.appendChild(tree);
+        return panel;
+    }
+
+    function createNodeLabel(iconText, labelText) {
+        const wrapper = document.createElement("span");
+        wrapper.className = "member-tree-node-content";
+
+        const icon = document.createElement("span");
+        icon.className = "member-tree-node-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = iconText;
+
+        const label = document.createElement("span");
+        label.className = "member-tree-node-text";
+        label.textContent = labelText;
+
+        wrapper.appendChild(icon);
+        wrapper.appendChild(label);
+        return wrapper;
+    }
+
+    function appendNode(node, level) {
+        const row = document.createElement("div");
+        row.className = "member-system-node-row";
+        row.style.setProperty("--system-node-level", String(level));
+
+        const children = Array.isArray(node.children) ? node.children : [];
+        const hasChildren = children.length > 0;
+        const isExpanded = Boolean(state.expandedSystemTreeNodes[node.id]);
+
+        if (hasChildren) {
+            const expandButton = document.createElement("button");
+            expandButton.type = "button";
+            expandButton.className = "member-system-tree-toggle";
+            expandButton.setAttribute("aria-expanded", String(isExpanded));
+            expandButton.setAttribute("aria-label", isExpanded ? "Collapse" : "Expand");
+            const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            chevron.setAttribute("class", "member-tree-chevron" + (isExpanded ? " is-expanded" : ""));
+            chevron.setAttribute("viewBox", "0 0 24 24");
+            chevron.setAttribute("aria-hidden", "true");
+            chevron.setAttribute("focusable", "false");
+            const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            chevronPath.setAttribute("d", "M9 5.5 16.5 12 9 18.5");
+            chevronPath.setAttribute("fill", "none");
+            chevronPath.setAttribute("stroke", "currentColor");
+            chevronPath.setAttribute("stroke-width", "1.75");
+            chevronPath.setAttribute("stroke-linecap", "round");
+            chevronPath.setAttribute("stroke-linejoin", "round");
+            chevron.appendChild(chevronPath);
+            expandButton.appendChild(chevron);
+
+            expandButton.addEventListener("click", function () {
+                state.expandedSystemTreeNodes[node.id] = !isExpanded;
+                writeMembersUiStateToStorage(state);
+                rerenderMembers();
+            });
+
+            row.appendChild(expandButton);
+        } else {
+            const spacer = document.createElement("span");
+            spacer.className = "member-system-tree-spacer";
+            spacer.textContent = "";
+            row.appendChild(spacer);
+        }
+
+        if (node.type === "system" && node.id !== "systems-root") {
+            const selectButton = document.createElement("button");
+            selectButton.type = "button";
+            selectButton.className = "member-system-node-button";
+            selectButton.appendChild(createNodeLabel("◈", node.name));
+
+            if (
+                !state.activeGroupKey &&
+                state.activeSystemId &&
+                String(state.activeSystemId).toLowerCase() === String(node.id).toLowerCase()
+            ) {
+                selectButton.classList.add("is-active");
+                selectButton.setAttribute("aria-current", "true");
+            }
+
+            if (typeof selectSystem === "function") {
+                selectButton.addEventListener("click", function () {
+                    selectSystem(node.id);
+                });
+            }
+
+            row.appendChild(selectButton);
+        } else if (node.type === "group") {
+            const selectButton = document.createElement("button");
+            selectButton.type = "button";
+            selectButton.className = "member-system-node-button member-group-node-button";
+            selectButton.appendChild(createNodeLabel("▣", node.name));
+
+            if (
+                state.activeGroupKey &&
+                String(state.activeGroupKey).toLowerCase() === String(node.groupSelectionKey).toLowerCase()
+            ) {
+                selectButton.classList.add("is-active");
+                selectButton.setAttribute("aria-current", "true");
+            }
+
+            if (typeof selectGroup === "function") {
+                selectButton.addEventListener("click", function () {
+                    selectGroup(node.groupSelectionKey);
+                });
+            }
+
+            row.appendChild(selectButton);
+        } else {
+            const label = document.createElement("span");
+            label.className = "member-system-node-label";
+            label.appendChild(createNodeLabel("☰", node.name));
+            row.appendChild(label);
+        }
+
+        tree.appendChild(row);
+
+        if (hasChildren && isExpanded) {
+            children.forEach(function (childNode) {
+                appendNode(childNode, level + 1);
+            });
+        }
+    }
+
+    appendNode(state.systemTreeData, 0);
+    panel.appendChild(tree);
+    return panel;
+}
+
+function createMembersScreenFrame() {
     const wrapper = document.createElement("section");
     wrapper.className = "member-list";
 
@@ -1930,19 +2026,363 @@ function renderMembers(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = members.length + " members returned.";
 
-    wrapper.appendChild(heading);
-    wrapper.appendChild(note);
+    // Desktop shows this artwork in the shell header. This copy remains for the phone
+    // layout, where that header is not used.
+    const logo = document.createElement("img");
+    logo.className = "member-brand-logo";
+    logo.src = "/app/images/pluralbridge-about-logo-smaller.png";
+    logo.alt = "PluralBridge logo";
+    logo.addEventListener("error", function () {
+        logo.hidden = true;
+    });
+
+    const nameplate = document.createElement("img");
+    nameplate.className = "member-brand-nameplate";
+    nameplate.src = "/app/images/pluralbridge-nameplate.png";
+    nameplate.alt = "The Plural Bridge";
+    nameplate.addEventListener("error", function () {
+        nameplate.hidden = true;
+    });
+
+    const brand = document.createElement("div");
+    brand.className = "member-screen-brand";
+    brand.appendChild(nameplate);
+    brand.appendChild(logo);
+
+    const header = document.createElement("div");
+    header.className = "member-screen-header";
+    header.appendChild(heading);
+    header.appendChild(brand);
 
     const memberAddContainer = document.createElement("div");
     memberAddContainer.className = "member-add-container";
     memberAddContainer.hidden = true;
 
+    const memberScrollList = document.createElement("div");
+    memberScrollList.className = "member-scroll-list";
+
+    const membersWorkspace = document.createElement("div");
+    membersWorkspace.className = "member-workspace";
+
+    const workspacePhoto = document.createElement("img");
+    workspacePhoto.className = "member-workspace-photo";
+    workspacePhoto.src = "/app/images/members-workspace-background.jpg";
+    workspacePhoto.alt = "";
+    workspacePhoto.setAttribute("aria-hidden", "true");
+    membersWorkspace.appendChild(workspacePhoto);
+
+    const memberContent = document.createElement("div");
+    memberContent.className = "member-content-stack";
+    memberContent.appendChild(memberAddContainer);
+    memberContent.appendChild(memberScrollList);
+    membersWorkspace.appendChild(memberContent);
+
+    return {
+        wrapper: wrapper,
+        header: header,
+        heading: heading,
+        note: note,
+        logo: logo,
+        memberAddContainer: memberAddContainer,
+        memberScrollList: memberScrollList,
+        membersWorkspace: membersWorkspace,
+        memberContent: memberContent
+    };
+}
+
+function renderMembers(payload) {
+    const membersUiState = getMembersUiState();
+    membersUiState.pluralMapNavigator = false;
+    ensureMembersUiStateLoaded(membersUiState, function () {
+        renderMembers(payload);
+    });
+
+    // Keep the initial static loading shell visible until saved state is loaded.
+    if (!membersUiStorageLoaded) {
+        updateSessionStatus();
+        return;
+    }
+
+    clearOutput();
+
+    const sourceMembers = getMembersFromPayload(payload);
+    const screen = createMembersScreenFrame();
+    const wrapper = screen.wrapper;
+    const note = screen.note;
+    const memberAddContainer = screen.memberAddContainer;
+    const memberScrollList = screen.memberScrollList;
+    const membersWorkspace = screen.membersWorkspace;
+    const memberContent = screen.memberContent;
+
+    const payloadSystemId =
+        payload && payload.systemId
+            ? String(payload.systemId)
+            : null;
+
+    if (payloadSystemId) {
+        membersUiState.activeSystemId = payloadSystemId;
+    }
+
+    const payloadSelectionKind =
+        payload && payload.selectionKind === "group" ? "group" : "system";
+    const payloadGroupKey =
+        payload && payload.groupSelectionKey
+            ? String(payload.groupSelectionKey).toLowerCase()
+            : null;
+    const payloadGroupMemberIds = Array.isArray(payload && payload.groupMemberIds)
+        ? payload.groupMemberIds.map(function (memberId) {
+            return String(memberId).toLowerCase();
+        })
+        : null;
+
+    if (payloadSelectionKind === "group" && payloadGroupKey) {
+        membersUiState.activeGroupKey = payloadGroupKey;
+        membersUiState.preferredSelectionKind = "group";
+        membersUiState.preferredGroupKey = payloadGroupKey;
+    } else if (payloadSelectionKind === "system") {
+        membersUiState.activeGroupKey = null;
+    }
+
+    if (
+        membersUiStorageLoaded &&
+        !membersUiState.restorePreferredSystemAttempted &&
+        membersUiState.preferredSelectionKind === "group" &&
+        membersUiState.preferredGroupKey
+    ) {
+        const preferredGroupKey = String(membersUiState.preferredGroupKey).toLowerCase();
+        const hasPreferredGroupNode =
+            membersUiState.groupByKey &&
+            membersUiState.groupByKey[preferredGroupKey];
+
+        if (hasPreferredGroupNode) {
+            membersUiState.restorePreferredSystemAttempted = true;
+            selectMembersGroup(preferredGroupKey);
+            return;
+        }
+
+        if (
+            !membersUiState.systemTreeData &&
+            !membersUiState.systemTreeLoading &&
+            !membersUiState.systemTreeError
+        ) {
+            requestMembersSystemTree(membersUiState, function () {
+                renderMembers(payload);
+            });
+            return;
+        }
+
+        membersUiState.restorePreferredSystemAttempted = true;
+        if (membersUiState.preferredSystemId) {
+            selectMembersSystem(membersUiState.preferredSystemId);
+            return;
+        }
+
+        return;
+    }
+
+    if (
+        membersUiStorageLoaded &&
+        !membersUiState.restorePreferredSystemAttempted &&
+        membersUiState.preferredSelectionKind !== "group" &&
+        membersUiState.preferredSystemId &&
+        payloadSystemId &&
+        membersUiState.preferredSystemId.toLowerCase() !== payloadSystemId.toLowerCase()
+    ) {
+        membersUiState.restorePreferredSystemAttempted = true;
+        selectMembersSystem(membersUiState.preferredSystemId);
+        return;
+    }
+
+    if (
+        membersUiStorageLoaded &&
+        payloadSystemId &&
+        !membersUiState.preferredSystemId
+    ) {
+        membersUiState.preferredSystemId = payloadSystemId;
+        writeMembersUiStateToStorage(membersUiState);
+    }
+
+    let members = sourceMembers;
+
+    if (payloadSelectionKind === "group" && payloadGroupMemberIds) {
+        const selectedMemberIdSet = new Set(payloadGroupMemberIds);
+        members = sourceMembers.filter(function (member) {
+            return (
+                member &&
+                member.memberId &&
+                selectedMemberIdSet.has(String(member.memberId).toLowerCase())
+            );
+        });
+    }
+
+    note.textContent = members.length + " members returned.";
+
+    const focusedSystemId = payloadSystemId || membersUiState.activeSystemId || null;
+    const focusedSystemName =
+        focusedSystemId && membersUiState.systemNameById
+            ? membersUiState.systemNameById[String(focusedSystemId).toLowerCase()] || "(unknown system)"
+            : null;
+    const focusedGroupName =
+        payloadSelectionKind === "group" &&
+        payloadGroupKey &&
+        membersUiState.groupByKey &&
+        membersUiState.groupByKey[payloadGroupKey]
+            ? membersUiState.groupByKey[payloadGroupKey].name || "(unnamed group)"
+            : null;
+
+    const focusNotes = document.createElement("div");
+    focusNotes.className = "member-focus-notes";
+
+    const focusSystemNote = document.createElement("p");
+    focusSystemNote.className = "output-note member-focus-note";
+    focusSystemNote.textContent = focusedSystemName
+        ? "Focused system: " + focusedSystemName
+        : "Focused system:";
+    if (!focusedSystemName) {
+        focusSystemNote.classList.add("is-placeholder");
+    }
+    focusNotes.appendChild(focusSystemNote);
+
+    const focusGroupNote = document.createElement("p");
+    focusGroupNote.className = "output-note member-focus-note";
+    focusGroupNote.textContent = focusedGroupName
+        ? "Focused group: " + focusedGroupName
+        : "Focused group:";
+    if (!focusedGroupName) {
+        focusGroupNote.classList.add("is-placeholder");
+    }
+    focusNotes.appendChild(focusGroupNote);
+
+    const showSystemsPanel =
+        membersUiState.systemPanelPinned ||
+        membersUiState.systemPanelOpen;
+
+    if (
+        showSystemsPanel &&
+        !membersUiState.systemTreeData &&
+        !membersUiState.systemTreeLoading &&
+        !membersUiState.systemTreeError
+    ) {
+        requestMembersSystemTree(membersUiState, function () {
+            renderMembers(payload);
+        });
+    }
+
+    if (membersUiState.systemTreeData) {
+        const expansionChanged = ensureDefaultMembersTreeExpansion(
+            membersUiState,
+            payloadSystemId || membersUiState.activeSystemId
+        );
+
+        if (expansionChanged) {
+            writeMembersUiStateToStorage(membersUiState);
+        }
+    }
+
+    wrapper.appendChild(screen.header);
+    wrapper.appendChild(note);
+    wrapper.appendChild(focusNotes);
+
     function refreshMembersFromApi() {
         return window.PluralBridge.apiClient.readMembers()
             .then(function (payload) {
                 renderMembers(payload);
+                return payload;
+            });
+    }
+
+    function setMembersSystemContext(systemId) {
+        selectedSystemId = systemId;
+
+        if (
+            window.PluralBridge &&
+            window.PluralBridge.apiClient &&
+            typeof window.PluralBridge.apiClient.setCurrentSystemId === "function"
+        ) {
+            window.PluralBridge.apiClient.setCurrentSystemId(systemId);
+        }
+
+        membersUiState.activeSystemId = String(systemId);
+    }
+
+    function selectMembersSystem(systemId) {
+        if (!systemId) {
+            return;
+        }
+
+        setMembersSystemContext(systemId);
+
+        if (!membersUiState.systemPanelPinned) {
+            membersUiState.systemPanelOpen = false;
+        }
+
+        writeMembersUiStateToStorage(membersUiState);
+
+        refreshMembersFromApi()
+            .then(function (membersPayload) {
+                renderMembers(Object.assign({}, membersPayload, {
+                    selectionKind: "system"
+                }));
+            })
+            .catch(function (error) {
+                renderPayload({
+                    phase: "Phase 2B",
+                    canWrite: false,
+                    action: "members",
+                    error: error && error.name ? error.name : "Error",
+                    message: error && error.message ? error.message : "System switch failed."
+                });
+            });
+    }
+
+    function selectMembersGroup(groupSelectionKey) {
+        if (!groupSelectionKey || !membersUiState.groupByKey) {
+            return;
+        }
+
+        const normalizedGroupKey = String(groupSelectionKey).toLowerCase();
+        const groupNode = membersUiState.groupByKey[normalizedGroupKey];
+
+        if (!groupNode || !groupNode.systemId) {
+            return;
+        }
+
+        const normalizedSystemId = String(groupNode.systemId);
+        const groupMemberIds = Array.isArray(groupNode.memberIds)
+            ? groupNode.memberIds
+            : [];
+
+        setMembersSystemContext(normalizedSystemId);
+        membersUiState.activeGroupKey = normalizedGroupKey;
+        membersUiState.activeGroupMemberIds = groupMemberIds;
+        membersUiState.preferredSystemId = normalizedSystemId;
+        membersUiState.preferredSelectionKind = "group";
+        membersUiState.preferredGroupKey = normalizedGroupKey;
+        membersUiState.restorePreferredSystemAttempted = true;
+
+        if (!membersUiState.systemPanelPinned) {
+            membersUiState.systemPanelOpen = false;
+        }
+
+        writeMembersUiStateToStorage(membersUiState);
+
+        refreshMembersFromApi()
+            .then(function (membersPayload) {
+                renderMembers(Object.assign({}, membersPayload, {
+                    selectionKind: "group",
+                    groupSelectionKey: normalizedGroupKey,
+                    groupMemberIds: groupMemberIds
+                }));
+            })
+            .catch(function (error) {
+                renderPayload({
+                    phase: "Phase 2B",
+                    canWrite: false,
+                    action: "members",
+                    error: error && error.name ? error.name : "Error",
+                    message: error && error.message ? error.message : "Group switch failed."
+                });
             });
     }
 
@@ -1959,8 +2399,29 @@ function renderMembers(payload) {
         window.PluralBridge.members &&
         typeof window.PluralBridge.members.createMemberToolbar === "function"
     ) {
+        function rerenderMembers() {
+            renderMembers(payload);
+        }
+
+        function toggleSystemPanel() {
+            const treeWasVisible = Boolean(
+                membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
+            );
+            if (treeWasVisible) {
+                membersUiState.systemPanelPinned = false;
+                membersUiState.systemPanelOpen = false;
+            } else {
+                membersUiState.systemPanelOpen = true;
+            }
+
+            writeMembersUiStateToStorage(membersUiState);
+            rerenderMembers();
+        }
+
         wrapper.appendChild(window.PluralBridge.members.createMemberToolbar({
-            toggleAddMember: toggleAddMemberForm
+            toggleAddMember: toggleAddMemberForm,
+            toggleSystemPanel: toggleSystemPanel,
+            isSystemPanelOpen: showSystemsPanel
         }));
     }
 
@@ -1973,12 +2434,7 @@ function renderMembers(payload) {
             refreshMembers: refreshMembersFromApi,
             cancelAddMember: hideAddMemberForm
         }));
-
-        wrapper.appendChild(memberAddContainer);
     }
-
-    const memberScrollList = document.createElement("div");
-    memberScrollList.className = "member-scroll-list";
 
     if (members.length === 0) {
         const empty = document.createElement("p");
@@ -1987,11 +2443,22 @@ function renderMembers(payload) {
         memberScrollList.appendChild(empty);
     } else {
         members.forEach(function (member) {
-            memberScrollList.appendChild(createMemberAccordion(member));
+            memberScrollList.appendChild(window.PluralBridge.createMemberAccordion(member));
         });
     }
 
-    wrapper.appendChild(memberScrollList);
+    membersWorkspace.insertBefore(
+        createMembersSystemPanel(
+            membersUiState,
+            function () {
+                renderMembers(payload);
+            },
+            selectMembersSystem,
+            selectMembersGroup
+        ),
+        memberContent
+    );
+    wrapper.appendChild(membersWorkspace);
 
     output.appendChild(wrapper);
     updateSessionStatus();
@@ -2095,7 +2562,7 @@ function renderFrontHistory(payload) {
 
     const note = document.createElement("p");
     note.className = "output-note";
-    note.textContent = records.length + " front history records returned from the read-only demo API.";
+    note.textContent = records.length + " front history records returned from the read-only API.";
 
     wrapper.appendChild(heading);
     wrapper.appendChild(note);
@@ -2144,11 +2611,26 @@ async function getProofSystemId() {
 
   const payload = await fetchJson("/api/me");
 
-  if (!payload || !payload.proofSystem || !payload.proofSystem.systemId) {
-    throw new Error("No proof system was returned by /api/me.");
+  const currentSystemId =
+    payload &&
+    payload.currentSystem &&
+    payload.currentSystem.systemId
+      ? payload.currentSystem.systemId
+      : null;
+
+  const proofSystemId =
+    payload &&
+    payload.proofSystem &&
+    payload.proofSystem.systemId
+      ? payload.proofSystem.systemId
+      : null;
+
+  if (!currentSystemId && !proofSystemId) {
+    throw new Error("No system context was returned by /api/me.");
   }
 
-  selectedSystemId = payload.proofSystem.systemId;
+  // The account's current-system membership context is the authoritative route scope.
+  selectedSystemId = currentSystemId || proofSystemId;
   return selectedSystemId;
 }
 
@@ -2164,20 +2646,169 @@ function setSessionButtonState(selectedAction) {
   });
 }
 
-async function allowMemberProfileLeave() {
-    const guard = window.PluralBridge && window.PluralBridge.memberProfileGuard
-        ? window.PluralBridge.memberProfileGuard
+function getEventTargetElement(event) {
+  if (!event) {
+    return null;
+  }
+
+  if (event.target instanceof Element) {
+    return event.target;
+  }
+
+  if (event.target && event.target.parentElement instanceof Element) {
+    return event.target.parentElement;
+  }
+
+  return null;
+}
+
+function clearPluralMapDisplay() {
+    const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+        ? window.PluralBridge.navigator
         : null;
 
-    if (!guard || typeof guard.hasDirtyChanges !== "function" || !guard.hasDirtyChanges()) {
-        return true;
+    if (navigatorView && typeof navigatorView.clear === "function") {
+        navigatorView.clear();
+    }
+}
+
+function showMembersWorkspace() {
+    const membersUiState = getMembersUiState();
+    membersUiState.pluralMapNavigator = true;
+    setContractButtonState("members");
+    setSessionButtonState(null);
+    clearPluralMapDisplay();
+    clearOutput();
+
+    const screen = createMembersScreenFrame();
+    screen.note.hidden = true;
+
+    const panel = createMembersSystemPanel(
+        membersUiState,
+        function () {},
+        null,
+        null
+    );
+    const tree = panel.querySelector(".member-systems-tree");
+    screen.membersWorkspace.insertBefore(panel, screen.memberContent);
+
+    let systemsButton = null;
+    let toolbar = null;
+    if (
+        window.PluralBridge &&
+        window.PluralBridge.members &&
+        typeof window.PluralBridge.members.createMemberToolbar === "function"
+    ) {
+        function toggleSystemPanel() {
+            const treeWasVisible = Boolean(
+                membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
+            );
+            const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+                ? window.PluralBridge.navigator
+                : null;
+            if (treeWasVisible) {
+                if (navigatorView && typeof navigatorView.holdExpansion === "function") {
+                    navigatorView.holdExpansion();
+                }
+                membersUiState.systemPanelPinned = false;
+                membersUiState.systemPanelOpen = false;
+                writeMembersUiStateToStorage(membersUiState);
+            } else {
+                membersUiState.systemPanelOpen = true;
+            }
+
+            const visible = Boolean(
+                membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
+            );
+            panel.hidden = !visible;
+            panel.classList.toggle("is-pinned", membersUiState.systemPanelPinned === true);
+            panel.classList.toggle("is-overlay", membersUiState.systemPanelPinned !== true);
+
+            const pinButton = panel.querySelector(".member-systems-pin-button");
+            if (pinButton) {
+                const pinned = membersUiState.systemPanelPinned === true;
+                pinButton.setAttribute("aria-pressed", String(pinned));
+                pinButton.setAttribute("aria-label", pinned ? "Unpin panel" : "Pin panel");
+                pinButton.title = pinned ? "Unpin panel" : "Pin panel";
+                const pinIcon = pinButton.querySelector(".member-systems-pin-icon");
+                if (pinIcon) {
+                    pinIcon.classList.toggle("is-unpinned", !pinned);
+                }
+            }
+
+            const membersApi = window.PluralBridge && window.PluralBridge.members
+                ? window.PluralBridge.members
+                : null;
+            if (systemsButton && membersApi && typeof membersApi.setTreeToggleVisible === "function") {
+                membersApi.setTreeToggleVisible(systemsButton, visible);
+            }
+
+            if (!treeWasVisible && navigatorView && typeof navigatorView.restoreHeldExpansion === "function") {
+                navigatorView.restoreHeldExpansion();
+            }
+        }
+
+        function openAddDialog(mode) {
+            const opener = document.activeElement;
+            if (typeof window.PluralBridge.members.openAddMemberDialog === "function") {
+                window.PluralBridge.members.openAddMemberDialog({
+                    opener: opener,
+                    mode: mode
+                });
+            }
+        }
+
+        toolbar = window.PluralBridge.members.createMemberToolbar({
+            toggleSystemPanel: toggleSystemPanel,
+            toggleAddMember: function () {
+                openAddDialog("member");
+            },
+            toggleAddGroup: function () {
+                openAddDialog("group");
+            },
+            toggleAddPlace: function () {
+                openAddDialog("place");
+            },
+            toggleAddSystem: function () {
+                openAddDialog("system");
+            },
+            toggleAddRelationship: function () {
+                openAddDialog("relationship");
+            },
+            isSystemPanelOpen: membersUiState.systemPanelPinned || membersUiState.systemPanelOpen
+        });
+        systemsButton = toolbar.querySelector(".member-toolbar-tree-toggle");
     }
 
-    if (typeof guard.requestLeave !== "function") {
-        return false;
+    screen.memberAddContainer.hidden = true;
+    screen.memberAddContainer.replaceChildren();
+
+    screen.wrapper.appendChild(screen.header);
+    if (toolbar) {
+        screen.wrapper.appendChild(toolbar);
+    }
+    screen.wrapper.appendChild(screen.membersWorkspace);
+    output.appendChild(screen.wrapper);
+    updateSessionStatus();
+
+    const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+        ? window.PluralBridge.navigator
+        : null;
+
+    if (!navigatorView || typeof navigatorView.mount !== "function" || !tree) {
+        if (tree) {
+            const unavailable = document.createElement("p");
+            unavailable.className = "navigator-status navigator-status-error";
+            unavailable.textContent = "The plural map display is not available.";
+            tree.appendChild(unavailable);
+        }
+        return;
     }
 
-    return await guard.requestLeave();
+    navigatorView.mount({
+        tree: tree,
+        detail: screen.memberScrollList
+    });
 }
 
 async function renderContract(key) {
@@ -2185,6 +2816,13 @@ async function renderContract(key) {
 
   setContractButtonState(key);
   setSessionButtonState(null);
+
+  if (key === "members") {
+      showMembersWorkspace();
+      return;
+  }
+
+  clearPluralMapDisplay();
 
   if (!endpointBuilder) {
     renderPayload({
@@ -2196,12 +2834,15 @@ async function renderContract(key) {
     return;
   }
 
-  renderPayload({
-    phase: "Phase 2B",
-    canWrite: false,
-    action: key,
-    status: "loading"
-  });
+  // Keep loading payload hidden during normal use; enable only for explicit debugging.
+  if (window.PluralBridge && window.PluralBridge.showDebugLoading === true) {
+    renderPayload({
+      phase: "Phase 2B",
+      canWrite: false,
+      action: key,
+      status: "loading"
+    });
+  }
 
   try {
       const endpoint = await endpointBuilder();
@@ -2255,6 +2896,24 @@ function renderFrozenSessionAction(action) {
 }
 
 async function logout() {
+  const membersApi = window.PluralBridge && window.PluralBridge.members
+    ? window.PluralBridge.members
+    : null;
+  if (membersApi && typeof membersApi.closeAddMemberDialog === "function") {
+    membersApi.closeAddMemberDialog();
+  }
+  const navigatorView = window.PluralBridge && window.PluralBridge.navigator
+    ? window.PluralBridge.navigator
+    : null;
+  if (navigatorView && typeof navigatorView.releaseWorkspaceContext === "function") {
+    try {
+      await navigatorView.releaseWorkspaceContext();
+    } catch (releaseError) {
+      // Sign-out continues when context release fails.
+    }
+  }
+  clearPluralMapDisplay();
+
   try {
     const response = await fetch("/logout", {
       method: "POST",
@@ -2285,32 +2944,49 @@ if (loginForm) {
     });
 }
 
-document.addEventListener("click", async function (event) {
-    const contractButton = event.target.closest("[data-contract]");
+document.addEventListener("click", function (event) {
+    const targetElement = getEventTargetElement(event);
+    const placeholderButton = targetElement
+        ? targetElement.closest("[data-shell-placeholder]")
+        : null;
 
-    if (contractButton) {
-        event.preventDefault();
+    if (placeholderButton) {
+        clearPluralMapDisplay();
 
-        const canLeave = await allowMemberProfileLeave();
+        const placeholderRoute = placeholderButton.dataset.shellPlaceholder || "";
+        const accountScreens =
+            window.PluralBridge && window.PluralBridge.accountScreens
+                ? window.PluralBridge.accountScreens
+                : null;
 
-        if (!canLeave) {
+        if (
+            accountScreens &&
+            typeof accountScreens.render === "function" &&
+            accountScreens.render(placeholderRoute)
+        ) {
             return;
         }
 
+        renderSelectionNote((placeholderButton.textContent || "").trim());
+        return;
+    }
+
+    const contractButton = targetElement
+        ? targetElement.closest("[data-contract]")
+        : null;
+
+    if (contractButton) {
+        event.preventDefault();
         renderContract(contractButton.dataset.contract);
         return;
     }
 
-    const sessionButton = event.target.closest("[data-session-action]");
+    const sessionButton = targetElement
+        ? targetElement.closest("[data-session-action]")
+        : null;
 
     if (sessionButton) {
         event.preventDefault();
-
-        const canLeave = await allowMemberProfileLeave();
-
-        if (!canLeave) {
-            return;
-        }
 
         const action = sessionButton.dataset.sessionAction;
 

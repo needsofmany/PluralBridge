@@ -81,7 +81,8 @@ public sealed class SourceRecordsController(
 			}
 
 			if (!AccessContextHelper.IsAuthorizedForCurrentSystem(accessContext)
-			    || accessContext.CurrentSystem.SystemId != systemId)
+			    || accessContext.CurrentSystem is not { } currentSystem
+			    || currentSystem.SystemId != systemId)
 			{
 				requestTrace.LogStage(
 					logger,
@@ -136,7 +137,7 @@ public sealed class SourceRecordsController(
 				phase = Globals.projectPhase,
 				endpoint = $"{Globals.systemsEndpointRoot}/{systemId}/{Globals.sourceRecordsEndpointSegment}",
 				canWrite = false,
-				systemId = accessContext.CurrentSystem.SystemId,
+				systemId = currentSystem.SystemId,
 				count = sourceRecords.Count,
 				sourceRecords
 			});

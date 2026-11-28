@@ -1,0 +1,39 @@
+The proposed collections, parallel path, developer switch, and incremental loading match our map. **Several details need correction before implementation.**
+
+1. **Shared server-side graph and access context is approved.**  
+   The new workspace builds the account graph once and retains that context for later detail and image requests. An earlier proposal rebuilt the graph for every batch. That proposal is not the current instruction. Concrete context freshness and lifecycle mechanisms remain open.
+
+2. **The procedure-call arithmetic described the superseded per-batch rebuild.**  
+   Loading all 47 avatars in three batches, with a new graph on every batch, meant **three graph builds and nine procedure calls**. Three separate detail batches added another three graph builds and nine calls, **six builds and 18 calls**. The approved shared context removes that repeated construction. Concrete context freshness and lifecycle mechanisms remain open.
+
+3. **Details must preserve the existing profile authorization rules.**  
+   Cursor proposes using the avatar route’s reachability rule for member details. It needs to establish that this preserves the current profile and branch rules. Its proposed behavior of returning member fields when the submitted occurrence is invalid also needs explicit review.
+
+4. **Deduplication differs between the collections.**  
+   Images deduplicate by member ID. Detail requests identify occurrences, so Jane under A and Jane under B are valid separate items. A blanket “reject duplicate member IDs” rule would mishandle those occurrences.
+
+5. **Refresh and image lifetime need firmer definitions.**  
+   Returning to a loaded anchor should reuse its details, while a defined refresh retrieves current fronting and other member information. Images remain retained across navigation. Replacement must prevent newly displayed cards from borrowing the obsolete image while existing references are released.
+
+6. **The 40 MiB image batch needs an explicit memory policy.**  
+   Multipart avoids base64 overhead, but the plan still needs to account for response buffering and retained images. Twenty remains our maximum batch size.
+
+The staged implementation is otherwise a useful framework. It also clearly leaves the initial **2.278-second tree procedure unchanged**, so we should record that as retained baseline work.
+
+**Server side context reuse**
+
+Shared server-side graph and access context is approved. The new workspace builds its account graph once and retains a server-side snapshot for subsequent detail and image requests.
+
+The opening request establishes that snapshot and returns the navigation structure plus an opaque context identifier. Later requests supply that identifier and the keys they need:
+
+- A detail batch requests up to 20 member occurrences.
+- An image batch requests up to 20 distinct members.
+- The server checks those keys against its retained context and reads the requested data.
+
+The context belongs to the authenticated account. The server verifies that association on every request. It contains topology and access information; profile fields, fronting, and image bytes continue to come from their respective reads.
+
+Changing anchors keeps the context. A workspace refresh replaces it. Changes to membership, access, or topology are what make the context due for replacement. Profile text, fronting, and avatar edits update their records without forcing a graph rebuild. The concrete freshness and lifecycle mechanisms that carry out that replacement remain open.
+
+That gives both loading queues the same foundation and removes the repeated graph construction between detail and image batches.
+
+The database remains authoritative for those data changes. Messaging completion is accounting completion and does not solve this freshness. Subscriber contracts govern application-specific freshness. The shared-context architecture is approved. The concrete expiry and invalidation mechanism remains open.

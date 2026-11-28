@@ -13,6 +13,8 @@ public sealed partial class AccountService : IAccountService
 	private readonly IPasswordHasher _passwordHasher;
 	private readonly IAccountAuditWriter _auditWriter;
 	private readonly IAccountCodeDelivery _codeDelivery;
+	private readonly IAccountRegistrationGate _registrationGate;
+	private readonly IAccountCredentialDirectory _credentials;
 
 	// ReSharper disable once ConvertToPrimaryConstructor
 	public AccountService(
@@ -27,5 +29,26 @@ public sealed partial class AccountService : IAccountService
 		_passwordHasher = passwordHasher;
 		_auditWriter = auditWriter;
 		_codeDelivery = codeDelivery;
+		_registrationGate = new SqlAccountRegistrationGate(_connectionString);
+		_credentials = new SqlAccountCredentialDirectory(_connectionString);
+	}
+
+	/// <summary>
+	/// Creates the service over substitutes that do not open a database connection.
+	/// The host uses the public constructor. Isolated tests use this one.
+	/// </summary>
+	internal AccountService(
+		IAccountRegistrationGate registrationGate,
+		IPasswordHasher passwordHasher,
+		IAccountAuditWriter auditWriter,
+		IAccountCodeDelivery codeDelivery,
+		IAccountCredentialDirectory? credentials = null)
+	{
+		_connectionString = string.Empty;
+		_registrationGate = registrationGate;
+		_passwordHasher = passwordHasher;
+		_auditWriter = auditWriter;
+		_codeDelivery = codeDelivery;
+		_credentials = credentials ?? new SqlAccountCredentialDirectory(string.Empty);
 	}
 }

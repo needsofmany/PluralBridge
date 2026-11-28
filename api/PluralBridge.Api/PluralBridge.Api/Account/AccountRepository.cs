@@ -30,13 +30,17 @@ internal static class AccountRepository
 		return result is not null;
 	}
 
+	/// <summary>
+	/// Reads every credential row matched by the username or email, then keeps the row only when those rows are one account.
+	/// An unknown or ambiguous identifier returns null. This method does not update last login or issue a session.
+	/// </summary>
 	internal static async Task<LoginAccountRecord?> ReadLoginAccountAsync(
 		SqlConnection connection,
 		string normalizedIdentifier,
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-        SELECT TOP (1)
+        SELECT
             a.AccountId,
             a.Username,
             a.Email,
@@ -63,28 +67,31 @@ internal static class AccountRepository
 		command.Parameters.AddWithValue("@NormalizedIdentifier", normalizedIdentifier);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-		if (!await reader.ReadAsync(cancellationToken))
+		var matches = new List<LoginAccountRecord>();
+		while (await reader.ReadAsync(cancellationToken))
 		{
-			return null;
+			matches.Add(new LoginAccountRecord(
+				reader.GetGuid(0),
+				reader.GetString(1),
+				reader.GetString(2),
+				reader.GetString(3),
+				reader.GetInt32(4),
+				reader.GetString(5),
+				reader.GetBoolean(6),
+				reader.GetDateTime(7),
+				reader.IsDBNull(8) ? null : reader.GetDateTime(8),
+				reader.IsDBNull(9) ? null : reader.GetDateTime(9),
+				(byte[])reader["PasswordHash"],
+				reader.GetString(11),
+				reader.GetInt32(12)));
 		}
 
-		return new LoginAccountRecord(
-			reader.GetGuid(0),
-			reader.GetString(1),
-			reader.GetString(2),
-			reader.GetString(3),
-			reader.GetInt32(4),
-			reader.GetString(5),
-			reader.GetBoolean(6),
-			reader.GetDateTime(7),
-			reader.IsDBNull(8) ? null : reader.GetDateTime(8),
-			reader.IsDBNull(9) ? null : reader.GetDateTime(9),
-			(byte[])reader["PasswordHash"],
-			reader.GetString(11),
-			reader.GetInt32(12));
+		return AccountIdentityMatches.TrySingle(matches, match => match.AccountId, out var account)
+			? account
+			: null;
 	}
 
+	/// <summary>Writes the last-login time for an account the sign-in path has already accepted. It does not select an account.</summary>
 	internal static async Task UpdateLastLoginAsync(
 		SqlConnection connection,
 		Guid accountId,
@@ -127,43 +134,59 @@ internal static class AccountRepository
 			: null;
 	}
 
+	/// <summary>
+	/// Reads every account matched by the username or email. Eligibility is applied only after exactly one account remains.
+	/// An active verified account is returned. Unknown, ineligible, and ambiguous identifiers return null. This method does not insert a code or send mail.
+	/// </summary>
 	internal static async Task<PasswordResetAccountRecord?> ReadPasswordResetAccountAsync(
 		SqlConnection connection,
 		string normalizedIdentifier,
 		CancellationToken cancellationToken)
 	{
 		const string sql = """
-		                   SELECT TOP (1)
+		                   SELECT
 		                       AccountId,
-		                       NormalizedEmail
+		                       NormalizedEmail,
+		                       AccountStatusId,
+		                       IsEmailVerified
 		                   FROM dbo.pb_accounts
-		                   WHERE AccountStatusId = 1
-		                     AND IsEmailVerified = 1
-		                     AND
-		                     (
-		                         NormalizedUsername = @NormalizedIdentifier
-		                         OR NormalizedEmail = @NormalizedIdentifier
-		                     );
+		                   WHERE NormalizedUsername = @NormalizedIdentifier
+		                      OR NormalizedEmail = @NormalizedIdentifier;
 		                   """;
 
 		await using var command = new SqlCommand(sql, connection);
 		command.Parameters.AddWithValue("@NormalizedIdentifier", normalizedIdentifier);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+		var matches = new List<PasswordResetMatch>();
+		while (await reader.ReadAsync(cancellationToken))
+		{
+			matches.Add(new PasswordResetMatch(
+				reader.GetGuid(0),
+				reader.GetString(1),
+				reader.GetInt32(2),
+				reader.GetBoolean(3)));
+		}
 
-		if (!await reader.ReadAsync(cancellationToken))
+		if (!AccountIdentityMatches.TrySingle(matches, match => match.AccountId, out var account))
 		{
 			return null;
 		}
 
-		return new PasswordResetAccountRecord(
-			reader.GetGuid(0),
-			reader.GetString(1));
+		// Status 1 is the existing active status. A single ineligible account stays indistinguishable from an unknown one.
+		if (account.StatusId != 1 || !account.IsEmailVerified)
+		{
+			return null;
+		}
+
+		return new PasswordResetAccountRecord(account.AccountId, account.NormalizedEmail);
 	}
 
-	internal sealed record PasswordResetAccountRecord(
+	private sealed record PasswordResetMatch(
 		Guid AccountId,
-		string NormalizedEmail);
+		string NormalizedEmail,
+		int StatusId,
+		bool IsEmailVerified);
 
 	internal static async Task<LoginAccountRecord?> ReadPasswordChangeAccountAsync(
 		SqlConnection connection,

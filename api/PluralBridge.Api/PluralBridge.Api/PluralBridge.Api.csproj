@@ -11,6 +11,132 @@
     <DefineConstants>$(DefineConstants);DEBUG_MODE</DefineConstants>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <BrowserAppSourceDir>$(MSBuildProjectDirectory)\..\..\..\app\src</BrowserAppSourceDir>
+    <BrowserAppServeDir>$(MSBuildProjectDirectory)\wwwroot\app</BrowserAppServeDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <UpToDateCheckInput Include="$(BrowserAppSourceDir)\index.html" Set="BrowserAppSync" />
+    <UpToDateCheckInput Include="$(BrowserAppSourceDir)\js\**\*.js" Set="BrowserAppSync" />
+    <UpToDateCheckInput Include="$(BrowserAppSourceDir)\css\**\*.css" Set="BrowserAppSync" />
+    <UpToDateCheckInput Include="$(BrowserAppSourceDir)\images\**\*" Set="BrowserAppSync"
+                        Condition="Exists('$(BrowserAppSourceDir)\images')" />
+    <UpToDateCheckInput Include="$(BrowserAppSourceDir)\assets\**\*" Set="BrowserAppSync"
+                        Condition="Exists('$(BrowserAppSourceDir)\assets')" />
+
+    <UpToDateCheckOutput Include="$(BrowserAppServeDir)\index.html" Set="BrowserAppSync" />
+    <UpToDateCheckOutput Include="$(BrowserAppServeDir)\app.js" Set="BrowserAppSync" />
+    <UpToDateCheckOutput Include="$(BrowserAppServeDir)\app.css" Set="BrowserAppSync" />
+    <UpToDateCheckOutput Include="$(BrowserAppServeDir)\js\**\*.js" Set="BrowserAppSync" />
+    <UpToDateCheckOutput Include="$(BrowserAppServeDir)\css\**\*.css" Set="BrowserAppSync" />
+    <UpToDateCheckOutput Include="$(BrowserAppServeDir)\images\**\*" Set="BrowserAppSync"
+                         Condition="Exists('$(BrowserAppServeDir)\images')" />
+    <UpToDateCheckOutput Include="$(BrowserAppServeDir)\assets\**\*" Set="BrowserAppSync"
+                         Condition="Exists('$(BrowserAppServeDir)\assets')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <BrowserAppRootFile Include="$(BrowserAppSourceDir)\index.html">
+      <ServePath>$(BrowserAppServeDir)\index.html</ServePath>
+    </BrowserAppRootFile>
+    <BrowserAppRootFile Include="$(BrowserAppSourceDir)\js\app.js">
+      <ServePath>$(BrowserAppServeDir)\app.js</ServePath>
+    </BrowserAppRootFile>
+    <BrowserAppRootFile Include="$(BrowserAppSourceDir)\css\app.css">
+      <ServePath>$(BrowserAppServeDir)\app.css</ServePath>
+    </BrowserAppRootFile>
+
+    <BrowserAppSourceJs Include="$(BrowserAppSourceDir)\js\**\*.js"
+                        Exclude="$(BrowserAppSourceDir)\js\app.js">
+      <ServePath>$(BrowserAppServeDir)\js\%(RecursiveDir)%(Filename)%(Extension)</ServePath>
+    </BrowserAppSourceJs>
+
+    <BrowserAppSourceCss Include="$(BrowserAppSourceDir)\css\**\*.css"
+                         Exclude="$(BrowserAppSourceDir)\css\app.css">
+      <ServePath>$(BrowserAppServeDir)\css\%(RecursiveDir)%(Filename)%(Extension)</ServePath>
+    </BrowserAppSourceCss>
+
+    <BrowserAppSourceImages Include="$(BrowserAppSourceDir)\images\**\*"
+                            Condition="Exists('$(BrowserAppSourceDir)\images')">
+      <ServePath>$(BrowserAppServeDir)\images\%(RecursiveDir)%(Filename)%(Extension)</ServePath>
+    </BrowserAppSourceImages>
+
+    <BrowserAppSourceAssets Include="$(BrowserAppSourceDir)\assets\**\*"
+                            Condition="Exists('$(BrowserAppSourceDir)\assets')">
+      <ServePath>$(BrowserAppServeDir)\assets\%(RecursiveDir)%(Filename)%(Extension)</ServePath>
+    </BrowserAppSourceAssets>
+  </ItemGroup>
+
+  <Target Name="PrepareBrowserAppSync">
+    <Error Condition="!Exists('$(BrowserAppSourceDir)\index.html')"
+           Text="Browser app source is missing: $(BrowserAppSourceDir)\index.html" />
+    <Error Condition="!Exists('$(BrowserAppSourceDir)\js\app.js')"
+           Text="Browser app source is missing: $(BrowserAppSourceDir)\js\app.js" />
+    <Error Condition="!Exists('$(BrowserAppSourceDir)\css\app.css')"
+           Text="Browser app source is missing: $(BrowserAppSourceDir)\css\app.css" />
+
+    <MakeDir Directories="$(BrowserAppServeDir);$(BrowserAppServeDir)\js;$(BrowserAppServeDir)\css" />
+    <MakeDir Directories="$(BrowserAppServeDir)\images" Condition="Exists('$(BrowserAppSourceDir)\images')" />
+    <MakeDir Directories="$(BrowserAppServeDir)\assets" Condition="Exists('$(BrowserAppSourceDir)\assets')" />
+  </Target>
+
+  <Target Name="SyncBrowserAppRootFiles"
+          DependsOnTargets="PrepareBrowserAppSync"
+          Inputs="%(BrowserAppRootFile.Identity)"
+          Outputs="%(BrowserAppRootFile.ServePath)">
+    <Copy SourceFiles="%(BrowserAppRootFile.Identity)"
+          DestinationFiles="%(BrowserAppRootFile.ServePath)" />
+    <Message Importance="high"
+             Text="copied '%(BrowserAppRootFile.Identity)' to '%(BrowserAppRootFile.ServePath)'" />
+  </Target>
+
+  <Target Name="SyncBrowserAppJsFiles"
+          DependsOnTargets="PrepareBrowserAppSync"
+          Inputs="%(BrowserAppSourceJs.Identity)"
+          Outputs="%(BrowserAppSourceJs.ServePath)">
+    <Copy SourceFiles="%(BrowserAppSourceJs.Identity)"
+          DestinationFiles="%(BrowserAppSourceJs.ServePath)" />
+    <Message Importance="high"
+             Text="copied '%(BrowserAppSourceJs.Identity)' to '%(BrowserAppSourceJs.ServePath)'" />
+  </Target>
+
+  <Target Name="SyncBrowserAppCssFiles"
+          DependsOnTargets="PrepareBrowserAppSync"
+          Inputs="%(BrowserAppSourceCss.Identity)"
+          Outputs="%(BrowserAppSourceCss.ServePath)">
+    <Copy SourceFiles="%(BrowserAppSourceCss.Identity)"
+          DestinationFiles="%(BrowserAppSourceCss.ServePath)" />
+    <Message Importance="high"
+             Text="copied '%(BrowserAppSourceCss.Identity)' to '%(BrowserAppSourceCss.ServePath)'" />
+  </Target>
+
+  <Target Name="SyncBrowserAppImageFiles"
+          DependsOnTargets="PrepareBrowserAppSync"
+          Inputs="%(BrowserAppSourceImages.Identity)"
+          Outputs="%(BrowserAppSourceImages.ServePath)"
+          Condition="'@(BrowserAppSourceImages)' != ''">
+    <Copy SourceFiles="%(BrowserAppSourceImages.Identity)"
+          DestinationFiles="%(BrowserAppSourceImages.ServePath)" />
+    <Message Importance="high"
+             Text="copied '%(BrowserAppSourceImages.Identity)' to '%(BrowserAppSourceImages.ServePath)'" />
+  </Target>
+
+  <Target Name="SyncBrowserAppAssetFiles"
+          DependsOnTargets="PrepareBrowserAppSync"
+          Inputs="%(BrowserAppSourceAssets.Identity)"
+          Outputs="%(BrowserAppSourceAssets.ServePath)"
+          Condition="'@(BrowserAppSourceAssets)' != ''">
+    <Copy SourceFiles="%(BrowserAppSourceAssets.Identity)"
+          DestinationFiles="%(BrowserAppSourceAssets.ServePath)" />
+    <Message Importance="high"
+             Text="copied '%(BrowserAppSourceAssets.Identity)' to '%(BrowserAppSourceAssets.ServePath)'" />
+  </Target>
+
+  <Target Name="SyncBrowserAppArtifacts"
+          BeforeTargets="Build;Publish"
+          DependsOnTargets="SyncBrowserAppRootFiles;SyncBrowserAppJsFiles;SyncBrowserAppCssFiles;SyncBrowserAppImageFiles;SyncBrowserAppAssetFiles" />
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />

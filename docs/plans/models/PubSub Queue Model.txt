@@ -1,0 +1,97 @@
+PubSub Queue Model
+
+The ownership boundaries in this document are approved. The concrete concurrency, durability, and freshness mechanisms are not. These boundaries do not select a lock, a transaction, a counter, or a transport. They do not claim zero deadlocks, unlimited throughput, or guaranteed freshness.
+
+Subscriber internals are outside the current task.
+
+1. Publisher
+
+The publisher publishes a typed notification. The notification carries identity, a subject or payload, and the TTL the publisher chooses. Lifetime policy belongs to the publisher.
+
+Publication stays small. Task processing is deferred. The publisher does not do the subscriber’s work on the notification path.
+
+2. Message lifetime
+
+Each message carries the TTL its publisher chooses. That value is immutable.
+
+TTL begins when the publisher sends the message. Every transport must define its precise send boundary and clock semantics. Those transport details remain open. The generic TTL start is not undecided.
+
+Workers, completion handlers, queue management, recovery, and restart do not reset or extend it. A subscriber may publish a new message. That new message has a newly chosen TTL. It is not a change to the original lifetime.
+
+3. Queue infrastructure
+
+Queue infrastructure owns delivery tracking, reference-counted outstanding obligations, dirty state, expiration, and queue health. The physical representation of that accounting remains open.
+
+Completed and Poisoned are the two terminal outcomes. Expired means the TTL has elapsed. Expiration before completion produces Poisoned, retirement, and closure of the remaining bookkeeping obligations. Stalled means unfinished work and may produce a health notification. Stalled is not a third terminal state. Poison cleanup must not produce Completed merely because outstanding accounting falls to zero. Poisoned, expired, or stalled work must not indefinitely obstruct unrelated work.
+
+Infrastructure enforces lifetime. It publishes generic lifecycle outcomes. It does not automatically retry domain work or create replacement assignments. A subscriber’s replacement is a new publication.
+
+4. Workers and subscribers
+
+Workers receive assignments. They report completion and its result through messages. They never directly modify shared accounting. An accepted completion report discharges only the obligation it identifies, exactly once. Its result may be success, error, or another defined result. Publishing Error or StillDirty alone does not discharge an obligation belonging to the original work. StillDirty reports outstanding work. The matching subscriber decides whether to publish replacement work with a new identity and TTL.
+
+The matching subscriber owns the task-specific response. It owns any decision to publish replacement work, including the new message’s TTL.
+
+Subscriber internals are black boxes.
+
+5. Completion order
+
+Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected here.
+
+A completion identifies its assignment. A duplicate, late, expired, unknown, or obsolete completion must not double-discharge accounting or revive a terminal message.
+
+Outstanding-task accounting shows outstanding work. The database remains authoritative for workspace data changes. Messaging completion is accounting completion. Subscriber contracts govern application-specific freshness. Messaging accounting does not solve database freshness.
+
+6. Settled responsibilities
+
+These are the same boundaries, stated as the concerns they close. “Settled” here means the owner is decided. It does not mean a mechanism is chosen.
+
+6.1. Too much work on the notification path
+
+The publisher posts a typed message with its identity, payload, and TTL. The work passes to subscribers. Responsibility is settled.
+
+6.2. Concurrent workers and shared accounting
+
+Infrastructure owns outstanding-work tracking. Workers report completion through messages. Responsibility is settled. The atomic accounting mechanism is open.
+
+6.3. Tasks finishing out of order
+
+The completion identifies the assignment. Infrastructure accounting tolerates out-of-order completion reports. A task may separately require processing or result ordering. No workspace-specific ordering contract is selected. How duplicates and late completions are recognized still needs specification.
+
+6.4. Poisoned or stalled work
+
+Infrastructure owns queue health, expiration, and retirement of poisoned work so it does not indefinitely block unrelated work. Expiration before completion is the Poisoned outcome. Stalled unfinished work is not that terminal outcome. Responsibility for those distinctions is settled. Enforcement and recovery mechanics are open. Infrastructure does not automatically retry domain work. Recovery that is specific to a domain is not infrastructure’s job.
+
+6.5. One lifetime for every message
+
+Each publisher assigns its own message’s TTL. TTL begins when the publisher sends the message. Workers, completion handlers, recovery, and restart leave that value unchanged. This is settled. Each transport’s precise send boundary and clock semantics remain open.
+
+6.6. Infrastructure deciding how to retry domain work
+
+Infrastructure publishes lifecycle outcomes. The matching subscriber decides whether to publish a replacement, and what TTL that replacement carries. Responsibility is settled. An avatar retry, or any other domain retry, is a subscriber decision.
+
+6.7. Reuse
+
+Infrastructure operates through a generic message contract. Subscribers remain black boxes. This architectural boundary is settled.
+
+7. Open questions inside the messaging infrastructure
+
+These remain open. This document does not answer them.
+
+7.1. Durable publication tied to database commit and rollback.
+
+7.2. Missed wake-ups, restart, and reliable rediscovery of pending work.
+
+7.3. Exact completion accounting, including duplicates and expired assignments.
+
+7.4. Fan-out: delivery and completion tracking when more than one subscriber is involved.
+
+7.5. Atomic accounting.
+
+7.6. Capacity limits, and behavior when arrivals exceed processing capacity.
+
+7.7. TTL timing, and dependable expiration under load.
+
+8. Deferred application questions
+
+How an avatar subscriber refreshes images, how an access change invalidates a context, and how a result avoids overwriting newer state are application questions. StillDirty reports outstanding work and does not by itself discharge the original obligation. The subscriber decides whether to publish replacement work. Those application designs are not part of the current task. The database-adapter contract and the bounded lifecycle-reporting policy also remain deferred.
