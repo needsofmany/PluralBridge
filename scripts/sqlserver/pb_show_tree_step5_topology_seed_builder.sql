@@ -1,3 +1,9 @@
+-- Canonical definition of dbo.pb_show_tree_step5_topology_seed_builder.
+-- Deploy from scripts/sqlserver/Members/011_topology_seed_result_set.sql.
+-- This procedure does not write the caller's #TopologyEdges or #SystemEdgeLabels.
+-- It returns one result set. The caller copies that set into those tables.
+-- The result column order is the @SeedRows contract.
+
 USE [PluralBridgeChap2SafeSpine];
 GO
 
@@ -19,6 +25,22 @@ BEGIN
         RAISERROR('@AccountId is required.', 16, 1);
         RETURN;
     END;
+
+    CREATE TABLE #BuiltTopologyEdges
+    (
+        ParentObjectType nvarchar(32) NOT NULL,
+        ParentObjectId uniqueidentifier NOT NULL,
+        ChildObjectType nvarchar(32) NOT NULL,
+        ChildObjectId uniqueidentifier NOT NULL,
+        EdgeRank int NOT NULL,
+        EdgeSource nvarchar(64) NOT NULL
+    );
+
+    CREATE TABLE #BuiltSystemEdgeLabels
+    (
+        SystemId uniqueidentifier NOT NULL PRIMARY KEY,
+        EdgeLabel nvarchar(max) NULL
+    );
 
     SELECT
         p.ChildObjectType AS ObjectType,
@@ -57,7 +79,7 @@ BEGIN
     JOIN #SeedLegacySystemRoots parent
       ON parent.ObjectId = r.ParentSystemId;
 
-    INSERT INTO #TopologyEdges
+    INSERT INTO #BuiltTopologyEdges
     (
         ParentObjectType,
         ParentObjectId,
@@ -80,7 +102,7 @@ BEGIN
       AND TRY_CONVERT(uniqueidentifier, p.ParentObjectId) IS NOT NULL
       AND TRY_CONVERT(uniqueidentifier, p.ChildObjectId) IS NOT NULL;
 
-    INSERT INTO #TopologyEdges
+    INSERT INTO #BuiltTopologyEdges
     (
         ParentObjectType,
         ParentObjectId,
@@ -100,7 +122,7 @@ BEGIN
     WHERE NOT EXISTS
     (
         SELECT 1
-        FROM #TopologyEdges e
+        FROM #BuiltTopologyEdges e
         WHERE e.ParentObjectType = N'system'
           AND e.ParentObjectId = h.ParentSystemId
           AND e.ChildObjectType = N'system'
@@ -190,7 +212,7 @@ BEGIN
             )
         FROM RelationshipGroups AS g
     )
-    INSERT INTO #SystemEdgeLabels (SystemId, EdgeLabel)
+    INSERT INTO #BuiltSystemEdgeLabels (SystemId, EdgeLabel)
     SELECT
         sources.SystemId,
         STUFF
@@ -219,7 +241,7 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM #SeedPlacementRoots)
     BEGIN
-        INSERT INTO #TopologyEdges
+        INSERT INTO #BuiltTopologyEdges
         (
             ParentObjectType,
             ParentObjectId,
@@ -245,12 +267,38 @@ BEGIN
         AND NOT EXISTS
         (
             SELECT 1
-            FROM #TopologyEdges e
+            FROM #BuiltTopologyEdges e
             WHERE e.ParentObjectType = N'account'
               AND e.ParentObjectId = @AccountId
               AND e.ChildObjectType = N'system'
               AND e.ChildObjectId = l.ObjectId
         );
     END;
+
+    -- One result set. Edge rows and label rows share this column list.
+    -- Null placeholders are typed so the union does not shorten nvarchar values.
+    SELECT
+        CAST(N'edge' AS nvarchar(8)) AS RowKind,
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource,
+        CAST(NULL AS uniqueidentifier) AS SystemId,
+        CAST(NULL AS nvarchar(max)) AS EdgeLabel
+    FROM #BuiltTopologyEdges
+    UNION ALL
+    SELECT
+        CAST(N'label' AS nvarchar(8)) AS RowKind,
+        CAST(NULL AS nvarchar(32)) AS ParentObjectType,
+        CAST(NULL AS uniqueidentifier) AS ParentObjectId,
+        CAST(NULL AS nvarchar(32)) AS ChildObjectType,
+        CAST(NULL AS uniqueidentifier) AS ChildObjectId,
+        CAST(NULL AS int) AS EdgeRank,
+        CAST(NULL AS nvarchar(64)) AS EdgeSource,
+        SystemId,
+        EdgeLabel
+    FROM #BuiltSystemEdgeLabels;
 END;
 GO

@@ -137,22 +137,29 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 				switch (command.Kind)
 				{
 					case WorkspaceOpeningCommandKind.Text:
-						await ExecuteTextAsync(connection, transaction, command.Text, cancellationToken);
+						await TimeCommand(profile, "tempTables", () => ExecuteTextAsync(connection, transaction, command.Text, cancellationToken));
 						break;
 					case WorkspaceOpeningCommandKind.StoredProcedure:
-						await ExecuteProcedureAsync(connection, transaction, command.Text, resolvedAccount.AccountId, command.PassesAccountId, cancellationToken);
+						if (command.Text == WorkspaceOpeningPlan.SeedProcedure)
+						{
+							await TimeCommand(profile, OpeningCommandName(command.Text), () => ExecuteSeedCaptureAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken));
+						}
+						else
+						{
+							await TimeCommand(profile, OpeningCommandName(command.Text), () => ExecuteProcedureAsync(connection, transaction, command.Text, resolvedAccount.AccountId, command.PassesAccountId, cancellationToken));
+						}
 						break;
 					case WorkspaceOpeningCommandKind.ReadRender:
-						render = await ReadRenderAsync(connection, transaction, cancellationToken);
+						render = await TimeCommand(profile, "renderLayer", () => ReadRenderAsync(connection, transaction, cancellationToken));
 						break;
 					case WorkspaceOpeningCommandKind.ReadCopies:
-						(edges, occurrences, nodeLabels, systemEdgeLabels) = await ReadCopiesAsync(connection, transaction, cancellationToken);
+						(edges, occurrences, nodeLabels, systemEdgeLabels) = await ReadCopiesAsync(connection, transaction, cancellationToken, profile);
 						break;
 					case WorkspaceOpeningCommandKind.ReadMemberships:
-						facts = await ReadMembershipsAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken);
+						facts = await TimeCommand(profile, "memberships", () => ReadMembershipsAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken));
 						break;
 					case WorkspaceOpeningCommandKind.ReadAnchorSettings:
-						anchorSettingRows = await ReadAnchorSettingsAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken);
+						anchorSettingRows = await TimeCommand(profile, "anchorSettings", () => ReadAnchorSettingsAsync(connection, transaction, resolvedAccount.AccountId, cancellationToken));
 						break;
 					case WorkspaceOpeningCommandKind.ReadAnchorNames:
 						break;
@@ -162,8 +169,11 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 							throw new WorkspaceRenderContractException();
 						}
 
-						var named = await ApplyAnchorNamesAsync(connection, transaction, render.HierarchyPreview, cancellationToken);
-						await transaction.CommitAsync(cancellationToken);
+						var named = await TimeCommand(profile, "anchorNames", () => ApplyAnchorNamesAsync(connection, transaction, render.HierarchyPreview, cancellationToken));
+						await TimeCommand(profile, "commit", async () =>
+						{
+							await transaction.CommitAsync(cancellationToken);
+						});
 						committed = true;
 						built = new WorkspaceOpeningResult.Ready(new WorkspaceCapturedBuild(
 							resolvedAccount.AccountId,
@@ -207,13 +217,78 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 		}
 	}
 
-	/// <summary>
-	/// Runs one stage. A null profile performs the work and stores no duration.
-	/// </summary>
-	/// <param name="profile">The profile receiving the duration. Null stores nothing.</param>
-	/// <param name="record">Writes the elapsed milliseconds onto the profile.</param>
-	/// <param name="action">The stage work.</param>
-	/// <returns>The task completes when the stage finishes.</returns>
+	/// <summary>Runs one opening command. A null profile does not start a timer.</summary>
+	/// <param name="profile">The workspace-tree profile. Null leaves the command untimed.</param>
+	/// <param name="name">The command name stored on the profile.</param>
+	/// <param name="action">The command work. Its result and errors stay unchanged.</param>
+	/// <returns>The command result.</returns>
+	private static async Task<T> TimeCommand<T>(
+		WorkspaceTreeLoadProfile? profile,
+		string name,
+		Func<Task<T>> action)
+	{
+		if (profile == null)
+		{
+			return await action();
+		}
+
+		var watch = Stopwatch.StartNew();
+		try
+		{
+			return await action();
+		}
+		finally
+		{
+			watch.Stop();
+			profile.AddOpeningCommand(name, watch.ElapsedMilliseconds);
+		}
+	}
+
+	/// <summary>Runs one opening command that does not return a value. A null profile does not start a timer.</summary>
+	/// <param name="profile">The workspace-tree profile. Null leaves the command untimed.</param>
+	/// <param name="name">The command name stored on the profile.</param>
+	/// <param name="action">The command work.</param>
+	/// <returns>The task completes when the command finishes.</returns>
+	private static Task TimeCommand(
+		WorkspaceTreeLoadProfile? profile,
+		string name,
+		Func<Task> action)
+	{
+		return TimeCommand(profile, name, async () =>
+		{
+			await action();
+			return 0;
+		});
+	}
+
+	/// <summary>The stable name for one graph procedure in the opening plan.</summary>
+	/// <param name="procedure">The procedure name from the plan.</param>
+	/// <returns>The diagnostic name.</returns>
+	private static string OpeningCommandName(string procedure)
+	{
+		if (procedure == WorkspaceOpeningPlan.SeedProcedure)
+		{
+			return "topologySeed";
+		}
+
+		if (procedure == WorkspaceOpeningPlan.WalkerProcedure)
+		{
+			return "topologyWalker";
+		}
+
+		if (procedure == WorkspaceOpeningPlan.ExpansionProcedure)
+		{
+			return "graphExpansion";
+		}
+
+		if (procedure == WorkspaceOpeningPlan.LabelerProcedure)
+		{
+			return "nodeLabeler";
+		}
+
+		return "procedure";
+	}
+
 	private static async Task MeasureAsync(
 		WorkspaceTreeLoadProfile? profile,
 		Action<WorkspaceTreeLoadProfile, long> record,
@@ -264,6 +339,31 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 		CancellationToken cancellationToken)
 	{
 		await using var command = new SqlCommand(text, connection, transaction);
+		await command.ExecuteNonQueryAsync(cancellationToken);
+	}
+
+	/// <summary>
+	/// Captures the seed procedure's one result set into the opening temp tables.
+	/// </summary>
+	/// <param name="connection">The open connection. It already owns the empty graph tables.</param>
+	/// <param name="transaction">The snapshot transaction.</param>
+	/// <param name="accountId">The authenticated account.</param>
+	/// <param name="cancellationToken">Cancels the seed procedure or the copy.</param>
+	/// <remarks>
+	/// Walker, expansion, and the labeler stay on <see cref="ExecuteProcedureAsync"/>.
+	/// The seed procedure no longer writes <c>#TopologyEdges</c> or <c>#SystemEdgeLabels</c>.
+	/// </remarks>
+	private static async Task ExecuteSeedCaptureAsync(
+		SqlConnection connection,
+		SqlTransaction transaction,
+		Guid accountId,
+		CancellationToken cancellationToken)
+	{
+		await using var command = new SqlCommand(
+			AnchorMemberProfileSave.SeedRowsDeclarationSql + AnchorMemberProfileSave.SeedResultCaptureSql,
+			connection,
+			transaction);
+		command.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
 		await command.ExecuteNonQueryAsync(cancellationToken);
 	}
 
@@ -330,51 +430,81 @@ internal sealed class SqlWorkspaceOpeningSession(IConfiguration configuration) :
 	private static async Task<(List<WorkspaceGraphEdge> Edges, List<WorkspaceOccurrence> Occurrences, List<WorkspaceNodeLabel> Nodes, List<WorkspaceSystemEdgeLabel> Labels)> ReadCopiesAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		WorkspaceTreeLoadProfile? profile)
 	{
 		var copy = WorkspaceOpeningPlan.Commands.Single(command => command.Kind == WorkspaceOpeningCommandKind.ReadCopies);
 		await using var command = new SqlCommand(copy.Text, connection, transaction);
-		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		var edges = new List<WorkspaceGraphEdge>();
-		while (await reader.ReadAsync(cancellationToken))
+		SqlDataReader? reader = null;
+		try
 		{
-			edges.Add(new WorkspaceGraphEdge(
-				reader.GetString(0),
-				reader.GetGuid(1),
-				reader.GetString(2),
-				reader.GetGuid(3),
-				reader.GetInt32(4),
-				reader.GetString(5)));
-		}
+		var edges = await TimeCommand(profile, "copyEdges", async () =>
+		{
+			reader = await command.ExecuteReaderAsync(cancellationToken);
+			var rows = new List<WorkspaceGraphEdge>();
+			while (await reader.ReadAsync(cancellationToken))
+			{
+				rows.Add(new WorkspaceGraphEdge(
+					reader.GetString(0),
+					reader.GetGuid(1),
+					reader.GetString(2),
+					reader.GetGuid(3),
+					reader.GetInt32(4),
+					reader.GetString(5)));
+			}
 
-		await reader.NextResultAsync(cancellationToken);
-		var occurrences = new List<WorkspaceOccurrence>();
-		while (await reader.ReadAsync(cancellationToken))
+			return rows;
+		});
+		var openReader = reader ?? throw new WorkspaceOpeningException("The opening copy did not return its reader.");
+		var occurrences = await TimeCommand(profile, "copyOccurrences", async () =>
 		{
-			occurrences.Add(new WorkspaceOccurrence(
-				reader.GetString(0),
-				reader.GetGuid(1),
-				reader.GetString(2),
-				reader.GetGuid(3),
-				reader.GetInt32(4),
-				reader.GetString(5)));
-		}
+			await openReader.NextResultAsync(cancellationToken);
+			var rows = new List<WorkspaceOccurrence>();
+			while (await openReader.ReadAsync(cancellationToken))
+			{
+				rows.Add(new WorkspaceOccurrence(
+					openReader.GetString(0),
+					openReader.GetGuid(1),
+					openReader.GetString(2),
+					openReader.GetGuid(3),
+					openReader.GetInt32(4),
+					openReader.GetString(5)));
+			}
 
-		await reader.NextResultAsync(cancellationToken);
-		var nodes = new List<WorkspaceNodeLabel>();
-		while (await reader.ReadAsync(cancellationToken))
+			return rows;
+		});
+		var nodes = await TimeCommand(profile, "copyNodeLabels", async () =>
 		{
-			nodes.Add(new WorkspaceNodeLabel(reader.GetString(0), reader.GetGuid(1), reader.GetString(2)));
-		}
+			await openReader.NextResultAsync(cancellationToken);
+			var rows = new List<WorkspaceNodeLabel>();
+			while (await openReader.ReadAsync(cancellationToken))
+			{
+				rows.Add(new WorkspaceNodeLabel(openReader.GetString(0), openReader.GetGuid(1), openReader.GetString(2)));
+			}
 
-		await reader.NextResultAsync(cancellationToken);
-		var labels = new List<WorkspaceSystemEdgeLabel>();
-		while (await reader.ReadAsync(cancellationToken))
+			return rows;
+		});
+		var labels = await TimeCommand(profile, "copySystemEdgeLabels", async () =>
 		{
-			labels.Add(new WorkspaceSystemEdgeLabel(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1)));
-		}
+			await openReader.NextResultAsync(cancellationToken);
+			var rows = new List<WorkspaceSystemEdgeLabel>();
+			while (await openReader.ReadAsync(cancellationToken))
+			{
+				rows.Add(new WorkspaceSystemEdgeLabel(openReader.GetGuid(0), openReader.IsDBNull(1) ? null : openReader.GetString(1)));
+			}
+
+			return rows;
+		});
 
 		return (edges, occurrences, nodes, labels);
+		}
+		finally
+		{
+			if (reader != null)
+			{
+				await reader.DisposeAsync();
+			}
+		}
 	}
 
 	/// <summary>

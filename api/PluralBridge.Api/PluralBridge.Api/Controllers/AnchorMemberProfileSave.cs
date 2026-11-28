@@ -153,7 +153,10 @@ internal static class AnchorMemberProfileSave
 	/// <param name="connection">Open connection. The tables are session-scoped and are not created inside the later write transaction.</param>
 	/// <param name="cancellationToken">Cancels the table creation.</param>
 	/// <returns>The task completes when #TopologyEdges, #SystemEdgeLabels, #WalkTopology, and #GraphEdges exist on <paramref name="connection"/>.</returns>
-	/// <remarks>Callers that write must create these tables before BeginTransaction. A second graph is not built for authorization.</remarks>
+	/// <remarks>
+	/// Callers that write must create these tables before BeginTransaction. A second graph is not built for authorization.
+	/// The seed procedure does not write <c>#TopologyEdges</c> or <c>#SystemEdgeLabels</c>. <see cref="SeedResultCaptureSql"/> copies its result set into those tables.
+	/// </remarks>
 	internal static async Task CreateGraphTablesAsync(
 		SqlConnection connection,
 		CancellationToken cancellationToken)
@@ -292,9 +295,7 @@ internal static class AnchorMemberProfileSave
 			FROM dbo.pb_place_members WITH (UPDLOCK, HOLDLOCK)
 			WHERE MemberId = @MemberId;
 
-			EXEC dbo.pb_show_tree_step5_topology_seed_builder
-			    @AccountId = @AccountId;
-
+			""" + SeedRowsDeclarationSql + SeedResultCaptureSql + """
 			EXEC dbo.pb_show_tree_step5_topology_walker
 			    @AccountId = @AccountId;
 
@@ -1090,7 +1091,7 @@ internal static class AnchorMemberProfileSave
 			IF OBJECT_ID(N'dbo.pb_front_history', N'U') IS NULL
 			    THROW 51019, 'Fronting storage is not installed.', 1;
 
-			EXEC dbo.pb_show_tree_step5_topology_seed_builder @AccountId = @AccountId;
+			""" + SeedRowsDeclarationSql + SeedResultCaptureSql + """
 			EXEC dbo.pb_show_tree_step5_topology_walker @AccountId = @AccountId;
 			EXEC dbo.pb_show_tree_step5_graph_expansion @AccountId = @AccountId;
 
@@ -1488,7 +1489,7 @@ internal static class AnchorMemberProfileSave
 
 		await MeasureAvatarStageAsync(timing, AvatarReadTiming.TopologySeedStage, async () =>
 		{
-			await using var seed = new SqlCommand("EXEC dbo.pb_show_tree_step5_topology_seed_builder @AccountId = @AccountId;", connection);
+			await using var seed = new SqlCommand(SeedRowsDeclarationSql + SeedResultCaptureSql, connection);
 			seed.Parameters.Add("@AccountId", SqlDbType.UniqueIdentifier).Value = accountId;
 			await seed.ExecuteNonQueryAsync(cancellationToken);
 		});
@@ -1561,6 +1562,84 @@ internal static class AnchorMemberProfileSave
 	/// This is parameterized SQL sent by the avatar-batch caller. It does not create or change a permanent database object.
 	/// A second profile call on the same open connection must drop and create the table again because the procedure only inserts.
 	/// </remarks>
+	/// <summary>
+	/// Declares the table that receives the seed procedure's one result set.
+	/// </summary>
+	/// <remarks>
+	/// Declare this once in a batch. <see cref="SeedResultCaptureSql"/> deletes and refills it, so a loop can run the capture again.
+	/// The column order and types are the seed result contract.
+	/// </remarks>
+	internal const string SeedRowsDeclarationSql = """
+		DECLARE @SeedRows TABLE
+		(
+		    RowKind nvarchar(8) NOT NULL,
+		    ParentObjectType nvarchar(32) NULL,
+		    ParentObjectId uniqueidentifier NULL,
+		    ChildObjectType nvarchar(32) NULL,
+		    ChildObjectId uniqueidentifier NULL,
+		    EdgeRank int NULL,
+		    EdgeSource nvarchar(64) NULL,
+		    SystemId uniqueidentifier NULL,
+		    EdgeLabel nvarchar(max) NULL
+		);
+		""";
+
+	/// <summary>
+	/// Copies the seed procedure's edges and labels into the caller's temporary tables.
+	/// </summary>
+	/// <remarks>
+	/// <c>@SeedRows</c> must already be declared. <c>#TopologyEdges</c> and <c>#SystemEdgeLabels</c> must already exist.
+	/// The seed procedure does not write those tables. This batch consumes its one result set.
+	/// </remarks>
+	internal const string SeedResultCaptureSql = """
+		DELETE FROM @SeedRows;
+
+		INSERT INTO @SeedRows
+		(
+		    RowKind,
+		    ParentObjectType,
+		    ParentObjectId,
+		    ChildObjectType,
+		    ChildObjectId,
+		    EdgeRank,
+		    EdgeSource,
+		    SystemId,
+		    EdgeLabel
+		)
+		EXEC dbo.pb_show_tree_step5_topology_seed_builder
+		    @AccountId = @AccountId;
+
+		INSERT INTO #TopologyEdges
+		(
+		    ParentObjectType,
+		    ParentObjectId,
+		    ChildObjectType,
+		    ChildObjectId,
+		    EdgeRank,
+		    EdgeSource
+		)
+		SELECT
+		    ParentObjectType,
+		    ParentObjectId,
+		    ChildObjectType,
+		    ChildObjectId,
+		    EdgeRank,
+		    EdgeSource
+		FROM @SeedRows
+		WHERE RowKind = N'edge';
+
+		INSERT INTO #SystemEdgeLabels
+		(
+		    SystemId,
+		    EdgeLabel
+		)
+		SELECT
+		    SystemId,
+		    EdgeLabel
+		FROM @SeedRows
+		WHERE RowKind = N'label';
+		""";
+
 	internal const string AvatarBatchGraphTableSql =
 		"""
 		DROP TABLE IF EXISTS #AvatarBatchGraphEdges;

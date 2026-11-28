@@ -76,8 +76,65 @@ CREATE TABLE #GraphEdges
 
 BEGIN TRY
     /* Build the map specifically for the resolved account. */
+    DECLARE @SeedRows TABLE
+    (
+        RowKind nvarchar(8) NOT NULL,
+        ParentObjectType nvarchar(32) NULL,
+        ParentObjectId uniqueidentifier NULL,
+        ChildObjectType nvarchar(32) NULL,
+        ChildObjectId uniqueidentifier NULL,
+        EdgeRank int NULL,
+        EdgeSource nvarchar(64) NULL,
+        SystemId uniqueidentifier NULL,
+        EdgeLabel nvarchar(max) NULL
+    );
+
+    DELETE FROM @SeedRows;
+
+    INSERT INTO @SeedRows
+    (
+        RowKind,
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource,
+        SystemId,
+        EdgeLabel
+    )
     EXEC dbo.pb_show_tree_step5_topology_seed_builder
         @AccountId = @AccountId;
+
+    INSERT INTO #TopologyEdges
+    (
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    )
+    SELECT
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    FROM @SeedRows
+    WHERE RowKind = N'edge';
+
+    INSERT INTO #SystemEdgeLabels
+    (
+        SystemId,
+        EdgeLabel
+    )
+    SELECT
+        SystemId,
+        EdgeLabel
+    FROM @SeedRows
+    WHERE RowKind = N'label';
 
     EXEC dbo.pb_show_tree_step5_topology_walker
         @AccountId = @AccountId;

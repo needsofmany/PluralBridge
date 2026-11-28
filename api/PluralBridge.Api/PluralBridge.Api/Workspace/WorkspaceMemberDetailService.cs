@@ -50,6 +50,7 @@ internal interface IWorkspaceProfileGateway
 	/// <param name="branch">The branch derived from the occurrence.</param>
 	/// <param name="cancellationToken">Cancels the procedure.</param>
 	/// <param name="profile">The first-page profile. Null records nothing.</param>
+	/// <param name="profileCaller">member or avatar when <paramref name="profile"/> is present. Null leaves the procedure untimed beyond the authorization total.</param>
 	/// <returns>The six-set bundle.</returns>
 	Task<AnchorProfileBundle> ReadProfilesProfiledAsync(
 		string email,
@@ -57,7 +58,8 @@ internal interface IWorkspaceProfileGateway
 		string anchorName,
 		string branch,
 		CancellationToken cancellationToken,
-		IWorkspaceGatewayTiming? profile)
+		IWorkspaceGatewayTiming? profile,
+		string? profileCaller = null)
 		=> ReadProfilesAsync(email, objectType, anchorName, branch, cancellationToken);
 }
 
@@ -81,6 +83,18 @@ internal interface IWorkspaceGatewayTiming
 	/// <summary>Records profile authorization and read.</summary>
 	/// <param name="elapsedMilliseconds">The measured duration.</param>
 	void SetProfileAuthorization(long elapsedMilliseconds);
+
+	/// <summary>Records a profiled procedure read. The default ignores it. A disabled profile is never given a capture.</summary>
+	/// <param name="capture">Argument fingerprint, result-set counts, and reader timings. It does not contain argument text.</param>
+	void SetProfileRead(AnchorProfileReadCapture capture)
+	{
+	}
+
+	/// <summary>Records creation of the avatar graph-copy table. The default ignores it.</summary>
+	/// <param name="elapsedMilliseconds">The client elapsed time.</param>
+	void SetGraphCopyTable(long elapsedMilliseconds)
+	{
+	}
 }
 
 /// <summary>The SQL implementation of <see cref="IWorkspaceProfileGateway"/>.</summary>
@@ -135,7 +149,8 @@ internal sealed class SqlWorkspaceProfileGateway(IConfiguration configuration) :
 		string anchorName,
 		string branch,
 		CancellationToken cancellationToken,
-		IWorkspaceGatewayTiming? profile)
+		IWorkspaceGatewayTiming? profile,
+		string? profileCaller = null)
 	{
 		var connectionString = configuration.GetConnectionString(Globals.connectionString);
 		if (string.IsNullOrWhiteSpace(connectionString))
@@ -149,10 +164,22 @@ internal sealed class SqlWorkspaceProfileGateway(IConfiguration configuration) :
 			await connection.OpenAsync(cancellationToken);
 		});
 		AnchorProfileBundle? bundle = null;
-		await MeasureAsync(profile, static (timing, elapsed) => timing.SetProfileAuthorization(elapsed), async () =>
+		var capture = profile == null || profileCaller == null ? null : new AnchorProfileReadCapture(profileCaller);
+		try
 		{
-			bundle = await AnchorMemberProfileReader.ExecuteAsync(connection, email, objectType, anchorName, branch, cancellationToken);
-		});
+			await MeasureAsync(profile, static (timing, elapsed) => timing.SetProfileAuthorization(elapsed), async () =>
+			{
+				bundle = await AnchorMemberProfileReader.ExecuteAsync(connection, email, objectType, anchorName, branch, cancellationToken, capture);
+			});
+		}
+		finally
+		{
+			if (capture != null)
+			{
+				profile?.SetProfileRead(capture);
+			}
+		}
+
 		return bundle ?? throw new AnchorProfileContractException("The profile procedure did not return the six-result-set contract.");
 	}
 
@@ -272,7 +299,8 @@ internal sealed class WorkspaceMemberDetailService(WorkspaceContextStore store, 
 			preparedDetail.AnchorName,
 			preparedDetail.Branch,
 			cancellationToken,
-			profile);
+			profile,
+			profile == null ? null : AnchorProfileReadCapture.MemberCaller);
 		profile?.BeginResponsePreparation();
 		try
 		{

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 using System.Data;
+using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 
 namespace PluralBridge.Api.Controllers;
@@ -116,6 +117,7 @@ internal static class AnchorMemberProfileReader
 	/// <param name="anchorName">Anchor display name.</param>
 	/// <param name="branch">Selected occurrence chain. Null is sent as an empty branch.</param>
 	/// <param name="cancellationToken">Cancels the procedure or the result-set read.</param>
+	/// <param name="capture">The workspace-load capture. Null records nothing and does not time the reader.</param>
 	/// <returns>The six-set bundle.</returns>
 	/// <exception cref="AnchorProfileContractException">The reader did not produce the six-set bundle.</exception>
 	internal static async Task<AnchorProfileBundle> ExecuteAsync(
@@ -124,8 +126,11 @@ internal static class AnchorMemberProfileReader
 		string objectType,
 		string anchorName,
 		string? branch,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		AnchorProfileReadCapture? capture = null)
 	{
+		var branchJson = AnchorMemberProfileSave.BranchJson(branch ?? "");
+		capture?.Bind(email, objectType, anchorName, branchJson);
 		await using var command = new SqlCommand(
 			"dbo.pb_get_anchor_member_profiles_by_email",
 			connection)
@@ -135,13 +140,27 @@ internal static class AnchorMemberProfileReader
 		command.Parameters.Add("@Email", SqlDbType.NVarChar, 320).Value = email;
 		command.Parameters.Add("@AnchorObjectType", SqlDbType.NVarChar, 64).Value = objectType;
 		command.Parameters.Add("@AnchorName", SqlDbType.NVarChar, 510).Value = anchorName;
-		command.Parameters.Add("@BranchJson", SqlDbType.NVarChar, -1).Value =
-			AnchorMemberProfileSave.BranchJson(branch ?? "");
+		command.Parameters.Add("@BranchJson", SqlDbType.NVarChar, -1).Value = branchJson;
 
+		var total = capture == null ? null : Stopwatch.StartNew();
+		var execute = capture == null ? null : Stopwatch.StartNew();
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		return await ReadAsync(reader, cancellationToken)
+		if (execute != null && capture != null)
+		{
+			execute.Stop();
+			capture.ExecuteReaderAwaitMs = execute.ElapsedMilliseconds;
+		}
+
+		var bundle = await ReadAsync(reader, cancellationToken, capture)
 			?? throw new AnchorProfileContractException(
 				"The profile procedure did not return the six-result-set contract. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+		if (total != null && capture != null)
+		{
+			total.Stop();
+			capture.TotalReaderMs = total.ElapsedMilliseconds;
+		}
+
+		return bundle;
 	}
 
 	private static readonly AnchorMemberProfileColumn[] ProfileColumns =
@@ -199,22 +218,25 @@ internal static class AnchorMemberProfileReader
 	/// </summary>
 	/// <param name="reader">Reader positioned at the first profile result set. It is advanced through every following set.</param>
 	/// <param name="cancellationToken">Cancels reading a row or moving to the next result set.</param>
+	/// <param name="capture">The workspace-load capture. Null does not time the drain or the mapping.</param>
 	/// <returns>The mapped bundle when the task completes. The current contract does not return null from MapBundle.</returns>
 	/// <exception cref="AnchorProfileContractException">The sets are not the six-set contract, or a row cannot be read.</exception>
 	internal static async Task<AnchorProfileBundle?> ReadAsync(
 		SqlDataReader reader,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		AnchorProfileReadCapture? capture = null)
 	{
 		var resultSets = new List<AnchorMemberProfileResultSet>();
-
-		do
+		var index = 0;
+		while (true)
 		{
+			var drain = capture == null ? null : Stopwatch.StartNew();
 			var columns = new AnchorMemberProfileColumn[reader.FieldCount];
-			for (var index = 0; index < reader.FieldCount; index++)
+			for (var column = 0; column < reader.FieldCount; column++)
 			{
-				columns[index] = new AnchorMemberProfileColumn(
-					reader.GetName(index),
-					reader.GetDataTypeName(index));
+				columns[column] = new AnchorMemberProfileColumn(
+					reader.GetName(column),
+					reader.GetDataTypeName(column));
 			}
 
 			var rows = new List<IReadOnlyList<object>>();
@@ -225,21 +247,33 @@ internal static class AnchorMemberProfileReader
 				rows.Add(values);
 			}
 
+			var more = await reader.NextResultAsync(cancellationToken);
+			if (drain != null)
+			{
+				drain.Stop();
+				capture?.AddDrain(index, rows.Count, drain.ElapsedMilliseconds);
+			}
+
 			resultSets.Add(new AnchorMemberProfileResultSet
 			{
 				Columns = columns,
 				Rows = rows
 			});
+			index++;
+			if (!more)
+			{
+				break;
+			}
 		}
-		while (await reader.NextResultAsync(cancellationToken));
 
-		return MapBundle(resultSets);
+		return MapBundle(resultSets, capture);
 	}
 
 	/// <summary>
 	/// Maps the six profile result sets without merging a missing supporting row into another set.
 	/// </summary>
 	/// <param name="resultSets">Profiles, BranchValid, branch anchors, placements, member-level fronting, then avatar timestamps, in that order.</param>
+	/// <param name="capture">The workspace-load capture. Null does not time mapping.</param>
 	/// <returns>The checked bundle. An empty placement, fronting, or avatar set is a valid empty list.</returns>
 	/// <remarks>
 	/// The three supporting sets are independent: an empty placement set does not drop fronting or avatars.
@@ -248,7 +282,9 @@ internal static class AnchorMemberProfileReader
 	/// UpdatedAtUtc stays a DateTime so the caller formats the URL version.
 	/// </remarks>
 	/// <exception cref="AnchorProfileContractException">The set count, columns, BranchValid cell, or a member row does not match the installed procedure.</exception>
-	internal static AnchorProfileBundle MapBundle(IReadOnlyList<AnchorMemberProfileResultSet> resultSets)
+	internal static AnchorProfileBundle MapBundle(
+		IReadOnlyList<AnchorMemberProfileResultSet> resultSets,
+		AnchorProfileReadCapture? capture = null)
 	{
 		if (resultSets.Count != 6)
 		{
@@ -258,26 +294,57 @@ internal static class AnchorMemberProfileReader
 				+ " result sets. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
 		}
 
+		T Time<T>(int index, Func<T> action)
+		{
+			if (capture == null)
+			{
+				return action();
+			}
+
+			var watch = Stopwatch.StartNew();
+			try
+			{
+				return action();
+			}
+			finally
+			{
+				watch.Stop();
+				capture.AddMap(index, watch.ElapsedMilliseconds);
+			}
+		}
+
 		// Profile rows use the strict nine-column map. A mismatch fails the whole bundle.
-		var profiles = Map([resultSets[0]]);
+		var profiles = Time(0, () => Map([resultSets[0]]));
+		var branchColumns = Time(1, () => ColumnsMatch(resultSets[1], BranchValidColumns));
+		var anchorColumns = Time(2, () => ColumnsMatch(resultSets[2], BranchAnchorColumns));
+		var placementColumns = Time(3, () => ColumnsMatch(resultSets[3], PlacementColumns));
+		var frontingColumns = Time(4, () => ColumnsMatch(resultSets[4], FrontingColumns));
+		var avatarColumns = Time(5, () => ColumnsMatch(resultSets[5], AvatarColumns));
 		if (profiles is null
-			|| !ColumnsMatch(resultSets[1], BranchValidColumns)
-			|| !ColumnsMatch(resultSets[2], BranchAnchorColumns)
-			|| !ColumnsMatch(resultSets[3], PlacementColumns)
-			|| !ColumnsMatch(resultSets[4], FrontingColumns)
-			|| !ColumnsMatch(resultSets[5], AvatarColumns))
+			|| !branchColumns
+			|| !anchorColumns
+			|| !placementColumns
+			|| !frontingColumns
+			|| !avatarColumns)
 		{
 			throw new AnchorProfileContractException(
 				"The profile procedure result sets do not match the installed contract. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
 		}
 
-		if (resultSets[1].Rows.Count != 1 || resultSets[1].Rows[0].Count != 1 || resultSets[1].Rows[0][0] is not bool branchValid)
+		var branchValid = Time(1, () =>
 		{
-			throw new AnchorProfileContractException(
-				"The profile procedure did not return BranchValid. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
-		}
+			if (resultSets[1].Rows.Count != 1 || resultSets[1].Rows[0].Count != 1 || resultSets[1].Rows[0][0] is not bool valid)
+			{
+				throw new AnchorProfileContractException(
+					"The profile procedure did not return BranchValid. Install scripts/sqlserver/Members/008_profile_supporting_reads.sql before using this API.");
+			}
 
-		var anchors = new List<AnchorBranchAnchor>(resultSets[2].Rows.Count);
+			return valid;
+		});
+
+		var anchors = Time(2, () =>
+		{
+		var mapped = new List<AnchorBranchAnchor>(resultSets[2].Rows.Count);
 		foreach (var row in resultSets[2].Rows)
 		{
 			if (row.Count != BranchAnchorColumns.Length
@@ -292,7 +359,7 @@ internal static class AnchorMemberProfileReader
 					"A branch anchor row could not be read.");
 			}
 
-			anchors.Add(new AnchorBranchAnchor(
+			mapped.Add(new AnchorBranchAnchor(
 				objectType,
 				objectId,
 				visibilityMode,
@@ -301,9 +368,14 @@ internal static class AnchorMemberProfileReader
 				permissionCode));
 		}
 
+		return mapped;
+		});
+
 		// Each supporting set keeps its own member identity. A duplicate in one set does not select a row.
 		var seenMembers = new HashSet<Guid>();
-		var placements = new List<AnchorMemberPlacement>(resultSets[3].Rows.Count);
+		var placements = Time(3, () =>
+		{
+		var mapped = new List<AnchorMemberPlacement>(resultSets[3].Rows.Count);
 		foreach (var row in resultSets[3].Rows)
 		{
 			if (row.Count != PlacementColumns.Length
@@ -318,7 +390,7 @@ internal static class AnchorMemberProfileReader
 					"A placement row was missing, duplicated, or could not be read.");
 			}
 
-			placements.Add(new AnchorMemberPlacement(
+			mapped.Add(new AnchorMemberPlacement(
 				memberId,
 				visibilityMode,
 				visibilityTypeId,
@@ -326,8 +398,13 @@ internal static class AnchorMemberProfileReader
 				permissionCode));
 		}
 
+		return mapped;
+		});
+
 		seenMembers.Clear();
-		var fronting = new List<AnchorMemberFronting>(resultSets[4].Rows.Count);
+		var fronting = Time(4, () =>
+		{
+		var mapped = new List<AnchorMemberFronting>(resultSets[4].Rows.Count);
 		foreach (var row in resultSets[4].Rows)
 		{
 			if (row.Count != FrontingColumns.Length
@@ -339,11 +416,16 @@ internal static class AnchorMemberProfileReader
 					"A fronting row was missing, duplicated, or could not be read.");
 			}
 
-			fronting.Add(new AnchorMemberFronting(memberId, isFronting));
+			mapped.Add(new AnchorMemberFronting(memberId, isFronting));
 		}
 
+		return mapped;
+		});
+
 		seenMembers.Clear();
-		var avatars = new List<AnchorMemberAvatar>(resultSets[5].Rows.Count);
+		var avatars = Time(5, () =>
+		{
+		var mapped = new List<AnchorMemberAvatar>(resultSets[5].Rows.Count);
 		foreach (var row in resultSets[5].Rows)
 		{
 			if (row.Count != AvatarColumns.Length
@@ -355,8 +437,11 @@ internal static class AnchorMemberProfileReader
 					"An avatar reference was missing, duplicated, or could not be read.");
 			}
 
-			avatars.Add(new AnchorMemberAvatar(memberId, updatedAtUtc));
+			mapped.Add(new AnchorMemberAvatar(memberId, updatedAtUtc));
 		}
+
+		return mapped;
+		});
 
 		return new AnchorProfileBundle(profiles, branchValid, anchors, placements, fronting, avatars);
 	}

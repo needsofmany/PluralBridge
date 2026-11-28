@@ -255,7 +255,8 @@ internal sealed class WorkspaceAvatarBatchService(
 					detail.AnchorName,
 					detail.Branch,
 					cancellationToken,
-					profile);
+					profile,
+					profile == null ? null : AnchorProfileReadCapture.AvatarCaller);
 			}
 
 			var authorized = new HashSet<Guid>();
@@ -270,6 +271,7 @@ internal sealed class WorkspaceAvatarBatchService(
 				var images = new List<WorkspaceAvatarBatchItem>(detail.DirectMemberIds.Count);
 				var missIds = new List<Guid>();
 				var missSlots = new List<int>();
+				var scan = profile == null ? null : Stopwatch.StartNew();
 				foreach (var memberId in detail.DirectMemberIds)
 				{
 					if (!authorized.Contains(memberId))
@@ -291,6 +293,12 @@ internal sealed class WorkspaceAvatarBatchService(
 					images.Add(new WorkspaceAvatarBatchItem(memberId, null, null));
 				}
 
+				if (scan != null)
+				{
+					scan.Stop();
+					profile?.SetMissScan(scan.ElapsedMilliseconds);
+				}
+
 				if (missIds.Count == 0)
 				{
 					return new WorkspaceAvatarBatchResult.Ready(images);
@@ -308,6 +316,7 @@ internal sealed class WorkspaceAvatarBatchService(
 					return new WorkspaceAvatarBatchResult.AvatarStorageMissing();
 				}
 
+				var retain = profile == null ? null : Stopwatch.StartNew();
 				for (var index = 0; index < missIds.Count; index++)
 				{
 					var memberId = missIds[index];
@@ -323,6 +332,12 @@ internal sealed class WorkspaceAvatarBatchService(
 						memberId,
 						stored?.ContentType ?? image.ContentType,
 						stored?.Bytes ?? image.Bytes);
+				}
+
+				if (retain != null)
+				{
+					retain.Stop();
+					profile?.SetRetain(retain.ElapsedMilliseconds);
 				}
 
 				return new WorkspaceAvatarBatchResult.Ready(images);

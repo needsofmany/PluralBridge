@@ -163,6 +163,130 @@ public sealed class WorkspaceLoadReportTests
 		Assert.Equal("same=no", lines[12]);
 	}
 
+	/// <summary>
+	/// The console report keeps opening commands and the profile-read diagnostic.
+	/// Argument text on the header is not copied. The graph insert has no duration.
+	/// </summary>
+	[Fact]
+	public void Assemble_CopiesOpeningCommandsAndProfileReadWithoutArgumentText()
+	{
+		var navigator = File.ReadAllText(SourcePath("js", "navigator.js"));
+		var reader = FunctionBody(navigator, "function readProfileHeader(header)");
+		Assert.Contains("openingCommandReport(parsed.openingCommands)", reader, StringComparison.Ordinal);
+		Assert.Contains("profileReadReport(parsed.profileRead)", reader, StringComparison.Ordinal);
+		Assert.DoesNotContain("parsed.email", reader, StringComparison.Ordinal);
+
+		var lines = RunHeaderReport(
+			"""
+			var commands = openingCommandReport([
+			  { name: "tempTables", ms: 12, email: "secret@example.com" },
+			  { name: "commit", ms: 1 }
+			]);
+			var memberRead = profileReadReport({
+			  caller: "member",
+			  argumentFingerprint: "ABC",
+			  email: "secret@example.com",
+			  anchorName: "secret-anchor",
+			  branchJson: "private-branch",
+			  emailLength: 18,
+			  objectType: "system",
+			  executeReaderAwaitMs: 20,
+			  totalReaderMs: 40,
+			  resultSets: [{ name: "profiles", rows: 3, drainMs: 5, mapMs: 1, email: "secret@example.com" }]
+			});
+			var avatarRead = profileReadReport({
+			  caller: "avatar",
+			  argumentFingerprint: "DEF",
+			  email: "secret@example.com",
+			  graphCopyInsert: "includedInProcedureReader",
+			  graphCopyInsertMs: 99
+			});
+			var report = assembleWorkspaceLoadReport({
+			  runId: "run-capture",
+			  treeStatus: "complete",
+			  membersStatus: "complete",
+			  avatarStatus: "complete",
+			  treeHeader: { outcome: "completed", serverMs: { openingBuild: 1690 }, openingCommands: commands, profileRead: memberRead },
+			  memberHeader: { outcome: "completed", serverMs: {}, profileRead: memberRead },
+			  avatarHeader: { outcome: "completed", serverMs: { avatarQuery: 80, graphCopyTable: 4, missScan: 3, retain: 6, imageLoop: 408 }, profileRead: avatarRead }
+			});
+			echo("command=" + report.tree.openingCommands[0].name + ":" + report.tree.openingCommands[0].ms);
+			echo("commit=" + report.tree.openingCommands[1].name);
+			echo("build=" + report.tree.serverMs.openingBuild);
+			echo("caller=" + report.members.profileRead.caller);
+			echo("fingerprint=" + report.members.profileRead.argumentFingerprint);
+			echo("rows=" + report.members.profileRead.resultSets[0].rows);
+			echo("memberEmail=" + kind(report.members.profileRead.email));
+			echo("anchor=" + kind(report.members.profileRead.anchorName));
+			echo("avatarCaller=" + report.avatars.profileRead.caller);
+			echo("insert=" + report.avatars.profileRead.graphCopyInsert);
+			echo("insertMs=" + kind(report.avatars.profileRead.graphCopyInsertMs));
+			echo("query=" + report.avatars.serverMs.avatarQuery);
+			echo("table=" + report.avatars.serverMs.graphCopyTable);
+			echo("scan=" + report.avatars.serverMs.missScan);
+			echo("retain=" + report.avatars.serverMs.retain);
+			function dumped(value) {
+			  var key;
+			  var index;
+			  var found = "";
+			  if (value === null || typeof value !== "object") {
+			    return String(value);
+			  }
+			  if (Object.prototype.toString.call(value) === "[object Array]") {
+			    for (index = 0; index < value.length; index++) {
+			      found += dumped(value[index]);
+			    }
+			    return found;
+			  }
+			  for (key in value) {
+			    if (Object.prototype.hasOwnProperty.call(value, key)) {
+			      found += key + dumped(value[key]);
+			    }
+			  }
+			  return found;
+			}
+			var text = dumped(report);
+			echo("clean=" + (text.indexOf("secret@example.com") < 0 && text.indexOf("secret-anchor") < 0 && text.indexOf("private-branch") < 0 ? "yes" : "no"));
+			""");
+
+		Assert.Equal(
+			[
+				"command=tempTables:12",
+				"commit=commit",
+				"build=1690",
+				"caller=member",
+				"fingerprint=ABC",
+				"rows=3",
+				"memberEmail=absent",
+				"anchor=absent",
+				"avatarCaller=avatar",
+				"insert=includedInProcedureReader",
+				"insertMs=absent",
+				"query=80",
+				"table=4",
+				"scan=3",
+				"retain=6",
+				"clean=yes"
+			],
+			lines);
+	}
+
+	/// <summary>Runs the header reader and the production report function.</summary>
+	/// <param name="driver">Statements that call those functions and print the fields under test.</param>
+	/// <returns>The printed lines.</returns>
+	private static List<string> RunHeaderReport(string driver)
+	{
+		var navigator = File.ReadAllText(SourcePath("js", "navigator.js"));
+		var preamble = FunctionBody(navigator, "function openingCommandReport(commands)")
+			+ "\n"
+			+ FunctionBody(navigator, "function profileReadReport(read)")
+			+ "\n"
+			+ FunctionBody(navigator, "function readProfileHeader(header)")
+			+ "\n"
+			+ FunctionBody(navigator, "function assembleWorkspaceLoadReport(profile)");
+		return RunScript(preamble, driver);
+	}
+
 	/// <summary>Runs the production report function and returns its printed lines.</summary>
 	/// <param name="driver">Statements that call the production function and print the fields under test.</param>
 	/// <returns>The printed lines.</returns>
@@ -170,7 +294,16 @@ public sealed class WorkspaceLoadReportTests
 	{
 		var navigator = File.ReadAllText(SourcePath("js", "navigator.js"));
 		var functionText = FunctionBody(navigator, "function assembleWorkspaceLoadReport(profile)");
-		var script = functionText + """
+		return RunScript(functionText, driver);
+	}
+
+	/// <summary>Runs one script through cscript and returns its printed lines.</summary>
+	/// <param name="functions">The production functions the driver calls.</param>
+	/// <param name="driver">Statements that print the fields under test.</param>
+	/// <returns>The printed lines.</returns>
+	private static List<string> RunScript(string functions, string driver)
+	{
+		var script = functions + """
 
 
 			function echo(value) {

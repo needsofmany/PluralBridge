@@ -25,6 +25,7 @@ internal sealed class WorkspaceAvatarBatchProfile : IWorkspaceGatewayTiming
 {
 	private readonly Stopwatch _action = Stopwatch.StartNew();
 	private readonly List<Member> _members = [];
+	private AnchorProfileReadCapture? _profileRead;
 	private bool _outcomeSet;
 	private bool _logged;
 	private bool _sharedReadRecorded;
@@ -72,6 +73,18 @@ internal sealed class WorkspaceAvatarBatchProfile : IWorkspaceGatewayTiming
 
 	/// <summary>The image-query stage of the one miss read. Null when that read did not run.</summary>
 	internal long? SharedAvatarQueryMs { get; private set; }
+
+	/// <summary>Time spent creating the empty graph-copy table. Null when that command did not run.</summary>
+	internal long? GraphCopyTableMs { get; private set; }
+
+	/// <summary>Time spent classifying retained images and misses. Null when that scan did not run.</summary>
+	internal long? MissScanMs { get; private set; }
+
+	/// <summary>Time spent retaining loaded images. Null when no image was retained.</summary>
+	internal long? RetainMs { get; private set; }
+
+	/// <summary>The profiled procedure read. Null when this request is not profiled.</summary>
+	internal AnchorProfileReadCapture? ProfileRead => _profileRead;
 
 	/// <summary>Time spent converting image bytes to base64. Null when no conversion ran.</summary>
 	internal long? Base64Ms { get; private set; }
@@ -123,6 +136,32 @@ internal sealed class WorkspaceAvatarBatchProfile : IWorkspaceGatewayTiming
 	public void SetProfileAuthorization(long elapsedMilliseconds)
 	{
 		ProfileAuthorizationMs ??= elapsedMilliseconds;
+	}
+
+	/// <inheritdoc />
+	public void SetProfileRead(AnchorProfileReadCapture capture)
+	{
+		_profileRead = capture;
+	}
+
+	/// <inheritdoc />
+	public void SetGraphCopyTable(long elapsedMilliseconds)
+	{
+		GraphCopyTableMs ??= elapsedMilliseconds;
+	}
+
+	/// <summary>Records the miss scan. A later write does not replace it.</summary>
+	/// <param name="elapsedMilliseconds">The measured duration.</param>
+	internal void SetMissScan(long elapsedMilliseconds)
+	{
+		MissScanMs ??= elapsedMilliseconds;
+	}
+
+	/// <summary>Records image retention. A later write does not replace it.</summary>
+	/// <param name="elapsedMilliseconds">The measured duration.</param>
+	internal void SetRetain(long elapsedMilliseconds)
+	{
+		RetainMs ??= elapsedMilliseconds;
 	}
 
 	/// <summary>Records the image-loop duration. A later write does not replace it.</summary>
@@ -266,9 +305,19 @@ internal sealed class WorkspaceAvatarBatchProfile : IWorkspaceGatewayTiming
 			.Append(",\"topologyWalker\":").Append(Number(SharedTopologyWalkerMs))
 			.Append(",\"graphExpansion\":").Append(Number(SharedGraphExpansionMs))
 			.Append(",\"avatarQuery\":").Append(Number(SharedAvatarQueryMs))
+			.Append(",\"graphCopyTable\":").Append(Number(GraphCopyTableMs))
+			.Append(",\"missScan\":").Append(Number(MissScanMs))
+			.Append(",\"retain\":").Append(Number(RetainMs))
 			.Append(",\"base64\":").Append(Number(Base64Ms))
 			.Append(",\"responsePreparation\":").Append(Number(ResponsePreparationMs))
-			.Append("},\"members\":[");
+			.Append('}');
+		if (_profileRead != null)
+		{
+			text.Append(",\"profileRead\":");
+			_profileRead.AppendJson(text);
+		}
+
+		text.Append(",\"members\":[");
 		for (var index = 0; index < _members.Count; index++)
 		{
 			if (index > 0)
@@ -330,7 +379,7 @@ internal sealed class WorkspaceAvatarBatchProfile : IWorkspaceGatewayTiming
 		}
 
 		logger.LogInformation(
-			"WorkspaceAvatarBatchProfile RunId={RunId} Outcome={Outcome} ResolveConnectionOpenMs={ResolveConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} ProfileConnectionOpenMs={ProfileConnectionOpenMs} ProfileAuthorizationMs={ProfileAuthorizationMs} ImageLoopMs={ImageLoopMs} ImageConnectionOpenMs={ImageConnectionOpenMs} GraphTablesMs={GraphTablesMs} TopologySeedMs={TopologySeedMs} TopologyWalkerMs={TopologyWalkerMs} GraphExpansionMs={GraphExpansionMs} AvatarQueryMs={AvatarQueryMs} Base64Ms={Base64Ms} ResponsePreparationMs={ResponsePreparationMs} ActionTotalMs={ActionTotalMs} Members={Members}",
+			"WorkspaceAvatarBatchProfile RunId={RunId} Outcome={Outcome} ResolveConnectionOpenMs={ResolveConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} ProfileConnectionOpenMs={ProfileConnectionOpenMs} ProfileAuthorizationMs={ProfileAuthorizationMs} ImageLoopMs={ImageLoopMs} ImageConnectionOpenMs={ImageConnectionOpenMs} GraphTablesMs={GraphTablesMs} TopologySeedMs={TopologySeedMs} TopologyWalkerMs={TopologyWalkerMs} GraphExpansionMs={GraphExpansionMs} AvatarQueryMs={AvatarQueryMs} GraphCopyTableMs={GraphCopyTableMs} MissScanMs={MissScanMs} RetainMs={RetainMs} {ProfileRead} Base64Ms={Base64Ms} ResponsePreparationMs={ResponsePreparationMs} ActionTotalMs={ActionTotalMs} Members={Members}",
 			RunId,
 			Outcome,
 			ResolveConnectionOpenMs,
@@ -344,6 +393,10 @@ internal sealed class WorkspaceAvatarBatchProfile : IWorkspaceGatewayTiming
 			SharedTopologyWalkerMs,
 			SharedGraphExpansionMs,
 			SharedAvatarQueryMs,
+			GraphCopyTableMs,
+			MissScanMs,
+			RetainMs,
+			_profileRead?.LogText() ?? "ProfileCaller=null",
 			Base64Ms,
 			ResponsePreparationMs,
 			ActionTotalMs,

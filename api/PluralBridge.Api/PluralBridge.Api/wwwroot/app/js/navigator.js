@@ -2715,9 +2715,119 @@ window.PluralBridge.navigator = (function () {
     }
 
     /**
+     * Copies opening-command timings. Only the command name and elapsed milliseconds are kept.
+     * @param {Array|null} commands Header openingCommands.
+     * @returns {Array<{name: string, ms: number}>|null} The measured commands, or null when none were present.
+     */
+    function openingCommandReport(commands) {
+        var copy = [];
+        var index;
+        var command;
+        if (Object.prototype.toString.call(commands) !== "[object Array]") {
+            return null;
+        }
+
+        for (index = 0; index < commands.length; index++) {
+            command = commands[index];
+            if (!command || typeof command.name !== "string" || typeof command.ms !== "number") {
+                continue;
+            }
+
+            copy.push({
+                name: command.name,
+                ms: command.ms
+            });
+        }
+
+        return copy.length === 0 ? null : copy;
+    }
+
+    /**
+     * Copies one profile-read diagnostic. Argument text is not a field on this object, so it is not copied.
+     * @param {object|null} read Header profileRead.
+     * @returns {object|null} Fingerprint, lengths, reader timings, and result-set counts.
+     */
+    function profileReadReport(read) {
+        var copy = {};
+        var sets = [];
+        var index;
+        var source;
+        var set;
+        if (!read || typeof read !== "object") {
+            return null;
+        }
+
+        if (typeof read.caller === "string") {
+            copy.caller = read.caller;
+        }
+
+        if (typeof read.argumentFingerprint === "string") {
+            copy.argumentFingerprint = read.argumentFingerprint;
+        }
+
+        if (typeof read.objectType === "string") {
+            copy.objectType = read.objectType;
+        }
+
+        if (typeof read.emailLength === "number") {
+            copy.emailLength = read.emailLength;
+        }
+
+        if (typeof read.anchorNameLength === "number") {
+            copy.anchorNameLength = read.anchorNameLength;
+        }
+
+        if (typeof read.branchJsonLength === "number") {
+            copy.branchJsonLength = read.branchJsonLength;
+        }
+
+        if (typeof read.executeReaderAwaitMs === "number") {
+            copy.executeReaderAwaitMs = read.executeReaderAwaitMs;
+        }
+
+        if (typeof read.totalReaderMs === "number") {
+            copy.totalReaderMs = read.totalReaderMs;
+        }
+
+        if (read.graphCopyInsert === "includedInProcedureReader") {
+            copy.graphCopyInsert = read.graphCopyInsert;
+        }
+
+        if (Object.prototype.toString.call(read.resultSets) === "[object Array]") {
+            for (index = 0; index < read.resultSets.length; index++) {
+                source = read.resultSets[index];
+                if (!source || typeof source.name !== "string") {
+                    continue;
+                }
+
+                set = { name: source.name };
+                if (typeof source.rows === "number") {
+                    set.rows = source.rows;
+                }
+
+                if (typeof source.drainMs === "number") {
+                    set.drainMs = source.drainMs;
+                }
+
+                if (typeof source.mapMs === "number") {
+                    set.mapMs = source.mapMs;
+                }
+
+                sets.push(set);
+            }
+        }
+
+        if (sets.length > 0) {
+            copy.resultSets = sets;
+        }
+
+        return copy;
+    }
+
+    /**
      * Reads one profiling response header. The durations in it stay on the server clock.
      * @param {string|null} header The X-PB-Workspace-Profile value.
-     * @returns {object|null} Outcome, serverMs, and member lines. Null when the header is missing or unreadable.
+     * @returns {object|null} Outcome, server durations, command timings, and the profile-read diagnostic. Null when the header is missing or unreadable.
      */
     function readProfileHeader(header) {
         if (!header || typeof header !== "string") {
@@ -2733,7 +2843,9 @@ window.PluralBridge.navigator = (function () {
             return {
                 outcome: parsed.outcome,
                 serverMs: parsed.serverMs || null,
-                members: parsed.members || null
+                members: parsed.members || null,
+                openingCommands: openingCommandReport(parsed.openingCommands),
+                profileRead: profileReadReport(parsed.profileRead)
             };
         } catch (error) {
             return null;
@@ -2911,6 +3023,9 @@ window.PluralBridge.navigator = (function () {
         var treeStatus = phaseStatus(profile.treeStatus, profile.treeHeader);
         var memberStatus = phaseStatus(profile.membersStatus, profile.memberHeader);
         var avatarStatus = phaseStatus(profile.avatarStatus, profile.avatarHeader);
+        var treeCommands = profile.treeHeader && profile.treeHeader.openingCommands;
+        var memberRead = profile.memberHeader && profile.memberHeader.profileRead;
+        var avatarRead = profile.avatarHeader && profile.avatarHeader.profileRead;
         var treeServer = serverDurations(profile.treeHeader && profile.treeHeader.serverMs, [
             "actionTotal",
             "connectionOpen",
@@ -2942,11 +3057,14 @@ window.PluralBridge.navigator = (function () {
             "topologyWalker",
             "graphExpansion",
             "avatarQuery",
+            "graphCopyTable",
+            "missScan",
+            "retain",
             "base64",
             "responsePreparation"
         ]);
 
-        if (treeStatus || treeMarks.length > 0 || treeServer) {
+        if (treeStatus || treeMarks.length > 0 || treeServer || treeCommands) {
             report.tree = { status: treeStatus || "incomplete" };
             if (treeMarks.length > 0) {
                 report.tree.browserElapsedMs = {};
@@ -2956,9 +3074,13 @@ window.PluralBridge.navigator = (function () {
             if (treeServer) {
                 report.tree.serverMs = treeServer;
             }
+
+            if (treeCommands) {
+                report.tree.openingCommands = copyReportValue(treeCommands);
+            }
         }
 
-        if (memberStatus || memberMarks.length > 0 || memberServer || typeof profile.cardCount === "number") {
+        if (memberStatus || memberMarks.length > 0 || memberServer || memberRead || typeof profile.cardCount === "number") {
             report.members = { status: memberStatus || "incomplete" };
             if (memberMarks.length > 0) {
                 report.members.browserElapsedMs = {};
@@ -2969,13 +3091,17 @@ window.PluralBridge.navigator = (function () {
                 report.members.serverMs = memberServer;
             }
 
+            if (memberRead) {
+                report.members.profileRead = copyReportValue(memberRead);
+            }
+
             if (typeof profile.cardCount === "number") {
                 report.members.cardCount = profile.cardCount;
             }
         }
 
         var avatarLines = avatarMemberLines(profile);
-        if (avatarStatus || avatarMarks.length > 0 || avatarServer || avatarLines) {
+        if (avatarStatus || avatarMarks.length > 0 || avatarServer || avatarRead || avatarLines) {
             report.avatars = { status: avatarStatus || "incomplete" };
             if (avatarMarks.length > 0) {
                 report.avatars.browserElapsedMs = {};
@@ -2984,6 +3110,10 @@ window.PluralBridge.navigator = (function () {
 
             if (avatarServer) {
                 report.avatars.serverMs = avatarServer;
+            }
+
+            if (avatarRead) {
+                report.avatars.profileRead = copyReportValue(avatarRead);
             }
 
             if (avatarLines) {

@@ -47,10 +47,68 @@ BEGIN
     );
 
     --------------------------------------------------------------------------------
-    -- Step 1+2: topology seed builder (refactored)
+    -- Step 1+2: topology seed builder. Its one result set is consumed here
+    -- so the render result sets keep their current order.
     --------------------------------------------------------------------------------
+    DECLARE @SeedRows TABLE
+    (
+        RowKind nvarchar(8) NOT NULL,
+        ParentObjectType nvarchar(32) NULL,
+        ParentObjectId uniqueidentifier NULL,
+        ChildObjectType nvarchar(32) NULL,
+        ChildObjectId uniqueidentifier NULL,
+        EdgeRank int NULL,
+        EdgeSource nvarchar(64) NULL,
+        SystemId uniqueidentifier NULL,
+        EdgeLabel nvarchar(max) NULL
+    );
+
+    DELETE FROM @SeedRows;
+
+    INSERT INTO @SeedRows
+    (
+        RowKind,
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource,
+        SystemId,
+        EdgeLabel
+    )
     EXEC dbo.pb_show_tree_step5_topology_seed_builder
         @AccountId = @AccountId;
+
+    INSERT INTO #TopologyEdges
+    (
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    )
+    SELECT
+        ParentObjectType,
+        ParentObjectId,
+        ChildObjectType,
+        ChildObjectId,
+        EdgeRank,
+        EdgeSource
+    FROM @SeedRows
+    WHERE RowKind = N'edge';
+
+    INSERT INTO #SystemEdgeLabels
+    (
+        SystemId,
+        EdgeLabel
+    )
+    SELECT
+        SystemId,
+        EdgeLabel
+    FROM @SeedRows
+    WHERE RowKind = N'label';
 
     IF OBJECT_ID('tempdb..#WalkTopology') IS NOT NULL DROP TABLE #WalkTopology;
     CREATE TABLE #WalkTopology

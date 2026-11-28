@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
+using PluralBridge.Api.Controllers;
 
 namespace PluralBridge.Api.Workspace;
 
@@ -19,6 +20,7 @@ internal sealed class WorkspaceMemberDetailProfile : IWorkspaceGatewayTiming
 {
 	private readonly Stopwatch _action = Stopwatch.StartNew();
 	private Stopwatch? _responsePreparation;
+	private AnchorProfileReadCapture? _profileRead;
 	private bool _outcomeSet;
 	private bool _logged;
 
@@ -47,6 +49,9 @@ internal sealed class WorkspaceMemberDetailProfile : IWorkspaceGatewayTiming
 
 	/// <summary>Time spent authorizing and reading profiles. Null when that stage did not run.</summary>
 	internal long? ProfileAuthorizationMs { get; private set; }
+
+	/// <summary>The profiled procedure read. Null when this request is not profiled.</summary>
+	internal AnchorProfileReadCapture? ProfileRead => _profileRead;
 
 	/// <summary>Time after the profile read until the member-detail result is ready. Null when that stage did not run.</summary>
 	internal long? ResponsePreparationMs { get; private set; }
@@ -94,6 +99,12 @@ internal sealed class WorkspaceMemberDetailProfile : IWorkspaceGatewayTiming
 	void IWorkspaceGatewayTiming.SetProfileAuthorization(long elapsedMilliseconds)
 	{
 		SetProfileAuthorization(elapsedMilliseconds);
+	}
+
+	/// <inheritdoc />
+	void IWorkspaceGatewayTiming.SetProfileRead(AnchorProfileReadCapture capture)
+	{
+		_profileRead = capture;
 	}
 
 	internal void SetResolveConnectionOpen(long elapsedMilliseconds)
@@ -166,7 +177,7 @@ internal sealed class WorkspaceMemberDetailProfile : IWorkspaceGatewayTiming
 	/// <returns>One JSON object with the run id, outcome, and server durations.</returns>
 	internal string HeaderJson()
 	{
-		return "{\"runId\":\"" + RunId
+		var text = "{\"runId\":\"" + RunId
 			+ "\",\"outcome\":\"" + Outcome
 			+ "\",\"phase\":\"members\",\"serverMs\":{"
 			+ "\"actionTotal\":" + Number(ActionTotalMs)
@@ -176,7 +187,16 @@ internal sealed class WorkspaceMemberDetailProfile : IWorkspaceGatewayTiming
 			+ ",\"profileConnectionOpen\":" + Number(ProfileConnectionOpenMs)
 			+ ",\"profileAuthorization\":" + Number(ProfileAuthorizationMs)
 			+ ",\"responsePreparation\":" + Number(ResponsePreparationMs)
-			+ "}}";
+			+ "}";
+		if (_profileRead != null)
+		{
+			text = text + ",\"profileRead\":";
+			var body = new System.Text.StringBuilder();
+			_profileRead.AppendJson(body);
+			text += body.ToString();
+		}
+
+		return text + "}";
 	}
 
 	/// <summary>Writes one profiling log. A second call does not write again.</summary>
@@ -195,7 +215,7 @@ internal sealed class WorkspaceMemberDetailProfile : IWorkspaceGatewayTiming
 		}
 
 		logger.LogInformation(
-			"WorkspaceMemberDetailProfile RunId={RunId} Outcome={Outcome} ResolveConnectionOpenMs={ResolveConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} PrepareOccurrenceMs={PrepareOccurrenceMs} ProfileConnectionOpenMs={ProfileConnectionOpenMs} ProfileAuthorizationMs={ProfileAuthorizationMs} ResponsePreparationMs={ResponsePreparationMs} ActionTotalMs={ActionTotalMs}",
+			"WorkspaceMemberDetailProfile RunId={RunId} Outcome={Outcome} ResolveConnectionOpenMs={ResolveConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} PrepareOccurrenceMs={PrepareOccurrenceMs} ProfileConnectionOpenMs={ProfileConnectionOpenMs} ProfileAuthorizationMs={ProfileAuthorizationMs} ResponsePreparationMs={ResponsePreparationMs} ActionTotalMs={ActionTotalMs} {ProfileRead}",
 			RunId,
 			Outcome,
 			ResolveConnectionOpenMs,
@@ -204,7 +224,8 @@ internal sealed class WorkspaceMemberDetailProfile : IWorkspaceGatewayTiming
 			ProfileConnectionOpenMs,
 			ProfileAuthorizationMs,
 			ResponsePreparationMs,
-			ActionTotalMs);
+			ActionTotalMs,
+			_profileRead?.LogText() ?? "ProfileCaller=null");
 	}
 
 	/// <summary>Formats one duration for the header. An unset stage is null.</summary>

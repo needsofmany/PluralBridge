@@ -140,16 +140,29 @@ internal sealed class SqlAvatarBatchGraphSession(SqlConnection connection) : IAv
 		CancellationToken cancellationToken)
 	{
 		var watch = profile == null ? null : Stopwatch.StartNew();
+		var capture = profile == null ? null : new AnchorProfileReadCapture(AnchorProfileReadCapture.AvatarCaller);
 		try
 		{
-			await AnchorMemberProfileSave.CreateAvatarBatchGraphTableAsync(connection, cancellationToken);
+			if (profile == null)
+			{
+				await AnchorMemberProfileSave.CreateAvatarBatchGraphTableAsync(connection, cancellationToken);
+			}
+			else
+			{
+				var table = Stopwatch.StartNew();
+				await AnchorMemberProfileSave.CreateAvatarBatchGraphTableAsync(connection, cancellationToken);
+				table.Stop();
+				profile.SetGraphCopyTable(table.ElapsedMilliseconds);
+			}
+
 			return await AnchorMemberProfileReader.ExecuteAsync(
 				connection,
 				email,
 				objectType,
 				anchorName,
 				branch,
-				cancellationToken);
+				cancellationToken,
+				capture);
 		}
 		finally
 		{
@@ -157,6 +170,11 @@ internal sealed class SqlAvatarBatchGraphSession(SqlConnection connection) : IAv
 			{
 				watch.Stop();
 				profile.SetProfileAuthorization(watch.ElapsedMilliseconds);
+			}
+
+			if (capture != null)
+			{
+				profile?.SetProfileRead(capture);
 			}
 		}
 	}

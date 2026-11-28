@@ -1273,12 +1273,16 @@ public sealed class MeController(
 	}
 
 	/// <summary>
-	/// Counts the legacy proof tables for the systems in the supplied memberships.
+	/// Counts the legacy proof tables for the supplied memberships.
 	/// </summary>
 	/// <param name="connection">Open connection. The count commands run on it without a transaction.</param>
 	/// <param name="memberships">System memberships from the access context. An empty list returns zero counts and does not query.</param>
 	/// <returns>The proof count names and their totals when the task completes. A scalar that is not a long, int, or decimal becomes zero.</returns>
-	/// <remarks>These totals belong to the legacy proof response. The plural map and member routes do not call this method.</remarks>
+	/// <remarks>
+	/// Systems, members, privacy buckets, and front history are counted by <c>SystemId</c>.
+	/// Custom fields belong to <c>pb_accounts</c> through <c>AccountId</c>, so that count uses the membership account ids.
+	/// These totals belong to the legacy proof response. The plural map and member routes do not call this method.
+	/// </remarks>
 	private static async Task<Dictionary<string, long>> ReadCountsAsync(
 		SqlConnection connection,
 		IReadOnlyList<AccessContextHelper.SystemMembership> memberships)
@@ -1320,13 +1324,30 @@ public sealed class MeController(
 		}
 
 		var systemIdInClause = idListBuilder.ToString();
+		var accountIds = memberships
+			.Select(membership => membership.AccountId)
+			.Distinct()
+			.ToArray();
+		var accountIdListBuilder = new StringBuilder();
+
+		for (var index = 0; index < accountIds.Length; index++)
+		{
+			if (index > 0)
+			{
+				accountIdListBuilder.Append(", ");
+			}
+
+			accountIdListBuilder.Append("@AccountId").Append(index);
+		}
+
+		var accountIdInClause = accountIdListBuilder.ToString();
 		var sourceIdMapFilter = $"TRY_CONVERT(uniqueidentifier, sim.PluralBridgeId) IN ({systemIdInClause})";
 		var sourceBatchFilter = $"SELECT DISTINCT sim.ImportBatchId FROM dbo.pb_source_id_map AS sim WHERE {sourceIdMapFilter}";
 
 		/// <summary>
-		/// Runs one proof count for the membership system ids.
+		/// Runs one proof count for the membership system and account ids.
 		/// </summary>
-		/// <param name="sql">A single SELECT that returns one numeric count. It may refer to the @SystemId parameters added here.</param>
+		/// <param name="sql">A single SELECT that returns one numeric count. It may refer to the @SystemId and @AccountId parameters added here.</param>
 		/// <returns>The count when the task completes. Zero when the scalar is null or not a long, int, or decimal.</returns>
 		async Task<long> ReadCountAsync(string sql)
 		{
@@ -1335,6 +1356,11 @@ public sealed class MeController(
 			for (var index = 0; index < systemIds.Length; index++)
 			{
 				command.Parameters.AddWithValue($"@SystemId{index}", systemIds[index]);
+			}
+
+			for (var index = 0; index < accountIds.Length; index++)
+			{
+				command.Parameters.AddWithValue($"@AccountId{index}", accountIds[index]);
 			}
 
 			var value = await command.ExecuteScalarAsync();
@@ -1355,7 +1381,7 @@ public sealed class MeController(
 		counts[nameof(CountKeys.privacyBuckets)] =
 			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_privacy_buckets WHERE SystemId IN ({systemIdInClause});");
 		counts[nameof(CountKeys.customFields)] =
-			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_custom_fields WHERE SystemId IN ({systemIdInClause});");
+			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_custom_fields WHERE AccountId IN ({accountIdInClause});");
 		counts[nameof(CountKeys.frontHistory)] =
 			await ReadCountAsync($"SELECT CAST(COUNT_BIG(*) AS bigint) FROM dbo.pb_front_history WHERE SystemId IN ({systemIdInClause});");
 		counts[nameof(CountKeys.sourceIdMappings)] =

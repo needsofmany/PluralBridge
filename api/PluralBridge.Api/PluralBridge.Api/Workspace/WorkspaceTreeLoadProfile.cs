@@ -23,6 +23,7 @@ internal sealed class WorkspaceTreeLoadProfile
 	internal const string ResponseHeaderName = "X-PB-Workspace-Profile";
 
 	private readonly Stopwatch _action = Stopwatch.StartNew();
+	private readonly List<OpeningCommand> _commands = [];
 	private bool _outcomeSet;
 	private bool _logged;
 
@@ -45,6 +46,9 @@ internal sealed class WorkspaceTreeLoadProfile
 
 	/// <summary>Time spent running the opening plan after the account was resolved. Null when that stage did not run.</summary>
 	internal long? OpeningBuildMs { get; private set; }
+
+	/// <summary>One elapsed time for each opening command. Empty when this request is not profiled.</summary>
+	internal IReadOnlyList<OpeningCommand> OpeningCommands => _commands;
 
 	/// <summary>Time spent constructing the context. Null when construction did not run.</summary>
 	internal long? CreateContextMs { get; private set; }
@@ -91,6 +95,14 @@ internal sealed class WorkspaceTreeLoadProfile
 		OpeningBuildMs ??= elapsedMilliseconds;
 	}
 
+	/// <summary>Records one command inside the opening build. A disabled profile never calls this.</summary>
+	/// <param name="name">The command name.</param>
+	/// <param name="elapsedMilliseconds">The client elapsed time for that command.</param>
+	internal void AddOpeningCommand(string name, long elapsedMilliseconds)
+	{
+		_commands.Add(new OpeningCommand(name, elapsedMilliseconds));
+	}
+
 	/// <summary>Records context construction. A later write does not replace it.</summary>
 	/// <param name="elapsedMilliseconds">The measured duration.</param>
 	internal void SetCreateContext(long elapsedMilliseconds)
@@ -128,7 +140,7 @@ internal sealed class WorkspaceTreeLoadProfile
 	/// <returns>One JSON object with the run id, outcome, and server durations.</returns>
 	internal string HeaderJson()
 	{
-		return "{\"runId\":\"" + RunId
+		var text = "{\"runId\":\"" + RunId
 			+ "\",\"outcome\":\"" + Outcome
 			+ "\",\"serverMs\":{"
 			+ "\"actionTotal\":" + Number(ActionTotalMs)
@@ -137,7 +149,24 @@ internal sealed class WorkspaceTreeLoadProfile
 			+ ",\"openingBuild\":" + Number(OpeningBuildMs)
 			+ ",\"createContext\":" + Number(CreateContextMs)
 			+ ",\"publish\":" + Number(PublishMs)
-			+ "}}";
+			+ "}";
+		if (_commands.Count > 0)
+		{
+			text = text + ",\"openingCommands\":[";
+			for (var index = 0; index < _commands.Count; index++)
+			{
+				if (index > 0)
+				{
+					text += ",";
+				}
+
+				text += "{\"name\":\"" + _commands[index].Name + "\",\"ms\":" + _commands[index].Milliseconds.ToString(CultureInfo.InvariantCulture) + "}";
+			}
+
+			text += "]";
+		}
+
+		return text + "}";
 	}
 
 	/// <summary>
@@ -158,12 +187,13 @@ internal sealed class WorkspaceTreeLoadProfile
 		}
 
 		logger.LogInformation(
-			"WorkspaceTreeProfile RunId={RunId} Outcome={Outcome} ConnectionOpenMs={ConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} OpeningBuildMs={OpeningBuildMs} CreateContextMs={CreateContextMs} PublishMs={PublishMs} ActionTotalMs={ActionTotalMs}",
+			"WorkspaceTreeProfile RunId={RunId} Outcome={Outcome} ConnectionOpenMs={ConnectionOpenMs} AccountResolutionMs={AccountResolutionMs} OpeningBuildMs={OpeningBuildMs} OpeningCommands={OpeningCommands} CreateContextMs={CreateContextMs} PublishMs={PublishMs} ActionTotalMs={ActionTotalMs}",
 			RunId,
 			Outcome,
 			ConnectionOpenMs,
 			AccountResolutionMs,
 			OpeningBuildMs,
+			string.Join(",", _commands.Select(command => command.Name + ":" + command.Milliseconds.ToString(CultureInfo.InvariantCulture))),
 			CreateContextMs,
 			PublishMs,
 			ActionTotalMs);
@@ -178,4 +208,9 @@ internal sealed class WorkspaceTreeLoadProfile
 			? value.Value.ToString(CultureInfo.InvariantCulture)
 			: "null";
 	}
+
+	/// <summary>One timed command inside the opening build.</summary>
+	/// <param name="Name">The command name.</param>
+	/// <param name="Milliseconds">The client elapsed time.</param>
+	internal readonly record struct OpeningCommand(string Name, long Milliseconds);
 }

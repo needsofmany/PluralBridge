@@ -10,7 +10,7 @@ namespace PluralBridge.Api.Controllers;
 
 /// <summary>
 /// Provides the read-only custom fields endpoint for the Phase 3 protected API surface.
-/// Custom fields are returned only for the current system resolved from AccessContext.
+/// The requested system must be the current protected system. The rows belong to that system's account.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -20,7 +20,7 @@ public sealed class CustomFieldsController(
 	ILogger<CustomFieldsController> logger) : ControllerBase
 {
 	/// <summary>
-	/// Returns all custom fields for the requested system when the requested system matches
+	/// Returns the current account's custom fields when the requested system matches
 	/// the current protected AccessContext system.
 	/// </summary>
 	/// <param name="systemId">The PluralBridge system identifier from the route.</param>
@@ -105,7 +105,7 @@ public sealed class CustomFieldsController(
 			{
 				customFields = await ReadCustomFieldsAsync(
 					connection,
-					currentSystem.SystemId);
+					accessContext.CurrentAccount.AccountId);
 
 				dataAccessStopwatch.Stop();
 
@@ -159,18 +159,17 @@ public sealed class CustomFieldsController(
 	}
 
 	/// <summary>
-	/// Reads custom field rows for one system from the validated proof database.
+	/// Reads custom field rows for one account from the validated proof database.
 	/// The selected fields expose imported custom-field metadata without exposing raw source payloads.
 	/// </summary>
 	/// <param name="connection">An open SQL Server connection to the PluralBridge proof database.</param>
-	/// <param name="systemId">The PluralBridge system identifier used to scope the custom field query.</param>
+	/// <param name="accountId">The authorized account. This is not the route system id.</param>
 	/// <returns>The custom field rows ordered by display order, field name, and custom field identifier.</returns>
-	private static async Task<List<CustomField>> ReadCustomFieldsAsync(SqlConnection connection, Guid systemId)
+	private static async Task<List<CustomField>> ReadCustomFieldsAsync(SqlConnection connection, Guid accountId)
 	{
 		const string sql = """
 		                   SELECT
 		                       CustomFieldId,
-		                       SystemId,
 		                       FieldName,
 		                       Description,
 		                       FieldTypeCode,
@@ -180,14 +179,14 @@ public sealed class CustomFieldsController(
 		                       CreatedAtUtc,
 		                       UpdatedAtUtc
 		                   FROM dbo.pb_custom_fields
-		                   WHERE SystemId = @SystemId
+		                   WHERE AccountId = @AccountId
 		                   ORDER BY DisplayOrderText, FieldName, CustomFieldId;
 		                   """;
 
 		var customFields = new List<CustomField>();
 
 		await using var command = new SqlCommand(sql, connection);
-		command.Parameters.AddWithValue("@SystemId", systemId);
+		command.Parameters.Add("@AccountId", System.Data.SqlDbType.UniqueIdentifier).Value = accountId;
 
 		await using var reader = await command.ExecuteReaderAsync();
 
@@ -195,15 +194,14 @@ public sealed class CustomFieldsController(
 		{
 			customFields.Add(new CustomField(
 				reader.GetGuid(0),
-				reader.GetGuid(1),
-				reader.GetString(2),
-				reader.IsDBNull(3) ? null : reader.GetString(3),
-				reader.IsDBNull(4) ? null : reader.GetInt32(4),
-				reader.IsDBNull(5) ? null : reader.GetString(5),
-				reader.IsDBNull(6) ? null : reader.GetBoolean(6),
+				reader.GetString(1),
+				reader.IsDBNull(2) ? null : reader.GetString(2),
+				reader.IsDBNull(3) ? null : reader.GetInt32(3),
+				reader.IsDBNull(4) ? null : reader.GetString(4),
+				reader.IsDBNull(5) ? null : reader.GetBoolean(5),
+				reader.GetDateTime(6),
 				reader.GetDateTime(7),
-				reader.GetDateTime(8),
-				reader.IsDBNull(9) ? null : reader.GetDateTime(9)));
+				reader.IsDBNull(8) ? null : reader.GetDateTime(8)));
 		}
 
 		return customFields;
@@ -211,7 +209,6 @@ public sealed class CustomFieldsController(
 
 	private sealed record CustomField(
 		Guid CustomFieldId,
-		Guid SystemId,
 		string FieldName,
 		string? Description,
 		int? FieldTypeCode,

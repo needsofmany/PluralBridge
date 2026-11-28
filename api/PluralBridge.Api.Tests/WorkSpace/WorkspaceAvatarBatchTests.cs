@@ -417,7 +417,12 @@ public sealed class WorkspaceAvatarBatchTests
 		Assert.Contains("WHERE a.MemberId = @MemberId", single, StringComparison.Ordinal);
 		Assert.Contains("#GraphEdges", single, StringComparison.Ordinal);
 		Assert.Contains("ge.ChildObjectId = @MemberId", single, StringComparison.Ordinal);
-		Assert.Equal(1, CountOf(single, "EXEC dbo.pb_show_tree_step5_topology_seed_builder"));
+		Assert.Equal(0, CountOf(single, "EXEC dbo.pb_show_tree_step5_topology_seed_builder"));
+		Assert.Contains("SeedRowsDeclarationSql + SeedResultCaptureSql", single, StringComparison.Ordinal);
+		Assert.Equal(1, CountOf(AnchorMemberProfileSave.SeedResultCaptureSql, "EXEC dbo.pb_show_tree_step5_topology_seed_builder"));
+		Assert.Contains("INSERT INTO @SeedRows", AnchorMemberProfileSave.SeedResultCaptureSql, StringComparison.Ordinal);
+		Assert.Contains("INSERT INTO #TopologyEdges", AnchorMemberProfileSave.SeedResultCaptureSql, StringComparison.Ordinal);
+		Assert.Contains("INSERT INTO #SystemEdgeLabels", AnchorMemberProfileSave.SeedResultCaptureSql, StringComparison.Ordinal);
 		Assert.Equal(1, CountOf(single, "EXEC dbo.pb_show_tree_step5_topology_walker"));
 		Assert.Equal(1, CountOf(single, "EXEC dbo.pb_show_tree_step5_graph_expansion"));
 		Assert.DoesNotContain("#RequestedMemberIds", single, StringComparison.Ordinal);
