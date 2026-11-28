@@ -1,3 +1,4 @@
+
 (function () {
   function normalizePath(pathname) {
     if (!pathname || pathname === "/") {
@@ -27,8 +28,15 @@
       "/developer-workflow.html",
       "/simply-plural-shutdown.html",
     ]);
-    var projectsCurrent = inAny(pathname, ["/browser-app.html", "/export-now.html"]);
-    var aboutCurrent = inAny(pathname, ["/about.html", "/contact.html"]);
+    var projectsCurrent = inAny(pathname, [
+      "/browser-app.html",
+      "/export-now.html",
+      "/synthetic-data-generator.html",
+    ]);
+    var aboutCurrent = inAny(pathname, [
+      "/about.html",
+      "/contact.html",
+    ]);
 
     return (
       '<div class="header-inner">' +
@@ -79,6 +87,9 @@
       '<a href="/export-now.html"' +
       (pathname === "/export-now.html" ? ' aria-current="page"' : "") +
       ">Data Recovery Project</a>" +
+      '<a href="/synthetic-data-generator.html"' +
+      (pathname === "/synthetic-data-generator.html" ? ' aria-current="page"' : "") +
+      ">Synthetic Data Generator</a>" +
       "</div>" +
       "</details>" +
       '<details class="nav-menu">' +
